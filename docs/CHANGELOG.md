@@ -1,5 +1,6 @@
 ---
 title: 'Changelog (docs)'
+description: "Product changelog for EdgeQuake releases."
 ---
 
 # Changelog

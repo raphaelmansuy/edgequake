@@ -1,269 +1,237 @@
 ---
-title: 'PDF Ingestion Tutorial'
+title: "Tutorial: PDF ingestion"
+description: Upload a PDF to EdgeQuake, choose a parser backend, track conversion and ingestion progress, cancel or retry, and query the result.
 ---
 
-# PDF Ingestion Tutorial
+In this tutorial you upload a PDF, pick how it is converted to Markdown, follow its progress and query it.
 
-> **Product: v0.23.0** · Contract: [`openapi.snapshot.json`](../../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+**Prerequisites:** the setup from [First RAG app](first-rag-app.md): a running server, a workspace, and the variables `EQ_API` and `WORKSPACE_ID`. The default converter uses a vision model, so you also need a vision-capable chat model (see [Configure LLM providers](../providers/index.md)). The `edgeparse` backend needs no model.
 
-EdgeQuake converts PDFs to Markdown (vision LLM or EdgeParse), then ingests the result into the knowledge graph. This tutorial covers upload, progress, cancel, and query using the **lawful API** (OpenAPI snapshot is SSOT).
+## How a PDF is processed
 
-**Prerequisites**: EdgeQuake running (API `:8080`, WebUI `:3000`). See [Quick Start](/docs/getting-started/quick-start/).
+A PDF goes through two separate background tasks. First it is converted to Markdown. Only after the Markdown is stored does a second task chunk it, extract entities and embed it.
 
-**Time**: ~20 minutes
-
----
-
-## Endpoint cheat sheet
-
-| Goal | Method | Endpoint | Body |
-| ---- | ------ | -------- | ---- |
-| Upload PDF (preferred) | POST | `/api/v1/documents/pdf` | `multipart/form-data` |
-| Upload any file (incl. PDF) | POST | `/api/v1/documents/upload` | `multipart/form-data` |
-| Upload plain text | POST | `/api/v1/documents` | `application/json` only |
-| Poll progress | GET | `/api/v1/documents/pdf/progress/{task_id}` | — |
-| Cancel | POST | `/api/v1/tasks/{task_id}/cancel` | — |
-| Query | POST | `/api/v1/query` | JSON |
-
-**Do not** send `multipart/form-data` to `POST /api/v1/documents` — that route accepts JSON text content only.
-
----
-
-## Two phases: convert ≠ ingest (SPEC-057)
-
-PDF admission enqueues **convert** (`TaskType::PdfProcessing`). After durable markdown is stored and the PDF row is `Completed`, the worker enqueues a separate **ingest** task (`TaskType::Insert`).
-
-```
-┌───────────────────────────────────────────────────────┐
-│ Convert then ingest (SPEC-057)                        │
-│                                                       │
-│  POST /documents/pdf  -->  admit task_id              │
-│              |                                        │
-│              v                                        │
-│  [1] PdfProcessing (convert only)                     │
-│      vision / edgeparse --> markdown                  │
-│      PDF row --> Completed (artifact)                 │
-│              |                                        │
-│              v  markdown barrier                      │
-│  [2] Insert (KG ingest, new lease)                    │
-│      chunk --> extract --> embed --> store            │
-│              |                                        │
-│              v                                        │
-│  document display_status = completed                  │
-└───────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+sequenceDiagram
+  participant C as "Client"
+  participant A as "API"
+  participant P as "Convert task"
+  participant I as "Ingest task"
+  C->>A: "POST /documents/pdf"
+  A-->>C: "pdf_id and task_id"
+  A->>P: "Queue conversion"
+  P->>P: "PDF to Markdown"
+  P->>I: "Markdown stored, queue ingest"
+  I->>I: "Chunk, extract, embed, store"
+  C->>A: "Poll progress with task_id"
+  A-->>C: "display_status completed"
 ```
 
-- PDF `Completed` means **convert finished** — the document may still be `extracting` or `embedding`.
-- Terminal success for querying: document `display_status` = **`completed`** (not `indexed`).
-- Cancel during convert **or** ingest cancels both linked tasks for the same `pdf_id`. See [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md).
+Read it from top to bottom. The upload call returns at once. A PDF row can be `Completed` (converted) while the document is still extracting or embedding, so wait for the document's `display_status` to be `completed` before you query.
 
----
+## 1. Upload a PDF
 
-## Step 1: Upload a PDF
-
-### Default (vision backend)
+Use the dedicated PDF route. It accepts `multipart/form-data`. (`POST /api/v1/documents` accepts JSON text only.)
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/documents/pdf \
-  -H "X-Workspace-ID: default" \
-  -F "file=@/path/to/paper.pdf" \
-  -F "title=Research Paper"
+curl -s -X POST "$EQ_API/api/v1/documents/pdf" \
+  -H "X-Workspace-ID: $WORKSPACE_ID" \
+  -F "file=@paper.pdf" \
+  -F "title=Research Paper" | tee pdf.json | jq '{pdf_id, document_id, status, task_id, estimated_time_seconds}'
+
+export TASK_ID=$(jq -r '.task_id' pdf.json)
 ```
 
-Equivalent generic upload endpoint:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/pdf \
-  -H "X-Workspace-ID: default" \
-  -F "file=@/path/to/paper.pdf" \
-  -F "title=Research Paper"
-```
-
-**Response** (fields that matter):
+Expected output (the route answers `200`):
 
 ```json
 {
-  "pdf_id": "abc-123",
+  "pdf_id": "3b7e...",
   "document_id": null,
   "status": "processing",
   "task_id": "pdf-550e8400-e29b-41d4-a716-446655440000",
-  "track_id": null,
-  "message": "PDF uploaded and processing started",
   "estimated_time_seconds": 120
 }
 ```
 
-| Field | Use |
-| ----- | --- |
-| `task_id` | **Authoritative** progress/cancel identity — subscribe and cancel with this |
-| `track_id` | Optional client correlation echo only — **not** the progress-store key |
-| `pdf_id` | PDF row; use for content/cancel-via-PDF routes |
-| `document_id` | Populated after ingest creates the doc row |
+`estimated_time_seconds` is the server's own estimate. Your time will differ.
 
----
+| Field | Use it for |
+|-------|-----------|
+| `task_id` | Progress and cancel. This is the key for the progress store. |
+| `pdf_id` | The PDF row: content download, retry, cancel and delete routes. |
+| `document_id` | Set after ingestion creates the document row. It can be `null` at first. |
+| `track_id` | Your own correlation ID, echoed back only if you sent one. Do not use it for progress. |
+| `duplicate_of` | Set when the same file was already uploaded. Add `-F force_reindex=true` to process it again. |
 
-## Step 2: Parser backend (`pdf_parser_backend`)
+### Upload fields
 
-Runtime backends (see `PdfParserBackend` in `edgequake-pdf`):
+| Field | Description |
+|-------|-------------|
+| `file` | Required. The PDF bytes. |
+| `title` | Display title. |
+| `metadata` | JSON string with custom data. |
+| `pdf_parser_backend` | `vision`, `edgeparse`, `edgeparse-ocr` or `auto`. |
+| `enable_vision` | Use the vision path (default on). |
+| `vision_provider`, `vision_model` | Override the vision model for this upload. |
+| `vision_reasoning_effort` | Reasoning effort for the vision call. |
+| `force_reindex` | Process again even if the checksum matches. |
+| `track_id` | Your batch correlation ID. |
+| `process_options` | Multimodal processing options. |
 
-| Value | Behavior |
-| ----- | -------- |
-| `vision` (default) | Render pages → vision LLM markdown (`EDGEQUAKE_VISION_PROVIDER` / `EDGEQUAKE_VISION_MODEL`) |
-| `edgeparse` | CPU EdgeParse born-digital extraction (no Tesseract) |
-| `edgeparse-ocr` | EdgeParse + Tesseract raster-table OCR |
-| `auto` | Vision start; SPEC-038 may fast-path EdgeParse when text density allows |
+Upload many PDFs at once with `POST /api/v1/documents/pdf/batch`.
+
+## 2. Choose a parser backend
+
+The backend decides how pages become Markdown.
+
+| Value | What it does | Needs |
+|-------|--------------|-------|
+| `vision` (default) | Renders each page and asks a vision model for Markdown. | A vision-capable model. |
+| `edgeparse` | Extracts text and tables from born-digital PDFs on the CPU. | Nothing extra. |
+| `edgeparse-ocr` | `edgeparse` plus OCR for tables that are images. | Tesseract installed. |
+| `auto` | Starts as `vision`, but may use the fast `edgeparse` path when the PDF has enough text. | A vision model for scanned pages. |
+
+Pick `vision` for scans, handwriting and complex layouts. Pick `edgeparse` for clean digital PDFs when you want speed and no model cost.
+
+EdgeQuake picks the backend from the first source that sets one:
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  A["Upload field"] --> B["Workspace setting"]
+  B --> C["Tenant setting"]
+  C --> D["EDGEQUAKE_PDF_PARSER_BACKEND"]
+  D --> E["Default: vision"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class E eqLlm
+```
+
+Read it left to right and stop at the first box that has a value. Set the workspace default with `PUT /api/v1/workspaces/{id}` and `{"pdf_parser_backend": "edgeparse"}`.
 
 Per-upload override:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/documents/pdf \
-  -H "X-Workspace-ID: default" \
+curl -s -X POST "$EQ_API/api/v1/documents/pdf" \
+  -H "X-Workspace-ID: $WORKSPACE_ID" \
   -F "file=@scanned.pdf" \
-  -F "title=Scanned Book" \
   -F "pdf_parser_backend=vision" \
-  -F "enable_vision=true" \
   -F "vision_provider=ollama" \
-  -F "vision_model=gemma4:latest"
+  -F "vision_model=<your-vision-model>"
 ```
 
-Global default: `EDGEQUAKE_PDF_PARSER_BACKEND=vision|edgeparse|edgeparse-ocr|auto`.
+The vision model comes from the upload fields, then the workspace, then `EDGEQUAKE_VISION_PROVIDER` and `EDGEQUAKE_VISION_MODEL`, then the chat model defaults. Run `GET /api/v1/config/effective` to see what the server will use. More detail: [PDF processing](../deep-dives/pdf-processing.md).
 
-Vision provider resolution chain: per-request fields → `EDGEQUAKE_VISION_*` env → LLM defaults. Mismatch diagnostics: `GET /api/v1/config/effective`. Details: [FAQ — vision configuration](/docs/faq/#how-does-edgequake-decide-which-vision-provider-and-model-to-use).
+## 3. Track progress
 
----
-
-## Step 3: Track progress
-
-### HTTP poll
+Poll with the `task_id`:
 
 ```bash
-TASK_ID="pdf-550e8400-e29b-41d4-a716-446655440000"
-
-curl -s "http://localhost:8080/api/v1/documents/pdf/progress/${TASK_ID}" \
-  -H "X-Workspace-ID: default" | jq .
+curl -s "$EQ_API/api/v1/documents/pdf/progress/$TASK_ID" \
+  -H "X-Workspace-ID: $WORKSPACE_ID" | jq '{filename, overall_percentage, eta_seconds, is_complete, is_failed, document_id}'
 ```
 
-SSE variant: `GET /api/v1/documents/pdf/progress/stream/{task_id}`.
-
-### WebSocket
-
-Connect to the pipeline WebSocket (see OpenAPI / [Pipeline Progress](/docs/deep-dives/pipeline-progress/)). Use **`task_id`** from the upload response — not a client-supplied `track_id` unless you only need batch correlation.
-
-### Document status (UI badges)
-
-List/detail JSON includes SPEC-057 presentation fields:
-
-| Field | Meaning |
-| ----- | ------- |
-| `display_status` | Badge key: `converting`, `extracting`, `embedding`, `completed`, `failed`, **`cancelled`**, … |
-| `ui_phase` | `idle` \| `running` \| `stopping` \| `terminal` — show **Stopping…** when `stopping` |
-
-Prefer `display_status` over re-deriving from raw `status` / `current_stage`.
-
-```bash
-curl -s "http://localhost:8080/api/v1/documents?workspace_id=default" \
-  -H "X-Workspace-ID: default" | jq '.documents[] | {id, display_status, ui_phase}'
-```
-
-**Ready to query** when `display_status` is **`completed`**.
-
----
-
-## Step 4: Cancel (optional)
-
-Canonical cancel:
-
-```bash
-curl -X POST "http://localhost:8080/api/v1/tasks/${TASK_ID}/cancel" \
-  -H "X-Workspace-ID: default"
-```
-
-Also supported: `DELETE /api/v1/documents/pdf/{pdf_id}/cancel`, WebSocket `{ "type": "cancel", "track_id": "..." }` (uses same SSOT). Cancel is **cooperative** — expect a short delay until the in-flight LLM/vision call aborts.
-
-Terminal cancel: `display_status=cancelled`, `ui_phase=terminal`. PDF cancel maps to `PdfProcessingStatus::Cancelled` (**not** `Failed`).
-
-Full semantics: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md).
-
----
-
-## Step 5: Query the content
-
-After `display_status: completed`:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/query \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: default" \
-  -d '{
-    "query": "What are the key findings?",
-    "mode": "hybrid",
-    "top_k": 10
-  }'
-```
-
-**QueryResponse** (no top-level `chunks` / `entities`):
+Expected output:
 
 ```json
 {
-  "answer": "The key findings show that…",
-  "sources": [
-    {
-      "document_id": "doc-uuid",
-      "snippet": "The results demonstrate…",
-      "score": 0.94,
-      "file_path": "Research Paper.pdf"
-    }
-  ],
-  "mode": "hybrid",
-  "stats": {
-    "total_time_ms": 1200,
-    "retrieval_time_ms": 400,
-    "generation_time_ms": 800
-  }
+  "filename": "paper.pdf",
+  "overall_percentage": 42.0,
+  "eta_seconds": 75,
+  "is_complete": false,
+  "is_failed": false,
+  "document_id": null
 }
 ```
 
-Prefer the official SDK: `pip install edgequake-sdk` — see [Python SDK](/docs/sdks/python/).
+A `404` means the progress record is gone (the upload finished) or was never created. Read the document list instead.
 
----
+Other ways to follow progress:
 
-## Configuration reference (multipart fields)
+| Method | Route |
+|--------|-------|
+| Server-sent events | `GET /api/v1/documents/pdf/progress/stream/{task_id}` |
+| WebSocket | `/ws/progress/{task_id}` (no `/api/v1` prefix) |
+| Document list | `GET /api/v1/documents` |
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `file` | file | Required PDF bytes |
-| `title` | string | Display title |
-| `metadata` | JSON string | Custom metadata object |
-| `enable_vision` | bool | Default `true` for vision path |
-| `vision_provider` | string | Override vision LLM provider |
-| `vision_model` | string | Override vision model |
-| `pdf_parser_backend` | `vision` \| `edgeparse` \| `edgeparse-ocr` \| `auto` | Parser backend |
-| `process_options` | string | Multimodal process options tag |
-| `force_reindex` | bool | Re-process duplicate checksum |
-| `track_id` | string | Client batch correlation only |
+Once `document_id` is set, read the document. It is ready to query when `display_status` is `completed`:
 
-Legacy `config={"mode":"Vision",…}` on `/documents/upload` may still appear in older examples; v0.23.0 PDF path uses **`pdf_parser_backend`** + vision env/per-request fields as SSOT.
+```bash
+curl -s "$EQ_API/api/v1/documents/$DOC_ID" -H "X-Workspace-ID: $WORKSPACE_ID" \
+  | jq '{display_status, ui_phase, chunk_count, entity_count, error_message}'
+```
 
----
+The state machine for a PDF document:
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+stateDiagram-v2
+  [*] --> pending
+  pending --> converting
+  converting --> extracting
+  extracting --> embedding
+  embedding --> completed
+  converting --> failed
+  extracting --> failed
+  pending --> cancelled
+  converting --> cancelled
+  extracting --> cancelled
+  failed --> pending: retry
+  completed --> [*]
+```
+
+Read it from the start dot. The middle states are examples of what `display_status` reports while the document runs. The terminal states are `completed`, `failed`, `partial_failure` and `cancelled`. See [Pipeline progress](../deep-dives/pipeline-progress.md) for the full list.
+
+## 4. Cancel or retry
+
+Cancel by task. Cancellation is cooperative, so a call that is already running must finish first. During that time `ui_phase` is `stopping`.
+
+```bash
+curl -s -X POST "$EQ_API/api/v1/tasks/$TASK_ID/cancel" -H "X-Workspace-ID: $WORKSPACE_ID"
+```
+
+Cancelling during conversion or ingestion stops both linked tasks. The final state is `cancelled`, not `failed`. Details: [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md).
+
+Other routes:
+
+| Goal | Route |
+|------|-------|
+| Cancel by PDF ID | `DELETE /api/v1/documents/pdf/{pdf_id}/cancel` |
+| Retry a failed conversion | `POST /api/v1/documents/pdf/{pdf_id}/retry` |
+| Re-run extraction on a document | `POST /api/v1/documents/reprocess` with `{"document_id": "<id>"}` |
+| Re-convert from the stored PDF (spends vision tokens) | Same call with `"mode": "full"` |
+| Download the converted Markdown | `GET /api/v1/documents/{id}/download/markdown` |
+| Download the original PDF | `GET /api/v1/documents/{id}/download/original` |
+
+## 5. Query the content
+
+```bash
+curl -s -X POST "$EQ_API/api/v1/query" \
+  -H "Content-Type: application/json" \
+  -H "X-Workspace-ID: $WORKSPACE_ID" \
+  -d '{"query": "What are the key findings?", "include_references": true}' \
+  | jq '{answer, mode, sources: [.sources[] | {document_id, file_path, snippet, start_line, end_line}]}'
+```
+
+PDF chunks carry page and line positions, so `sources` can point back to the place in the Markdown. To search only one document, add `"document_filter": {"document_ids": ["<id>"]}`.
 
 ## Troubleshooting
 
 | Symptom | Check | Fix |
-| ------- | ----- | --- |
-| 400 on upload to `/documents` | Wrong content-type | Use `/documents/pdf` or `/documents/upload` with multipart |
-| Stuck on `converting` | Vision provider down | `curl http://localhost:11434/api/tags` or set `pdf_parser_backend=edgeparse` |
-| Vision errors / empty markdown | Provider/model mismatch | `GET /api/v1/config/effective` → Vision area |
-| `display_status: failed` | Backend logs | `/tmp/edgequake-backend.log`; re-upload or retry |
-| Cancel shows `stopping` long | Cooperative abort | Normal — wait for terminal `cancelled` |
-| Query returns generic answer | Doc not `completed` | Poll until `display_status=completed` |
-
-More: [PDF Processing Deep Dive](/docs/deep-dives/pdf-processing/) · [Common Issues](/docs/troubleshooting/common-issues/#pdf-extraction-issues)
-
----
+|---------|-------|-----|
+| `400` on upload to `/documents` | Wrong route. | Send multipart PDFs to `/documents/pdf`. |
+| Stays in `converting` | Vision model unreachable. | Start the provider, or upload with `pdf_parser_backend=edgeparse`. |
+| Empty or garbled Markdown | Wrong model or a scanned file on `edgeparse`. | Use `vision`; check `GET /api/v1/config/effective`. |
+| `failed` | Read `error_message`. | Retry, or see [Common issues](../troubleshooting/common-issues.md). |
+| Answers ignore the PDF | Document is not `completed` yet. | Wait for `display_status` to be `completed`. |
 
 ## Next steps
 
-1. [Document Ingestion](/docs/tutorials/document-ingestion/) — text upload and pipeline stages
-2. [Pipeline Progress](/docs/deep-dives/pipeline-progress/) — WebSocket/SSE details
-3. [Document Upload Quick Reference](/docs/api-reference/document-upload-quick-reference/) — all upload endpoints
-4. [REST API Reference](/docs/api-reference/rest-api/) — full contract
+- [Document ingestion](document-ingestion.md): chunking and entity types for all documents.
+- [Document upload quick reference](../api-reference/document-upload-quick-reference.md)
+- [REST API reference](../api-reference/rest-api.md)

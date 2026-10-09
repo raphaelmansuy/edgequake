@@ -56,8 +56,11 @@
 //!
 //! @implements OODA-226: Unified provider resolution module
 
+pub mod connection_factory;
+pub mod connection_store;
 pub mod credentials;
 mod error;
+pub mod probe;
 mod resolver;
 
 pub use credentials::{

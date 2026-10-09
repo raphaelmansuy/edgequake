@@ -1,213 +1,116 @@
 ---
-title: 'Entity Extraction'
+title: Entity Extraction
+description: How EdgeQuake uses a language model to turn text chunks into entities and relationships, including types, normalization, and gleaning.
 ---
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Released: v0.32.2** · Contract: [OpenAPI snapshot](../../edgequake_webui/openapi/openapi.snapshot.json) · Ops: [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md)
 
 # Entity Extraction
 
-> **Entity extraction uses LLMs to identify people, organizations, concepts, and
-> their relationships from unstructured text.**
+Entity extraction is the step that reads your text and writes the knowledge graph. A language model finds the entities (people, organizations, concepts) and the relationships between them. This page is for developers who want to know what the model is asked to do and how the result is cleaned up.
 
----
+## What happens to each chunk
 
-## What is Entity Extraction?
-
-Entity extraction is the process of:
-
-1. **Identifying** meaningful entities in text (people, places, concepts)
-2. **Classifying** them by type (PERSON, ORGANIZATION, CONCEPT)
-3. **Describing** their attributes based on context
-4. **Connecting** them through explicit relationships
-
-EdgeQuake uses LLMs as "knowledge engineers" — transforming unstructured text into structured knowledge.
-
----
-
-## The Role of LLMs
-
-Traditional NLP used rule-based extractors or trained models. EdgeQuake uses LLMs because:
-
-| Approach        | Pros                               | Cons                     |
-| --------------- | ---------------------------------- | ------------------------ |
-| **Rules**       | Fast, predictable                  | Brittle, domain-specific |
-| **Trained NER** | Accurate for known types           | Requires training data   |
-| **LLM-based**   | Domain-agnostic, rich descriptions | Slower, requires API     |
-
-LLM extraction provides:
-
-- **Zero-shot extraction**: Works on any domain without training
-- **Rich descriptions**: Not just labels, but context
-- **Relationship inference**: Understands connections, not just entities
-
----
-
-## Entity Types
-
-EdgeQuake's default entity types:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    ENTITY TYPES                                  │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  PERSON        │ People, characters, individuals                 │
-│  ORGANIZATION  │ Companies, institutions, teams                  │
-│  LOCATION      │ Places, regions, coordinates                    │
-│  EVENT         │ Occurrences, meetings, milestones               │
-│  CONCEPT       │ Ideas, theories, methods                        │
-│  TECHNOLOGY    │ Tools, systems, platforms                       │
-│  PRODUCT       │ Items, services, offerings                      │
-│  OTHER         │ Fallback for uncategorized                      │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    A["Text chunk"] --> B["Prompt with entity types"]
+    B --> C["Model reply as JSON"]
+    C --> D["Parse and repair"]
+    D --> E["Normalize names"]
+    E --> F["Apply type and size limits"]
+    F --> G["Entities and relations"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class C eqLlm
 ```
 
-**Custom types**: You can configure domain-specific types like `PROTEIN`, `DISEASE`, or `LEGAL_TERM`.
+Read the chart from the left. The model sees one chunk at a time. EdgeQuake parses the reply, fixes common formatting problems, normalizes names, and applies limits before anything is stored.
 
----
+Each extracted item has:
 
-## The Extraction Process
+- **Entity:** name, type, and a description based on the text.
+- **Relationship:** source entity, target entity, keywords, and a description.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                EXTRACTION PIPELINE                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌──────────┐                                                   │
-│  │   TEXT   │  "Dr. Sarah Chen leads the AI team at Quantum     │
-│  │  CHUNK   │   Dynamics Lab. Her research on neural networks   │
-│  │          │   has been cited 500 times."                      │
-│  └────┬─────┘                                                   │
-│       │                                                         │
-│       v                                                         │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │                    LLM EXTRACTION                        │   │
-│  │  System: "You are a Knowledge Graph Specialist..."       │   │
-│  │  User: "Extract entities and relationships from..."      │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│       │                                                         │
-│       v                                                         │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │                    RAW OUTPUT (Tuples)                   │   │
-│  │  entity<|#|>SARAH_CHEN<|#|>PERSON<|#|>Lead researcher... │   │
-│  │  entity<|#|>QUANTUM_LAB<|#|>ORG<|#|>Research institution │   │
-│  │  entity<|#|>NEURAL_NETWORKS<|#|>CONCEPT<|#|>ML approach  │   │
-│  │  relation<|#|>SARAH_CHEN<|#|>QUANTUM_LAB<|#|>works_at... │   │
-│  │  <|COMPLETE|>                                            │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│       │                                                         │
-│       v                                                         │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │                    PARSED RESULT                         │   │
-│  │  Entities: 3                                             │   │
-│  │  Relationships: 3                                        │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+A model is used because it works on any domain without training data and writes useful descriptions. The cost is speed and the need for a provider. A provider can be a local one, such as Ollama.
 
----
+## Entity types
 
-## Relationship Extraction
+If you set nothing, the model may use these 12 types:
 
-Relationships connect entities with typed edges:
+| Type | Use for |
+|------|---------|
+| `PERSON` | People and characters |
+| `CREATURE` | Animals and fictional creatures |
+| `ORGANIZATION` | Companies, institutions, teams |
+| `LOCATION` | Places and regions |
+| `EVENT` | Meetings, incidents, milestones |
+| `CONCEPT` | Ideas, theories |
+| `METHOD` | Techniques and procedures |
+| `CONTENT` | Documents, books, articles |
+| `DATA` | Datasets, metrics, figures |
+| `ARTIFACT` | Tools, products, systems |
+| `NATURALOBJECT` | Natural objects and substances |
+| `OTHER` | Anything that fits no other type |
 
-```
-┌───────────────┐        WORKS_AT         ┌───────────────┐
-│  SARAH_CHEN   │────────────────────────▶│  QUANTUM_LAB  │
-│   (PERSON)    │                         │ (ORGANIZATION)│
-└───────────────┘                         └───────────────┘
-        │
-        │ RESEARCHES
-        │
-        v
-┌───────────────┐
-│NEURAL_NETWORKS│
-│   (CONCEPT)   │
-└───────────────┘
+You can replace this list for a workspace with `entity_types`, up to 20 entries. Use domain terms such as `PROTEIN` or `LEGAL_TERM`. By default the list is strict: a type outside it is remapped to a listed type. Set `entity_types_strict` to `false` to let new types through. A workspace can also restrict relation types. PDF figures can become entity nodes too; see [PDF processing](../deep-dives/pdf-processing.md).
+
+## Name normalization
+
+Before storage, every name is normalized to upper case with underscores. This makes "John Doe" and "john doe" the same node, so entities merge across documents.
+
+| Raw name | Stored as |
+|----------|-----------|
+| `John Doe` | `JOHN_DOE` |
+| `john doe` | `JOHN_DOE` |
+| `the Company` | `COMPANY` |
+| `John's team` | `JOHN_TEAM` |
+
+The rules: trim, Unicode NFC, lower-case, drop a leading "the", "a" or "an", drop possessive endings, then join words with `_`. Very short numbers and opaque IDs (UUIDs, long hashes) are rejected as names. The single implementation is `normalize_entity_name` in the storage crate.
+
+## Output format
+
+The production extractor asks the model for a JSON object. The parser also repairs fenced, truncated or preamble-wrapped replies. A tuple format that uses `<|#|>` as the field delimiter and `<|COMPLETE|>` as the end marker exists in the `SOTAExtractor` and the hybrid parser. The API pipeline does not use it by default.
+
+## Gleaning: a second pass
+
+A model can miss entities. Gleaning asks it again, listing what it already found.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    A["Pass 1: extract"] --> B{"More passes allowed?"}
+    B -->|yes| C["Pass 2: what did you miss?"]
+    C --> D["Merge new entities"]
+    B -->|no| E["Done"]
+    D --> E
 ```
 
-Each relationship includes:
+Read the chart from the top. Gleaning is on by default with `max_gleaning` set to 1, and the number of extra passes is capped. Local providers (Ollama, LM Studio and similar) have gleaning off by default, because each pass costs time on a small machine. Set it per upload with `enable_gleaning` and `max_gleaning`. This page makes no claim about how much recall gleaning adds; measure it on your own data. See [Gleaning](../deep-dives/gleaning.md).
 
-- **Source entity**: Starting node
-- **Target entity**: Ending node
-- **Type/Keywords**: Relationship category
-- **Description**: Context from the text
+## Limits per reply
 
----
+To keep one chunk from flooding the graph, a reply is capped at 40 entities and 100 rows in total by default. Change the caps with `EDGEQUAKE_MAX_EXTRACTION_ENTITIES` and `EDGEQUAKE_MAX_EXTRACTION_RECORDS`, or per upload with `extract_max_entities` and `extract_max_records`.
 
-## Entity Normalization
+## Decision mode (preview)
 
-Before storing, entity names are normalized to prevent duplicates:
+A small local model can answer closed questions instead of running this chat-model pass. The default stays the chat-model extractor. See [Decision extraction](decision-extraction.md).
 
-| Raw Input       | Normalized Output |
-| --------------- | ----------------- |
-| `"John Doe"`    | `JOHN_DOE`        |
-| `"john doe"`    | `JOHN_DOE`        |
-| `"the Company"` | `COMPANY`         |
-| `"John's team"` | `JOHN_TEAM`       |
+## Cancel
 
-**Why normalize?**
+You can cancel a task during extraction. See [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md).
 
-- Prevents "John Doe" and "john doe" becoming separate nodes
-- Enables entity merging across documents
-- Improves query accuracy
+## Learn more
 
-See [normalizer.rs](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pipeline/src/prompts/normalizer.rs) for implementation.
+- [Knowledge graph](knowledge-graph.md): where the results are stored.
+- [Hybrid retrieval](hybrid-retrieval.md): how queries use them.
+- [LightRAG algorithm](../deep-dives/lightrag-algorithm.md)
+- [Entity normalization](../deep-dives/entity-normalization.md)
 
----
+## Source code
 
-## Tuple vs JSON Format
-
-EdgeQuake uses tuple-delimited format by default:
-
-```
-entity<|#|>NAME<|#|>TYPE<|#|>DESCRIPTION
-```
-
-**Why not JSON?**
-
-| Aspect           | Tuple Format         | JSON Format                |
-| ---------------- | -------------------- | -------------------------- |
-| Streaming        | ✅ Line-by-line      | ❌ Need complete structure |
-| Partial recovery | ✅ Parse valid lines | ❌ All or nothing          |
-| LLM reliability  | ✅ Fewer errors      | ❌ Escaping issues         |
-
----
-
-## Gleaning: Multi-Pass Extraction
-
-LLMs sometimes miss entities. Gleaning performs a second pass:
-
-```
-Pass 1: "Extract entities from this text..."
-Result: SARAH_CHEN, QUANTUM_LAB
-
-Pass 2: "What entities did you miss? Already found: SARAH_CHEN, QUANTUM_LAB"
-Result: NEURAL_NETWORKS, AI_RESEARCH (missed in first pass)
-```
-
-Research shows 1-2 gleaning iterations improve recall by 15-25%. Cancel mid-extract via task cancel — see [Ingestion cancel & fairness](/docs/ingestion-cancel-and-fairness.md).
-
-**Decision mode (preview):** a local model can answer closed questions instead of this chat-LLM pass. The default stays the LLM extractor. See [Decision extraction](/docs/concepts/decision-extraction/).
-
-**PDF multimodal:** After vision convert, figure/chart assets can become entity nodes linked to text extractions — see [PDF Processing](/docs/deep-dives/pdf-processing/).
-
----
-
-## Learn More
-
-- **Decision extraction (preview)**: [Decision extraction](/docs/concepts/decision-extraction/)
-- **Where entities are stored**: [Knowledge Graph](/docs/concepts/knowledge-graph/)
-- **Algorithm details**: [LightRAG Algorithm](/docs/deep-dives/lightrag-algorithm/)
-- **How queries use entities**: [Hybrid Retrieval](/docs/concepts/hybrid-retrieval/)
-
----
-
-## Source Code
-
-- **Extraction logic**: [extractor.rs](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pipeline/src/extractor.rs)
-- **Prompts**: [entity_extraction.rs](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pipeline/src/prompts/entity_extraction.rs)
-- **Normalization**: [normalizer.rs](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pipeline/src/prompts/normalizer.rs)
-- **Parsing**: [parser.rs](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pipeline/src/prompts/parser.rs)
+- [Extractors](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-pipeline/src/extractor)
+- [Prompts and parsers](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-pipeline/src/prompts)
+- [Name normalizer](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-storage/src/entity_id.rs)

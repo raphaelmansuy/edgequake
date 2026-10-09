@@ -1,5 +1,6 @@
 ---
 title: "Ingestion cancel, fairness, and restart semantics"
+description: "How document ingestion cancel, restart, and fair scheduling work."
 ---
 
 # Ingestion cancel, fairness, and restart semantics

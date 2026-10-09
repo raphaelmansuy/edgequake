@@ -1,5 +1,6 @@
 ---
 title: "Rust SDK — quickstart"
+description: "Rust SDK quickstart."
 ---
 
 # Rust SDK — quickstart

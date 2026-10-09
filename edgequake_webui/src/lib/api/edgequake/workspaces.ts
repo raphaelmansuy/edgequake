@@ -260,7 +260,15 @@ export interface UpdateWorkspaceRequest {
   /** SPEC-109: workspace default reasoning effort. */
   default_reasoning_effort?: string;
   /** SPEC-109: merge llm_roles metadata (extract/query effort). */
-  llm_roles?: Record<string, { reasoning_effort?: string | null }>;
+  llm_roles?: Record<
+    string,
+    {
+      provider?: string | null;
+      model?: string | null;
+      reasoning_effort?: string | null;
+      connection_id?: string | null;
+    }
+  >;
   /**
    * SPEC-117 extract budget. Pass `"inherit"` / `"none"` / `""` to clear.
    */

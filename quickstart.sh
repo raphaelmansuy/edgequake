@@ -28,6 +28,38 @@ LLM_MODEL=""
 EMBED_PROVIDER=""
 EMBED_MODEL=""
 COMPOSE_CMD=""
+NONINTERACTIVE=0
+QS_PROVIDER=""
+QS_BASE_URL=""
+QS_MODEL=""
+QS_EMBED_MODEL=""
+
+for _arg in "$@"; do
+  case "$_arg" in
+    --yes|-y) NONINTERACTIVE=1 ;;
+    --provider) : ;;
+    --base-url) : ;;
+    --model) : ;;
+    --embed-model) : ;;
+    --help|-h)
+      printf "Usage: quickstart.sh [--yes] [--provider ollama|openai|omlx|anthropic|lmstudio] [--base-url URL] [--model ID] [--embed-model ID]\n"
+      exit 0
+      ;;
+  esac
+done
+_prev=""
+for _arg in "$@"; do
+  case "$_prev" in
+    --provider) QS_PROVIDER="$_arg" ;;
+    --base-url) QS_BASE_URL="$_arg" ;;
+    --model) QS_MODEL="$_arg" ;;
+    --embed-model) QS_EMBED_MODEL="$_arg" ;;
+  esac
+  _prev="$_arg"
+done
+if [ -z "$QS_PROVIDER" ] && [ -n "${EDGEQUAKE_LLM_PROVIDER:-}" ]; then
+  QS_PROVIDER="$EDGEQUAKE_LLM_PROVIDER"
+fi
 
 # ════════════════════════════════════════════════════════════════════════════
 # § Colour / TUI design tokens  (ADR-005)
@@ -229,16 +261,11 @@ check_prerequisites() {
   fi
   ui_ok "Compose: $($COMPOSE_CMD version --short 2>/dev/null || echo 'v1')"
 
-  # /dev/tty — required for the interactive wizard  (ADR-004)
-  if [ ! -e /dev/tty ]; then
+  # /dev/tty — required for the interactive wizard unless --yes (SPEC-163)
+  if [ "$NONINTERACTIVE" != "1" ] && [ ! -e /dev/tty ]; then
     ui_blank
     ui_fail "No interactive terminal detected (/dev/tty is not accessible)."
-    ui_info  "The setup wizard requires an interactive terminal."
-    ui_info  "For automated installs, use environment variables directly:"
-    ui_blank
-    printf   '    EDGEQUAKE_LLM_PROVIDER=openai \\\n'
-    printf   '    OPENAI_API_KEY=sk-... \\\n'
-    printf   "    %s -f %s up -d\n" "$COMPOSE_CMD" "$COMPOSE_FILE"
+    ui_info  "Re-run with --yes --provider ollama|openai|omlx|... or set env vars."
     ui_blank
     exit 1
   fi
@@ -379,13 +406,25 @@ choose_provider() {
   fi
   ui_blank
 
+  if [ "$NONINTERACTIVE" = "1" ] && [ -n "$QS_PROVIDER" ]; then
+    LLM_PROVIDER="$QS_PROVIDER"
+    ui_ok "Provider (flag): ${C_BOLD}${LLM_PROVIDER}${C_RESET}"
+    return
+  fi
+
   ui_menu "Which LLM provider do you want to use?" \
-    "OpenAI   — cloud API (GPT-5.4 family) · requires OPENAI_API_KEY" \
-    "Ollama   — fully local, free to run   · requires Ollama daemon on port 11434"
+    "OpenAI   — cloud API · requires OPENAI_API_KEY" \
+    "Ollama   — local OpenAI-shaped daemon on :11434" \
+    "oMLX     — Apple Silicon local server on :9050" \
+    "LM Studio — local OpenAI-shaped on :1234" \
+    "Anthropic — cloud or Anthropic-shaped local (ANTHROPIC_BASE_URL)"
 
   case "$MENU_RESULT" in
     1) LLM_PROVIDER="openai" ;;
     2) LLM_PROVIDER="ollama" ;;
+    3) LLM_PROVIDER="omlx" ;;
+    4) LLM_PROVIDER="lmstudio" ;;
+    5) LLM_PROVIDER="anthropic" ;;
   esac
 
   ui_ok "Provider: ${C_BOLD}${LLM_PROVIDER}${C_RESET}"
@@ -398,13 +437,35 @@ choose_provider() {
 choose_models() {
   ui_section "Model Selection"
 
+  if [ "$NONINTERACTIVE" = "1" ]; then
+    LLM_MODEL="${QS_MODEL:-${EDGEQUAKE_LLM_MODEL:-}}"
+    EMBED_PROVIDER="${EDGEQUAKE_EMBEDDING_PROVIDER:-$LLM_PROVIDER}"
+    EMBED_MODEL="${QS_EMBED_MODEL:-${EDGEQUAKE_EMBEDDING_MODEL:-}}"
+    if [ "$LLM_PROVIDER" = "openai" ] && [ -z "$LLM_MODEL" ]; then
+      LLM_MODEL="gpt-5.4-mini"
+    fi
+    if [ "$LLM_PROVIDER" = "openai" ] && [ -z "$EMBED_MODEL" ]; then
+      EMBED_MODEL="text-embedding-3-small"
+      EMBED_PROVIDER="openai"
+    fi
+    if [ "$LLM_PROVIDER" = "ollama" ] && [ -z "$LLM_MODEL" ]; then
+      LLM_MODEL="gemma4:latest"
+    fi
+    if [ "$LLM_PROVIDER" = "ollama" ] && [ -z "$EMBED_MODEL" ]; then
+      EMBED_MODEL="embeddinggemma"
+      EMBED_PROVIDER="ollama"
+    fi
+    ui_ok "Models (flag/env): LLM=${LLM_MODEL:-default} embed=${EMBED_MODEL:-default}"
+    return
+  fi
+
   if [ "$LLM_PROVIDER" = "openai" ]; then
 
     ui_menu "Which OpenAI model for LLM inference?" \
       "gpt-5.4-mini   Recommended — fast, affordable, reliable JSON output   (in:\$0.75 out:\$4.50 per MTok)" \
       "gpt-5.4-nano     Ultra-cheap, great for testing, direct output         (in:\$0.20 out:\$1.25 per MTok)" \
       "gpt-5.4          Premium quality, large context                        (in:\$2.50 out:\$15.00 per MTok)" \
-      "gpt-5.4-mini     Fast with larger context window                       (in:\$0.75 out:\$4.50 per MTok)"
+      "gpt-5.4          Premium quality, large context                        (in:\$2.50 out:\$15.00 per MTok)"
     # NOTE: gpt-5-* and gpt-5-nano/-mini are reasoning-only models; they
     # consume all completion tokens for chain-of-thought, leaving none for
     # JSON output. Always prefer gpt-5.4-* models for entity extraction.
@@ -412,7 +473,6 @@ choose_models() {
       1) LLM_MODEL="gpt-5.4-mini" ;;
       2) LLM_MODEL="gpt-5.4-nano" ;;
       3) LLM_MODEL="gpt-5.4"      ;;
-      4) LLM_MODEL="gpt-5.4-mini" ;;
     esac
 
     ui_menu "Which OpenAI model for embeddings?" \
@@ -538,6 +598,28 @@ start_stack() {
   export EDGEQUAKE_LLM_MODEL="$LLM_MODEL"
   export EDGEQUAKE_EMBEDDING_PROVIDER="$EMBED_PROVIDER"
   export EDGEQUAKE_EMBEDDING_MODEL="$EMBED_MODEL"
+  if [ -n "$QS_BASE_URL" ]; then
+    case "$LLM_PROVIDER" in
+      omlx) export OMLX_HOST="$QS_BASE_URL"; export OMLX_BASE_URL="$QS_BASE_URL" ;;
+      openai|openai-compatible)
+        export OPENAI_BASE_URL="$QS_BASE_URL"
+        export OPENAI_COMPATIBLE_BASE_URL="$QS_BASE_URL"
+        ;;
+      anthropic) export ANTHROPIC_BASE_URL="$QS_BASE_URL" ;;
+      lmstudio) export LMSTUDIO_HOST="$QS_BASE_URL" ;;
+      ollama) export OLLAMA_HOST="$QS_BASE_URL" ;;
+    esac
+  fi
+  if [ -z "${JWT_SECRET:-}" ]; then
+    JWT_SECRET="$(openssl rand -base64 32 2>/dev/null || date | cksum | awk '{print $1}')"
+    export JWT_SECRET
+    ui_info "Generated JWT_SECRET for this stack"
+  fi
+  if [ -z "${EDGEQUAKE_SECRETS_KEY:-}" ]; then
+    EDGEQUAKE_SECRETS_KEY="$(openssl rand -base64 32 2>/dev/null || date | cksum | awk '{print $1$1}')"
+    export EDGEQUAKE_SECRETS_KEY
+    ui_info "Generated EDGEQUAKE_SECRETS_KEY for connection encryption"
+  fi
 
   # WHY: EDGEQUAKE_VISION_PROVIDER defaults to the same provider as the main LLM.
   # This is the First-Principle correct behaviour: the vision LLM (PDF → Markdown)
@@ -662,12 +744,16 @@ main() {
   ui_banner
   check_prerequisites
   download_compose
-  handle_existing_install
+  if [ "$NONINTERACTIVE" != "1" ]; then
+    handle_existing_install
+  fi
   choose_provider
   choose_models
-  validate_provider
+  if [ "$NONINTERACTIVE" != "1" ]; then
+    validate_provider
+  fi
   start_stack
   print_summary
 }
 
-main
+main "$@"

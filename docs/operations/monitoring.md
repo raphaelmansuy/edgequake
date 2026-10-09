@@ -1,561 +1,277 @@
 ---
-title: 'Monitoring Guide'
+title: "Monitoring guide"
+description: "Health endpoints, Prometheus metrics, logs, tracing, alerts and PostgreSQL checks for running EdgeQuake in production."
 ---
 
-> **Product: v0.26.5** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+# Monitoring guide
 
-# Monitoring Guide
+This page is for operators who watch EdgeQuake in production. It shows what to probe, what to scrape, what to alert on, and how to read the answer when something is wrong. For slow systems also read [Performance tuning](performance-tuning.md).
 
-> **Observability for EdgeQuake Deployments**
+## What EdgeQuake exposes
 
-This guide covers monitoring, logging, and alerting for EdgeQuake in production environments.
-
----
-
-## Observability Stack
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                   OBSERVABILITY OVERVIEW                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐          │
-│  │  EdgeQuake  │───▶│   Logs      │───▶│ Log Aggr.   │          │
-│  │   Server    │    │  (stdout)   │    │ (Loki/ELK)  │          │
-│  └──────┬──────┘    └─────────────┘    └─────────────┘          │
-│         │                                                       │
-│         ├─────────▶ /health endpoints                           │
-│         │                                                       │
-│         ├─────────▶ GET /metrics (Prometheus, live)             │
-│         │              edgequake_http_* / edgequake_query_*     │
-│         │              OTLP traces: optional `--features otel` │
-│         │                                                       │
-│         └─────────▶ PostgreSQL metrics                          │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  A["EdgeQuake API"] --> H["Probes: /live /ready /health"]
+  A --> M["Prometheus: /metrics"]
+  A --> L["Logs on stdout"]
+  A --> T["Traces: OTLP, Langfuse"]
+  A --> Q["Queue view: /pipeline/queue-metrics"]
+  H --> LB["Load balancer, Kubernetes"]
+  M --> P["Prometheus, Grafana"]
+  L --> LG["Loki or ELK"]
+  T --> J["Jaeger, Langfuse"]
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class Q eqStore
 ```
 
----
+How to read it: each box on the left of an arrow is a signal. The box it points to is the usual consumer. Pick the signals you need. Probes and logs need no extra setup.
 
-## Health Endpoints
+## Health endpoints
 
-EdgeQuake provides built-in health endpoints:
+| Endpoint | Meaning | HTTP status | Use it for |
+|----------|---------|-------------|-----------|
+| `GET /live` | The process is up. | 200 | Liveness probe and the Docker healthcheck. |
+| `GET /ready` | The API can take traffic. | 200, or 503 with blockers | Readiness probe and load balancer. |
+| `GET /health` | Detailed status. | Always 200 | Dashboards and people. |
+| `GET /api/v1/pipeline/queue-metrics` | Ingest backlog and fairness. | 200 | Capacity checks. |
 
-| Endpoint      | Purpose             | Response                  |
-| ------------- | ------------------- | ------------------------- |
-| `GET /health` | Basic health        | `{ "status": "healthy", "version": "0.23.0", ... }` |
-| `GET /ready`  | Readiness check     | JSON blockers; **503** when not ready |
-| `GET /live`   | Kubernetes liveness | Process check             |
-| `GET /api/v1/pipeline/queue-metrics` | Ingest backpressure + fairness | Pending depth, park waiters, store contention |
+`/live`, `/ready` and `/health` need no login. `/metrics` and `/api/v1/pipeline/queue-metrics` do when auth is on. Give Prometheus an API key or bearer token.
 
-### Basic Health Check
+### /health
 
 ```bash
-curl http://localhost:8080/health
+curl -s http://localhost:8080/health | jq .
 ```
 
 ```json
 {
   "status": "healthy",
-  "version": "0.23.0",
+  "version": "0.32.2",
   "storage_mode": "postgresql",
   "workspace_id": "default",
-  "components": {
-    "kv_storage": true,
-    "vector_storage": true,
-    "graph_storage": true,
-    "llm_provider": true
-  },
+  "components": {"kv_storage": true, "vector_storage": true, "graph_storage": true, "llm_provider": true},
   "llm_provider_name": "ollama"
 }
 ```
 
-`/health` is **liveness** (HTTP 200 while degraded, `status: "degraded"`). Use `/ready` for traffic gating. A `build_info` block (git hash, timestamp) is attached when the binary carries build metadata.
+`status` is `healthy` or `degraded`. Extra blocks appear when relevant: `schema` (latest applied migration, pending count), `providers`, `operational`, `capabilities`, `attribution`, `build_info`, and since v0.33.0 `security_posture`.
 
-### Readiness Check
-
-```bash
-curl http://localhost:8080/ready
-```
-
-**200 — ready for traffic:**
-
-```json
-{
-  "ready": true,
-  "blockers": [],
-  "operator_action": null
-}
-```
-
-**503 — not ready** (`ReadinessResponse` with actionable blockers):
-
-```json
-{
-  "ready": false,
-  "blockers": [
-    "store_contention_critical(pool_util=Some(0.92),quarantine=6)"
-  ],
-  "operator_action": "Scale DB pool or reduce ingest; inspect compensation quarantine DLQ"
-}
-```
-
-Common `/ready` blockers (v0.23.0):
-
-| Blocker prefix | Cause | Operator action |
-| -------------- | ----- | ----------------- |
-| Migration / M038 / pgvector | Schema or index not ready | Run migrations; see [PostgreSQL migration guide](../../edgequake/docs/migrations/postgres-triple-track-spec042.md) |
-| `storage_ping_failed` | KV / vector / graph ping timeout | Check `DATABASE_URL`, pool saturation |
-| `task_queue_critical` | Pending depth above critical threshold | Scale `WORKER_THREADS` or reduce ingest rate |
-| `store_contention_critical` | Pool util or compensation quarantine SLO breached | Tune pool; inspect `compensation_quarantine:{document_id}:*` KV keys |
-
-Env thresholds for store contention: `EDGEQUAKE_DB_POOL_UTIL_WARN=0.75`, `EDGEQUAKE_DB_POOL_UTIL_CRITICAL=0.90`, `EDGEQUAKE_COMPENSATION_QUARANTINE_WARN=1`, `EDGEQUAKE_COMPENSATION_QUARANTINE_CRITICAL=5`.
-
-### Interactive read path vs `/ready`
-
-`/health` may stay HTTP 200 with `"status": "degraded"`. The WebUI shows that as **Busy** and, while degraded, polls every 5s so the pill clears without a reload.
-
-A separate HTTP **503** `read_path_busy` is the catalog deadline (documents, document search, tenants, workspace list). It carries `details.reason` and `Retry-After`. It does not mean `/ready` failed. Operator notes: [Read path busy](/docs/troubleshooting/common-issues/#10-documents-page-read-path-busy).
-
-### Queue Metrics
-
-```bash
-curl http://localhost:8080/api/v1/pipeline/queue-metrics | jq .
-```
-
-Key fields (SPEC-057):
+`security_posture` shows what the API decided at boot:
 
 | Field | Meaning |
-| ----- | ------- |
-| `pressure` | `normal` \| `elevated` \| `critical` — mirrors `/ready` queue gate |
-| `tenant_park_waiters` | Tasks parked on fairness semaphore (expected under local LLM clamp) |
-| `cancel_intent_count` / `cancel_intent_total` | Cooperative cancel in flight / lifetime |
-| `max_tasks_per_tenant` | Effective cap (local providers clamp to 1 unless overridden) |
-| `store_contention.level` | `normal` \| `elevated` \| `critical` |
-| `store_contention.db_pool_utilization` | Active pool utilization |
-| `store_contention.compensation_quarantine_total` | Merge cleanup failures (not a park issue) |
+|-------|---------|
+| `auth_enabled`, `dev_mode` | Authentication and open mode. |
+| `secrets_key_configured` | `EDGEQUAKE_SECRETS_KEY` is set. |
+| `jwt_secret_is_default` | You are still on the shipped JWT secret. Fix before production. |
+| `rate_limit_enabled` | Rate limiting is on. |
+| `swagger_enabled` | Swagger UI is served. |
 
-Prometheus: `edgequake_compensation_quarantine_total` tracks quarantine events. High `tenant_park_waiters` with low quarantine = fairness working; rising quarantine = AGE/pgvector delete errors — see [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md).
+The web UI shows `degraded` as a "Busy" pill and polls every 5 seconds until it clears.
 
----
-
-## Logging
-
-### Log Format
-
-EdgeQuake uses structured JSON logging via the `tracing` crate:
+### /ready
 
 ```json
-{
-  "timestamp": "2024-01-15T10:30:00.000Z",
-  "level": "INFO",
-  "target": "edgequake_api::handlers::documents",
-  "message": "Document uploaded successfully",
-  "fields": {
-    "document_id": "doc_123",
-    "workspace_id": "ws_456",
-    "duration_ms": 1234
-  }
-}
+{ "ready": false, "blockers": ["store_contention_critical(pool_util=Some(0.92),quarantine=6)"], "operator_action": "Scale DB pool or reduce ingest; inspect compensation quarantine DLQ" }
 ```
 
-### Log Levels
+A ready API returns 200 with `"ready": true` and an empty `blockers` list.
 
-| Level | `RUST_LOG` Setting | Use Case              |
-| ----- | ------------------ | --------------------- |
-| Error | `error`            | Critical failures     |
-| Warn  | `warn`             | Degraded but working  |
-| Info  | `info`             | Production operations |
-| Debug | `debug`            | Development debugging |
-| Trace | `trace`            | Detailed tracing      |
+| Blocker | Cause | Fix |
+|---------|-------|-----|
+| `migration_038`, `migration_042`, `missing_hnsw_index`, `pgvector_cve_floor`, `eq_id_schema`, `migration_092` and other `migration_NNN` | A schema or index step is missing or degraded. | Run `edgequake migrate` (see [Upgrading](upgrading.md)). For `pgvector_cve_floor` upgrade pgvector to 0.8.2 or newer. |
+| `storage_ping_failed(...)` | KV, vector or graph ping failed or timed out. | Check `DATABASE_URL` and pool saturation. |
+| `task_queue_critical(pending=N)` | Backlog above the critical level. | Raise `WORKER_THREADS` or slow ingestion. |
+| `store_contention_critical(...)` | Pool use above 0.90 or compensation quarantine above 5. | Resize pools. Inspect the quarantine (see [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md)). |
+| `wave2_ann_probe_error(...)` or a missing catalog ANN index | Vector index check failed. | `POST /api/v1/admin/ann/warmup`, or fix pgvector access. |
 
-### Recommended Production Settings
+In `EDGEQUAKE_SCHEMA_GATE=wait` mode, `/ready` returns 503 until migrate finishes (see [Upgrading](upgrading.md#4-what-happens-at-api-boot)).
+
+A separate HTTP 503 with code `read_path_busy` means the catalog read deadline expired (documents, search, tenants, workspaces). It carries `Retry-After` and does not mean `/ready` failed. See [common issues](../troubleshooting/common-issues.md).
+
+### Queue metrics
 
 ```bash
-# Production
-RUST_LOG="edgequake=info,tower_http=info,sqlx=warn"
-
-# Development
-RUST_LOG="edgequake=debug,tower_http=debug"
-
-# Troubleshooting
-RUST_LOG="edgequake=trace,sqlx=debug"
+curl -s http://localhost:8080/api/v1/pipeline/queue-metrics | jq .
 ```
 
-### Component-Specific Logging
+| Field | Meaning |
+|-------|---------|
+| `pressure` | `normal`, `elevated` or `critical`. Matches the `/ready` queue gate. |
+| `tenant_park_waiters` | Tasks waiting on the fairness limit. Expected with local LLMs. |
+| `cancel_intent_count`, `cancel_intent_total` | Cancels in flight, and the lifetime total. |
+| `max_tasks_per_tenant` | Effective cap. Local providers clamp it to 1. |
+| `store_contention.level`, `.db_pool_utilization`, `.compensation_quarantine_total` | Database pressure and failed merge clean-ups. |
 
-```bash
-# Pipeline debugging
-RUST_LOG="edgequake_pipeline=debug"
+Many waiters with a quiet quarantine is fairness doing its job. A rising quarantine points at AGE or pgvector delete errors.
 
-# Query engine debugging
-RUST_LOG="edgequake_query=debug"
+## Prometheus metrics
 
-# API request tracing
-RUST_LOG="tower_http=debug"
+Scrape `GET /metrics`. Metric names start with `edgequake_`.
 
-# Database query logging
-RUST_LOG="sqlx=debug"
-```
+| Metric | Type | Labels | Meaning |
+|--------|------|--------|---------|
+| `edgequake_http_requests_total` | counter | `method`, `path`, `status` | HTTP requests. IDs in paths become `:id`. |
+| `edgequake_http_request_duration_seconds` | histogram | `method`, `path` | HTTP latency. |
+| `edgequake_query_requests_total`, `edgequake_query_duration_seconds` | counter, histogram | `mode`, `outcome` | RAG queries. |
+| `edgequake_llm_requests_total`, `edgequake_llm_request_duration_seconds` | counter, histogram | `provider`, `operation`, `outcome` | LLM calls. |
+| `edgequake_document_processing_total`, `edgequake_document_processing_duration_seconds` | counter, histogram | stage and outcome | Ingestion work. |
+| `edgequake_ingestion_failures_total` | counter | `failure_class`, `workspace` | Failed documents. |
+| `edgequake_task_queue_pending`, `_processing`, `_failed` | gauge | none | Task queue sizes. |
+| `edgequake_db_pool_connections` | gauge | `role`, `state` (`total`, `idle`, `active`, `max`) | Pool use per role. |
+| `edgequake_storage_errors_total`, `edgequake_pipeline_errors_total` | counter | `category`, `error_code` | Errors by class. |
+| `edgequake_rate_limit_exceeded_total` | counter | `scope` | Requests answered 429. |
+| `edgequake_compensation_quarantine_total` | counter | `kind` | Merge clean-up failures. |
+| `edgequake_vector_ann_index_missing` | gauge | none | Vector tables without an ANN index. |
+| `edgequake_storage_drift_violations_total`, `edgequake_storage_drift_critical` | counter, gauge | none | Storage drift checks. |
 
----
+The list grows with each release. `GET /metrics` is the authority. Quality metrics (`edgequake_faithfulness_*`, `edgequake_citation_*`) exist for answer checks.
 
-## Log Aggregation
-
-### Loki + Grafana
-
-Docker Compose addition:
-
-```yaml
-services:
-  loki:
-    image: grafana/loki:2.9.0
-    ports:
-      - "3100:3100"
-    volumes:
-      - ./loki-config.yaml:/etc/loki/local-config.yaml
-
-  promtail:
-    image: grafana/promtail:2.9.0
-    volumes:
-      - /var/log:/var/log
-      - ./promtail-config.yaml:/etc/promtail/config.yml
-    command: -config.file=/etc/promtail/config.yml
-
-  grafana:
-    image: grafana/grafana:10.0.0
-    ports:
-      - "3001:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-```
-
-### ELK Stack
-
-Filebeat configuration:
-
-```yaml
-filebeat.inputs:
-  - type: container
-    paths:
-      - "/var/lib/docker/containers/*/*.log"
-    processors:
-      - add_kubernetes_metadata:
-          host: ${NODE_NAME}
-          matchers:
-            - logs_path:
-                logs_path: "/var/lib/docker/containers/"
-
-output.elasticsearch:
-  hosts: ["elasticsearch:9200"]
-```
-
----
-
-## Key Metrics to Monitor
-
-### Application Metrics
-
-| Metric                | Source     | Alert Threshold |
-| --------------------- | ---------- | --------------- |
-| Request latency       | Logs       | p99 > 2s        |
-| Error rate            | Logs       | > 1%            |
-| Active connections    | PostgreSQL | > 80% pool      |
-| Background task queue | Logs       | > 100 pending   |
-
-### PostgreSQL Metrics
-
-| Metric           | Query                  | Alert Threshold |
-| ---------------- | ---------------------- | --------------- |
-| Connection count | `pg_stat_activity`     | > 80% max       |
-| Cache hit ratio  | `pg_stat_database`     | < 95%           |
-| Index usage      | `pg_stat_user_indexes` | Unused indexes  |
-| Table bloat      | `pgstattuple`          | > 30%           |
-
-### LLM Provider Metrics
-
-| Metric      | Source       | Alert Threshold  |
-| ----------- | ------------ | ---------------- |
-| Token usage | Provider API | Budget threshold |
-| Error rate  | Logs         | > 5%             |
-| Latency     | Logs         | > 10s            |
-| Rate limits | Provider API | Near limit       |
-
----
-
-## Alerting Rules
-
-### Prometheus Alerting (Example)
+### Example alert rules
 
 ```yaml
 groups:
   - name: edgequake
     rules:
-      - alert: HighErrorRate
-        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.01
+      - alert: EdgeQuakeHighErrorRate
+        expr: sum(rate(edgequake_http_requests_total{status=~"5.."}[5m])) / sum(rate(edgequake_http_requests_total[5m])) > 0.01
         for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: High error rate detected
+        labels: { severity: critical }
+        annotations: { summary: "More than 1% of requests fail" }
 
-      - alert: SlowQueries
-        expr: histogram_quantile(0.99, query_duration_seconds_bucket) > 2
+      - alert: EdgeQuakeSlowRequests
+        expr: histogram_quantile(0.99, sum by (le) (rate(edgequake_http_request_duration_seconds_bucket[5m]))) > 2
         for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: Query latency above 2s
+        labels: { severity: warning }
+        annotations: { summary: "p99 latency above 2 seconds" }
 
-      - alert: DatabaseConnectionsHigh
-        expr: pg_stat_activity_count > 80
+      - alert: EdgeQuakePoolNearlyFull
+        expr: max by (role) (edgequake_db_pool_connections{state="active"} / on(role) edgequake_db_pool_connections{state="max"}) > 0.8
         for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: PostgreSQL connections high
+        labels: { severity: warning }
+        annotations: { summary: "A connection pool is above 80% use" }
+
+      - alert: EdgeQuakeQueueBacklog
+        expr: edgequake_task_queue_pending > 100
+        for: 15m
+        labels: { severity: warning }
+        annotations: { summary: "More than 100 tasks waiting" }
+
+      - alert: EdgeQuakeLlmFailures
+        expr: sum(rate(edgequake_llm_requests_total{outcome="failure"}[5m])) / sum(rate(edgequake_llm_requests_total[5m])) > 0.05
+        for: 10m
+        labels: { severity: warning }
+        annotations: { summary: "More than 5% of LLM calls fail" }
 ```
 
----
+Also alert on the blackbox probe: `/ready` returning non-200 for 2 minutes. Pool and quarantine thresholds come from `EDGEQUAKE_DB_POOL_UTIL_WARN` (0.75), `EDGEQUAKE_DB_POOL_UTIL_CRITICAL` (0.90), `EDGEQUAKE_COMPENSATION_QUARANTINE_WARN` (1) and `_CRITICAL` (5).
 
-## Dashboard Examples
+## Logs
 
-### Key Panels for Grafana
+Logs go to stdout through the `tracing` crate. The default format is plain text. Set `EDGEQUAKE_LOG_FORMAT=json` for structured logs. The Helm chart sets it.
 
-1. **Request Overview**
-   - Requests per second
-   - Error rate
-   - Latency percentiles (p50, p95, p99)
+| `RUST_LOG` | Use |
+|------------|-----|
+| `edgequake=info,tower_http=info,sqlx=warn` | Production. |
+| `edgequake=debug,tower_http=debug` | Development. |
+| `edgequake_pipeline=debug` | Ingestion. |
+| `edgequake_query=debug` | Query engine. |
+| `sqlx=debug` | SQL statements. |
 
-2. **Document Processing**
-   - Documents indexed per minute
-   - Processing time distribution
-   - Queue depth
+Ship stdout to Loki, ELK or your cloud logger with your normal agent (Promtail, Filebeat, Fluent Bit). No EdgeQuake-specific config is needed. Docker: `docker compose logs -f api`.
 
-3. **Query Performance**
-   - Query latency by mode
-   - Context retrieval time
-   - LLM generation time
+## Tracing
 
-4. **Resource Usage**
-   - CPU usage
-   - Memory usage
-   - PostgreSQL connections
-   - Disk I/O
-
-### Sample Query Panel
-
-```
-# Loki query for request latency
-{app="edgequake"} |= "request completed" | json | duration_ms > 1000
-```
-
----
-
-## Distributed tracing (SPEC-018)
-
-EdgeQuake ships with OpenTelemetry-compatible tracing via `edgequake-observability`:
+OpenTelemetry tracing comes from `edgequake-observability`.
 
 | Capability | How |
 |------------|-----|
-| HTTP spans | `http_request` with `request_id`, `trace_id`, semantic error fields |
-| Pipeline spans | `pipeline_chunk_extraction`, `sota_query_pipeline` |
-| OTLP export | Build with `--features otel` or Docker `ENABLE_OTEL=true` |
-| Correlation | `X-Request-ID` + W3C `traceparent` (API + WebUI) |
-| Error context | `ErrorEvent` levelled logs + API `details.diagnostics` |
+| HTTP spans | `http_request` with `request_id` and `trace_id`. |
+| Pipeline spans | `pipeline_chunk_extraction`, `sota_query_pipeline`. |
+| OTLP export | Set `OTEL_EXPORTER_OTLP_ENDPOINT` or `EDGEQUAKE_OTEL_ENABLED=1` on an image built with OTEL (the Docker build arg `ENABLE_OTEL`, default true in the source compose). |
+| Correlation | `X-Request-ID` and W3C `traceparent`. |
+| Langfuse | Set `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY`. See [Langfuse 3.1.x](langfuse-3.1.md). |
 
-**Docker + Jaeger (one command):**
+Jaeger on the source Compose stack:
 
 ```bash
 cd edgequake/docker
-docker compose -f docker-compose.yml -f docker-compose.observability.yml \
-  --profile observability up --build
+docker compose -f docker-compose.yml -f docker-compose.observability.yml --profile observability up --build
 # Jaeger UI: http://localhost:16686
 ```
 
-**Production env:**
+Production settings: `EDGEQUAKE_LOG_FORMAT=json`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4317`, `OTEL_SERVICE_NAME=edgequake-api`. Operator guide: [OBSERVABILITY.md](../OBSERVABILITY.md).
 
-```bash
-export EDGEQUAKE_LOG_FORMAT=json
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4317
-export RUST_LOG=edgequake_api=info,edgequake_storage=warn
-```
+## Check configuration with doctor
 
-Full operator guide: [OBSERVABILITY.md](../OBSERVABILITY.md) · Langfuse 3.1.x: [langfuse-3.1.md](langfuse-3.1.md)
+`edgequake doctor` (and `--json`) checks `DATABASE_URL`, the secrets key, `JWT_SECRET` and the bind host without starting the server. `POST /api/v1/providers/test` tests a provider before you save it. `GET /health` and `GET /api/v1/models/health` probe the live provider.
 
----
-
-## PostgreSQL Monitoring
-
-### Essential Views
+## PostgreSQL checks
 
 ```sql
--- Active connections
-SELECT count(*) as connections,
-       state,
-       wait_event_type
-FROM pg_stat_activity
-WHERE datname = 'edgequake'
-GROUP BY state, wait_event_type;
+-- Connections by state
+SELECT state, wait_event_type, count(*) FROM pg_stat_activity
+WHERE datname = 'edgequake' GROUP BY 1, 2;
+
+-- Connections per EdgeQuake pool role
+SELECT application_name, count(*) FROM pg_stat_activity
+WHERE application_name LIKE 'edgequake:%' GROUP BY 1;
 
 -- Long-running queries
-SELECT pid,
-       now() - pg_stat_activity.query_start AS duration,
-       query
+SELECT pid, now() - query_start AS duration, left(query, 120) AS query
 FROM pg_stat_activity
-WHERE (now() - pg_stat_activity.query_start) > interval '5 minutes'
-  AND state != 'idle';
+WHERE state <> 'idle' AND now() - query_start > interval '5 minutes';
 
--- Table sizes
-SELECT schemaname,
-       relname,
-       pg_size_pretty(pg_total_relation_size(relid)) as total_size
-FROM pg_catalog.pg_statio_user_tables
-ORDER BY pg_total_relation_size(relid) DESC
-LIMIT 10;
+-- Largest tables
+SELECT relname, pg_size_pretty(pg_total_relation_size(relid)) AS size
+FROM pg_catalog.pg_statio_user_tables ORDER BY pg_total_relation_size(relid) DESC LIMIT 10;
 
--- Index usage
-SELECT schemaname,
-       relname,
-       indexrelname,
-       idx_scan,
-       idx_tup_read
-FROM pg_stat_user_indexes
-ORDER BY idx_scan ASC
-LIMIT 10;
+-- Vector indexes
+SELECT indexname, pg_size_pretty(pg_relation_size(indexname::regclass)) AS size
+FROM pg_indexes WHERE indexdef LIKE '%hnsw%' OR indexdef LIKE '%ivfflat%';
+
+-- Applied schema
+SELECT max(version) FROM public._sqlx_migrations WHERE success;
 ```
 
-### Vector Storage Metrics
-
-```sql
--- Vector index stats (pgvector)
-SELECT indexname,
-       pg_size_pretty(pg_relation_size(indexname::regclass)) as size
-FROM pg_indexes
-WHERE indexdef LIKE '%vector%';
-
--- Chunk count per workspace
-SELECT workspace_id,
-       count(*) as chunk_count
-FROM chunks
-GROUP BY workspace_id
-ORDER BY chunk_count DESC;
-```
-
-### Graph Storage Metrics
-
-```sql
--- Entity count
-SELECT count(*) FROM ag_catalog.cypher('edgequake_graph', $$
-  MATCH (n) RETURN count(n)
-$$) AS (count agtype);
-
--- Relationship count
-SELECT count(*) FROM ag_catalog.cypher('edgequake_graph', $$
-  MATCH ()-[r]->() RETURN count(r)
-$$) AS (count agtype);
-```
-
----
+Graph size: `SELECT * FROM ag_catalog.cypher('<graph>', $$ MATCH (n) RETURN count(n) $$) AS (count agtype);` Use the graph name from `ag_catalog.ag_graph`. Alert on PostgreSQL itself (connections above 80% of `max_connections`, cache hit ratio under 95%, replication lag) with your usual exporter.
 
 ## Troubleshooting
 
-### High Memory Usage
-
-1. Check background task queue
-2. Review connection pool size
-3. Analyze PostgreSQL memory settings
-
-```bash
-# Check process memory
-ps aux | grep edgequake
-
-# Check PostgreSQL memory
-psql -c "SHOW shared_buffers; SHOW work_mem;"
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["Alert fired"] --> B{"/ready returns 200?"}
+  B -->|No| C["Read blockers in the JSON"]
+  B -->|Yes| D{"Errors or slow?"}
+  D -->|Slow| E["Check pool use and queue depth"]
+  D -->|Errors| F["Check LLM failure rate and logs"]
+  C --> G["Fix the named blocker"]
+%% eq-classes
+classDef eqBad fill:#FEE2E2,stroke:#EF4444,color:#7F1D1D
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class D,F eqBad
+class E eqStore
 ```
 
-### Slow Queries
+How to read it: start with `/ready`. It names its own cause. If it is green, split the problem into slow versus failing.
 
-1. Enable query logging
+| Symptom | Check | Fix |
+|---------|-------|-----|
+| High memory | `edgequake_task_queue_processing`, pool sizes, `shared_buffers`, `work_mem` | Lower `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` or workers. |
+| Slow queries | `RUST_LOG=edgequake_query=debug,sqlx=debug`. PostgreSQL `log_min_duration_statement = 1000`. | See [Performance tuning](performance-tuning.md). |
+| LLM errors | `edgequake_llm_requests_total{outcome="failure"}`, provider status page, `edgequake doctor`, `POST /api/v1/providers/test`. | Check keys, quotas and `OLLAMA_HOST`. |
+| Documents stuck | `/api/v1/pipeline/queue-metrics`, logs. | See [Local extract reliability](local-extract-reliability.md). |
 
-```bash
-RUST_LOG="edgequake_query=debug,sqlx=debug"
-```
+## Backups
 
-2. Check PostgreSQL slow query log
+EdgeQuake has no built-in backup job. Back up PostgreSQL with `pg_dump -Fc` or volume snapshots, and also keep `EDGEQUAKE_SECRETS_KEY`. Test restores. Alert from your backup tool (for example when the last success is older than 24 hours).
 
-```sql
--- Enable slow query logging
-ALTER SYSTEM SET log_min_duration_statement = 1000;  -- 1 second
-SELECT pg_reload_conf();
-```
+## See also
 
-### LLM Errors
-
-1. Check provider status
-2. Review rate limits
-3. Verify API keys
-
-```bash
-# Test OpenAI connectivity
-curl https://api.openai.com/v1/models \
-  -H "Authorization: Bearer $OPENAI_API_KEY"
-
-# Test Ollama connectivity
-curl http://localhost:11434/api/tags
-```
-
----
-
-## Backup Monitoring
-
-### PostgreSQL Backups
-
-```bash
-# Check last backup time
-pg_dump --version-only edgequake
-
-# Verify backup size
-ls -lh /backups/edgequake-*.sql.gz
-```
-
-### Backup Alert Rule
-
-```yaml
-- alert: BackupTooOld
-  expr: time() - backup_last_success_timestamp > 86400
-  for: 1h
-  labels:
-    severity: critical
-  annotations:
-    summary: No successful backup in 24 hours
-```
-
----
-
-## Summary
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                   MONITORING CHECKLIST                           │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  ✅ Health endpoints configured for load balancer               │
-│  ✅ Structured logging enabled                                   │
-│  ✅ Log aggregation set up (Loki/ELK)                           │
-│  ✅ Key metrics identified and dashboarded                      │
-│  ✅ Alert rules defined for critical conditions                 │
-│  ✅ PostgreSQL monitoring enabled                               │
-│  ✅ LLM provider usage tracked                                  │
-│  ✅ Backup verification automated                               │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## See Also
-
-- [Deployment Guide](/docs/operations/deployment/) - Production deployment
-- [Configuration Reference](/docs/operations/configuration/) - All settings
-- [Troubleshooting Guide](/docs/troubleshooting/common-issues/) - Problem solving
+- [Deployment](deployment.md)
+- [Configuration](configuration.md)
+- [Troubleshooting guide](../troubleshooting/common-issues.md)

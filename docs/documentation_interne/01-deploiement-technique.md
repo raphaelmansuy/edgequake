@@ -2,6 +2,7 @@
 title: "EdgeQuake — Documentation technique de déploiement"
 version: "0.26.4"
 audience: "Architectes, ingénieurs infrastructure, RSSI"
+description: "Historical internal note: technical deployment (French)."
 ---
 
 # EdgeQuake — Documentation technique de déploiement

@@ -1,6 +1,9 @@
-# Keycloak quickstart
+---
+title: Keycloak quickstart
+description: Run EdgeQuake with the shipped Keycloak on one machine, create tenants, sign in, then move to a production HTTPS setup.
+---
 
-Runs EdgeQuake + the shipped Keycloak (realm `edgequake`, Keycloak >= 26.8.0) on one machine.
+This page runs EdgeQuake and the shipped Keycloak (realm `edgequake`, Keycloak 26.8.0 or later) on one machine, then lists the settings for a production HTTPS setup.
 
 ## 1. One-time host setup
 
@@ -103,7 +106,3 @@ as the page that starts `GET /api/v1/auth/oidc/login`. Allow Keycloak to
 
 Helm overlay: [values-sso-keycloak.yaml.example](../../../deploy/kubernetes/helm/edgequake/values-sso-keycloak.yaml.example).
 Env table: [env-reference.md](env-reference.md). Gates: [production-hardening.md](production-hardening.md).
-
-**Public demo** (`https://demo.edgequake.com`) is **password login only**. v0.30.0
-does not set `EDGEQUAKE_OIDC_ENABLED` on that host. `GET /api/v1/auth/sso/providers`
-stays `[]` until an operator enables OIDC.

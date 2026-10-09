@@ -1,952 +1,332 @@
 ---
-title: 'Extended API Reference'
+title: Extended API Reference
+description: Tasks, progress streams, lifecycle states, pipeline and queue metrics, costs, tenants, workspaces, async v2 jobs, admin routes and the Ollama emulation for EdgeQuake v0.32.x.
 ---
 
 # Extended API Reference
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+This page covers the operational side of the API: background tasks, live progress, pipeline health, cost tracking, tenants and workspaces, and the Ollama-compatible endpoints. It is for developers who build dashboards, automate ingestion, or manage multi-tenant setups. Read [REST API](rest-api.md#conventions) first for auth, headers and error format.
 
-> **Additional Endpoints for Tasks, Pipeline, Costs, and Lineage**
+All paths are under `/api/v1` unless noted. Examples use `http://localhost:8080`.
 
-This document covers advanced API endpoints not included in the main [REST API Reference](/docs/api-reference/rest-api/). Schemas and Try-it-out: [`openapi.snapshot.json`](../../edgequake_webui/openapi/openapi.snapshot.json) and [`/swagger-ui/`](http://localhost:8080/swagger-ui/).
+## Lifecycle
 
----
+A **task** is a unit of background work (an upload, a PDF conversion, a delete). A **document** has its own status that follows the task through the pipeline stages.
 
-## Table of Contents
+Task states, from `TaskStatus` in the task crate:
 
-- [Ollama Emulation API](#ollama-emulation-api)
-- [Tasks API](#tasks-api)
-- [WebSocket Progress](#websocket-progress)
-- [Pipeline API](#pipeline-api)
-- [Cost Tracking API](#cost-tracking-api)
-- [Lineage API](#lineage-api)
-- [Tenants API](#tenants-api)
-- [Advanced Document Endpoints](#advanced-document-endpoints)
-
----
-
-## Ollama Emulation API
-
-EdgeQuake emulates the Ollama API, enabling compatibility with tools like OpenWebUI.
-
-### Base URL: `/api` (not `/api/v1`)
-
-### GET /api/version
-
-Get Ollama-compatible version.
-
-```bash
-curl http://localhost:8080/api/version
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+stateDiagram-v2
+    [*] --> pending
+    pending --> processing: worker claims
+    pending --> cancelled: cancel
+    processing --> indexed: success
+    processing --> failed: error
+    processing --> cancelled: cancel
+    failed --> pending: retry
+    indexed --> [*]
+    cancelled --> [*]
 ```
 
-**Response**:
+Read it left to right. A task starts `pending`, a worker moves it to `processing`, and it ends as `indexed`, `failed` or `cancelled`. Only `failed` tasks can be retried, and a retry puts the task back to `pending`. Cancel works on `pending` and `processing` tasks.
+
+Document statuses show finer steps. The stage names below are what `current_stage` and `status` report.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+stateDiagram-v2
+    [*] --> pending
+    pending --> converting: PDF only
+    pending --> chunking
+    converting --> chunking
+    chunking --> extracting
+    extracting --> embedding
+    embedding --> indexing
+    indexing --> projecting
+    projecting --> completed
+    chunking --> failed
+    extracting --> failed
+    embedding --> failed
+    pending --> cancelled
+    extracting --> cancelled
+    completed --> [*]
+    failed --> [*]
+    cancelled --> [*]
+```
+
+Read it as the usual path (pending to completed) with failures and cancels branching off. The diagram shows the common transitions. Cancel can also happen from other active stages. `partial_failure` means the document was processed but with problems (for example, no entities were found). Terminal states are `completed` (also reported as `indexed`), `partial_failure`, `failed` and `cancelled`. For badges, prefer the server-computed `display_status` and `ui_phase` on each document.
+
+PDF ingestion has two tasks. First `pdf_processing` converts pages to Markdown (PDF progress phases: `upload`, `pdf_conversion`, `chunking`, `embedding`, `extraction`, `graph_storage`; each phase is `pending`, `active`, `complete`, `failed` or `skipped`). Then an `insert` task ingests the Markdown.
+
+## Tasks
+
+Task types: `upload`, `insert`, `scan`, `reindex`, `pdf_processing`, `knowledge_injection`, `deletion`, `batch_deletion`, `workspace_wipe`.
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /tasks` | List. Query: `status`, `task_type`, `page`, `page_size`, `sort`, `order`. |
+| `GET /tasks/{track_id}` | One task (404 if unknown or in another workspace) |
+| `POST /tasks/{track_id}/cancel` | Cancel (canonical). 200, 404, 409 when already finished. |
+| `POST /tasks/{track_id}/retry` | Retry a failed task. 409 if the task is not `failed`. |
+| `GET /documents/track/{track_id}` | All documents that share a client `track_id`, with `status_summary` |
+
+```bash
+curl -s "http://localhost:8080/api/v1/tasks?status=processing&page=1&page_size=20" \
+  -H "X-Workspace-ID: $WORKSPACE_ID"
+```
 
 ```json
 {
-  "version": "0.10.x"
-}
-```
-
-### GET /api/tags
-
-List available models (Ollama format).
-
-```bash
-curl http://localhost:8080/api/tags
-```
-
-**Response**:
-
-```json
-{
-  "models": [
+  "tasks": [
     {
-      "name": "gemma4:latest",
-      "model": "gemma4:latest",
-      "modified_at": "2024-01-15T10:30:00Z",
-      "size": 12000000000,
-      "digest": "sha256:...",
-      "details": {
-        "format": "gguf",
-        "family": "gemma",
-        "parameter_size": "12B",
-        "quantization_level": "Q4_K_M"
-      }
-    }
-  ]
-}
-```
-
-### GET /api/ps
-
-List running model processes.
-
-```bash
-curl http://localhost:8080/api/ps
-```
-
-**Response**:
-
-```json
-{
-  "models": [
-    {
-      "name": "gemma4:latest",
-      "model": "gemma4:latest",
-      "size": 7200000000,
-      "digest": "sha256:...",
-      "expires_at": "2024-01-15T11:30:00Z"
-    }
-  ]
-}
-```
-
-### POST /api/generate
-
-Generate text completion (Ollama format).
-
-```bash
-curl -X POST http://localhost:8080/api/generate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gemma4:latest",
-    "prompt": "Why is the sky blue?",
-    "stream": false
-  }'
-```
-
-**Response** (non-streaming):
-
-```json
-{
-  "model": "gemma4:latest",
-  "created_at": "2024-01-15T10:30:00Z",
-  "response": "The sky appears blue because...",
-  "done": true,
-  "context": [1, 2, 3],
-  "total_duration": 1200000000,
-  "load_duration": 100000000,
-  "prompt_eval_count": 10,
-  "prompt_eval_duration": 50000000,
-  "eval_count": 100,
-  "eval_duration": 1000000000
-}
-```
-
-### POST /api/chat
-
-Chat completion (Ollama format).
-
-```bash
-curl -X POST http://localhost:8080/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gemma4:latest",
-    "messages": [
-      {"role": "user", "content": "Hello!"}
-    ],
-    "stream": false
-  }'
-```
-
-**Response**:
-
-```json
-{
-  "model": "gemma4:latest",
-  "created_at": "2024-01-15T10:30:00Z",
-  "message": {
-    "role": "assistant",
-    "content": "Hello! How can I help you today?"
-  },
-  "done": true,
-  "total_duration": 800000000,
-  "eval_count": 15
-}
-```
-
----
-
-## Tasks API
-
-Background task management for long-running ingestion. Path parameter is **`track_id`** (server task identity), not an opaque internal id.
-
-**Delivery model (SPEC-057 P1):** Postgres task rows are the delivery SSOT. Workers wake (channel or ~2s poll) → `claim_next` (`FOR UPDATE SKIP LOCKED`) → lease (`EDGEQUAKE_TASK_LEASE_TTL_SECS`, default 120s) → `refresh_lease` heartbeat every 60s. Fairness park **releases** the claim before waiting on a tenant permit. See [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md#restart-semantics-spec-057-p1-claim--lease).
-
-### GET /api/v1/tasks
-
-List tasks (tenant/workspace scoped via headers).
-
-**Query Parameters**:
-
-| Parameter | Type    | Default | Description       |
-| --------- | ------- | ------- | ----------------- |
-| `status`  | string  | all     | Filter by status  |
-| `limit`   | integer | 50      | Max results       |
-| `offset`  | integer | 0       | Pagination offset |
-
-**Task status values**: `pending`, `processing`, `completed`, `failed`, `cancelled`.
-
-```bash
-curl http://localhost:8080/api/v1/tasks?status=processing \
-  -H "X-Tenant-ID: tenant-uuid" \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-**Task types (v0.23.0):** `pdf_processing` (convert only), `insert` (KG ingest), and legacy insert paths for text/file admission.
-
-### GET /api/v1/tasks/{track_id}
-
-Get task row + metadata for a single track.
-
-```bash
-curl http://localhost:8080/api/v1/tasks/pdf-550e8400-e29b-41d4-a716-446655440000 \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-### POST /api/v1/tasks/{track_id}/cancel
-
-**Canonical cancel** (FEAT-0562). All cancel entry points converge here:
-
-1. Task row → `Cancelled` (terminal; no auto-retry)
-2. `CancellationRegistry` signals in-flight work
-3. Document KV → `cancelled` + `failure_class=cancelled`
-4. PDF row (when linked) → `Cancelled` (SPEC-057 — **not** `Failed`)
-5. Pending / fairness-parked copies of the same `track_id` are dropped
-
-Also supported: `DELETE /api/v2/workspaces/{id}/jobs/{job_id}`, `DELETE /api/v1/documents/pdf/{pdf_id}/cancel`, `POST /api/v1/pipeline/cancel`, WebSocket `{ "type": "cancel", "track_id": "..." }`.
-
-```bash
-curl -X POST http://localhost:8080/api/v1/tasks/pdf-550e8400-e29b-41d4-a716-446655440000/cancel \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-Cancel is **cooperative** — expect a short delay until the current LLM/vision round-trip aborts. UI should show **Stopping…** (`ui_phase=stopping`) until terminal. Full SSOT: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md).
-
-### POST /api/v1/tasks/{track_id}/retry
-
-Retry a failed task (409 if not retry-eligible).
-
-```bash
-curl -X POST http://localhost:8080/api/v1/tasks/track-uuid/retry \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-### GET /api/v1/documents/track/{track_id}
-
-List documents uploaded under a client batch `track_id` (correlation — not the progress key for PDF uploads; use response `task_id`).
-
-```bash
-curl http://localhost:8080/api/v1/documents/track/batch-correlation-id \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
----
-
-## WebSocket Progress
-
-Real-time ingestion and PDF progress (SPEC-048). Subscribe using the server **`task_id`** from upload responses (`pdf-<uuid>` for PDF).
-
-| Channel | Path | Scope |
-| ------- | ---- | ----- |
-| Global pipeline | `ws://localhost:8080/ws/pipeline/progress` | All pipeline events (ingest, delete, batch) |
-| Per-track filtered | `ws://localhost:8080/ws/progress/{track_id}` | Single upload (PDF page progress, snapshots) |
-
-**Client → server cancel** on per-track WebSocket:
-
-```json
-{ "type": "cancel", "track_id": "pdf-550e8400-e29b-41d4-a716-446655440000" }
-```
-
-**REST alternatives:**
-
-| Purpose | Endpoint |
-| ------- | -------- |
-| Ingest progress (poll) | `GET /api/v1/ingestion/{track_id}/progress` |
-| Ingest progress (batch) | `POST /api/v1/ingestion/progress` |
-| PDF progress (poll) | `GET /api/v1/documents/pdf/progress/{track_id}` |
-| PDF progress (SSE) | `GET /api/v1/documents/pdf/progress/stream/{track_id}` |
-
-See [Pipeline Progress deep dive](/docs/deep-dives/pipeline-progress/).
-
----
-
-## Pipeline API
-
-Pipeline management and queue monitoring.
-
-### GET /api/v1/pipeline/status
-
-Get current pipeline status.
-
-```bash
-curl http://localhost:8080/api/v1/pipeline/status \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-**Response**:
-
-```json
-{
-  "status": "running",
-  "active_tasks": 3,
-  "queue_depth": 12,
-  "workers": {
-    "total": 4,
-    "busy": 3,
-    "idle": 1
-  },
-  "rates": {
-    "documents_per_minute": 2.5,
-    "chunks_per_minute": 45,
-    "embeddings_per_minute": 120
-  }
-}
-```
-
-### POST /api/v1/pipeline/cancel
-
-Cancel all registered in-flight tasks in scope (same cancel chain as task cancel + doc KV sync). Returns idle if nothing to cancel.
-
-```bash
-curl -X POST http://localhost:8080/api/v1/pipeline/cancel \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-### DELETE /api/v1/documents/pdf/{pdf_id}/cancel
-
-PDF-scoped cancel: task cancel + PDF row → `Cancelled` + doc KV sync. Cancels linked **convert and ingest** tasks for the same `pdf_id` when both are pending/processing.
-
-```bash
-curl -X DELETE http://localhost:8080/api/v1/documents/pdf/{pdf_id}/cancel \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-409 when PDF is already terminal. See [convert → ingest](../ingestion-cancel-and-fairness.md#convert-then-ingest-spec-057-p2).
-
-### GET /api/v1/pipeline/queue-metrics
-
-Queue visibility for Pipeline Monitor (FEAT-0570). Tenant/workspace filtered.
-
-```bash
-curl http://localhost:8080/api/v1/pipeline/queue-metrics \
-  -H "X-Tenant-ID: tenant-uuid" \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-**Key fields (OpenAPI `QueueMetricsResponse`):**
-
-| Field | Meaning |
-| ----- | ------- |
-| `pending_count`, `processing_count` | Queue depth |
-| `pressure` | `normal` \| `elevated` \| `critical` (scale workers when critical) |
-| `tenant_park_waiters` | Tasks waiting for tenant fairness permit (expected under local LLM clamp) |
-| `max_tasks_per_tenant` | Fairness cap (~¾ of `WORKER_THREADS`; local providers clamp to 1) |
-| `cancel_intent_count`, `cancel_intent_total` | Cancel registry observability |
-| `store_contention` | Nested SLO: `db_pool_utilization`, `compensation_quarantine_total`, `level` |
-
-**Store contention (SPEC-057 P3):** `/ready` returns 503 when `store_contention.level` is **critical** (same thresholds as queue-metrics). Rising `compensation_quarantine_total` indicates merge cleanup failures — inspect KV DLQ keys `compensation_quarantine:{document_id}:*`, not a fairness park issue.
-
-```json
-{
-  "pending_count": 10,
-  "processing_count": 3,
-  "active_workers": 3,
-  "max_workers": 4,
-  "pressure": "normal",
-  "tenant_park_waiters": 2,
-  "max_tasks_per_tenant": 3,
-  "cancel_intent_count": 0,
-  "store_contention": {
-    "level": "normal",
-    "db_pool_utilization": 0.42,
-    "compensation_quarantine_total": 0
-  }
-}
-```
-
----
-
-## Cost Tracking API
-
-Track LLM usage and costs.
-
-### GET /api/v1/pipeline/costs/pricing
-
-Get current model pricing.
-
-```bash
-curl http://localhost:8080/api/v1/pipeline/costs/pricing
-```
-
-**Response**:
-
-```json
-{
-  "models": [
-    {
-      "id": "gpt-4.1-nano",
-      "provider": "openai",
-      "input_cost_per_1k_tokens": 0.00015,
-      "output_cost_per_1k_tokens": 0.0006
-    },
-    {
-      "id": "text-embedding-3-small",
-      "provider": "openai",
-      "input_cost_per_1k_tokens": 0.00002
-    },
-    {
-      "id": "gemma4:latest",
-      "provider": "ollama",
-      "input_cost_per_1k_tokens": 0,
-      "output_cost_per_1k_tokens": 0
-    }
-  ]
-}
-```
-
-### POST /api/v1/pipeline/costs/estimate
-
-Estimate processing cost for a document.
-
-```bash
-curl -X POST http://localhost:8080/api/v1/pipeline/costs/estimate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content_length": 50000,
-    "llm_model": "gpt-4.1-nano",
-    "embedding_model": "text-embedding-3-small"
-  }'
-```
-
-**Response**:
-
-```json
-{
-  "estimated_chunks": 50,
-  "estimated_tokens": {
-    "extraction": 25000,
-    "embedding": 15000,
-    "query": 2000
-  },
-  "estimated_cost_usd": {
-    "extraction": 0.0185,
-    "embedding": 0.0003,
-    "total": 0.0188
-  }
-}
-```
-
-### GET /api/v1/costs/summary
-
-Get cost summary for workspace.
-
-```bash
-curl http://localhost:8080/api/v1/costs/summary \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-**Response**:
-
-```json
-{
-  "period": "current_month",
-  "total_cost_usd": 12.45,
-  "breakdown": {
-    "extraction": 8.5,
-    "embedding": 1.25,
-    "queries": 2.7
-  },
-  "usage": {
-    "documents_processed": 125,
-    "queries_executed": 450,
-    "tokens_used": 2500000
-  }
-}
-```
-
-### GET /api/v1/costs/history
-
-Get cost history.
-
-**Query Parameters**:
-
-| Parameter     | Type   | Default | Description                   |
-| ------------- | ------ | ------- | ----------------------------- |
-| `start_date`  | string | 30d ago | Start date (ISO 8601)         |
-| `end_date`    | string | now     | End date (ISO 8601)           |
-| `granularity` | string | day     | Aggregation (hour, day, week) |
-
-```bash
-curl "http://localhost:8080/api/v1/costs/history?granularity=day" \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-### GET /api/v1/costs/budget
-
-Get budget status.
-
-```bash
-curl http://localhost:8080/api/v1/costs/budget \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-**Response**:
-
-```json
-{
-  "budget_usd": 100.0,
-  "spent_usd": 45.5,
-  "remaining_usd": 54.5,
-  "percent_used": 45.5,
-  "period": "monthly",
-  "alert_threshold": 80,
-  "projected_end_of_period": 95.2
-}
-```
-
-### PATCH /api/v1/costs/budget
-
-Update budget settings.
-
-```bash
-curl -X PATCH http://localhost:8080/api/v1/costs/budget \
-  -H "Content-Type: application/json" \
-  -d '{
-    "budget_usd": 150.00,
-    "alert_threshold": 75
-  }'
-```
-
----
-
-## Lineage API
-
-Track data provenance through the pipeline.
-
-### GET /api/v1/lineage/entities/:entity_name
-
-Get entity lineage showing origin documents and chunks.
-
-```bash
-curl http://localhost:8080/api/v1/lineage/entities/ENTITY_NAME \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-**Response**:
-
-```json
-{
-  "entity": {
-    "id": "ENTITY_NAME",
-    "type": "PERSON",
-    "description": "A key figure in..."
-  },
-  "sources": [
-    {
-      "document_id": "doc-uuid-1",
-      "document_title": "Document 1",
-      "chunk_id": "chunk-uuid-1",
-      "chunk_index": 5,
-      "extraction_date": "2024-01-15T10:30:00Z",
-      "confidence": 0.92
-    },
-    {
-      "document_id": "doc-uuid-2",
-      "document_title": "Document 2",
-      "chunk_id": "chunk-uuid-2",
-      "chunk_index": 12,
-      "extraction_date": "2024-01-15T11:00:00Z",
-      "confidence": 0.88
+      "track_id": "9c7a41d2-...",
+      "task_type": "insert",
+      "status": "processing",
+      "tenant_id": "...",
+      "workspace_id": "...",
+      "retry_count": 0,
+      "max_retries": 3,
+      "progress": null,
+      "error_message": null,
+      "queue_position": null,
+      "eta_seconds": null,
+      "created_at": "2026-10-09T10:00:00Z",
+      "updated_at": "2026-10-09T10:00:05Z"
     }
   ],
-  "merge_history": [
-    {
-      "date": "2024-01-15T11:00:00Z",
-      "merged_from": "ENTITY_NAME_VARIANT",
-      "reason": "Case-insensitive match"
-    }
-  ]
+  "pagination": { "page": 1, "page_size": 20, "total": 1, "total_pages": 1 },
+  "statistics": { "pending": 0, "processing": 1, "indexed": 0, "failed": 0, "cancelled": 0 }
 }
 ```
 
-### GET /api/v1/lineage/documents/:document_id
+A failed task includes an `error` object with `message`, `reason`, `step`, `suggestion` and `retryable`. Cancellation is cooperative: the worker stops at the next safe point, so a `processing` task may take a moment to show `cancelled`. See [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md).
 
-Get document lineage showing extracted entities and relationships.
+Other cancel routes: `DELETE /documents/pdf/{pdf_id}/cancel` (PDF), `POST /documents/{document_id}/cancel` (works without a live task; idempotent), and `POST /pipeline/cancel` (current pipeline job).
 
-```bash
-curl http://localhost:8080/api/v1/lineage/documents/doc-uuid \
-  -H "X-Workspace-ID: workspace-uuid"
+## Progress streams
+
+You can follow a task without polling. Authenticate WebSockets with `Sec-WebSocket-Protocol: edgequake.bearer, <token>` or `?token=`.
+
+| Transport | Route | Scope |
+|-----------|-------|-------|
+| WebSocket | `GET /ws/progress/{track_id}` | One track. 404 before upgrade when the track is not yours. |
+| WebSocket | `GET /ws/pipeline/progress` | Many tracks. Send `{"type":"subscribe","track_ids":[...]}` (max 256). |
+| SSE | `GET /api/v1/documents/pdf/progress/stream/{track_id}` | PDF progress |
+| Poll | `GET /api/v1/ingestion/{track_id}/progress` | Stage, `progress.completion_percentage`, `counts` (`pages`, `chunks`, `entities`, `relationships`) |
+| Poll | `POST /api/v1/ingestion/progress` | Body `{"track_ids":[...]}` |
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+sequenceDiagram
+    participant C as Client
+    participant S as EdgeQuake
+    C->>S: GET /ws/pipeline/progress (upgrade)
+    S-->>C: Connected
+    C->>S: subscribe track_ids
+    loop while working
+        S-->>C: StageTransition, ChunkProgress
+        S-->>C: Heartbeat every 30 s
+    end
+    S-->>C: JobFinished or DeletionCompleted
+    C->>S: unsubscribe
 ```
 
-**Response**:
+Read it top to bottom. After the upgrade you tell the server which tracks you care about. It pushes events until the work ends. Commands you can send: `subscribe`, `unsubscribe`, `cancel` (with `track_id`), and `ping`.
+
+Server events are JSON objects shaped `{"type": "<Name>", "data": {...}}`. The names use PascalCase:
+
+| Event | Meaning |
+|-------|---------|
+| `Connected`, `Heartbeat`, `StatusSnapshot` | Connection and state |
+| `JobStarted`, `BatchCompleted`, `JobFinished`, `CancellationRequested` | Job milestones |
+| `StageTransition` | Document moved to a new stage (`stage`, `stage_message`, `stage_progress`) |
+| `PdfPageProgress` | Page conversion (`page_num`, `total_pages`, `phase`) |
+| `ChunkProgress`, `ChunkFailure` | Per-chunk extraction (tokens, cost, ETA) |
+| `GraphStorageProgress` | Entities and relationships stored |
+| `DocumentProgress`, `DocumentFailed` | Per-document counters |
+| `DeletionStarted`, `DeletionPhase`, `DeletionCompleted`, `DeletionFailed` | Single delete (phases: `cancelling_task`, `removing_vectors`, `removing_graph`, `removing_kv`, `finalizing`) |
+| `BulkDeletionStarted`, `BulkDeletionItemProgress`, `BulkDeletionCompleted` | Workspace wipe and batch delete |
+| `Message` | Log line (`level`, `message`) |
+
+## Pipeline
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /pipeline/status` | Current job, counters, history messages. Query `tenant_id`, `workspace_id`. |
+| `GET /pipeline/activity` | `busy`, plus `working`, `queued` documents and active `tasks` |
+| `POST /pipeline/cancel` | Ask the current job to stop. 200 even if idle. |
+| `GET /pipeline/queue-metrics` | Queue depth and pressure |
 
 ```json
 {
-  "document": {
-    "id": "doc-uuid",
-    "title": "Document Title",
-    "status": "completed"
-  },
-  "chunks": [
-    {
-      "id": "chunk-uuid-1",
-      "index": 0,
-      "entities_extracted": 5,
-      "relationships_extracted": 3
-    }
-  ],
-  "entities_contributed": [
-    {
-      "id": "ENTITY_NAME",
-      "type": "PERSON",
-      "is_primary_source": true
-    }
-  ],
-  "relationships_contributed": [
-    {
-      "source": "ENTITY_A",
-      "target": "ENTITY_B",
-      "type": "WORKS_WITH"
-    }
-  ]
+  "is_busy": true,
+  "job_name": "pdf_processing",
+  "total_documents": 5,
+  "processed_documents": 2,
+  "pending_tasks": 3,
+  "processing_tasks": 1,
+  "completed_tasks": 2,
+  "failed_tasks": 0,
+  "cancellation_requested": false,
+  "latest_message": "Extracting entities...",
+  "history_messages": []
 }
 ```
 
----
+`queue-metrics` returns `pending_count`, `processing_count`, `active_workers`, `max_workers`, `worker_utilization`, `throughput_per_minute`, `avg_wait_time_seconds`, `max_wait_time_seconds`, `estimated_queue_time_seconds`, `pressure` (`normal`, `elevated`, `critical`), `pending_warn_threshold`, `pending_critical_threshold`, `rate_limited`, per-tenant limits and `operator_action` guidance. When pressure is `critical`, `/ready` returns 503.
 
-## Tenants API
+## Costs
 
-Multi-tenant management.
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /pipeline/costs/pricing` | `{ "models": [{ "model", "input_cost_per_1k", "output_cost_per_1k" }] }` |
+| `POST /pipeline/costs/estimate` | Body `{"model","input_tokens","output_tokens"}` returns `estimated_cost_usd`, `formatted_cost` |
+| `GET /costs/summary` | Workspace totals: `total_cost`, `total_tokens`, `document_count`, `average_cost_per_document`, `by_operation[]`, `budget` |
+| `GET /costs/history` | Array of `{timestamp, total_cost, total_tokens, document_count}`. Query `start_date`, `end_date`, `granularity`. |
+| `GET`, `PATCH /costs/budget` | `{monthly_budget_usd, alert_threshold, spent_usd, remaining_usd, is_over_budget}` |
 
-### POST /api/v1/tenants
+See [Cost tracking](../deep-dives/cost-tracking.md).
 
-Create a new tenant.
+## Tenants and workspaces
+
+A tenant is an organisation. A workspace is an isolated knowledge base inside a tenant. See [Multi-tenant tutorial](../tutorials/multi-tenant.md).
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET`, `POST /tenants` | List (`offset`, `limit`) and create. POST returns 201, or 200 if the slug already exists (idempotent), 409 on conflict. |
+| `GET`, `PUT`, `DELETE /tenants/{tenant_id}` | Read, update, delete (204) |
+| `GET`, `POST /tenants/{tenant_id}/workspaces` | List (`offset`, `limit`, `include_stats`) and create (201) |
+| `GET /tenants/{tenant_id}/workspaces/by-slug/{slug}` | Look up by slug |
+| `GET`, `PUT`, `DELETE /workspaces/{workspace_id}` | Read, update, delete (204, cascades all data) |
+| `GET /workspaces/{workspace_id}/stats` | Counts |
+| `GET /workspaces/{workspace_id}/metrics-history`, `POST .../metrics-snapshot` | Stored snapshots (newest first), manual snapshot (201) |
+| `POST /workspaces/{workspace_id}/rebuild-embeddings` | Re-embed after an embedding model change |
+| `POST /workspaces/{workspace_id}/rebuild-knowledge-graph` | Re-extract after an LLM change |
+| `POST /workspaces/{workspace_id}/reprocess-documents` | Requeue documents |
+| `PATCH /admin/tenants/{tenant_id}/quota` | Admin: set `max_workspaces` |
+
+Create a workspace:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/tenants \
+curl -s -X POST http://localhost:8080/api/v1/tenants/$TENANT_ID/workspaces \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "Acme Corp",
-    "slug": "acme",
-    "plan": "enterprise"
-  }'
+  -d '{"name":"Research","llm_provider":"ollama","llm_model":"gemma3:latest","embedding_provider":"ollama","embedding_model":"embeddinggemma:latest"}'
 ```
 
-### GET /api/v1/tenants
+Main workspace fields: `name`, `slug`, `description`, `llm_provider`, `llm_model`, `embedding_provider`, `embedding_model`, `embedding_dimension`, `vision_llm_provider`, `vision_llm_model`, `pdf_parser_backend`, `chunking_mode` (`inherit`, `adaptive`, `fixed`), `chunk_token_size`, `chunk_overlap_token_size`, `entity_types`, `relation_types`, `extraction_language`, `max_documents`, and `llm_roles`. The response adds `resolved_*` fields that show which provider and model are in effect, and `*_resolution_source` (`workspace`, `tenant`, `env`, `default`).
 
-List all tenants.
-
-### GET /api/v1/tenants/:tenant_id
-
-Get tenant details.
-
-### PUT /api/v1/tenants/:tenant_id
-
-Update tenant.
-
-### DELETE /api/v1/tenants/:tenant_id
-
-Delete tenant and all data.
-
-### POST /api/v1/tenants/:tenant_id/workspaces
-
-Create workspace within tenant.
-
-```bash
-curl -X POST http://localhost:8080/api/v1/tenants/tenant-uuid/workspaces \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Research Project",
-    "slug": "research",
-    "llm_provider": "openai",
-    "llm_model": "gpt-4.1-nano"
-  }'
-```
-
-### GET /api/v1/tenants/:tenant_id/workspaces
-
-List workspaces in tenant.
-
----
-
-## Advanced Document Endpoints
-
-### POST /api/v1/documents/upload
-
-File upload via multipart form (text/images). **PDFs** must use `/documents/pdf` (SPEC-123 / SPEC-132).
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/upload \
-  -H "X-Workspace-ID: workspace-uuid" \
-  -F "file=@document.txt" \
-  -F "title=My Document" \
-  -F "metadata={\"category\":\"research\"}"
-```
-
-### POST /api/v1/documents/upload/batch
-
-Batch **non-PDF** file upload (text/markdown/images). PDFs must use `/documents/pdf` or `/documents/pdf/batch` (SPEC-123 / SPEC-132).
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/upload/batch \
-  -H "X-Workspace-ID: workspace-uuid" \
-  -F "files=@doc1.txt" \
-  -F "files=@doc2.md" \
-  -F "files=@doc3.md"
-```
-
-### POST /api/v1/documents/pdf/batch
-
-Batch PDF upload.
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/pdf/batch \
-  -H "X-Workspace-ID: workspace-uuid" \
-  -F "files=@doc1.pdf" \
-  -F "files=@doc2.pdf" \
-  -F "files=@doc3.pdf"
-```
-
-### POST /api/v1/documents/scan
-
-Scan a directory for documents.
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/scan \
-  -H "Content-Type: application/json" \
-  -d '{
-    "path": "/data/documents",
-    "recursive": true,
-    "extensions": [".pdf", ".txt", ".md"]
-  }'
-```
-
-### POST /api/v1/documents/reprocess
-
-Reprocess all failed documents.
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/reprocess \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-### POST /api/v1/documents/recover-stuck
-
-Recover documents stuck in processing state.
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/recover-stuck \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-### GET /api/v1/documents/:id/deletion-impact
-
-Analyze impact of deleting a document.
-
-```bash
-curl http://localhost:8080/api/v1/documents/doc-uuid/deletion-impact
-```
-
-**Response**:
+Stats response:
 
 ```json
 {
-  "document_id": "doc-uuid",
-  "entities_affected": 15,
-  "entities_to_delete": 5,
-  "entities_to_update": 10,
-  "relationships_affected": 25,
-  "relationships_to_delete": 12,
-  "relationships_to_update": 13
+  "workspace_id": "...",
+  "document_count": 12,
+  "chunk_count": 340,
+  "entity_count": 410,
+  "relationship_count": 620,
+  "embedding_count": 340,
+  "entity_type_count": 9,
+  "storage_bytes": 1048576,
+  "stale": false
 }
 ```
 
-### POST /api/v1/documents/:id/retry-chunks
+`stale: true` means the numbers came from cache because the live count timed out.
 
-Retry failed chunks for a document.
+### Per-role models with llm_roles (v0.33.0)
 
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/doc-uuid/retry-chunks
-```
-
-### GET /api/v1/documents/:id/failed-chunks
-
-List failed chunks for a document.
+A workspace can route each job to its own model. `PUT /workspaces/{id}` merges `llm_roles` one role at a time. Roles: `extract`, `query`, `summary`, `vlm`, `keyword`. Each role takes `provider`, `model`, `reasoning_effort` and (v0.33.0) `connection_id`.
 
 ```bash
-curl http://localhost:8080/api/v1/documents/doc-uuid/failed-chunks
-```
-
----
-
-## Workspace Advanced Endpoints
-
-### GET /api/v1/workspaces/:id/stats
-
-Get detailed workspace statistics.
-
-```bash
-curl http://localhost:8080/api/v1/workspaces/workspace-uuid/stats
-```
-
-**Response**:
-
-```json
-{
-  "workspace_id": "workspace-uuid",
-  "documents": {
-    "total": 150,
-    "completed": 145,
-    "processing": 3,
-    "failed": 2
-  },
-  "chunks": {
-    "total": 3500,
-    "avg_per_document": 23
-  },
-  "entities": {
-    "total": 1200,
-    "by_type": {
-      "PERSON": 250,
-      "ORGANIZATION": 180,
-      "CONCEPT": 770
-    }
-  },
-  "relationships": {
-    "total": 3200
-  },
-  "storage": {
-    "documents_bytes": 45000000,
-    "embeddings_bytes": 120000000,
-    "total_bytes": 165000000
-  }
-}
-```
-
-### GET /api/v1/workspaces/:id/metrics-history
-
-Get historical metrics.
-
-```bash
-curl "http://localhost:8080/api/v1/workspaces/workspace-uuid/metrics-history?days=7"
-```
-
-### POST /api/v1/workspaces/:id/metrics-snapshot
-
-Trigger a metrics snapshot.
-
-```bash
-curl -X POST http://localhost:8080/api/v1/workspaces/workspace-uuid/metrics-snapshot
-```
-
-### POST /api/v1/workspaces/:id/rebuild-embeddings
-
-Rebuild all embeddings (e.g., after model change).
-
-```bash
-curl -X POST http://localhost:8080/api/v1/workspaces/workspace-uuid/rebuild-embeddings \
+curl -s -X PUT http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID \
   -H "Content-Type: application/json" \
-  -d '{
-    "embedding_model": "text-embedding-3-large",
-    "embedding_dimension": 3072
-  }'
+  -d '{"llm_roles":{"query":{"provider":"openai-compatible","model":"my-model","connection_id":"<connection uuid>"}}}'
 ```
 
-### POST /api/v1/workspaces/:id/rebuild-knowledge-graph
+Merge rules: send only the roles and fields you want to change. A `null` field removes that field. A `null` role, or an empty `llm_roles` object, removes the role or all roles. See [Connections](connections.md#per-role-routing) and [Model roles](../providers/roles.md).
 
-Rebuild knowledge graph (re-extract entities).
+### Rebuild operations
+
+| Endpoint | Body | Notes |
+|----------|------|-------|
+| `rebuild-embeddings` | `embedding_provider`, `embedding_model`, `embedding_dimension`, `force` | Clears vectors and re-embeds. Response has `documents_to_process`, `chunks_to_process`, `vectors_cleared`, `status`, optional `compatibility_warning`. |
+| `rebuild-knowledge-graph` | `llm_provider`, `llm_model`, `force`, `rebuild_embeddings` (default true), `max_documents` | Re-extracts the graph |
+| `reprocess-documents` | `include_completed`, `max_documents` (default 1000) | Returns `track_id`, `documents_queued`, `documents_skipped`, `skip_reasons` |
+
+These return 202 with a `Location` header when a job or track id exists (the default). Set `EDGEQUAKE_V1_RPC_RETURN_202=0` to get the older 200. Responses may carry a `v2_migration` hint pointing to the matching v2 job.
+
+## Advanced document endpoints
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /documents/{id}/deletion-impact` | Preview a delete: `chunks_to_delete`, `entities_to_remove`, `entities_to_update`, `relationships_to_remove`, `relationships_to_update` |
+| `GET /documents/{id}/failed-chunks` | Chunks that failed extraction |
+| `POST /documents/{id}/retry-chunks` | Body `{"chunk_indices":[...],"force":false,"max_retries":3}`. Empty indices retry all failed chunks. |
+| `POST /documents/reprocess` | Body: `document_id`, `track_id`, `mode`, `force`, `max_documents`. Returns `failed_found`, `requeued`, `skipped`, `task_id` (when exactly one), `track_id`. |
+| `POST /documents/recover-stuck` | Body: `stuck_threshold_minutes` (default 10), `max_documents`, `document_ids`. Returns `stuck_found`, `requeued`. |
+| `POST /documents/batch-delete` | Delete a chosen set (202) |
+| `POST /documents/{id}/pages/reprocess` | Re-run chosen PDF pages. 200, 202, 409, 422. |
+| `GET /documents/{id}/pages`, `.../pages/health`, `.../pages/{n}/layout` | Per-page health and layout |
+| `POST /documents/{id}/reanalyze` | Re-run multimodal analysis |
+| `GET /documents/{id}/assets`, `.../assets/{asset_id}`, `.../mm-assets/{path}` | Extracted figures and images |
+| `POST /documents/{id}/assets/include-from-pdf` | Pull page assets from the stored PDF |
+
+## Async jobs (v2)
+
+The v2 API exposes a few operations as workspace-scoped job resources. Submit returns 202 with a `Location` header.
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/v2/workspaces/{workspace_id}/jobs/catalog` | Supported job types, with links |
+| `POST /api/v2/workspaces/{workspace_id}/jobs` | Body `{"job_type","payload"}`. 202, or 400 for a bad type. |
+| `GET /api/v2/workspaces/{workspace_id}/jobs` | List. Query `status`, `page`, `page_size`. |
+| `GET /api/v2/workspaces/{workspace_id}/jobs/{job_id}` | Status |
+| `DELETE /api/v2/workspaces/{workspace_id}/jobs/{job_id}` | Cancel a pending job. 409 if not cancellable. |
+
+Creatable `job_type` values: `upload`, `insert`, `pdf_processing`, `knowledge_injection`, `rebuild_embeddings`, `rebuild_knowledge_graph`, `reprocess_all`, `reprocess_failed`, `recover_stuck`, `reanalyze_multimodal`. `scan` and `reindex` appear in the catalog but cannot be created through v2. A job response has `job_id`, `job_type`, `status`, `tenant_id`, `workspace_id`, timestamps and `links` (`self_link`, `cancel`, `catalog`, `v1_task`).
+
+## Users, API keys and setup
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /setup/status` | `needs_setup`, `auth_enabled`, `has_login_users`, `tenant_count`, `workspace_count` (public) |
+| `POST /setup/initialize` | First-run bootstrap: creates the first tenant, workspace and optional admin. 201, or 409 if already initialized. When `EDGEQUAKE_SETUP_TOKEN` is set, send `X-EdgeQuake-Setup-Token`. |
+| `GET`, `POST /users`; `GET`, `PATCH`, `DELETE /users/{user_id}` | User admin (admin only) |
+| `GET`, `POST /api-keys`; `DELETE /api-keys/{key_id}` | Your API keys. The secret is shown once, in `api_key`. |
+| `GET /auth/sso/providers`, `GET /auth/oidc/login`, `GET /auth/oidc/callback`, `POST /auth/handoff` | Single sign-on |
+| `GET`, `PUT`, `DELETE /admin/identity-providers/{slug}` | Manage SSO providers (admin) |
+| `GET /admin/migration-jobs`, `.../{job_id}`, `POST .../cancel`, `.../pause`, `.../resume` | Data migration jobs (admin) |
+| `GET /admin/storage/inspect`, `POST /admin/storage/repair` | Storage diagnostics (admin) |
+| `GET`, `PATCH /admin/config/defaults` | Server default `max_workspaces` (admin) |
+| `POST /admin/ann/warmup`, `GET`, `POST /admin/entities/reconcile` | Index warm-up and entity reconcile (admin) |
+| `GET /decision/status`, `GET /decision/models` | Decision-extraction backend probe ([guide](../concepts/decision-extraction.md)) |
+
+Single sign-on setup is in [Authentication](../security/authentication/index.md).
+
+## Ollama emulation
+
+EdgeQuake answers a subset of the Ollama API so tools such as Open WebUI can use it as a model. The routes are under `/api` (not `/api/v1`). They are enabled by default; set `EDGEQUAKE_OLLAMA_COMPAT_ENABLED=false` to turn them off (they then return 503).
+
+| Route | Behaviour |
+|-------|-----------|
+| `GET /api/version` | `{"version": "..."}` |
+| `GET /api/tags` | Lists one model, `edgequake:latest` |
+| `GET /api/ps` | Running models |
+| `POST /api/generate` | Body `{"model","prompt","stream","system"}`. `stream` defaults to **false**. |
+| `POST /api/chat` | Body `{"model","messages":[{"role","content"}],"stream"}`. `stream` defaults to **true**. |
+
+The `model` field is ignored: every request runs a RAG query against the selected workspace. Streams are newline-delimited JSON (`application/x-ndjson`). There are no `/v1/chat/completions` or `/v1/embeddings` routes. For a chat call with sources use [`POST /api/v1/chat/completions`](rest-api.md#chat). Setup guide: [Open WebUI](../integrations/open-webui.md).
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/workspaces/workspace-uuid/rebuild-knowledge-graph \
-  -H "Content-Type: application/json" \
-  -d '{
-    "llm_model": "gpt-4o"
-  }'
+curl -s http://localhost:8080/api/chat -d '{
+  "model": "edgequake:latest",
+  "messages": [{"role":"user","content":"What is in my documents?"}],
+  "stream": false
+}'
 ```
 
-### POST /api/v1/workspaces/:id/reprocess-documents
-
-Reprocess all documents.
-
-```bash
-curl -X POST http://localhost:8080/api/v1/workspaces/workspace-uuid/reprocess-documents
-```
-
----
-
-## Models & Providers API
-
-### GET /api/v1/models
-
-List all configured models.
-
-### GET /api/v1/models/llm
-
-List LLM models only.
-
-### GET /api/v1/models/embedding
-
-List embedding models only.
-
-### GET /api/v1/models/health
-
-Check provider health.
-
-```bash
-curl http://localhost:8080/api/v1/models/health
-```
-
-**Response**:
-
-```json
-{
-  "providers": [
-    {
-      "name": "openai",
-      "status": "healthy",
-      "latency_ms": 125
-    },
-    {
-      "name": "ollama",
-      "status": "healthy",
-      "latency_ms": 15
-    }
-  ]
-}
-```
-
-### GET /api/v1/models/:provider
-
-Get provider details.
-
-### GET /api/v1/models/:provider/:model
-
-Get specific model details.
-
-### GET /api/v1/settings/providers
-
-List available providers.
-
-### GET /api/v1/settings/provider/status
-
-Get current provider status.
-
-### GET /api/v1/settings/attribution
-
-Effective application context + per-provider upstream header catalog (OpenRouter referer, OpenAI client ID, etc.). See [REST API — Application Attribution](/docs/api-reference/rest-api#application-attribution).
-
-### GET/PATCH /api/v1/settings/app-attribution
-
-Read/save `app_id`, `app_name`, `app_url` to PostgreSQL `server_config` (PATCH requires admin). Same GET response as `/settings/attribution`.
-
----
-
-## See Also
-
-- [REST API Reference](/docs/api-reference/rest-api/) — Core endpoints
-- [Ingestion cancel & fairness](/docs/ingestion-cancel-and-fairness.md) — Cancel SSOT, claim/lease, fairness
-- [Pipeline Progress](/docs/deep-dives/pipeline-progress/) — WebSocket and REST progress
-- [OpenAPI snapshot](../../edgequake_webui/openapi/openapi.snapshot.json) — Full schemas
-- [Configuration Reference](/docs/operations/configuration/) — Environment variables
-- [Troubleshooting](/docs/troubleshooting/common-issues/) — Debugging API issues
+Related: [REST API](rest-api.md), [Lineage endpoints](lineage-endpoints.md), [Connections](connections.md).

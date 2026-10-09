@@ -1,5 +1,6 @@
 ---
 title: "Python SDK — quickstart"
+description: "Python SDK quickstart."
 ---
 
 # Python SDK — quickstart

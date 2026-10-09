@@ -1,8 +1,16 @@
 import react from "@astrojs/react";
 import sitemap from "@astrojs/sitemap";
 import starlight from "@astrojs/starlight";
+import mermaid from "astro-mermaid";
+import { readFileSync } from "node:fs";
+
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
+
+// One palette for the site and for the diagram headers in docs/ (scripts/style_docs_mermaid.mjs).
+const mermaidTheme = JSON.parse(
+  readFileSync(new URL("../scripts/mermaid-theme.json", import.meta.url), "utf8"),
+);
 
 export default defineConfig({
   site: "https://edgequake.com",
@@ -10,6 +18,15 @@ export default defineConfig({
   output: "static",
 
   integrations: [
+    // Must come BEFORE starlight so ```mermaid fences render as diagrams.
+    mermaid({
+      theme: mermaidTheme.theme,
+      autoTheme: false, // pastel nodes with dark text read well on light and dark pages
+      mermaidConfig: {
+        themeVariables: mermaidTheme.themeVariables,
+        flowchart: mermaidTheme.flowchart,
+      },
+    }),
     starlight({
       title: "EdgeQuake",
       description:
@@ -72,6 +89,10 @@ export default defineConfig({
         {
           label: "Getting Started",
           items: [{ autogenerate: { directory: "docs/getting-started" } }],
+        },
+        {
+          label: "Providers",
+          items: [{ autogenerate: { directory: "docs/providers" } }],
         },
         {
           label: "Concepts",

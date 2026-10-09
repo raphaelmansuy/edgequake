@@ -1,5 +1,6 @@
 ---
 title: "Swift SDK"
+description: "Swift SDK for EdgeQuake."
 ---
 
 # Swift SDK

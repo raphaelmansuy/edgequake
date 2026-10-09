@@ -105,7 +105,18 @@ pub fn is_local_extraction_provider(provider_name: &str) -> bool {
     name.starts_with(crate::progress::DECISION_PROVIDER_PREFIX)
         || matches!(
             name.as_str(),
-            "ollama" | "lmstudio" | "lm-studio" | "lm_studio"
+            "ollama"
+                | "lmstudio"
+                | "lm-studio"
+                | "lm_studio"
+                | "omlx"
+                | "mtplx"
+                | "llamacpp"
+                | "llama-server"
+                | "vllm-mlx"
+                | "vllm_mlx"
+                | "mlx-lm"
+                | "mlx_lm"
         )
 }
 

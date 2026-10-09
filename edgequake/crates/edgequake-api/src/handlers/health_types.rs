@@ -71,6 +71,21 @@ pub struct HealthResponse {
     /// Application attribution summary (SPEC-043).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attribution: Option<crate::attribution::HealthAttributionSummary>,
+
+    /// SPEC-163 security posture (dev mode, bind, secrets, CORS).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub security_posture: Option<SecurityPosture>,
+}
+
+/// Additive `/health` security signals (SPEC-163).
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SecurityPosture {
+    pub auth_enabled: bool,
+    pub dev_mode: bool,
+    pub secrets_key_configured: bool,
+    pub jwt_secret_is_default: bool,
+    pub rate_limit_enabled: bool,
+    pub swagger_enabled: bool,
 }
 
 /// Operator-facing API discovery hints (additive JSON on `/health`).
@@ -518,6 +533,7 @@ mod tests {
             operational: None,
             capabilities: None,
             attribution: None,
+            security_posture: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"status\":\"healthy\""));
@@ -565,6 +581,7 @@ mod tests {
             operational: None,
             capabilities: None,
             attribution: None,
+            security_posture: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"schema\""));
@@ -634,6 +651,7 @@ mod tests {
             operational: None,
             capabilities: None,
             attribution: None,
+            security_posture: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         // llm_provider_name should be skipped when None
@@ -712,6 +730,7 @@ mod tests {
             operational: None,
             capabilities: None,
             attribution: None,
+            security_posture: None,
         };
         let json = serde_json::to_string(&response).unwrap();
         assert!(json.contains("\"providers\""));

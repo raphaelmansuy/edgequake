@@ -1,0 +1,18 @@
+[package]
+name = "edgequake-secrets"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Envelope encryption and redacted secrets for EdgeQuake (SPEC-163)"
+
+[dependencies]
+aes-gcm = "0.10"
+base64 = "0.22"
+hex = "0.4"
+rand = "0.8"
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+zeroize = { version = "1.8", features = ["zeroize_derive"] }
+
+[dev-dependencies]
+serde_json = { workspace = true }

@@ -1,47 +1,32 @@
 ---
-title: "LLM cache scope decision (GAP-091-14)"
+title: "LLM cache scope decision"
+description: "Decision record GAP-091-14: the llm_cache table is keyed by content hash and namespace, with no tenant or workspace column, so workspaces in one namespace share cache entries. Explains why and the accepted risks."
 ---
 
-# LLM Cache Scope Decision (SPEC-091, GAP-091-14)
+# LLM cache scope decision (SPEC-091, GAP-091-14)
 
-**Status:** ACCEPTED (IW0, 2026-07-30) — pinned by
-`edgequake-storage/tests/contract_spec091_llm_cache_scope.rs`.
+**Status:** Accepted on 2026-07-30 (IW0). A contract test pins it: `edgequake-storage/tests/contract_spec091_llm_cache_scope.rs`.
+
+The LLM cache stores the answers that a language model gave to a prompt, so the same prompt does not cost money twice. This record explains who can share an entry.
 
 ## Decision
 
-`public.llm_cache` entries are keyed by **content hash** within a storage
-**namespace** — composite PK `(cache_key, namespace)` (migration 124). They
-intentionally carry **no tenant/workspace column**:
+The table `public.llm_cache` is keyed by a content hash inside a storage namespace. The primary key is `(cache_key, namespace)` (migration 124). The table has no `tenant_id` or `workspace_id` column, on purpose.
 
-- Two workspaces sharing a namespace **share** cache entries. A hit returns
-  the LLM output previously computed for an identical prompt + model.
-- Distinct namespaces are fully isolated (the namespace predicate is on every
-  read/write path in `adapters/postgres/llm_cache.rs`).
+- Two workspaces in the same namespace share entries. A hit returns the output that was computed earlier for the same prompt and model.
+- Different namespaces never see each other. Every read and write in `adapters/postgres/llm_cache.rs` filters on the namespace.
 
-## Rationale
+## Reason
 
-The LLM cache is a **content-addressed recomputation guard**, not document
-data: same input ⇒ same output. Sharing across workspaces is therefore
-semantically safe and avoids duplicated LLM spend when workspaces ingest
-overlapping corpora or issue identical keyword-extraction prompts. A lost or
-isolated entry only costs one recomputation — never correctness.
+The cache guards against recomputing. It is not document data. The same input gives the same output, so sharing across workspaces is safe. It also saves money when workspaces ingest overlapping documents or send identical keyword prompts. A lost entry costs one recomputation and never harms correctness. The table comment says the same: rows are recomputable and may expire.
 
-## Accepted residual
+## Accepted risks
 
-- **Timing/usage side channel:** within a namespace, workspace B can observe
-  (via latency) that workspace A's identical prompt was already cached. No
-  content crosses — the output is deterministic for the input — but the access
-  pattern leaks. Accepted: namespaces map to deployment trust boundaries.
-- **Provider drift:** a cache entry written under provider/model X is served
-  to a workspace configured for provider Y **only when the cache key matches**;
-  cache keys already incorporate the prompt hash, and multimodal keys embed
-  `{mode}-{type}` — model identity is part of the hashed prompt envelope for
-  extraction caches. Operators requiring hard per-tenant cache isolation must
-  deploy per-tenant namespaces (storage namespace is already a config knob).
+- **Timing side channel.** Inside one namespace, workspace B can notice from latency that workspace A already sent the same prompt. No content crosses, because the output depends only on the input, but the access pattern leaks. This is accepted: a namespace maps to a deployment trust boundary.
+- **Provider drift.** An entry written for model X is served to a workspace set up for model Y only if the cache keys match. The key includes the prompt hash, and multimodal keys include `{mode}-{type}`. For extraction caches, the model identity is part of the hashed prompt. If you need hard isolation per tenant, deploy one namespace per tenant. The namespace is already a configuration setting.
 
 ## Consequences
 
-- Do NOT add a workspace/tenant column to `llm_cache` without updating this
-  record and the contract test.
-- Cache invalidation on document delete stays namespace-scoped and
-  key-targeted (no per-workspace sweep exists or is needed).
+- Do not add a workspace or tenant column to `llm_cache` without updating this record and the contract test.
+- Deleting a document invalidates cache entries by namespace and key. No per-workspace sweep exists, and none is needed.
+- `llm_cache` is also the durable layer of the keyword cache (SPEC-103). See [jsonb-envelope-acceptance.md](./jsonb-envelope-acceptance.md) for why its `value` column stays JSONB.

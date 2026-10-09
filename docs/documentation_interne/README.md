@@ -1,5 +1,6 @@
 ---
 title: "EdgeQuake — Dossier technique de déploiement {client}"
+description: "Index of internal French working notes. May not match current code."
 ---
 
 # EdgeQuake — Dossier technique de déploiement {client}

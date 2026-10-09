@@ -1,4 +1,9 @@
-# Tenants, organizations and roles
+---
+title: Tenants, organizations and roles
+description: How a login is mapped to a tenant and a role, the denial codes, account linking and lifecycle rules.
+---
+
+This page explains how EdgeQuake turns an IdP login into a tenant and a role. The mapping is strict so that an IdP can never give a user more access than you allow.
 
 ## Tenant resolution (first match wins)
 
@@ -12,10 +17,21 @@ Several organizations and no hint -> `org_ambiguous:<aliases>` (the UI shows a p
 
 ## Denial codes
 
-`org_unknown`, `org_missing`, `org_ambiguous`, `tenant_suspended`, `hd_mismatch`,
-`idp_tenant_not_allowed`, `jit_disabled`, `max_users`, `membership_revoked`,
-`tenant_access_denied`; conflict `account_exists_unlinked` (409). They arrive as
-`{SPA}/auth/callback?error=<code>` and are mapped to translated messages.
+A denied login returns to the web app as `{SPA}/auth/callback?error=<code>`, and the app shows a translated message.
+
+| Code | Meaning |
+|------|---------|
+| `org_unknown` | No tenant has a slug equal to the organization alias |
+| `org_missing` | The token has no organization and one is required |
+| `org_ambiguous` | Several organizations and no hint |
+| `tenant_suspended` | The tenant is suspended |
+| `hd_mismatch` | Google domain not on `EDGEQUAKE_OIDC_ALLOWED_HD` |
+| `idp_tenant_not_allowed` | Entra directory not on `EDGEQUAKE_OIDC_ALLOWED_TID` |
+| `jit_disabled` | New users are not auto-created (`EDGEQUAKE_OIDC_JIT=false`) |
+| `max_users` | The tenant is full |
+| `membership_revoked` | The user's membership was removed |
+| `tenant_access_denied` | The user may not use this tenant |
+| `account_exists_unlinked` | A local account has the same email (HTTP 409) |
 
 ## Roles
 

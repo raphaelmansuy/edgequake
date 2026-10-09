@@ -1,212 +1,175 @@
 ---
 title: "Architecture: Crate Reference"
+description: Verified dependency graphs and per-crate notes for the 15 EdgeQuake workspace crates.
 sidebar:
   hidden: true
 ---
 
 # Architecture: Crate Reference
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../../ingestion-cancel-and-fairness.md)
+This page gives the real dependency graph between EdgeQuake crates and a short note on each one. Read it when you add code and need to know which crate owns it, or which crates you may depend on.
 
-> EdgeQuake's modular Rust workspace (11 crates)
-
-EdgeQuake splits responsibilities across focused crates with clear dependency boundaries. **Code is law:** the list below matches `edgequake/crates/` on disk.
-
----
-
-## Crate inventory
-
-| # | Crate | Role |
-| - | ----- | ---- |
-| 1 | `edgequake-api` | Axum HTTP/WS server, handlers, middleware |
-| 2 | `edgequake-core` | Orchestrator, config, LLM provider factory |
-| 3 | `edgequake-pipeline` | Ingestion pipeline, prompts, progress/cost tracking |
-| 4 | `edgequake-query` | Multi-mode RAG retrieval and generation |
-| 5 | `edgequake-storage` | KV, vector (pgvector), graph (AGE) traits + Postgres |
-| 6 | `edgequake-pdf` | PDF extraction, vision convert, markdown output |
-| 7 | `edgequake-tasks` | Task rows, worker pool, cancel registry, fairness |
-| 8 | `edgequake-auth` | Authentication, authorization, multi-tenancy helpers |
-| 9 | `edgequake-audit` | Structured audit events |
-| 10 | `edgequake-rate-limiter` | Per-tenant API rate limits |
-| 11 | `edgequake-observability` | Tracing subscriber, Prometheus metrics, correlation |
-
-**Not separate crates:** `edgequake-llm` and `edgequake-graph` do not exist. LLM traits/providers are wired through `edgequake-core` / `edgequake-pipeline` / `edgequake-query`. Graph storage lives in `edgequake-storage` (AGE backend).
+The graphs are read from each crate's `Cargo.toml`. Test-only (`dev-dependencies`) edges are left out. For a one-line summary per crate, see the [crate list](./index.md).
 
 ---
 
 ## Dependency graph
 
+The engine crates are the ones that ingest and query documents.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    core["edgequake-core"] --> pipeline["edgequake-pipeline"]
+    core --> query["edgequake-query"]
+    core --> storage["edgequake-storage"]
+    core --> pdf["edgequake-pdf"]
+    query --> pipeline
+    query --> storage
+    pipeline --> storage
+    pipeline --> contracts["edgequake-storage-contracts"]
+    storage --> contracts
+    storage --> manifest["edgequake-migrate-manifest"]
+    tasks["edgequake-tasks"] --> pdf
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class storage,contracts eqStore
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    EDGEQUAKE CRATE HIERARCHY (v0.23.0)          │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│                      ┌──────────────────┐                       │
-│                      │  edgequake-api   │  ◀── HTTP + WebSocket  │
-│                      └────────┬─────────┘                       │
-│           ┌───────────────────┼───────────────────┐             │
-│           ▼                   ▼                   ▼             │
-│  ┌────────────────┐  ┌──────────────┐  ┌──────────────────┐    │
-│  │edgequake-tasks │  │edgequake-core│  │edgequake-auth    │    │
-│  └────────────────┘  └──────┬───────┘  └──────────────────┘    │
-│                               │                                 │
-│              ┌────────────────┼────────────────┐                │
-│              ▼                ▼                ▼                │
-│    ┌─────────────────┐ ┌────────────┐ ┌─────────────┐          │
-│    │edgequake-pipeline│ │edgequake-  │ │edgequake-   │          │
-│    │                  │ │   query    │ │  storage    │          │
-│    └────────┬─────────┘ └────────────┘ └─────────────┘          │
-│             ▼                                                   │
-│    ┌─────────────────┐                                          │
-│    │  edgequake-pdf  │                                          │
-│    └─────────────────┘                                          │
-│                                                                 │
-│  Cross-cutting: edgequake-audit, edgequake-rate-limiter,        │
-│                 edgequake-observability                         │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+
+Read an arrow as "depends on". `edgequake-storage` is the base that most engine crates share. `edgequake-core` uses `edgequake-pipeline` through its `pipeline` feature, which is on by default.
+
+The API crate sits above the engine crates and adds the cross-cutting crates.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    api["edgequake-api"] --> engine["Engine crates (graph above)"]
+    api --> tasks["edgequake-tasks"]
+    api --> auth["edgequake-auth"]
+    api --> rate["edgequake-rate-limiter"]
+    api --> audit["edgequake-audit"]
+    api --> secrets["edgequake-secrets"]
+    api --> obs["edgequake-observability"]
+    api --> manifest["edgequake-migrate-manifest"]
 ```
+
+Read it as the list of everything the API links in. `edgequake-pipeline`, `edgequake-query`, `edgequake-storage`, and `edgequake-tasks` also depend on `edgequake-observability` for metrics and tracing. `edgequake-auth`, `edgequake-audit`, `edgequake-rate-limiter`, and `edgequake-secrets` depend on no other workspace crate.
+
+External crates used by several workspace crates:
+
+| External crate | Used by | Purpose |
+| -------------- | ------- | ------- |
+| `edgequake-llm` (0.10.9) | api, core, pdf, pipeline, query | `LLMProvider` and `EmbeddingProvider` traits and all provider clients |
+| `edgequake-pdf2md` | api, pdf | PDF page rendering and Markdown conversion (pdfium is bundled) |
+
+The root `edgequake` package builds the server binary. It depends on the API, core, pipeline, query, storage, tasks, pdf, observability, and migrate-manifest crates.
 
 ---
 
-## Core crates
+## Engine crates
 
 ### edgequake-core
 
-Orchestration layer — `EdgeQuake` public API, config, provider selection, document/query coordination.
+Orchestration layer. It holds the domain types (`Document`, `Chunk`, `GraphEntity`, `GraphRelationship`) and the `EdgeQuake` facade with `insert`, `insert_batch`, and `query`.
 
-| Attribute | Value |
-| --------- | ----- |
-| Path | `edgequake/crates/edgequake-core` |
-| Depends on | pipeline, query, storage |
-
-Key types: `EdgeQuake`, `EdgeQuakeConfig`, `Orchestrator`.
-
----
-
-### edgequake-api
-
-Axum server exposing `/api/v1/*`, Ollama-compat `/api/*`, WebSocket progress, MCP, health probes.
-
-| Attribute | Value |
-| --------- | ----- |
-| Path | `edgequake/crates/edgequake-api` |
-| Framework | Axum |
-
-Key modules: `handlers`, `routes`, `middleware`, `services::ingestion_status_mapper`.
-
-Notable routes: `/ws/pipeline/progress`, `/ws/progress/{track_id}`, `/api/v1/documents/*`, `/api/v1/ingestion/{track_id}/progress`.
-
-OpenAPI: `/swagger-ui/`, snapshot at `edgequake_webui/openapi/openapi.snapshot.json`.
-
----
+It also owns workspace and tenant types, `WorkspaceService`, and the LLM role helpers in `llm_roles.rs`. The five roles are `extract`, `query`, `summary`, `vlm`, and `keyword`. **(v0.33.0)** A role can carry a `connection_id`.
 
 ### edgequake-pipeline
 
-Document processing — chunking, entity/relationship extraction, gleaning, embedding, graph merge, progress and cost trackers.
+Document ingestion. Main modules: `chunker` (strategies and token packing), `extractor` (LLM, SOTA, simple, gleaning, and decision extractors), `merger` (entity and relationship merge), `lineage`, `progress`, and `prompts`.
 
-| Attribute | Value |
-| --------- | ----- |
-| Path | `edgequake/crates/edgequake-pipeline` |
-
-Sub-modules: `chunker`, `extractor`, `prompts`, `progress`, `stage_bridge`.
-
----
+The `Pipeline` type runs chunk, extract, and embed. The `EntityExtractor` trait is the extension point for new extraction methods.
 
 ### edgequake-query
 
-RAG query engine with strategies: `Naive`, `Local`, `Global`, `Hybrid`, `Mix`.
-
-| Attribute | Value |
-| --------- | ----- |
-| Path | `edgequake/crates/edgequake-query` |
-
----
+The query engine. `QueryMode` has six values: `Naive`, `Local`, `Global`, `Hybrid`, `Mix` (default), and `Bypass`. Other modules cover keyword extraction, context building, reranking, fusion, and answer caching. See [Query flow](../query-flow.md).
 
 ### edgequake-storage
 
-Storage traits and PostgreSQL implementations (pgvector + Apache AGE). In-memory adapters exist for tests only — production requires `DATABASE_URL`.
+Storage traits and adapters. The traits are `KVStorage`, `VectorStorage`, and `GraphStorage` (which is split into read, scan, mutate, and analytics traits). The production adapter lives in `adapters/postgres` (KV, pgvector, Apache AGE).
 
-| Attribute | Value |
-| --------- | ----- |
-| Path | `edgequake/crates/edgequake-storage` |
+Memory adapters exist for tests. Optional adapters for SQLite, Qdrant, and Neo4j sit behind feature flags; the server binary only assembles PostgreSQL profiles. Details: [Storage model](../storage-model.md).
 
-Key traits: `VectorStorage`, `GraphStorage`, `KvStorage`.
+### edgequake-storage-contracts
 
----
+Types shared between storage providers and callers, with no database driver. It holds scope and id types, binding, projection, vector, and graph contracts.
 
 ### edgequake-pdf
 
-PDF → markdown via embedded pdfium + vision LLM. Used by the convert phase before KG ingest.
-
-| Attribute | Value |
-| --------- | ----- |
-| Path | `edgequake/crates/edgequake-pdf` |
+PDF to Markdown. Backends are `Vision` (default), `EdgeParse`, `EdgeParseOcr`, and `Auto`. It also handles page layout, page modality, figure and chart crops, and the page assets stored as multimodal assets.
 
 ---
 
-## Infrastructure crates
+## Service crates
+
+### edgequake-api
+
+The Axum server. Routes live in `routes.rs` under `/api/v1`, `/api/v2`, and `/api` (Ollama-compatible). Other entry points: `/health`, `/ready`, `/live`, `/metrics`, `/mcp`, and the WebSocket routes `/ws/progress/{track_id}` and `/ws/pipeline/progress`.
+
+Notable modules:
+
+- `processor/`: the task processor that runs PDF convert and text insert.
+- `providers/`: provider resolution and connections. **(v0.33.0)** `connection_store`, `connection_factory`, and `probe` are new.
+- `workspace_pipeline_factory.rs`: builds a pipeline per workspace.
+- `doctor.rs`, `ssrf.rs`, `locality.rs` **(v0.33.0)**.
+- `state/migration_bootstrap/`: the boot-time schema check. It never applies versioned migrations when serving.
 
 ### edgequake-tasks
 
-Postgres-backed task queue SSOT: `claim_next`, lease heartbeat, tenant fairness, cooperative cancel (`CancellationRegistry`). Powers async upload, PDF convert/insert, reprocess, rebuild jobs.
+The durable task system. Task types: `Upload`, `Insert`, `Scan`, `Reindex`, `PdfProcessing`, `KnowledgeInjection`, `Deletion`, `BatchDeletion`, and `WorkspaceWipe`. Task statuses: `Pending`, `Processing`, `Indexed`, `Failed`, and `Cancelled`.
 
-| Attribute | Value |
-| --------- | ----- |
-| Path | `edgequake/crates/edgequake-tasks` |
-
-Task types include `PdfProcessing` (convert) and `Insert` (ingest) — see [Pipeline Progress](/docs/deep-dives/pipeline-progress/).
-
----
+It provides `claim_next`, leases, a `CancellationRegistry`, and tenant fairness. Delivery modes are `Local`, `Bridged`, and `NotifyOnly`. Operations notes: [Ingestion cancel and fairness](../../ingestion-cancel-and-fairness.md).
 
 ### edgequake-auth
 
-JWT login/refresh, API keys, OIDC, tenant/workspace context extraction.
-
-| Path | `edgequake/crates/edgequake-auth` |
-
----
+JWT creation and checks, password hashing, API key types, role-based access control, OIDC settings, and tenant types.
 
 ### edgequake-audit
 
-Append-only audit event sink for compliance logging.
-
-| Path | `edgequake/crates/edgequake-audit` |
-
----
+`AuditLogger` and audit events, written to PostgreSQL.
 
 ### edgequake-rate-limiter
 
-Token-bucket rate limiting applied per tenant in API middleware.
-
-| Path | `edgequake/crates/edgequake-rate-limiter` |
-
----
+Token-bucket limiter and the Axum middleware glue. The API applies it per tenant after authentication.
 
 ### edgequake-observability
 
-Single init point for `tracing`, Prometheus metrics (`/metrics`), request IDs, OTEL hooks.
+One place to set up `tracing`, Prometheus metrics (feature `metrics`), OpenTelemetry export (feature `otel`), and Langfuse spans. Both features are on by default.
 
-| Path | `edgequake/crates/edgequake-observability` |
+### edgequake-secrets **(v0.33.0)**
 
----
+Encrypts and decrypts stored provider API keys with AES-256-GCM. The key comes from `EDGEQUAKE_SECRETS_KEY`. `SecretString` never prints its value, and a short fingerprint lets the UI show which key is stored.
 
-## Feature flags (selected)
+### edgequake-migrate-manifest
 
-| Flag | Crate | Description |
-| ---- | ----- | ----------- |
-| `postgres` | storage | PostgreSQL backends |
-| `pdf` | pipeline | PDF ingest integration |
-| `otel` | observability | OpenTelemetry export |
-| `metrics` | observability | Prometheus recorder |
+Parses `edgequake/migrations/manifest.toml`, the single source of truth for migration phases, known-checksum variants, irreversible drops, and the serve-compatibility window (SPEC-150).
 
-Provider selection is **runtime** via environment (`EDGEQUAKE_LLM_PROVIDER`, `OPENAI_API_KEY`, …) — not a separate LLM crate feature flag.
+### edgequake-fake-llm **(v0.33.0)**
+
+A small HTTP server that imitates an LLM API. It can inject faults (`401`, `500`, `slow`, `wrong-dim`, `down`) through a query string or the `X-Fake-Mode` header. Tests use it; production does not.
 
 ---
 
-## See Also
+## Feature flags
 
-- [Architecture Overview](/docs/architecture/overview/) — high-level design
-- [Data Flow](/docs/architecture/data-flow/) — ingest and query paths
-- [REST API](/docs/api-reference/rest-api/) — HTTP surface
-- [Pipeline Progress](/docs/deep-dives/pipeline-progress/) — task/progress model
+| Flag | Crate | Effect |
+| ---- | ----- | ------ |
+| `postgres` | api, storage, core, tasks | PostgreSQL support. The server needs it. |
+| `pipeline` | core | Links `edgequake-pipeline` (on by default) |
+| `otel` | observability, api | OpenTelemetry export (on by default) |
+| `metrics` | observability | Prometheus metrics (on by default) |
+| `vision` | api | Vision PDF mode |
+| `sqlite`, `qdrant`, `neo4j`, `p3` | storage, api | Optional adapters, not part of the default server |
+
+Provider choice is made at run time through settings and workspace configuration, not through feature flags.
+
+---
+
+## See also
+
+- [Architecture Overview](../overview.md)
+- [Data flow](../data-flow.md)
+- [REST API](../../api-reference/rest-api.md)
+- [Pipeline progress](../../deep-dives/pipeline-progress.md)

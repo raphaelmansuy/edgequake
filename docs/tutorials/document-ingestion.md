@@ -1,869 +1,250 @@
 ---
-title: "Tutorial: Document Ingestion Deep-Dive"
+title: "Tutorial: Document ingestion"
+description: Upload documents to EdgeQuake, follow them through the pipeline, tune chunking, entity types and gleaning, and recover from failures.
 ---
 
-> **Product: v0.23.0** · Contract: [`openapi.snapshot.json`](../../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+In this tutorial you upload documents in three ways, watch them move through the ingestion pipeline and tune the options that matter most. You also learn how to retry failures.
 
-# Tutorial: Document Ingestion Deep-Dive
+**Prerequisites:** the setup from [First RAG app](first-rag-app.md): a running server, a workspace, and the shell variables `EQ_API` and `WORKSPACE_ID`.
 
-> **Understanding and Customizing the Document Pipeline**
+## The pipeline
 
-This tutorial explores EdgeQuake's document processing pipeline in depth, covering chunking strategies, entity extraction, and how to optimize for your use case.
+Ingestion turns a document into a searchable knowledge graph. The flowchart shows the stages. PDFs take one extra step at the start.
 
-**Time**: ~25 minutes  
-**Level**: Intermediate  
-**Prerequisites**: Completed [First RAG App](/docs/tutorials/first-rag-app/)
-
-### API truth (v0.23.0)
-
-| Concept | SSOT |
-| ------- | ---- |
-| Document list/detail | `DocumentSummary`: `display_status`, `ui_phase`, `track_id`, `current_stage` |
-| PDF pipeline | **Convert** (`TaskType::PdfProcessing`) then **ingest** (`TaskType::Insert`) — see [PDF Ingestion](/docs/tutorials/pdf-ingestion/) |
-| Progress | WebSocket `/ws/progress/{track_id}` or HTTP poll — **not** legacy `/rag/*` |
-| Query | `QueryResponse`: `answer` + `sources` |
-| Auth | On by default; `make dev` sets `EDGEQUAKE_DEV_MODE=true` |
-
----
-
-## The Ingestion Pipeline
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                   DOCUMENT INGESTION PIPELINE                   │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Document ─────────────────────────────────────────────────────▶
-│      │                                                          │
-│      ▼                                                          │
-│  ┌─────────────┐                                                │
-│  │  1. Parse   │ Extract text from PDF, DOCX, TXT, HTML         │
-│  └──────┬──────┘                                                │
-│         │                                                       │
-│         ▼                                                       │
-│  ┌─────────────┐                                                │
-│  │  2. Chunk   │ Split into semantic units (1200 tokens default)│
-│  └──────┬──────┘                                                │
-│         │                                                       │
-│         ▼                                                       │
-│  ┌─────────────┐                                                │
-│  │ 3. Extract  │ LLM extracts entities + relationships          │
-│  │   (per chunk)│ Runs in parallel                              │
-│  └──────┬──────┘                                                │
-│         │                                                       │
-│         ▼                                                       │
-│  ┌─────────────┐                                                │
-│  │ 4. Normalize│ Deduplicate entities, merge descriptions       │
-│  └──────┬──────┘                                                │
-│         │                                                       │
-│         ▼                                                       │
-│  ┌─────────────┐                                                │
-│  │  5. Embed   │ Generate embeddings for chunks + entities      │
-│  └──────┬──────┘                                                │
-│         │                                                       │
-│         ▼                                                       │
-│  ┌─────────────┐                                                │
-│  │  6. Store   │ Save to PostgreSQL (pgvector + AGE)            │
-│  └─────────────┘                                                │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  A["Upload"] --> B["Convert PDF to Markdown"]
+  A --> C["Chunk"]
+  B --> C
+  C --> D["Extract entities and relationships"]
+  D --> E["Glean missed items"]
+  E --> F["Merge and normalize"]
+  F --> G["Embed"]
+  G --> H["Store graph and vectors"]
 ```
 
----
+Read it left to right. Plain text and Markdown skip the PDF step. Gleaning (a second pass that asks the model for missed items) is optional. See [Pipeline progress](../deep-dives/pipeline-progress.md) for the exact stage names and [LightRAG algorithm](../deep-dives/lightrag-algorithm.md) for the theory.
 
-## Working with PDF Documents
+## 1. Upload a document
 
-EdgeQuake has two PDF extraction backends:
-- `vision` (default) for scanned, image-heavy, or layout-complex PDFs
-- `edgeparse` for fast CPU-only extraction of digital-native PDFs
+EdgeQuake has three upload routes. All of them return quickly and process in the background.
 
-You can choose the backend per upload, set a workspace default, or use
-`EDGEQUAKE_PDF_PARSER_BACKEND` as a server fallback. This section provides a quick overview - see
-the [PDF Ingestion Tutorial](/docs/tutorials/pdf-ingestion/) for complete details.
+| Route | Body | Use it for |
+|-------|------|------------|
+| `POST /api/v1/documents` | JSON with `content` | Text your code already has in memory. |
+| `POST /api/v1/documents/upload` | Multipart field `file` | `.txt`, `.md` and other text files. |
+| `POST /api/v1/documents/pdf` | Multipart field `file` | PDFs. See [PDF ingestion](pdf-ingestion.md). |
 
-In the Web UI:
-- Set the workspace default on the workspace configuration page (`/workspace` or
-  `/w/[slug]/workspace`).
-- Override it per file in the upload dialog with the `Parser for this upload` selector.
-- Leave the upload selector on `Workspace Default` to inherit the workspace setting.
+Every call needs the header `X-Workspace-ID`.
 
-### Quick PDF Upload Example
+### Upload JSON text
 
 ```bash
-# Upload a PDF with default settings (vision backend)
-curl -X POST "http://localhost:8080/api/v1/documents/pdf" \
-  -F "file=@research_paper.pdf" \
-  -F "title=AI Research Paper"
-
-# Upload a digital-native PDF with EdgeParse
-curl -X POST "http://localhost:8080/api/v1/documents/pdf" \
-  -F "file=@annual_report.pdf" \
-  -F "title=Annual Report" \
-  -F "pdf_parser_backend=edgeparse"
-```
-
-**What Gets Extracted**:
-
-- ✅ Text (with layout preservation)
-- ✅ Tables (with structure detected)
-- ✅ Metadata (pages, author, title)
-- ✅ Multi-column layouts (academic papers)
-
-**Response**:
-
-```json
-{
-  "id": "doc-uuid",
-  "title": "AI Research Paper",
-  "status": "completed",
-  "chunk_count": 45,
-  "metadata": {
-    "pages": 12,
-    "tables_detected": 3
-  }
-}
-```
-
----
-
-### PDF Configuration Modes
-
-EdgeQuake supports three extraction modes:
-
-**Text Mode** (default, fastest):
-
-```bash
-# Automatic text extraction from digital PDFs
-curl -X POST http://localhost:8080/api/v1/documents/pdf \
-  -F "file=@doc.pdf"
-```
-
-- Use for: Good quality digital PDFs
-- Processing: 2-5 seconds
-- Cost: Free
-
-**Vision Backend** (scanned documents):
-
-```bash
-# LLM-based OCR for scanned/image PDFs
-curl -X POST http://localhost:8080/api/v1/documents/pdf \
-  -F "file=@scanned_book.pdf" \
-  -F "pdf_parser_backend=vision"
-```
-
-- Use for: Scanned documents, poor quality PDFs
-- Processing: 20-50 seconds
-- Cost: ~$0.001-0.01 per page
-
-**Workspace Default Override** (scan-heavy corpus):
-
-```bash
-# Prefer vision for all uploads in this workspace
-curl -X PUT http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID \
+curl -s -X POST "$EQ_API/api/v1/documents" \
   -H "Content-Type: application/json" \
-  -d '{"pdf_parser_backend":"vision"}'
-```
-
-- Use for: Teams that mostly ingest scans or image-heavy PDFs
-- Processing: Consistent Vision behavior across uploads
-- Cost: All uploads use the Vision backend unless overridden per upload
-
-### EdgeParse Operational Note
-
-EdgeParse is intentionally deterministic and does not auto-fallback to Vision. If a PDF is
-scanned or image-only, EdgeParse may produce thin markdown and the document lineage will include a
-warning telling you to retry with Vision.
-
----
-
-### Enhanced Table Detection
-
-For complex tables (merged cells, nested structures):
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/pdf \
-  -F "file=@financial_report.pdf" \
-  -F 'config={"enhance_tables": true}'
-```
-
-**Before** (raw extraction):
-
-```
-Column1 Header Column2 Header
-Data1a Data1b Data2a
-Data2b Data3a Data3b
-```
-
-**After** (enhanced):
-
-```markdown
-| Column 1 Header | Column 2 Header |
-| --------------- | --------------- |
-| Data 1a         | Data 1b         |
-| Data 2a         | Data 2b         |
-| Data 3a         | Data 3b         |
-```
-
-**Trade-off**: 2x slower, ~$0.0001 per table, but significantly better accuracy.
-
----
-
-### PDF-Specific Chunking Strategies
-
-When EdgeQuake processes PDFs, chunks are created based on document structure:
-
-**Text Content**:
-
-- Paragraphs → Individual chunks
-- Sections → Detected via headings
-- Reading order → Preserved with layout analysis
-
-**Tables**:
-
-- Entire table → Single chunk
-- Preserves cell relationships
-- Includes caption if present
-
-**Figures**:
-
-- Caption → Separate chunk
-- Image description (if vision mode enabled)
-
-**Example** (12-page research paper):
-
-```
-Page 1:  Abstract                  → 1 chunk
-Page 2-3: Introduction (4 paras)    → 4 chunks
-Page 4:   Table 1                   → 1 chunk
-Page 5-7: Methods (6 paras)         → 6 chunks
-Page 8:   Figure 2 caption          → 1 chunk
-Page 9-11: Results (8 paras + table) → 9 chunks
-Page 12:  Conclusion               → 2 chunks
-
-Total: 24 chunks from 12 pages
-```
-
-**Tip**: PDF chunks tend to be more structured than plain text chunks due to layout analysis.
-
----
-
-### PDF Entity Extraction
-
-Entities extracted from PDFs include document-specific elements:
-
-**From Content**:
-
-- Authors, researchers, organizations
-- Methods, concepts, metrics
-- Locations, datasets
-
-**From Metadata**:
-
-- PDF title → Document entity
-- Author field → Person entities
-- Creation date → Temporal entity
-
-**Example** (from PDF metadata):
-
-```
-Dr. Jane Smith (PERSON) → AuthorOf → "AI Safety Paper" (DOCUMENT)
-"AI Safety Paper" (DOCUMENT) → PublishedBy → MIT (ORGANIZATION)
-MIT (ORGANIZATION) → LocatedIn → Boston (LOCATION)
-```
-
-**Relationship Graph**:
-
-```
-Jane Smith ───AuthorOf──▶ Paper ───Cites──▶ Related Work
-     │                       │
-     │                       │
-  WorksAt                 AboutTopic
-     │                       │
-     ▼                       ▼
-    MIT              "Reinforcement Learning"
-```
-
----
-
-### Verifying PDF Extraction Quality
-
-After PDF upload, check extraction metrics:
-
-```bash
-curl http://localhost:8080/api/v1/documents/doc-uuid
-```
-
-**Response**:
-
-```json
-{
-  "id": "doc-uuid",
-  "metadata": {
-    "pages": 12,
-    "tables_detected": 3,
-    "pdf_extraction_method": "edgeparse"
-  },
-  "chunk_count": 24,
-  "entity_count": 18
-}
-```
-
-**Quality Indicators**:
-
-- ✅ `chunk_count` matches expected (roughly 2-3 chunks per page)
-- ✅ `tables_detected > 0` if PDF has tables
-- ✅ `entity_count > 0` indicates successful extraction
-
-**If chunk_count = 0**:
-
-1. Retry with the Vision backend: `{"pdf_parser_backend":"vision"}`
-2. Check if PDF is encrypted/protected
-3. See [PDF Troubleshooting](/docs/troubleshooting/common-issues/#pdf-extraction-issues)
-
----
-
-### PDF Configuration Reference
-
-Common configuration options:
-
-```json
-{
-  "pdf_parser_backend": "edgeparse", // edgeparse | vision
-  "enhance_tables": false, // Enable LLM table refinement
-  "layout": {
-    "detect_columns": true, // Multi-column detection
-    "detect_tables": true, // Table detection
-    "column_gap_threshold": 20.0 // Column separation (points)
-  },
-  "max_pages": null, // Limit pages (null = all)
-  "normalize_spacing": true, // Fix concatenated words
-  "extract_figure_captions": true // Extract figure captions
-}
-```
-
----
-
-### When to Read the Full PDF Tutorial
-
-**Read this section** if:
-
-- First time with EdgeQuake
-- Quick reference for PDF upload
-
-**Read [PDF Ingestion Tutorial](/docs/tutorials/pdf-ingestion/)** if:
-
-- Complex PDFs (tables, scans, multi-column)
-- Need detailed configuration guidance
-- Troubleshooting extraction issues
-- Understanding quality metrics
-
-**Read [PDF Processing Deep Dive](/docs/deep-dives/pdf-processing/)** if:
-
-- Understanding internal algorithms
-- XY-Cut layout analysis details
-- Table detection clustering logic
-- Contributing to PDF crate
-
----
-
-### PDF Troubleshooting Quick Reference
-
-**No text extracted**:
-
-- ✅ Try `{"pdf_parser_backend":"vision"}` for scanned PDFs
-- ✅ Check PDF is not encrypted
-
-**Tables not detected**:
-
-- ✅ Enable `{"enhance_tables": true}`
-- ✅ Verify tables have clear borders
-
-**Wrong text order**:
-
-- ✅ Enable `{"layout": {"detect_columns": true}}`
-- ✅ Academic papers benefit from column detection
-
-**More details**: See [PDF Troubleshooting](/docs/troubleshooting/common-issues/#pdf-extraction-issues)
-
----
-
-## Step 1: Understanding Chunks
-
-Chunks are the atomic units of retrieval. Too small = missing context. Too large = noise in results.
-
-### Default Chunking
-
-EdgeQuake uses sliding window chunking by default:
-
-- **Chunk size**: 1200 tokens (default)
-- **Overlap**: 100 tokens (~8%)
-- **Strategy**: Semantic boundaries (sentences, paragraphs)
-
-### Inspect Chunk Output
-
-After uploading a document, view its chunks:
-
-```bash
-curl "http://localhost:8080/api/v1/documents/doc_xyz789/chunks"
-```
-
-**Response:**
-
-```json
-{
-  "chunks": [
-    {
-      "id": "chunk_001",
-      "content": "TechCorp Innovation Labs was founded in 2020 by Sarah Chen and Marcus Williams. The company is headquartered in San Francisco, with research offices in Boston and Seattle.",
-      "position": 0,
-      "token_count": 42,
-      "embedding_id": "emb_abc123"
-    },
-    {
-      "id": "chunk_002",
-      "content": "Sarah Chen serves as CEO and leads the company's AI research initiatives. She previously worked at Google DeepMind where she led the language model team.",
-      "position": 1,
-      "token_count": 38,
-      "embedding_id": "emb_def456"
-    }
-  ],
-  "total_chunks": 8
-}
-```
-
----
-
-## Step 2: Custom Chunking Strategies
-
-Different document types benefit from different chunking approaches:
-
-### Strategy Comparison
-
-| Strategy      | Best For             | Chunk Size            |
-| ------------- | -------------------- | --------------------- |
-| **Fixed**     | General text         | 1200 tokens (default) |
-| **Semantic**  | Well-structured docs | Variable              |
-| **Paragraph** | Articles, blogs      | 1 paragraph           |
-| **Sentence**  | Q&A, definitions     | 1-3 sentences         |
-
-### Using Custom Chunk Size
-
-```bash
-curl -X POST "http://localhost:8080/api/v1/documents?workspace_id=$WORKSPACE_ID" \
-  -F "file=@large_document.pdf" \
-  -F "title=Technical Manual" \
-  -F "chunk_size=1024" \
-  -F "chunk_overlap=100"
-```
-
-### When to Adjust
-
-| Scenario            | Recommendation                   |
-| ------------------- | -------------------------------- |
-| Long technical docs | Increase to 1024 tokens          |
-| Short FAQs          | Decrease to 256 tokens           |
-| Legal contracts     | Use paragraph chunking           |
-| Code documentation  | Use semantic with code awareness |
-
----
-
-## Step 3: Entity Extraction
-
-The LLM extracts entities and relationships from each chunk.
-
-### Default Entity Types
-
-EdgeQuake extracts these entity types by default:
-
-- **PERSON** - Named individuals
-- **ORGANIZATION** - Companies, institutions, teams
-- **LOCATION** - Places, cities, countries
-- **EVENT** - Meetings, launches, milestones
-- **CONCEPT** - Abstract ideas, theories
-- **TECHNOLOGY** - Technical tools, frameworks, protocols
-- **PRODUCT** - Products, services, commercial offerings
-
-### View Extracted Entities
-
-```bash
-curl "http://localhost:8080/api/v1/documents/doc_xyz789/entities"
-```
-
-**Response:**
-
-```json
-{
-  "entities": [
-    {
-      "name": "SARAH_CHEN",
-      "type": "PERSON",
-      "description": "CEO of TechCorp Innovation Labs",
-      "mentions": [
-        { "chunk_id": "chunk_001", "context": "...founded by Sarah Chen..." },
-        { "chunk_id": "chunk_002", "context": "...Sarah Chen serves as CEO..." }
-      ]
-    }
-  ],
-  "relationships": [
-    {
-      "source": "SARAH_CHEN",
-      "target": "TECHCORP_INNOVATION_LABS",
-      "type": "FOUNDED",
-      "description": "Co-founded the company in 2020",
-      "source_chunk": "chunk_001"
-    }
-  ]
-}
-```
-
-### Custom Entity Types
-
-Configure workspace-specific entity types:
-
-```bash
-curl -X PUT "http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID" \
-  -H "Content-Type: application/json" \
+  -H "X-Workspace-ID: $WORKSPACE_ID" \
   -d '{
-    "entity_types": [
-      "PERSON",
-      "COMPANY",
-      "DRUG",
-      "DISEASE",
-      "GENE",
-      "PROTEIN"
-    ]
+    "title": "Quarterly report",
+    "content": "Acme Corp reported record revenue. CEO Jane Park credited the new Berlin office.",
+    "metadata": {"source": "tutorial"}
+  }' | jq '{document_id, status, track_id, duplicate_of}'
+```
+
+Expected output:
+
+```json
+{
+  "document_id": "6a0d4b0e-...",
+  "status": "processing",
+  "track_id": "track-...",
+  "duplicate_of": null
+}
+```
+
+The JSON route always processes in the background. The field `async_processing` is accepted but has no effect today.
+
+If you upload the same content twice, `duplicate_of` holds the ID of the first copy and no new work starts.
+
+### Upload a file
+
+```bash
+curl -s -X POST "$EQ_API/api/v1/documents/upload" \
+  -H "X-Workspace-ID: $WORKSPACE_ID" \
+  -F "file=@notes.md" \
+  | jq '{document_id, filename, status, is_duplicate, track_id}'
+```
+
+Upload several files in one call with `POST /api/v1/documents/upload/batch` and repeat the `files` field.
+
+### Upload options
+
+Send these as JSON fields, or as extra multipart text fields where marked.
+
+| Option | JSON | Multipart | Default | Effect |
+|--------|:----:|:---------:|---------|--------|
+| `title` | yes | no | file name | Display name. |
+| `metadata` | yes | yes (JSON string) | none | Free-form data stored with the document. |
+| `chunk_strategy` | yes | yes | chosen from the file type | `recursive`, `fixed`, `markdown`, `pdf` or `semantic`. |
+| `chunk_options` | yes | yes (JSON string) | workspace policy | For example `{"chunk_token_size": 1200, "chunk_overlap_token_size": 100}`. |
+| `enable_gleaning` | yes | no | `true` | Run the second extraction pass. |
+| `max_gleaning` | yes | no | `1` (cap `2`) | Number of extra passes. |
+| `use_llm_summarization` | yes | no | `true` | Merge long entity descriptions with the LLM. |
+| `extract_max_entities` | yes | yes | `40` | Cap on entities per chunk response. |
+| `extract_max_records` | yes | yes | `100` | Cap on total rows per chunk response. |
+| `extraction_mode` | yes | yes | `llm` | `llm` or `decision`. See [Decision extraction](../concepts/decision-extraction.md). |
+
+Example with options:
+
+```bash
+curl -s -X POST "$EQ_API/api/v1/documents" \
+  -H "Content-Type: application/json" \
+  -H "X-Workspace-ID: $WORKSPACE_ID" \
+  -d '{
+    "title": "Long report",
+    "content": "...",
+    "chunk_strategy": "recursive",
+    "chunk_options": {"chunk_token_size": 600, "chunk_overlap_token_size": 60},
+    "enable_gleaning": false
   }'
 ```
 
-This is useful for domain-specific applications (medical, legal, financial).
+> **Defaults on local models.** With Ollama or LM Studio, gleaning is off even if you ask for it, because it doubles the load on a local server. Set `EDGEQUAKE_LOCAL_ENABLE_GLEANING=true` on the server to allow it. See [Gleaning](../deep-dives/gleaning.md).
 
----
+## 2. Track progress
 
-## Step 4: Entity Normalization
-
-EdgeQuake automatically normalizes entity names to prevent duplicates.
-
-### Normalization Rules
-
-```
-Input                    → Normalized
-─────────────────────────────────────
-"Sarah Chen"             → SARAH_CHEN
-"Dr. Sarah Chen"         → SARAH_CHEN
-"Chen, Sarah"            → SARAH_CHEN
-"Ms. Sarah Chen, PhD"    → SARAH_CHEN
-"Sarah Chen's work"      → SARAH_CHEN
-```
-
-### Merge Detection
-
-When the same entity appears with different descriptions, EdgeQuake merges them:
-
-```
-Chunk 1: "Sarah Chen is the CEO of TechCorp"
-Chunk 2: "Dr. Chen previously worked at Google DeepMind"
-
-Result:
-{
-  "name": "SARAH_CHEN",
-  "description": "CEO of TechCorp Innovation Labs. Previously led the language model team at Google DeepMind."
-}
-```
-
----
-
-## Step 5: Gleaning (Multi-Pass Extraction)
-
-For complex documents, single-pass extraction may miss entities. Enable gleaning for thorough extraction:
+Every upload returns a `document_id` and a `track_id`. Save them from the response, for example with `jq -r '.document_id'` and `jq -r '.track_id'`, into `DOC_ID` and `TRACK_ID`. Use the track ID to follow all documents from one upload or batch:
 
 ```bash
-curl -X POST "http://localhost:8080/api/v1/documents?workspace_id=$WORKSPACE_ID" \
-  -F "file=@complex_document.pdf" \
-  -F "title=Research Paper" \
-  -F "gleaning_iterations=2"
-```
-
-### How Gleaning Works
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                   GLEANING PROCESS                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Pass 1: Initial Extraction                                     │
-│  ─────────────────────────                                      │
-│  LLM extracts: [SARAH_CHEN, TECHCORP, NEURALSEARCH]             │
-│                                                                 │
-│  Pass 2: Glean (review for missed entities)                     │
-│  ───────────────────────────────────────────                    │
-│  Prompt: "Review text for entities you may have missed"         │
-│  LLM extracts: [GOOGLE_DEEPMIND, VENTURE_PARTNERS_CAPITAL]      │
-│                                                                 │
-│  Combined: 5 entities (vs 3 from single pass)                   │
-│  Improvement: +67% recall                                       │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Cost-Benefit
-
-| Gleaning | LLM Calls   | Entity Recall | Cost |
-| -------- | ----------- | ------------- | ---- |
-| 0 passes | 1 per chunk | Baseline      | $    |
-| 1 pass   | 2 per chunk | +15-25%       | $$   |
-| 2 passes | 3 per chunk | +25-35%       | $$$  |
-
-Default: 1 gleaning iteration (good balance).
-
----
-
-## Step 6: Monitor Processing
-
-Use `DocumentSummary` presentation fields (SPEC-057) instead of inferring state from legacy `status` alone.
-
-### Real-Time Status
-
-```bash
-curl "http://localhost:8080/api/v1/documents/doc_xyz789" \
-  -H "X-Workspace-ID: $WORKSPACE_ID"
-```
-
-**Response:**
-
-```json
-{
-  "id": "doc_xyz789",
-  "title": "Research Paper",
-  "display_status": "extracting",
-  "ui_phase": "running",
-  "current_stage": "entity_extraction",
-  "track_id": "f6fa9cad-bbff-4892-a855-3bd7d70da044",
-  "chunk_count": 45,
-  "entity_count": 12
-}
-```
-
-| Field | Meaning |
-| ----- | ------- |
-| `display_status` | Badge key: `converting`, `extracting`, `embedding`, `completed`, `failed`, `cancelled`, … |
-| `ui_phase` | `idle` \| `running` \| `stopping` \| `terminal` — show **Stopping…** when `stopping` |
-| `current_stage` | Pipeline stage SSOT (prefer over legacy `status`) |
-| `track_id` | Correlate upload → progress WebSocket `/ws/progress/{track_id}` |
-
-### WebSocket progress
-
-```javascript
-const ws = new WebSocket(`ws://localhost:8080/ws/progress/${trackId}`);
-ws.onmessage = (e) => console.log(JSON.parse(e.data));
-```
-
-Cancel in flight: `POST /api/v1/tasks/{track_id}/cancel` (see [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)).
-
-### Processing Phases
-
-| Phase         | Description            | Duration         |
-| ------------- | ---------------------- | ---------------- |
-| `parsing`     | Extract text from file | ~100ms           |
-| `chunking`    | Split into chunks      | ~50ms            |
-| `extracting`  | LLM entity extraction  | ~2-10s per chunk |
-| `normalizing` | Deduplicate entities   | ~100ms           |
-| `embedding`   | Generate vectors       | ~500ms           |
-| `storing`     | Save to database       | ~100ms           |
-
----
-
-## Step 7: Batch Upload
-
-For large document sets, use the correct batch endpoint per type (SPEC-123 / SPEC-132):
-
-```bash
-# Multi-file text/markdown/images — NOT for PDFs (PDFs are rejected on this route)
-curl -X POST "http://localhost:8080/api/v1/documents/upload/batch" \
+curl -s "$EQ_API/api/v1/documents/track/$TRACK_ID" \
   -H "X-Workspace-ID: $WORKSPACE_ID" \
-  -F "files=@report_feb.txt" \
-  -F "files=@report_mar.md"
-
-# Multi-PDF upload (required for PDFs)
-curl -X POST "http://localhost:8080/api/v1/documents/pdf/batch" \
-  -H "X-Workspace-ID: $WORKSPACE_ID" \
-  -F "files=@q1-overview.pdf" \
-  -F "files=@q1-appendix.pdf" \
-  -F "enable_vision=true"
-
-# WebUI multi-select uses N× POST /documents/pdf (concurrency 3), not /pdf/batch.
+  | jq '{is_complete, total_count, status_summary, latest_message}'
 ```
 
-Both batch endpoints return per-file results with processed/duplicate/failed counters.
-Batch APIs **admit** files (often serially in the request loop) then process via the
-worker pool — they do **not** make documents searchable at HTTP 202 (SPEC-122).
-
----
-
-## Step 8: Reprocess Documents
-
-If you change settings, reprocess existing documents:
+To follow one document, read it by ID. The field `display_status` is the current stage and `ui_phase` is `idle`, `running`, `stopping` or `terminal`:
 
 ```bash
-# Reprocess with new entity types
-curl -X POST "http://localhost:8080/api/v1/documents/doc_xyz789/reprocess" \
+curl -s "$EQ_API/api/v1/documents/$DOC_ID" -H "X-Workspace-ID: $WORKSPACE_ID" \
+  | jq '{display_status, ui_phase, chunk_count, entity_count, relationship_count, error_message}'
+```
+
+The pipeline moves each document through these stages:
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+stateDiagram-v2
+  [*] --> pending
+  pending --> processing
+  processing --> completed
+  processing --> partial_failure
+  processing --> failed
+  processing --> cancelled
+  failed --> pending: reprocess
+  partial_failure --> pending: retry chunks
+  completed --> [*]
+  cancelled --> [*]
+```
+
+Read it from the start dot. `processing` covers several fine-grained stages (chunking, extracting, gleaning, merging, embedding, storing) that `display_status` reports while the document runs. `failed` and `partial_failure` can go back to `pending` when you retry.
+
+Other ways to watch progress:
+
+- `GET /api/v1/documents?page=1&page_size=20` lists documents with status and counts.
+- A WebSocket at `/ws/progress/{track_id}` (no `/api/v1` prefix) streams live events for one upload.
+- `GET /api/v1/workspaces/$WORKSPACE_ID/stats` returns workspace totals: `document_count`, `chunk_count`, `entity_count`, `relationship_count`.
+
+## 3. Choose chunking
+
+A **chunk** is a slice of text sized in tokens. The chunker has three layers of settings; the most specific wins:
+
+1. The upload (`chunk_strategy`, `chunk_options`).
+2. The workspace (`chunking_mode`, `chunk_token_size`, `chunk_overlap_token_size`).
+3. The server (`EDGEQUAKE_CHUNK_SIZE`, `EDGEQUAKE_CHUNK_OVERLAP`).
+
+Set a workspace policy once, and every upload inherits it:
+
+```bash
+curl -s -X PUT "$EQ_API/api/v1/workspaces/$WORKSPACE_ID" \
   -H "Content-Type: application/json" \
-  -d '{
-    "chunk_size": 1024,
-    "gleaning_iterations": 2,
-    "entity_types": ["PERSON", "DRUG", "DISEASE"]
-  }'
+  -d '{"chunking_mode": "fixed", "chunk_token_size": 800, "chunk_overlap_token_size": 80}' | jq '.id'
 ```
 
-### What Gets Reprocessed
+Smaller chunks give more precise retrieval and more LLM calls. Larger chunks keep more context and risk exceeding the embedding model limit. The strategies, adaptive sizing and defaults are in [Chunking strategies](../deep-dives/chunking-strategies.md).
 
-| Setting Change | Recalculated                 |
-| -------------- | ---------------------------- |
-| chunk_size     | Chunks, entities, embeddings |
-| entity_types   | Entities, relationships      |
-| gleaning       | Entities, relationships      |
-| LLM model      | Entities, embeddings         |
+## 4. Choose entity types
 
----
+The extractor labels each entity with a type. The default types are `PERSON`, `CREATURE`, `ORGANIZATION`, `LOCATION`, `EVENT`, `CONCEPT`, `METHOD`, `CONTENT`, `DATA`, `ARTIFACT`, `NATURALOBJECT` and `OTHER`.
 
-## Step 9: Pipeline Metrics
-
-Analyze pipeline performance:
+Replace them for your domain on the workspace. Types are uppercased and capped at 50.
 
 ```bash
-curl "http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID/metrics"
+curl -s -X PUT "$EQ_API/api/v1/workspaces/$WORKSPACE_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"entity_types": ["PERSON", "ORGANIZATION", "PRODUCT", "REGULATION"], "entity_types_strict": true}' \
+  | jq '.id'
 ```
 
-**Response:**
+With `entity_types_strict` on (the default), a type outside your list is remapped to a catch-all such as `OTHER`. Set it to `false` to let the model invent labels. The setting applies to documents ingested after the change. Reprocess older documents to apply it to them.
 
-```json
-{
-  "workspace_id": "ws_abc123",
-  "documents": {
-    "total": 150,
-    "completed": 148,
-    "processing": 2,
-    "failed": 0
-  },
-  "chunks": {
-    "total": 4500,
-    "avg_size_tokens": 487
-  },
-  "entities": {
-    "total": 1250,
-    "by_type": {
-      "PERSON": 320,
-      "ORGANIZATION": 180,
-      "CONCEPT": 450,
-      "LOCATION": 150,
-      "EVENT": 100,
-      "PRODUCT": 50
-    }
-  },
-  "relationships": {
-    "total": 2100
-  },
-  "costs": {
-    "llm_tokens_used": 4500000,
-    "embedding_tokens_used": 2250000,
-    "estimated_cost_usd": 12.5
-  }
-}
+The workspace also accepts `extraction_language` (for example `"French"`) to set the language of extracted descriptions. See [Entity extraction](../deep-dives/entity-extraction.md).
+
+## 5. Merge and normalize
+
+After extraction, EdgeQuake gives each name a canonical ID and merges entities that share it. `Sarah Chen` and `sarah chen` become one node `SARAH_CHEN`. Titles and punctuation are kept, so `Dr. S. Chen` stays separate. The rules and edge cases are in [Entity normalization](../deep-dives/entity-normalization.md).
+
+## 6. Handle failures
+
+The table lists the recovery calls. Each needs `X-Workspace-ID`.
+
+| Goal | Call |
+|------|------|
+| Retry one failed document | `POST /api/v1/documents/reprocess` with `{"document_id": "<id>"}` |
+| Retry all failed documents | `POST /api/v1/documents/reprocess` with `{}` |
+| Re-run a completed document | Same call with `{"document_id": "<id>", "force": true}` |
+| Retry only failed chunks | `POST /api/v1/documents/<id>/retry-chunks` |
+| List failed chunks | `GET /api/v1/documents/<id>/failed-chunks` |
+| Recover stuck documents | `POST /api/v1/documents/recover-stuck` |
+| Cancel a running document | `POST /api/v1/documents/<id>/cancel` |
+| Delete one document | `DELETE /api/v1/documents/<id>` |
+
+Example:
+
+```bash
+curl -s -X POST "$EQ_API/api/v1/documents/reprocess" \
+  -H "Content-Type: application/json" \
+  -H "X-Workspace-ID: $WORKSPACE_ID" \
+  -d '{"document_id": "'"$DOC_ID"'"}' | jq '{failed_found, requeued, skipped, skip_reasons}'
 ```
 
----
+Common causes of failure:
 
-## Best Practices
+| Symptom in `error_message` | Cause | Fix |
+|----------------------------|-------|-----|
+| Network error to the model server | Ollama, LM Studio or the cloud API is unreachable. | Start or fix the provider, then reprocess. |
+| Embedding input too long | Chunks exceed the embedding model limit. | Lower `chunk_token_size` to about 600. |
+| Rate limit or quota | Cloud provider limit. | Retry later, or lower `MAX_TASKS_PER_TENANT` on the server. |
+| `partial_failure` | Some chunks failed, the rest succeeded. | Use `retry-chunks`. |
 
-### Document Preparation
+For server-wide concurrency and rate settings, see the [environment reference](../operations/env-reference.md) and [Performance tuning](../operations/performance-tuning.md).
 
-1. **Clean text** - Remove headers, footers, page numbers if possible
-2. **Consistent format** - Use consistent naming for entities
-3. **Quality over quantity** - Better documents = better extraction
+## 7. Verify the result
 
-### Chunk Size Guidelines
+Compare counts, then list a few entities:
 
-| Document Type    | Recommended Size      |
-| ---------------- | --------------------- |
-| General articles | 1200 tokens (default) |
-| Technical docs   | 1200 tokens           |
-| Short Q&A        | 512 tokens            |
-| Legal contracts  | Paragraph-based       |
+```bash
+curl -s "$EQ_API/api/v1/workspaces/$WORKSPACE_ID/stats" | jq '{document_count, chunk_count, entity_count, relationship_count}'
 
-### Entity Extraction Tips
+curl -s "$EQ_API/api/v1/graph/entities?page_size=10&search=acme" \
+  -H "X-Workspace-ID: $WORKSPACE_ID" | jq '.items[] | {entity_name, entity_type}'
+```
 
-1. **Domain-specific types** - Add custom types for your domain
-2. **Enable gleaning** - For research papers and complex docs
-3. **Review extractions** - Spot-check for quality
+To see which chunks and entities one document produced, read `GET /api/v1/documents/<id>/lineage`. [Tracing entity sources](tracing-entity-sources.md) shows how.
 
----
+## Next steps
 
-## Troubleshooting
-
-### Low Entity Count
-
-**Problem**: Few entities extracted from detailed document.
-
-**Solutions**:
-
-1. Enable gleaning: `gleaning_iterations=2`
-2. Decrease chunk size for finer extraction
-3. Check LLM model supports extraction task
-
-### Duplicate Entities
-
-**Problem**: Same entity appears multiple times.
-
-**Solutions**:
-
-1. Check entity normalization is working
-2. Review entity descriptions for merge eligibility
-3. Consider manual merge via API
-
-### Slow Processing
-
-**Problem**: Documents taking too long (SPEC-122).
-
-HTTP 202 / “upload finished” is **not** searchable — Insert (and PDF convert)
-dominate wall clock. Throughput is
-`min(workers, MAX_TASKS_PER_TENANT, provider budget, vision, extract, embed)`,
-not how many files you selected.
-
-**Solutions**:
-
-1. Raise ingest lanes only with provider headroom: `WORKER_THREADS=8`,
-   `MAX_TASKS_PER_TENANT=6` (Docker defaults); local Ollama stays near-serial
-   unless `EDGEQUAKE_ALLOW_LOCAL_HIGH_CONCURRENCY=1` **and** `OLLAMA_NUM_PARALLEL`
-2. Use a faster cloud LLM when rate limits allow
-3. Reduce gleaning iterations / chunk count for large docs
-4. Measure before tuning: `make measure-bulk-ingest ARM=D N=5` (admit ≪ t_all)
-
----
-
-## What You Learned
-
-✅ How the 6-stage pipeline works  
-✅ Chunking strategies and customization  
-✅ Entity extraction and normalization  
-✅ Gleaning for thorough extraction  
-✅ Monitoring processing status  
-✅ Batch and bulk upload  
-✅ Reprocessing documents  
-✅ Pipeline performance metrics
-
----
-
-## Next Steps
-
-| Tutorial                                                  | Description                     |
-| --------------------------------------------------------- | ------------------------------- |
-| [Query Optimization](/docs/tutorials/query-optimization/) | Choosing and tuning query modes |
-| [Multi-Tenant Setup](/docs/tutorials/multi-tenant/)       | Building a SaaS application     |
-| [Custom Entity Types](/docs/concepts/entity-extraction/)  | Domain-specific extraction      |
-
----
-
-## See Also
-
-- [LightRAG Algorithm](/docs/deep-dives/lightrag-algorithm/) - Algorithm deep-dive
-- [Entity Normalization](/docs/deep-dives/entity-normalization/) - Deduplication details
-- [REST API](/docs/api-reference/rest-api/) - API reference
+- [PDF ingestion](pdf-ingestion.md)
+- [Query optimization](query-optimization.md)
+- [Cost tracking](../deep-dives/cost-tracking.md): estimate and monitor LLM spend.
+- [Product limits](../product-limits.md)

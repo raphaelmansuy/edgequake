@@ -4,6 +4,7 @@ version: "1.0"
 date: "2026-08-26"
 produit: "EdgeQuake v0.26.4"
 methode: "Tests empiriques sur Langfuse 3.1.1, 3.225.5 et 4 — résultats reproductibles"
+description: "Historical internal note: Langfuse on Kubernetes."
 ---
 
 # EdgeQuake × Langfuse — Compatibilité et déploiement Kubernetes

@@ -1,5 +1,6 @@
 ---
 title: "Rust SDK"
+description: "Rust SDK for EdgeQuake."
 ---
 
 # Rust SDK

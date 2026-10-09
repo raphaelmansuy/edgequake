@@ -1,618 +1,264 @@
 ---
-title: "Tutorial: Multi-Tenant Setup"
+title: "Tutorial: Multi-tenant deployment"
+description: Isolate customers or teams in EdgeQuake with tenants and workspaces, set quotas, understand membership and strict tenant binding, and put your own backend in front.
 ---
 
-> **Product: v0.23.0** · Contract: [`openapi.snapshot.json`](../../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+In this tutorial you split one EdgeQuake server between two customers. You create tenants and workspaces, upload data for each, prove that the data is isolated, and learn how access control works when authentication is on.
 
-# Tutorial: Multi-Tenant Setup
+**Prerequisites:** a running server (see [Getting started](../getting-started/index.md)), `curl` and `jq`. To create tenants with authentication on, you need an admin account; see [Auth quickstart](../operations/auth-quickstart.md).
 
-> **Building a SaaS Application with EdgeQuake**
+## The model
 
-This tutorial shows how to use EdgeQuake's built-in multi-tenancy to build applications that serve multiple customers with isolated data.
+A **tenant** is an organization. A **workspace** is an isolated knowledge base inside a tenant. A **user** reaches a workspace through a **membership**. Documents, chunks, vectors and the knowledge graph all belong to exactly one workspace.
 
-**Time**: ~25 minutes  
-**Level**: Intermediate  
-**Prerequisites**: Completed [First RAG App](/docs/tutorials/first-rag-app/)
-
-Auth is **on by default** outside `EDGEQUAKE_DEV_MODE`. Your SaaS wrapper must forward `Authorization` or `X-API-Key` to EdgeQuake on every business call. See [Runtime auth hardening](/docs/operations/runtime-auth-hardening.md).
-
----
-
-## Multi-Tenancy Architecture
-
-EdgeQuake provides tenant isolation at multiple levels:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                   MULTI-TENANCY HIERARCHY                       │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │                       TENANT A                             │ │
-│  │  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐   │ │
-│  │  │  Workspace 1  │  │  Workspace 2  │  │  Workspace 3  │   │ │
-│  │  │  (HR Docs)    │  │  (Legal)      │  │  (Product)    │   │ │
-│  │  │               │  │               │  │               │   │ │
-│  │  │  Documents    │  │  Documents    │  │  Documents    │   │ │
-│  │  │  Entities     │  │  Entities     │  │  Entities     │   │ │
-│  │  │  Graph        │  │  Graph        │  │  Graph        │   │ │
-│  │  └───────────────┘  └───────────────┘  └───────────────┘   │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                                                                 │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │                       TENANT B                             │ │
-│  │  ┌───────────────┐  ┌───────────────┐                      │ │
-│  │  │  Workspace 1  │  │  Workspace 2  │                      │ │
-│  │  │  (Research)   │  │  (Sales)      │                      │ │
-│  │  └───────────────┘  └───────────────┘                      │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                                                                 │
-│  Isolation: Complete data separation per workspace              │
-│  Sharing: None by default, configurable                         │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+erDiagram
+  TENANT ||--o{ WORKSPACE : contains
+  TENANT ||--o{ MEMBERSHIP : grants
+  USER ||--o{ MEMBERSHIP : holds
+  WORKSPACE ||--o{ DOCUMENT : stores
+  WORKSPACE ||--o{ ENTITY : stores
+  DOCUMENT ||--o{ CHUNK : splits_into
 ```
 
----
+Read it as "one TENANT has many WORKSPACEs". A membership links a user to a tenant (and so to its workspaces). Nothing is shared between workspaces.
 
-## Step 1: Understand the Data Model
+Pick a layout for your product:
 
-### Hierarchy
+| You are building | Use |
+|------------------|-----|
+| One app for one team | The default tenant and one or more workspaces. |
+| Departments with separate knowledge | One tenant, one workspace per department. |
+| A SaaS product | One tenant per customer, one or more workspaces each. |
 
+## How a request finds its data
+
+Two headers select the scope of a request:
+
+| Header | Meaning |
+|--------|---------|
+| `X-Tenant-ID` | The tenant UUID. |
+| `X-Workspace-ID` | The workspace UUID. |
+
+Headers select a scope. They never grant access. With authentication on, the server also checks the caller's token and membership.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+sequenceDiagram
+  participant C as "Client"
+  participant A as "API"
+  participant D as "PostgreSQL"
+  C->>A: "Request with token and scope headers"
+  A->>A: "Check token"
+  A->>A: "Check membership for tenant and workspace"
+  A->>D: "Run query inside the scope"
+  D-->>C: "Rows for this workspace only"
 ```
-Tenant (your SaaS customer)
-  └── Workspace (logical container)
-        ├── Documents
-        ├── Chunks
-        ├── Entities
-        ├── Relationships
-        └── Communities
-```
 
-### Workspace Properties
+Read it top to bottom. A failed check returns `401` or `403` before the database is touched. The full chain, including rate limits, is in [Security best practices](../security/best-practices.md).
 
-| Property             | Description              |
-| -------------------- | ------------------------ |
-| `id`                 | Unique identifier (UUID) |
-| `name`               | Human-readable name      |
-| `description`        | Optional description     |
-| `tenant_id`          | Parent tenant ID         |
-| `llm_provider`       | Override default LLM     |
-| `llm_model`          | Override default model   |
-| `embedding_provider` | Override embeddings      |
-| `embedding_model`    | Override embedding model |
-| `created_at`         | Creation timestamp       |
+The server enforces membership when authentication is on and dev mode is off, or when `EDGEQUAKE_STRICT_TENANT_BIND=true`. In plain dev mode (the Docker quickstart default) there is no check. Never rely on dev mode to separate customers.
 
----
+## 1. Create two tenants
 
-## Step 2: Create Tenants and Workspaces
-
-### Create a Tenant (Your Customer)
+Creating a tenant needs the platform admin role. Set the base URL and, if auth is on, an admin token:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/tenants \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Acme Corporation",
-    "external_id": "acme-corp-001",
-    "settings": {
-      "max_workspaces": 10,
-      "max_documents_per_workspace": 1000
-    }
-  }'
-```
+export EQ_API=http://localhost:8080
+export AUTH_HEADER="Accept: application/json"   # with auth on: "Authorization: Bearer $ADMIN_TOKEN"
 
-**Response:**
-
-```json
-{
-  "id": "tenant_abc123",
-  "name": "Acme Corporation",
-  "external_id": "acme-corp-001",
-  "created_at": "2024-01-15T10:00:00Z"
-}
-```
-
-### Create Workspaces for the Tenant
-
-```bash
-# HR Documents workspace
-curl -X POST http://localhost:8080/api/v1/tenants/tenant_abc123/workspaces \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "HR Knowledge Base",
-    "description": "Employee policies and procedures",
-    "tenant_id": "tenant_abc123"
-  }'
-
-# Legal Documents workspace
-curl -X POST http://localhost:8080/api/v1/tenants/tenant_abc123/workspaces \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Legal Documents",
-    "description": "Contracts and compliance",
-    "tenant_id": "tenant_abc123"
-  }'
-```
-
----
-
-## Step 3: Workspace-Level LLM Configuration
-
-Each workspace can have its own LLM configuration:
-
-```bash
-# Create workspace with custom LLM settings
-curl -X POST http://localhost:8080/api/v1/tenants/tenant_abc123/workspaces \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Premium Workspace",
-    "tenant_id": "tenant_abc123",
-    "llm_provider": "openai",
-    "llm_model": "gpt-4o",
-    "embedding_provider": "openai",
-    "embedding_model": "text-embedding-3-large"
-  }'
-```
-
-### Configuration Inheritance
-
-```
-Server Defaults (models.toml)
-       │
-       ▼
-┌──────────────────┐
-│ Workspace Config │ ◄── Overrides server defaults
-└──────────────────┘
-       │
-       ▼
-   All operations in this workspace
-   use the workspace's LLM config
-```
-
-### Why This Matters
-
-| Scenario               | Configuration                              |
-| ---------------------- | ------------------------------------------ |
-| Cost-conscious tenant  | Use `ollama` or `gpt-4.1-nano`               |
-| Premium tenant         | Use `gpt-4o` with `text-embedding-3-large` |
-| Compliance requirement | Use self-hosted Ollama                     |
-| Testing                | Use mock provider                          |
-
----
-
-## Step 4: Data Isolation
-
-### Document Isolation
-
-Documents are automatically isolated by workspace:
-
-```bash
-# Upload to HR workspace
-curl -X POST "http://localhost:8080/api/v1/documents/pdf" \
-  -H "X-Workspace-ID: ws_hr" \
-  -F "file=@employee_handbook.pdf"
-
-# Upload to Legal workspace
-curl -X POST "http://localhost:8080/api/v1/documents/pdf" \
-  -H "X-Workspace-ID: ws_legal" \
-  -F "file=@nda_template.pdf"
-```
-
-### Query Isolation
-
-Queries only access data within their workspace:
-
-```bash
-# Query HR workspace - won't see Legal docs
-curl -X POST "http://localhost:8080/api/v1/query" \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: ws_hr" \
-  -d '{"query": "What is the vacation policy?"}'
-
-# Query Legal workspace - won't see HR docs
-curl -X POST "http://localhost:8080/api/v1/query" \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: ws_legal" \
-  -d '{"query": "What are the NDA terms?"}'
-```
-
-### Graph Isolation
-
-Each workspace has its own knowledge graph:
-
-```bash
-# Get entities from HR workspace only
-curl "http://localhost:8080/api/v1/graph/entities?workspace_id=ws_hr"
-
-# Get entities from Legal workspace only
-curl "http://localhost:8080/api/v1/graph/entities?workspace_id=ws_legal"
-```
-
----
-
-## Step 5: Building a Multi-Tenant API
-
-Wrap EdgeQuake with your own authentication layer:
-
-### Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                   YOUR SAAS APPLICATION                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────────┐                                            │
-│  │  Your Auth API  │◄── JWT / API Key authentication            │
-│  │  (Node/Python)  │                                            │
-│  └────────┬────────┘                                            │
-│           │                                                     │
-│           │ Extracts tenant_id + workspace_id from token        │
-│           │                                                     │
-│           ▼                                                     │
-│  ┌─────────────────┐                                            │
-│  │  EdgeQuake API  │◄── Receives workspace_id for isolation     │
-│  │  :8080          │                                            │
-│  └─────────────────┘                                            │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Example: Express.js Wrapper
-
-```javascript
-const express = require("express");
-const axios = require("axios");
-const jwt = require("jsonwebtoken");
-
-const app = express();
-const EDGEQUAKE_URL = "http://localhost:8080";
-
-// Middleware: Extract tenant from JWT
-function extractTenant(req, res, next) {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ error: "No token" });
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.tenantId = decoded.tenant_id;
-    req.workspaceId = decoded.workspace_id;
-    next();
-  } catch (err) {
-    res.status(401).json({ error: "Invalid token" });
-  }
+create_tenant() {
+  curl -s -X POST "$EQ_API/api/v1/tenants" -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+    -d "{\"name\": \"$1\", \"slug\": \"$2\", \"plan\": \"pro\"}" | jq -r '.id'
 }
 
-// Proxy query with workspace isolation
-app.post("/api/query", extractTenant, async (req, res) => {
-  try {
-    const response = await axios.post(
-      `${EDGEQUAKE_URL}/api/v1/query`,
-      req.body,
-      { headers: { "X-Workspace-ID": req.workspaceId, Authorization: req.headers.authorization } },
-    );
-    res.json(response.data);
-  } catch (err) {
-    res.status(err.response?.status || 500).json(err.response?.data || {});
-  }
-});
-
-// Proxy document upload
-app.post("/api/documents", extractTenant, async (req, res) => {
-  try {
-    const response = await axios.post(
-      `${EDGEQUAKE_URL}/api/v1/documents/upload`,
-      req.body,
-      { headers: { "Content-Type": req.headers["content-type"], "X-Workspace-ID": req.workspaceId } },
-    );
-    res.json(response.data);
-  } catch (err) {
-    res.status(err.response?.status || 500).json(err.response?.data || {});
-  }
-});
-
-app.listen(3000);
+export ACME_TENANT=$(create_tenant "Acme Corp" acme)
+export GLOBEX_TENANT=$(create_tenant "Globex" globex)
+echo "$ACME_TENANT $GLOBEX_TENANT"
 ```
 
-### Example: Python FastAPI Wrapper
+Expected output: two UUIDs. The route is idempotent by slug: sending the same slug again returns the existing tenant with status `200`.
 
-```python
-from fastapi import FastAPI, Depends, HTTPException
-from fastapi.security import HTTPBearer
-import httpx
-import jwt
+Tenant fields:
 
-app = FastAPI()
-security = HTTPBearer()
-EDGEQUAKE_URL = "http://localhost:8080"
+| Field | Meaning |
+|-------|---------|
+| `name` | Display name (required). |
+| `slug` | URL-safe name. Generated from `name` if omitted. |
+| `plan` | `free`, `basic`, `pro` or `enterprise`. |
+| `default_llm_provider`, `default_llm_model` | Default chat model for new workspaces. |
+| `default_embedding_provider`, `default_embedding_model` | Default embedding model for new workspaces. |
 
-def get_workspace(token: str = Depends(security)):
-    try:
-        payload = jwt.decode(token.credentials, "secret", algorithms=["HS256"])
-        return payload["workspace_id"]
-    except:
-        raise HTTPException(401, "Invalid token")
+List tenants with `GET /api/v1/tenants`. The response has an `items` array. A non-admin sees only tenants where they are a member, when membership scoping is on.
 
-@app.post("/api/query")
-async def query(body: dict, workspace_id: str = Depends(get_workspace)):
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{EDGEQUAKE_URL}/api/v1/query",
-            json=body,
-            headers={"X-Workspace-ID": workspace_id},
-        )
-        return response.json()
-
-@app.post("/api/documents")
-async def upload_document(
-    file: UploadFile,
-    workspace_id: str = Depends(get_workspace)
-):
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{EDGEQUAKE_URL}/api/v1/documents/upload",
-            files={"file": file.file},
-            headers={"X-Workspace-ID": workspace_id},
-        )
-        return response.json()
-```
-
----
-
-## Step 6: Workspace Management
-
-### List Tenant's Workspaces
+## 2. Create a workspace per tenant
 
 ```bash
-curl "http://localhost:8080/api/v1/workspaces?tenant_id=tenant_abc123"
+create_workspace() {   # $1 tenant id, $2 name
+  curl -s -X POST "$EQ_API/api/v1/tenants/$1/workspaces" -H "$AUTH_HEADER" \
+    -H "Content-Type: application/json" -d "{\"name\": \"$2\"}" | jq -r '.id'
+}
+
+export ACME_WS=$(create_workspace "$ACME_TENANT" "Acme Knowledge")
+export GLOBEX_WS=$(create_workspace "$GLOBEX_TENANT" "Globex Knowledge")
 ```
 
-**Response:**
+A workspace can set its own models, an entity type list and a document cap (`max_documents`) when you create or update it. See [Document ingestion](document-ingestion.md) for entity types and [Configure LLM providers](../providers/index.md) for models.
 
-```json
-{
-  "workspaces": [
-    {
-      "id": "ws_hr",
-      "name": "HR Knowledge Base",
-      "document_count": 45,
-      "entity_count": 230
+List the workspaces of a tenant:
+
+```bash
+curl -s "$EQ_API/api/v1/tenants/$ACME_TENANT/workspaces" -H "$AUTH_HEADER" | jq '.items[] | {id, name, slug}'
+```
+
+## 3. Load data into each workspace
+
+Send both headers on every data call. This example uploads one text document per tenant:
+
+```bash
+upload() {   # $1 tenant, $2 workspace, $3 title, $4 content
+  curl -s -X POST "$EQ_API/api/v1/documents" -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+    -H "X-Tenant-ID: $1" -H "X-Workspace-ID: $2" \
+    -d "{\"title\": \"$3\", \"content\": \"$4\"}" | jq -r '.document_id'
+}
+
+upload "$ACME_TENANT" "$ACME_WS" "Acme brief" "Acme Corp builds rocket engines. CEO Jane Park runs the Berlin site."
+upload "$GLOBEX_TENANT" "$GLOBEX_WS" "Globex brief" "Globex makes solar panels. CEO Hank Scorpio runs the Cypress Creek site."
+```
+
+Wait until both documents are `completed` (see [First RAG app](first-rag-app.md#4-wait-for-processing)).
+
+## 4. Prove the isolation
+
+Ask each workspace about the other tenant's CEO. Each answer must come only from its own data.
+
+```bash
+ask() {   # $1 tenant, $2 workspace, $3 question
+  curl -s -X POST "$EQ_API/api/v1/query" -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+    -H "X-Tenant-ID: $1" -H "X-Workspace-ID: $2" \
+    -d "{\"query\": \"$3\"}" | jq -r '.answer'
+}
+
+ask "$ACME_TENANT" "$ACME_WS" "Who is the CEO?"        # Jane Park
+ask "$ACME_TENANT" "$ACME_WS" "Who is Hank Scorpio?"   # no information
+```
+
+Expected: the first answer names Jane Park. The second says it has no information about Hank Scorpio. Entity lists are also separate: `GET /api/v1/graph/entities` with the Acme headers never returns Globex entities.
+
+## 5. Set quotas
+
+Limit how many workspaces a tenant can create. This call needs the admin role:
+
+```bash
+curl -s -X PATCH "$EQ_API/api/v1/admin/tenants/$ACME_TENANT/quota" \
+  -H "$AUTH_HEADER" -H "Content-Type: application/json" \
+  -d '{"max_workspaces": 5}' | jq '.'
+```
+
+The value must be between 1 and 10000 and not below the tenant's current workspace count. Per-workspace caps use `max_documents`. Read usage with `GET /api/v1/workspaces/{id}/stats`, which returns `document_count`, `chunk_count`, `entity_count`, `relationship_count` and `storage_bytes`.
+
+## 6. Turn on access control
+
+With authentication on and dev mode off, every non-admin call is checked against memberships. There are two levels of role:
+
+| Level | Values | Meaning |
+|-------|--------|---------|
+| Account role | `admin`, `user`, `readonly` | Platform-wide ability. `readonly` cannot write. `admin` can create tenants and use `/api/v1/admin/*`. |
+| Membership role | `owner`, `admin`, `member`, `readonly` | Ability inside one tenant. |
+
+Create users with `POST /api/v1/users` (admin only) and machine credentials with `POST /api/v1/api-keys`. Send an API key as `X-API-Key`, or a login token as `Authorization: Bearer`.
+
+What the server does for a non-admin request:
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["Request"] --> B{"Valid token?"}
+  B -- "No" --> C["401"]
+  B -- "Yes" --> D{"Headers match token claims?"}
+  D -- "No" --> E["403"]
+  D -- "Yes" --> F{"Active membership in tenant and workspace?"}
+  F -- "No" --> E
+  F -- "Yes" --> G{"Role allows this method?"}
+  G -- "No" --> E
+  G -- "Yes" --> H["Run the request"]
+%% eq-classes
+classDef eqBad fill:#FEE2E2,stroke:#EF4444,color:#7F1D1D
+class C,E eqBad
+```
+
+Read it top to bottom. Only a request that passes every diamond runs. Platform admins skip the membership check.
+
+> **Known gap.** This release has no REST endpoint that adds a membership. Memberships are created when a user signs in through SSO (OIDC) with the right policy. Without SSO, only platform admins can reach workspaces when binding is on. See [Runtime auth hardening](../operations/runtime-auth-hardening.md) and [Tenancy and providers](../architecture/tenancy-and-providers.md).
+
+## 7. Put your own backend in front
+
+A SaaS product usually does not expose EdgeQuake to browsers. Your backend authenticates the customer, maps the customer to a tenant and workspace, and calls EdgeQuake with a server-side key.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+sequenceDiagram
+  participant U as "Customer browser"
+  participant B as "Your backend"
+  participant E as "EdgeQuake"
+  U->>B: "Question with customer session"
+  B->>B: "Look up tenant and workspace for this customer"
+  B->>E: "POST /api/v1/query with X-API-Key and scope headers"
+  E-->>B: "Answer and sources"
+  B-->>U: "Answer"
+```
+
+Read it left to right. The browser never sees the API key or the UUIDs, and your backend decides the scope, never the client.
+
+A minimal helper (TypeScript):
+
+```typescript
+async function ask(customer: { tenantId: string; workspaceId: string }, query: string) {
+  const res = await fetch(`${process.env.EQ_API}/api/v1/query`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": process.env.EQ_API_KEY!,
+      "X-Tenant-ID": customer.tenantId,
+      "X-Workspace-ID": customer.workspaceId,
     },
-    {
-      "id": "ws_legal",
-      "name": "Legal Documents",
-      "document_count": 120,
-      "entity_count": 580
-    }
-  ]
+    body: JSON.stringify({ query }),
+  });
+  if (!res.ok) throw new Error(`EdgeQuake ${res.status}`);
+  return res.json();
 }
 ```
 
-### Get Workspace Statistics
+Take `customer` from your own session store, never from request input. The official SDKs wrap the same calls: see [SDKs](../sdks/README.md).
+
+## 8. Clean up
 
 ```bash
-curl "http://localhost:8080/api/v1/workspaces/ws_hr/stats"
+curl -s -X DELETE "$EQ_API/api/v1/workspaces/$ACME_WS" -H "$AUTH_HEADER"
+curl -s -X DELETE "$EQ_API/api/v1/workspaces/$GLOBEX_WS" -H "$AUTH_HEADER"
+curl -s -X DELETE "$EQ_API/api/v1/tenants/$ACME_TENANT" -H "$AUTH_HEADER"
+curl -s -X DELETE "$EQ_API/api/v1/tenants/$GLOBEX_TENANT" -H "$AUTH_HEADER"
 ```
 
-**Response:**
-
-```json
-{
-  "workspace_id": "ws_hr",
-  "documents": 45,
-  "chunks": 890,
-  "entities": 230,
-  "relationships": 450,
-  "storage_bytes": 15728640,
-  "last_activity": "2024-01-15T10:00:00Z"
-}
-```
-
-### Delete Workspace (with all data)
-
-```bash
-curl -X DELETE "http://localhost:8080/api/v1/workspaces/ws_hr"
-```
-
-⚠️ **Warning**: This deletes all documents, entities, and embeddings in the workspace.
-
----
-
-## Step 7: Cross-Workspace Queries (Advanced)
-
-Cross-workspace query in a single API call is **not currently exposed**. Query each workspace separately:
-
-```bash
-# Query HR workspace
-curl -X POST "http://localhost:8080/api/v1/query" \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: ws_hr" \
-  -d '{"query": "Company policies overview", "mode": "global"}'
-
-# Query Legal workspace
-curl -X POST "http://localhost:8080/api/v1/query" \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: ws_legal" \
-  -d '{"query": "Company policies overview", "mode": "global"}'
-```
-
----
-
-## Step 8: Usage Tracking
-
-Track usage per workspace via stats and cost endpoints:
-
-```bash
-# Workspace statistics
-curl "http://localhost:8080/api/v1/workspaces/ws_hr/stats"
-
-# Cost summary (tenant/workspace scoped when authenticated)
-curl "http://localhost:8080/api/v1/costs/summary"
-```
-
----
-
-## Best Practices
-
-### 1. Workspace Naming Conventions
-
-```
-{tenant_slug}_{purpose}_{environment}
-
-Examples:
-- acme_hr_prod
-- acme_legal_prod
-- acme_hr_staging
-```
-
-### 2. LLM Configuration Strategy
-
-| Tier    | LLM          | Embedding              | Cost |
-| ------- | ------------ | ---------------------- | ---- |
-| Free    | Ollama local | Ollama local           | $0   |
-| Basic   | gpt-4.1-nano   | text-embedding-3-small | $    |
-| Premium | gpt-4o       | text-embedding-3-large | $$$  |
-
-### 3. Quota Management
-
-Set workspace-level quotas:
-
-```bash
-curl -X PUT "http://localhost:8080/api/v1/workspaces/ws_hr" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "quotas": {
-      "max_documents": 1000,
-      "max_queries_per_day": 10000,
-      "max_storage_bytes": 1073741824
-    }
-  }'
-```
-
-### 4. Audit Logging
-
-EdgeQuake logs all operations with workspace context:
-
-```json
-{
-  "timestamp": "2024-01-15T10:00:00Z",
-  "action": "document.upload",
-  "workspace_id": "ws_hr",
-  "tenant_id": "tenant_abc123",
-  "user_id": "user_456",
-  "document_id": "doc_789",
-  "file_size": 1048576
-}
-```
-
----
-
-## Database Schema (PostgreSQL)
-
-EdgeQuake stores tenant data with workspace isolation:
-
-```sql
--- Workspaces table
-CREATE TABLE workspaces (
-    workspace_id UUID PRIMARY KEY,
-    tenant_id UUID NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    llm_provider VARCHAR(50),
-    llm_model VARCHAR(100),
-    embedding_provider VARCHAR(50),
-    embedding_model VARCHAR(100),
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
--- Documents always reference workspace
-CREATE TABLE documents (
-    id UUID PRIMARY KEY,
-    workspace_id UUID NOT NULL REFERENCES workspaces(workspace_id),
-    title VARCHAR(255),
-    content TEXT,
-    status VARCHAR(50),
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
--- Embeddings scoped to workspace
-CREATE TABLE embeddings (
-    id UUID PRIMARY KEY,
-    workspace_id UUID NOT NULL REFERENCES workspaces(workspace_id),
-    chunk_id UUID NOT NULL,
-    embedding vector(1536)
-);
-
--- Index for workspace isolation
-CREATE INDEX idx_documents_workspace ON documents(workspace_id);
-CREATE INDEX idx_embeddings_workspace ON embeddings(workspace_id);
-```
-
----
+Deleting a workspace removes its documents, graph and vectors. Deleting a tenant needs the admin role.
 
 ## Troubleshooting
 
-### Data Leaking Between Workspaces
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `403` with a valid token | No membership, or headers disagree with the token's tenant. | Check the tenant and workspace IDs; use an admin token for setup. |
+| `409` on tenant or workspace create | The slug exists. | Choose another slug. |
+| Quota update returns `400` | Value is below the current workspace count, zero, or above 10000. | Send a value in range. |
+| Data from another customer appears | Dev mode is on, or you sent the wrong headers. | Turn auth on with dev mode off, or set `EDGEQUAKE_STRICT_TENANT_BIND=true`. |
 
-**Symptoms**: Query returns docs from wrong workspace.
+## Next steps
 
-**Check**:
-
-1. Verify `workspace_id` is passed to every API call
-2. Check middleware is extracting correct workspace
-3. Review database queries have workspace filter
-
-### Wrong LLM Being Used
-
-**Symptoms**: Responses differ from expected model.
-
-**Check**:
-
-```bash
-# Get workspace config
-curl "http://localhost:8080/api/v1/workspaces/ws_hr"
-```
-
-Verify `llm_provider` and `llm_model` are set correctly.
-
-### Quota Exceeded
-
-**Symptoms**: API returns 429 errors.
-
-**Check**:
-
-```bash
-# Get workspace usage
-curl "http://localhost:8080/api/v1/workspaces/ws_hr/stats"
-```
-
-Increase quotas or upgrade tier.
-
----
-
-## What You Learned
-
-✅ Multi-tenancy architecture and hierarchy  
-✅ Creating tenants and workspaces  
-✅ Workspace-level LLM configuration  
-✅ Data isolation guarantees  
-✅ Building authenticated API wrappers  
-✅ Usage tracking for billing  
-✅ Best practices for SaaS
-
----
-
-## Next Steps
-
-| Tutorial                                                 | Description                |
-| -------------------------------------------------------- | -------------------------- |
-| [Custom Entity Types](/docs/concepts/entity-extraction/) | Domain-specific extraction |
-| [API Integration](/docs/integrations/custom-clients/)    | Building on EdgeQuake      |
-| [Scaling Guide](/docs/operations/deployment/)            | Growing your deployment    |
-
----
-
-## See Also
-
-- [Architecture Overview](/docs/architecture/overview/) - System design
-- [Configuration](/docs/operations/configuration/) - All settings
-- [REST API](/docs/api-reference/rest-api/) - Complete API reference
+- [Security best practices](../security/best-practices.md)
+- [Runtime auth hardening](../operations/runtime-auth-hardening.md)
+- [Tenancy and providers](../architecture/tenancy-and-providers.md)
+- [Product limits](../product-limits.md)

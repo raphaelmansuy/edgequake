@@ -1,455 +1,154 @@
 ---
 title: 'Deep Dive: Community Detection'
+description: 'How EdgeQuake groups related entities into communities after ingestion, which algorithms exist, when the labels are refreshed, how global queries use them, and the limits that keep the job safe on large graphs.'
 ---
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Product: v0.32.2** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
 
 # Deep Dive: Community Detection
 
-> **How EdgeQuake Discovers Structure in Knowledge Graphs**
+**What this page explains:** how EdgeQuake finds clusters of tightly connected entities, stores a `community_id` on each node, and uses it in global queries.
+**Who it is for:** operators sizing large graphs and developers working on `edgequake-storage` or global retrieval.
+**What you should know first:** the graph holds entities (nodes) and relationships (edges). See [Graph Storage](graph-storage.md).
 
-Community detection identifies clusters of densely connected entities in the knowledge graph. **Global query mode today** uses relationship-vector search + degree fallback (SPEC-023), not community-report retrieval — communities here support optional `EDGEQUAKE_COMMUNITY_REPORTS` and analytics.
+A **community** is a group of entities that link to each other more than to the rest of the graph. For example, all the people and projects of one research lab.
 
----
+The code is in `edgequake/crates/edgequake-storage/src/`: `community.rs` (algorithms), `community_persist.rs` (writing labels), `community_index_service.rs` (when to refresh) and `community_reports.rs` (optional summaries).
 
-## Overview
+## What communities are used for
 
-EdgeQuake implements graph clustering algorithms to discover communities:
+| Use | Where |
+| --- | --- |
+| Expand **global** queries with entities from the same community | [Query Modes, global mode](query-modes.md#6-global-mode) |
+| Group nodes in the graph viewer (`GET /api/v1/graph/communities`) | Web UI and API |
+| Optional short "community report" vectors for thematic questions | Off by default |
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    COMMUNITY DETECTION PIPELINE                 │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Input Graph:                                                   │
-│                                                                 │
-│     A──────B              E──────F                              │
-│     │ ╲    │              │ ╲    │                              │
-│     │  ╲   │              │  ╲   │                              │
-│     C──────D  . . . . . . G──────H                              │
-│                weak                                             │
-│              connection                                         │
-│                                                                 │
-│  ══════════════════════════════════════════════════════════════ │
-│                                                                 │
-│  After Detection (Louvain):                                     │
-│                                                                 │
-│  ┌─────────────────┐      ┌─────────────────┐                   │
-│  │  Community 0    │      │  Community 1    │                   │
-│  │                 │      │                 │                   │
-│  │   A──────B      │      │   E──────F      │                   │
-│  │   │ ╲    │      │      │   │ ╲    │      │                   │
-│  │   │  ╲   │      │      │   │  ╲   │      │                   │
-│  │   C──────D      │      │   G──────H      │                   │
-│  │                 │      │                 │                   │
-│  └─────────────────┘      └─────────────────┘                   │
-│                                                                 │
-│  Modularity Score: 0.42 (good partition quality)                │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+Communities do not change how documents are indexed. They are a **read model** that can be rebuilt from the graph at any time.
+
+## The lifecycle
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["Document merged<br>into graph"] --> B["Schedule refresh<br>for the workspace"]
+  B --> C["Wait for debounce<br>(default 300 s)"]
+  C --> D["Load the workspace graph<br>(capped at 50,000 nodes)"]
+  D --> E["Run Louvain"]
+  E --> F["Write community_id<br>on each node"]
+  F --> G["Global queries<br>read the labels"]
 ```
 
----
+The diagram shows how labels are kept fresh. Read it top to bottom; the work runs in the background and never blocks the upload.
 
-## Why Community Detection?
+Key points:
 
-| Purpose                     | Benefit                                  |
-| --------------------------- | ---------------------------------------- |
-| **Global Queries**          | Summarize themes across related entities |
-| **Hierarchical Navigation** | Browse knowledge by topic clusters       |
-| **Entity Disambiguation**   | Context from community members           |
-| **Relationship Discovery**  | Find implicit connections                |
+- **Trigger.** After a document merges into the graph, the pipeline starts a background task that schedules a refresh for that workspace. A failure is logged and does not fail the upload.
+- **Debounce.** Several uploads in a row share one refresh. The wait is `EDGEQUAKE_COMMUNITY_REFRESH_DEBOUNCE_SECS` (default 300).
+- **Safety.** One refresh runs at a time per workspace. A database advisory lock stops two server replicas from running the same refresh.
+- **Scope.** Detection always runs for one workspace. Unscoped detection on the shared graph is rejected.
+- **Backfill.** On startup, graphs created before communities existed get labels once (migration 044). It is skipped for any workspace above the size limit, and it only touches workspaces whose nodes carry a UUID `workspace_id`.
+- **No REST trigger.** No HTTP route starts detection. `GET /api/v1/graph/communities` only reads the stored labels.
 
----
+## The three algorithms
 
-## Core Data Structures
+`CommunityAlgorithm` has three values. Ingestion always uses the default, Louvain.
 
-### Community
+| Algorithm | Idea | Notes |
+| --- | --- | --- |
+| **Louvain** (default) | Move each node to the neighbor community that raises *modularity* the most. Repeat until nothing improves. | Edge `weight` is used (default 1.0). Best quality of the three. |
+| **Label propagation** | Each node adopts the most common label among its neighbors. | Fast, simple, and less precise than Louvain. |
+| **Connected components** | Each separate piece of the graph is one community. | Baseline. Finds isolated sub-graphs only. |
 
-A detected cluster of related entities:
+**Modularity** is a score for a partition. It compares the weight of edges inside communities with what a random graph would give. Higher is better. EdgeQuake computes and returns it with every result.
 
-```rust
-/// A detected community in the graph.
-#[derive(Debug, Clone)]
-pub struct Community {
-    /// Unique identifier for the community
-    pub id: usize,
+### Louvain step by step
 
-    /// Node IDs that belong to this community
-    pub members: Vec<String>,
-
-    /// Aggregate properties (e.g., summary, keywords)
-    pub properties: HashMap<String, serde_json::Value>,
-}
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["Every node is its<br>own community"] --> B["For each node, try the<br>neighbor communities"]
+  B --> C{"Any move raises<br>modularity?"}
+  C -- "yes" --> D["Move the node"]
+  D --> B
+  C -- "no, or 100 passes done" --> E{"Hierarchy on and<br>levels left?"}
+  E -- "yes" --> F["Merge each community<br>into one super-node"]
+  F --> B
+  E -- "no" --> G["Drop communities<br>smaller than 2"]
 ```
 
-**Properties:**
+The diagram shows the loop. Read it from the top: the inner loop is "try moves until stable"; the outer loop (hierarchy) is optional.
 
-| Property     | Type        | Description                         |
-| ------------ | ----------- | ----------------------------------- |
-| `summary`    | String      | LLM-generated community description |
-| `keywords`   | Vec<String> | Top keywords from members           |
-| `importance` | f32         | Average member importance           |
+Defaults from `CommunityConfig`:
 
-### CommunityDetectionResult
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `min_community_size` | 2 | Smaller groups get **no** label. A node with no neighbors has no `community_id`. |
+| `max_iterations` | 100 | Cap on passes in the inner loop. |
+| `resolution` | 1.0 | Higher gives more, smaller communities. Lower gives fewer, larger ones. |
+| `max_nodes` | 50,000 | Hard cap on nodes loaded (`EDGEQUAKE_COMMUNITY_MAX_NODES`, range 100 to 5,000,000). |
+| `enable_hierarchy` | off | `EDGEQUAKE_LOUVAIN_HIERARCHY=1` turns on the merge-and-repeat levels. |
+| `max_hierarchy_levels` | 3 | Used only when hierarchy is on. |
 
-Complete output from detection:
+Only the final partition is stored. With hierarchy on, the stored `community_id` is the one from the last level that ran.
 
-```rust
-/// Result of community detection.
-#[derive(Debug, Clone)]
-pub struct CommunityDetectionResult {
-    /// Detected communities
-    pub communities: Vec<Community>,
+### Size limits
 
-    /// Mapping from node ID to community ID
-    pub node_to_community: HashMap<String, usize>,
+The graph is loaded in pages of up to 2,000 nodes. If the workspace has more than `max_nodes` nodes, only the first `max_nodes` are used and a warning is logged ("sampled subgraph"). The startup backfill is stricter: a workspace above `EDGEQUAKE_COMMUNITY_BACKFILL_MAX_NODES` (default 50,000) is skipped. The API helper `detect_communities_guarded` also asks the resource guard first and rejects graphs over the scan threshold.
 
-    /// Modularity score of the partition (0.0 to 1.0)
-    pub modularity: f64,
-}
+## What gets stored
+
+Detection writes properties onto existing graph nodes:
+
+| Property | Written when | Meaning |
+| --- | --- | --- |
+| `community_id` | Always | Integer id of the community (per workspace run) |
+| `community_report` | Only if `EDGEQUAKE_COMMUNITY_REPORTS=true` | A one-line member list |
+
+Community ids are plain integers renumbered from 0 on every run. They are **not stable** between runs. Do not store them outside the graph.
+
+### Optional reports
+
+With `EDGEQUAKE_COMMUNITY_REPORTS=true` (default off), each refresh also builds a short text per community and embeds it as a `community_report` vector. The text is built **without an LLM** from the first 24 member names, for example: `Community 7 (31 entities): A, B, C, and 28 more.` Global queries can add the best matching reports as extra context (at most 8). This is a light hint, not the LLM-written summaries used by Microsoft GraphRAG.
+
+## How global queries use communities
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  A["Relationship hits<br>and their entities"] --> B["Read community_id<br>of those entities"]
+  B --> C["List other nodes with<br>the same community_id"]
+  C --> D["Add up to max_entities x 2<br>to the context"]
 ```
 
-**Modularity Interpretation:**
+The diagram shows the lookup at query time. No clustering runs during a query; the labels are read from the graph.
 
-| Score     | Quality            |
-| --------- | ------------------ |
-| < 0.3     | Poor (random-like) |
-| 0.3 - 0.5 | Moderate           |
-| 0.5 - 0.7 | Good               |
-| > 0.7     | Excellent          |
+Global mode first finds relationships by vector search. Then, if community expansion is on, it collects the `community_id` values of those entities and adds more members of the same communities. Switch it off with `EDGEQUAKE_COMMUNITY_GLOBAL=false`. That switch also stops index-time refresh and the startup backfill.
 
----
+## Settings summary
 
-## Available Algorithms
-
-### Louvain Method (Default)
-
-Greedy modularity optimization in two phases:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    LOUVAIN ALGORITHM                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  PHASE 1: Local Optimization                                    │
-│  ───────────────────────────                                    │
-│                                                                 │
-│  for each node n:                                               │
-│    current_community = community(n)                             │
-│    for each neighbor_community c:                               │
-│      gain = modularity_gain(move n to c)                        │
-│      if gain > best_gain:                                       │
-│        best_gain = gain                                         │
-│        best_community = c                                       │
-│    if best_gain > 0:                                            │
-│      move n to best_community                                   │
-│                                                                 │
-│  Repeat until no improvement                                    │
-│                                                                 │
-│  ══════════════════════════════════════════════════════════════ │
-│                                                                 │
-│  PHASE 2: Aggregation (simplified in EdgeQuake)                 │
-│  ──────────────────────────────────────────────                 │
-│                                                                 │
-│  Collapse communities into super-nodes                          │
-│  Repeat Phase 1 on aggregated graph                             │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Modularity Gain Formula:**
-
-```
-ΔQ = [Σ_in + k_i,in] / 2m - [(Σ_tot + k_i) / 2m]²
-     - Σ_in / 2m + (Σ_tot / 2m)² + (k_i / 2m)²
-
-Where:
-- Σ_in = sum of weights inside community
-- Σ_tot = sum of weights to community
-- k_i = node degree
-- m = total edge weight
-```
-
-**Characteristics:**
-
-| Attribute       | Value                       |
-| --------------- | --------------------------- |
-| Time Complexity | O(n log n) typical          |
-| Resolution      | Configurable (default: 1.0) |
-| Quality         | Best overall quality        |
-| Use Case        | General-purpose clustering  |
-
----
-
-### Label Propagation
-
-Fast propagation of community labels:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    LABEL PROPAGATION                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Iteration 0:   A₀  B₁  C₂  D₃  E₄  (each node unique label)    │
-│                 │   │   │   │                                   │
-│                 └───┴───┴───┘                                   │
-│                                                                 │
-│  Iteration 1:   A₀  B₀  C₀  D₀  E₄  (majority voting)           │
-│                                                                 │
-│  Iteration 2:   A₀  B₀  C₀  D₀  E₀  (converged)                 │
-│                                                                 │
-│  Result: Community {A, B, C, D, E}                              │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Characteristics:**
-
-| Attribute       | Value                          |
-| --------------- | ------------------------------ |
-| Time Complexity | O(n + m) per iteration         |
-| Quality         | Good for clear clusters        |
-| Speed           | Very fast                      |
-| Use Case        | Quick clustering, large graphs |
-
----
-
-### Connected Components
-
-Baseline algorithm finding disconnected subgraphs:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    CONNECTED COMPONENTS                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Graph:        A───B       E───F                                │
-│                │   │                                            │
-│                C───D       G                                    │
-│                                                                 │
-│  Components:   ┌─────────┐ ┌─────┐ ┌───┐                        │
-│                │ A,B,C,D │ │ E,F │ │ G │                        │
-│                └─────────┘ └─────┘ └───┘                        │
-│                                                                 │
-│  Simple BFS/DFS traversal                                       │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Characteristics:**
-
-| Attribute       | Value                      |
-| --------------- | -------------------------- |
-| Time Complexity | O(n + m)                   |
-| Quality         | Baseline (no overlapping)  |
-| Speed           | Fastest                    |
-| Use Case        | Finding isolated subgraphs |
-
----
-
-## Configuration
-
-```rust
-/// Configuration for community detection.
-pub struct CommunityConfig {
-    /// Algorithm to use
-    pub algorithm: CommunityAlgorithm,
-
-    /// Minimum community size (filter small clusters)
-    pub min_community_size: usize,
-
-    /// Maximum iterations for iterative algorithms
-    pub max_iterations: usize,
-
-    /// Resolution parameter for Louvain
-    /// Higher = more smaller communities
-    pub resolution: f64,
-}
-
-// Defaults
-CommunityConfig {
-    algorithm: CommunityAlgorithm::Louvain,
-    min_community_size: 2,
-    max_iterations: 100,
-    resolution: 1.0,
-}
-```
-
-**Resolution Parameter Effect:**
-
-| Resolution | Result                    |
-| ---------- | ------------------------- |
-| 0.5        | Fewer, larger communities |
-| 1.0        | Balanced (default)        |
-| 2.0        | More, smaller communities |
-
----
-
-## Usage
-
-### Basic Detection
-
-```rust
-use edgequake_storage::community::{
-    detect_communities, CommunityConfig, CommunityAlgorithm
-};
-
-// Run with default settings (Louvain)
-let config = CommunityConfig::default();
-let result = detect_communities(&graph, &config).await?;
-
-println!("Found {} communities", result.communities.len());
-println!("Modularity: {:.4}", result.modularity);
-
-for community in &result.communities {
-    println!("Community {}: {} members",
-             community.id, community.size());
-}
-```
-
-### Query Community Members
-
-```rust
-// Find which community an entity belongs to
-if let Some(community) = result.get_node_community("SARAH_CHEN") {
-    println!("SARAH_CHEN is in community {} with {} members",
-             community.id, community.size());
-
-    for member in &community.members {
-        println!("  - {}", member);
-    }
-}
-```
-
-### Different Algorithms
-
-```rust
-// Use Label Propagation for faster results
-let config = CommunityConfig {
-    algorithm: CommunityAlgorithm::LabelPropagation,
-    min_community_size: 3,
-    max_iterations: 50,
-    ..Default::default()
-};
-
-let result = detect_communities(&graph, &config).await?;
-```
-
----
-
-## Integration with Global Queries
-
-The Global Query strategy uses communities to generate high-level summaries:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    GLOBAL QUERY PIPELINE                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  1. Detect Communities                                          │
-│     ┌──────────────┐                                            │
-│     │ Louvain      │──▶ Communities with members                │
-│     └──────────────┘                                            │
-│                                                                 │
-│  2. Generate Community Summaries (LLM)                          │
-│     ┌──────────────┐                                            │
-│     │ For each     │                                            │
-│     │ community:   │──▶ "This cluster contains AI researchers..." 
-│     │ summarize    │                                            │
-│     └──────────────┘                                            │
-│                                                                 │
-│  3. Query Against Summaries                                     │
-│     ┌──────────────┐                                            │
-│     │ Vector       │──▶ Top-k relevant communities              │
-│     │ similarity   │                                            │
-│     └──────────────┘                                            │
-│                                                                 │
-│  4. Synthesize Answer                                           │
-│     ┌──────────────┐                                            │
-│     │ LLM answer   │──▶ "The major themes in the corpus are..." │
-│     │ from themes  │                                            │
-│     └──────────────┘                                            │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Performance Characteristics
-
-### Algorithm Comparison
-
-| Algorithm            | Time        | Memory   | Quality     |
-| -------------------- | ----------- | -------- | ----------- |
-| Louvain              | O(n log n)  | O(n + m) | ⭐⭐⭐ Best |
-| Label Propagation    | O(k(n + m)) | O(n)     | ⭐⭐ Good   |
-| Connected Components | O(n + m)    | O(n)     | ⭐ Baseline |
-
-### Benchmarks
-
-Performance on knowledge graphs (100K nodes, 300K edges):
-
-| Algorithm            | Time  | Communities | Modularity |
-| -------------------- | ----- | ----------- | ---------- |
-| Louvain              | ~2s   | 847         | 0.62       |
-| Label Propagation    | ~0.5s | 1203        | 0.48       |
-| Connected Components | ~0.1s | 15          | N/A        |
-
----
-
-## Best Practices
-
-1. **Start with Louvain** - Best quality for most use cases
-2. **Tune Resolution** - Increase for finer-grained topics
-3. **Filter Small Communities** - Set `min_community_size ≥ 3`
-4. **Cache Results** - Community detection can be expensive
-5. **Monitor Modularity** - Low scores (<0.3) suggest poor partitioning
-
----
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `EDGEQUAKE_COMMUNITY_GLOBAL` | on | Master switch for labels, refresh, backfill and query expansion |
+| `EDGEQUAKE_COMMUNITY_REFRESH_DEBOUNCE_SECS` | 300 | Wait before a refresh |
+| `EDGEQUAKE_COMMUNITY_MAX_NODES` | 50,000 | Nodes loaded per detection |
+| `EDGEQUAKE_COMMUNITY_BACKFILL_MAX_NODES` | 50,000 | Largest workspace the startup backfill will process |
+| `EDGEQUAKE_LOUVAIN_HIERARCHY` | off | Multi-level Louvain |
+| `EDGEQUAKE_COMMUNITY_REPORTS` | off | Build and embed member-list reports |
 
 ## Troubleshooting
 
-### Too Few Communities
+| Symptom | Likely cause | What to do |
+| --- | --- | --- |
+| Global answers never include community neighbors | Labels missing: master switch off, graph still within the debounce window, or entities are isolated | Check `EDGEQUAKE_COMMUNITY_GLOBAL`; wait for the debounce; check `GET /api/v1/graph/communities` |
+| One giant community | `resolution` too low or a hub node connects everything | Raise the resolution in code. It is not exposed as an environment variable. |
+| Log says "sampled subgraph" | Workspace has more nodes than `max_nodes` | Raise `EDGEQUAKE_COMMUNITY_MAX_NODES` if the server has memory for it |
+| Many nodes without `community_id` | They have no neighbors, or sit in groups smaller than 2 | Expected |
 
-**Symptoms:** Only 1-2 large communities
+## Related pages
 
-**Solutions:**
-
-- Increase `resolution` parameter (try 1.5, 2.0)
-- Check edge weights (uniform weights = less structure)
-- Verify graph connectivity
-
-### Too Many Communities
-
-**Symptoms:** Mostly singleton communities
-
-**Solutions:**
-
-- Decrease `resolution` parameter (try 0.5)
-- Increase `min_community_size`
-- Check if graph is too sparse
-
-### Low Modularity
-
-**Symptoms:** Modularity < 0.3
-
-**Possible Causes:**
-
-- Graph has weak community structure
-- Random or adversarial connections
-- Single large connected component
-
-**Solutions:**
-
-- Use domain knowledge to prune noisy edges
-- Consider weighted edges for semantic similarity
-
----
-
-## See Also
-
-- [Query Modes](/docs/deep-dives/query-modes/) - How Global uses communities
-- [Graph Storage](/docs/deep-dives/graph-storage/) - How graphs are stored
-- [Entity Extraction](/docs/deep-dives/entity-extraction/) - How entities are created
-- [Architecture: Crates](/docs/architecture/crates/) - Storage crate details
+- [Query Modes](query-modes.md): where global mode uses communities.
+- [Graph Storage](graph-storage.md): the node and edge model.
+- [Data Layer](data-layer.md): where labels and vectors live.

@@ -1,0 +1,7 @@
+{
+  "measured_at": "2026-10-09T07:20:19Z",
+  "hermetic_elapsed_secs": 108,
+  "budget_secs": 120,
+  "within_budget": true,
+  "clone_to_validated_connection_commands": 3
+}

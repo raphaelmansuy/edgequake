@@ -280,24 +280,21 @@ impl AuthConfig {
 
 /// Resolve whether API authentication is required (SPEC-027 AC-4 phase 44).
 ///
-/// Priority: `EDGEQUAKE_DEV_MODE` → explicit disable → explicit enable env → **secure default true**.
+/// Priority: explicit `EDGEQUAKE_AUTH_ENABLED`/`AUTH_ENABLED` → `EDGEQUAKE_AUTH_DISABLED` → `EDGEQUAKE_DEV_MODE` → **secure default true**.
+/// SPEC-163: `EDGEQUAKE_AUTH_ENABLED=true` wins over compose's `DEV_MODE=true` default.
 fn resolve_auth_enabled_from_env(dev_mode: bool) -> bool {
-    if dev_mode {
-        return false;
-    }
-
-    if parse_bool_env("EDGEQUAKE_AUTH_DISABLED", false) {
-        return false;
-    }
-
     if let Ok(value) = std::env::var("EDGEQUAKE_AUTH_ENABLED") {
         return parse_bool_value(&value);
     }
-
     if let Ok(value) = std::env::var("AUTH_ENABLED") {
         return parse_bool_value(&value);
     }
-
+    if parse_bool_env("EDGEQUAKE_AUTH_DISABLED", false) {
+        return false;
+    }
+    if dev_mode {
+        return false;
+    }
     true
 }
 

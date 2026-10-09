@@ -789,6 +789,19 @@ fn api_v1_routes(state: AppState) -> Router<AppState> {
         .route("/models/llm", get(handlers::list_llm_models))
         .route("/models/embedding", get(handlers::list_embedding_models))
         .route("/models/health", get(handlers::check_providers_health))
+        .route("/providers/test", post(handlers::test_provider))
+        .route(
+            "/connections",
+            get(handlers::list_connections).post(handlers::create_connection),
+        )
+        .route(
+            "/connections/{id}",
+            axum::routing::put(handlers::update_connection).delete(handlers::delete_connection),
+        )
+        .route(
+            "/connections/{id}/test",
+            post(handlers::test_stored_connection),
+        )
         .route("/models/{provider}", get(handlers::get_provider))
         .route("/models/{provider}/{model}", get(handlers::get_model))
 }

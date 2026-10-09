@@ -1,785 +1,162 @@
 ---
 title: 'LightRAG Algorithm Deep-Dive'
+description: 'The big picture of how EdgeQuake indexes documents into a knowledge graph and answers questions with graph-augmented retrieval, in plain English, with links to the detailed deep-dives for each stage.'
 ---
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Product: v0.32.2** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
 
 # LightRAG Algorithm Deep-Dive
 
-> **Understanding Graph-Augmented Retrieval: From First Principles to Implementation**
+**What this page explains:** the end-to-end idea behind EdgeQuake: how documents become a knowledge graph, and how a question uses that graph.
+**Who it is for:** anyone new to EdgeQuake who wants the mental model before reading the detailed pages.
+**What you should know first:** what an LLM and an embedding are. Nothing else.
 
-EdgeQuake implements a Rust-based version of the LightRAG algorithm, enhanced with
-adaptive error recovery, multi-provider support, and extended query modes. This
-deep-dive explains the algorithm from first principles, walking through each
-component with diagrams and code references.
+EdgeQuake is a Rust implementation of the approach from the LightRAG paper (Guo et al., arXiv:2410.05779). It keeps the paper's core idea and adds production features such as multi-tenant storage, streaming, many LLM providers and a PostgreSQL backend. This page is an overview. Each stage links to a page with the details.
 
----
+## 1. Why a graph helps
 
-## Table of Contents
+Plain RAG (retrieval-augmented generation) cuts documents into chunks, embeds them, and returns the chunks closest to the question. This works for simple fact lookups. It struggles when the answer depends on **how things connect**.
 
-1. [Why Graph-RAG? First Principles](#why-graph-rag-first-principles)
-2. [The LightRAG Innovation](#the-lightrag-innovation)
-3. [Algorithm Walkthrough](#algorithm-walkthrough)
-4. [Entity Extraction in Detail](#entity-extraction-in-detail)
-5. [Dual-Level Retrieval](#dual-level-retrieval)
-6. [Query Modes Explained](#query-modes-explained)
-7. [Gleaning: Multi-Pass Extraction](#gleaning-multi-pass-extraction)
-8. [EdgeQuake Innovations](#edgequake-innovations)
-9. [Comparisons](#comparisons)
-10. [References](#references)
+Example question: "How did Sarah Chen's research influence her colleagues at Quantum Lab?" Plain RAG may return one chunk about Sarah, one about her research, and one about the lab. Nothing links them.
 
----
+A **knowledge graph** stores the links. Each **entity** (a person, organization, concept) is a node. Each **relationship** is an edge with a short description.
 
-## Why Graph-RAG? First Principles
-
-### The Problem with Traditional RAG
-
-Traditional Retrieval-Augmented Generation (RAG) systems use a simple approach:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    TRADITIONAL RAG (Naive)                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Documents ──> Chunks ──> Embeddings ──> Vector DB              │
-│                                                                 │
-│  Query ──> Embedding ──> Top-K Similar Chunks ──> LLM Answer    │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  S["SARAH_CHEN<br>(PERSON)"] -- "works at" --> Q["QUANTUM_LAB<br>(ORGANIZATION)"]
+  S -- "researches" --> N["NEURAL_NETWORK<br>(CONCEPT)"]
+  S -- "collaborates with" --> B["BOB_SMITH<br>(PERSON)"]
+  B -- "builds on" --> N
 ```
 
-This works well for simple factual questions, but fails for complex queries:
+The diagram shows a tiny graph. Read an arrow as "source, relation, target". The question above can now follow `SARAH_CHEN` to `BOB_SMITH` to `NEURAL_NETWORK`.
 
-**Example Query**: _"How did Sarah Chen's research on neural networks influence
-the work of her colleagues at Quantum Dynamics Lab?"_
+**Entities bridge documents.** If three documents mention "Sarah", "Dr. Chen" and "Sarah Chen", EdgeQuake normalizes the names to one node, `SARAH_CHEN`. That node links the three documents. Names are stored UPPERCASE with underscores. See [Entity Normalization and Merging](entity-normalization.md).
 
-Traditional RAG might return:
+## 2. The two phases
 
-1. A chunk mentioning "Sarah Chen"
-2. A chunk about "neural networks"
-3. A chunk mentioning "Quantum Dynamics Lab"
-
-But these chunks are **disconnected**. The system cannot:
-
-- Understand that Sarah Chen **works at** Quantum Dynamics Lab
-- Connect her research **to** colleagues' work
-- Follow the **influence chain** across documents
-
-### Why Graphs Solve This
-
-Graphs are fundamentally about **relationships**:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    KNOWLEDGE GRAPH STRUCTURE                    │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│           ┌─────────────┐                                       │
-│           │ SARAH_CHEN  │                                       │
-│           │   (PERSON)  │                                       │
-│           └──────┬──────┘                                       │
-│                  │                                              │
-│      ┌───────────┼───────────┐                                  │
-│      │           │           │                                  │
-│      v           v           v                                  │
-│  ┌───────┐  ┌─────────┐  ┌──────────────────┐                   │
-│  │WORKS_AT  │RESEARCHES  │COLLABORATES_WITH                     │
-│  └───┬───┘  └────┬────┘  └────────┬─────────┘                   │
-│      │           │               │                              │
-│      v           v               v                              │
-│ ┌─────────────┐ ┌──────────────┐ ┌─────────┐                    │
-│ │QUANTUM_LAB  │ │NEURAL_NETWORK│ │BOB_SMITH│                    │
-│ │ (ORG)       │ │  (CONCEPT)   │ │ (PERSON)│                    │
-│ └─────────────┘ └──────────────┘ └─────────┘                    │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  subgraph IDX["Indexing (once per document)"]
+    A["Document"] --> B["Chunks"]
+    B --> C["LLM extracts<br>entities and relationships"]
+    C --> D["Merge into graph"]
+    D --> E["Embed and store"]
+  end
+  subgraph QRY["Querying (every question)"]
+    F["Question"] --> G["Keywords"]
+    G --> H["Retrieve"]
+    H --> I["Trim and rank"]
+    I --> J["LLM answer"]
+  end
+  E -. "graph and vectors" .-> H
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class C,J eqLlm
 ```
 
-With a graph, we can:
+The diagram splits the system in two. Indexing builds the stores once. Querying reads from them for every question. Read each box left to right.
 
-1. **Traverse relationships**: Sarah → works_at → Quantum Lab
-2. **Discover connections**: Sarah → collaborates_with → Bob
-3. **Follow influence**: Sarah's research → used_by → Bob's work
+## 3. Indexing
 
-### The Key Insight
+| Step | What happens | Detail page |
+| --- | --- | --- |
+| Read the file | Text files are read as is. PDFs are converted to markdown first. | [PDF Processing](pdf-processing.md) |
+| Chunk | The text is cut into token-sized pieces with some overlap. | [Chunking Strategies](chunking-strategies.md) |
+| Extract | For each chunk the LLM returns entities and relationships as JSON. | [Entity Extraction](entity-extraction.md) |
+| Glean (optional) | The LLM is asked again for what it missed. | [Gleaning](gleaning.md) |
+| Normalize and merge | Names are cleaned. Duplicates merge. Descriptions combine. | [Entity Normalization and Merging](entity-normalization.md) |
+| Community labels | A graph algorithm groups related entities. | [Community Detection](community-detection.md) |
+| Embed | Chunks, entities and relationships get vectors. | [Embedding Models](embedding-models.md) |
+| Store | Vectors go to pgvector. Nodes and edges go to Apache AGE. Documents and chunks go to key-value tables. | [Data Layer](data-layer.md), [Vector Storage](vector-storage.md), [Graph Storage](graph-storage.md) |
 
-> **Entities are the bridge between documents.**
->
-> When the same entity (e.g., "Sarah Chen") appears in multiple documents,
-> the graph connects those documents through shared nodes.
+Progress and cancellation of this work is described in [Pipeline Progress](pipeline-progress.md). Costs are in [Cost Tracking](cost-tracking.md).
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│              ENTITIES BRIDGE DOCUMENTS                          │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Document 1          Document 2          Document 3             │
-│  ┌─────────┐        ┌─────────┐        ┌─────────┐              │
-│  │"Sarah's │        │"Dr. Chen│        │"The lab │              │
-│  │ neural  │        │ published│       │ team... │              │
-│  │ network │        │ findings"│       │ Sarah"  │              │
-│  │ paper"  │        └────┬────┘        └────┬────┘              │
-│  └────┬────┘             │                  │                   │
-│       │                  │                  │                   │
-│       └──────────────────┼──────────────────┘                   │
-│                          │                                      │
-│                          v                                      │
-│                   ┌─────────────┐                               │
-│                   │ SARAH_CHEN  │ ← Single unified node         │
-│                   │   (PERSON)  │                               │
-│                   └─────────────┘                               │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+Indexing is **incremental**. A new document is extracted on its own and merged into the existing graph. You never rebuild the whole graph to add a document.
 
----
+### Extraction output
 
-## The LightRAG Innovation
+The production extractor asks the LLM for a JSON object with two lists. Entities have a name, a type and a description. Relationships have a source, a target, keywords and a description. EdgeQuake validates the types, caps the list sizes (40 entities, 100 rows by default) and can ask the model to repair broken JSON once. The tuple format (`entity<|#|>...`) from the original LightRAG prompt exists in the code but is not used in the production path. See [Entity Extraction](entity-extraction.md).
 
-LightRAG (arxiv:2410.05779) introduced three key innovations:
+## 4. Querying
 
-### 1. Graph-Enhanced Text Indexing
+A question follows the steps below. [Query Modes](query-modes.md) explains each one.
 
-Instead of just storing text chunks, LightRAG:
-
-- Extracts **entities** (people, organizations, concepts)
-- Extracts **relationships** between entities
-- Builds a **knowledge graph** from these extractions
-- Generates **key-value pairs** for efficient retrieval
-
-### 2. Dual-Level Retrieval
-
-LightRAG retrieves information at two levels:
-
-| Level          | Focus                                      | Best For                                |
-| -------------- | ------------------------------------------ | --------------------------------------- |
-| **Low-Level**  | Specific entities and direct relationships | "Who is Sarah Chen?"                    |
-| **High-Level** | Broad topics and themes                    | "What are the main AI research trends?" |
-
-### 3. Incremental Updates
-
-Unlike GraphRAG which requires rebuilding community structures:
-
-- New documents are processed independently
-- Extracted entities merge into existing graph
-- No full reindex required
-
-### Performance Results (from paper)
-
-| Metric            | LightRAG vs NaiveRAG | LightRAG vs GraphRAG |
-| ----------------- | -------------------- | -------------------- |
-| Comprehensiveness | 61-84% win rate      | 50-55% win rate      |
-| Diversity         | 62-86% win rate      | 59-77% win rate      |
-| Empowerment       | 57-84% win rate      | 49-59% win rate      |
-
----
-
-## Algorithm Walkthrough
-
-### The Complete Pipeline
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 EDGEQUAKE GRAPH-RAG PIPELINE                    │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │                     INGESTION PHASE                      │   │
-│  ├──────────────────────────────────────────────────────────┤   │
-│  │                                                          │   │
-│  │   Document ──┬──> Preprocess ──> Chunk ──> Extract       │   │
-│  │              │                      │                    │   │
-│  │              │                      v                    │   │
-│  │              │               ┌─────────────┐             │   │
-│  │              │               │ LLM Entity  │             │   │
-│  │              │               │ Extraction  │             │   │
-│  │              │               └──────┬──────┘             │   │
-│  │              │                      │                    │   │
-│  │              │        ┌─────────────┼─────────────┐      │   │
-│  │              │        │             │             │      │   │
-│  │              │        v             v             v      │   │
-│  │              │   ┌────────┐   ┌──────────┐   ┌────────┐  │   │
-│  │              │   │Entities│   │Relations │   │Chunks  │  │   │
-│  │              │   └───┬────┘   └────┬─────┘   └───┬────┘  │   │
-│  │              │       │             │             │       │   │
-│  │              v       v             v             v       │   │
-│  │         ┌────────────────────────────────────────────┐   │   │
-│  │         │              KNOWLEDGE GRAPH               │   │   │
-│  │         │  (PostgreSQL + Apache AGE + pgvector)      │   │   │
-│  │         └────────────────────────────────────────────┘   │   │
-│  │                                                          │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │                      QUERY PHASE                         │   │
-│  ├──────────────────────────────────────────────────────────┤   │
-│  │                                                          │   │
-│  │   Query ──> Keywords ──> Dual-Level Retrieval            │   │
-│  │                               │                          │   │
-│  │               ┌───────────────┼───────────────┐          │   │
-│  │               │               │               │          │   │
-│  │               v               v               v          │   │
-│  │         ┌──────────┐   ┌──────────┐   ┌──────────┐       │   │
-│  │         │ Entities │   │Relations │   │  Chunks  │       │   │
-│  │         └────┬─────┘   └────┬─────┘   └────┬─────┘       │   │
-│  │              │              │              │             │   │
-│  │              └──────────────┼──────────────┘             │   │
-│  │                             │                            │   │
-│  │                             v                            │   │
-│  │                    ┌────────────────┐                    │   │
-│  │                    │ Context Fusion │                    │   │
-│  │                    └───────┬────────┘                    │   │
-│  │                            │                             │   │
-│  │                            v                             │   │
-│  │                    ┌────────────────┐                    │   │
-│  │                    │  LLM Answer    │                    │   │
-│  │                    └────────────────┘                    │   │
-│  │                                                          │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  Q["Question"] --> K["LLM returns keywords<br>and intent"]
+  K --> HL["High-level keywords<br>(themes)"]
+  K --> LL["Low-level keywords<br>(names, details)"]
+  LL --> LOC["Local: find entities,<br>walk their neighbors"]
+  HL --> GLO["Global: find relationships,<br>add community members"]
+  Q --> NAI["Naive: find chunks"]
+  LOC --> M["Merge chunks and<br>graph facts"]
+  GLO --> M
+  NAI --> M
+  M --> T["Trim to token budget"]
+  T --> A["LLM writes answer<br>with sources"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class K,A eqLlm
 ```
 
-### Step 1: Document Chunking
+The diagram shows **dual-level retrieval**. The question yields two keyword lists. Low-level keywords find specific entities. High-level keywords find relationships that describe themes. Read it top to bottom.
 
-Documents are split into manageable chunks for LLM processing:
+- **Local mode** answers "what is X?" by finding entities that look like X and expanding to their neighbors (default 2 hops).
+- **Global mode** answers "what are the themes?" by finding relationships that match the high-level keywords, then adding entities from the same community.
+- **Naive mode** is plain chunk search.
+- **Hybrid** and **mix** run the three together and merge the chunks.
+- **Bypass** skips retrieval.
+
+The REST API uses `mix` when no mode is given.
+
+## 5. How EdgeQuake differs from the paper
+
+| Topic | Paper and reference Python code | EdgeQuake |
+| --- | --- | --- |
+| Language | Python | Rust, async |
+| Query modes | `local`, `global`, `hybrid`, `naive`, `mix`, `bypass` | The same six names. `hybrid` here runs local, global and naive. In the reference code `hybrid` is local plus global only. |
+| Storage | Several back ends | PostgreSQL in production: pgvector, Apache AGE and key-value tables. The server needs `DATABASE_URL`. |
+| Extraction format | Delimited tuples | JSON, with a repair turn |
+| Chunk search | Dense vectors | Dense vectors plus a keyword search (PostgreSQL full text), on by default |
+| Reranking | Optional | BM25 by default; a neural reranker is opt-in |
+| Communities | None | Community ids written at index time and used by global mode |
+| Tenancy | Single | Tenants, workspaces and per-workspace settings |
+| Providers | Configurable | Many LLM and embedding providers. See [Providers](../providers/index.md). |
+| Caching | LLM response cache | Keyword, answer and embedding caches. See [Query Modes](query-modes.md#10-caching). |
+
+EdgeQuake aims for LightRAG-compatible behavior. Its settings reuse LightRAG's token budgets (6,000 entity tokens, 8,000 relationship tokens, 30,000 total). For benchmark results, use the published benchmark reports rather than this page. This page makes no accuracy claims.
+
+## 6. Multi-tenant scoping
+
+Every query and every write is scoped by tenant and workspace. In the library:
 
 ```rust
-// From edgequake-pipeline/src/chunker.rs
-pub struct ChunkerConfig {
-    pub chunk_size: usize,       // Default: 1200 tokens
-    pub chunk_overlap: usize,    // Default: 100 tokens
-    pub strategy: ChunkStrategy, // Token, Sentence, Semantic
-}
-```
-
-**Why adaptive chunking?**
-
-- Large documents (>100KB): Use smaller 600-token chunks
-- Medium documents: Use standard 1200-token chunks
-- Small documents: May not need chunking at all
-
-### Step 2: Entity Extraction via LLM
-
-EdgeQuake uses a **tuple-delimited format** for extraction:
-
-```
-entity<|#|>SARAH_CHEN<|#|>PERSON<|#|>Lead researcher at Quantum Lab
-entity<|#|>NEURAL_NETWORK<|#|>CONCEPT<|#|>Machine learning architecture
-relation<|#|>SARAH_CHEN<|#|>NEURAL_NETWORK<|#|>research<|#|>Sarah researches neural networks
-<|COMPLETE|>
-```
-
-**Why tuples over JSON?**
-
-| Aspect           | Tuple Format         | JSON Format                  |
-| ---------------- | -------------------- | ---------------------------- |
-| Streaming        | ✅ Line-by-line      | ❌ Need complete structure   |
-| Partial recovery | ✅ Parse valid lines | ❌ All or nothing            |
-| Escaping         | ✅ No special chars  | ❌ Quote/backslash issues    |
-| LLM reliability  | ✅ Battle-tested     | ❌ Frequent malformed output |
-
-### Step 3: Entity Normalization
-
-Before storing, entity names are normalized:
-
-```rust
-// From edgequake-pipeline/src/prompts/normalizer.rs
-normalize_entity_name("John Doe")     → "JOHN_DOE"
-normalize_entity_name("the company")  → "COMPANY"
-normalize_entity_name("John's team")  → "JOHN_TEAM"
-```
-
-**Why normalize?**
-
-Without normalization, the same entity becomes multiple nodes:
-
-```
-Before Normalization:        After Normalization:
-┌─────────────┐             ┌─────────────┐
-│ "John Doe"  │             │  JOHN_DOE   │ ← Single node
-└─────────────┘             └─────────────┘
-┌─────────────┐                    ▲
-│ "john doe"  │ ──────────────────┘
-└─────────────┘
-┌─────────────┐                    ▲
-│ "JOHN DOE"  │ ──────────────────┘
-└─────────────┘
-```
-
-### Step 4: Graph Construction
-
-Entities and relationships are stored in a knowledge graph:
-
-```sql
--- Entities become graph nodes (Apache AGE)
-CREATE (:Entity {
-    name: 'SARAH_CHEN',
-    type: 'PERSON',
-    description: 'Lead researcher...',
-    embedding: [0.1, 0.2, ...]  -- pgvector
-})
-
--- Relationships become edges
-CREATE (s:Entity)-[:WORKS_AT {
-    description: 'Sarah works at Quantum Lab',
-    weight: 0.8
-}]->(t:Entity)
-```
-
----
-
-## Entity Extraction in Detail
-
-### The Extraction Prompt
-
-EdgeQuake's SOTA extraction prompt (from `entity_extraction.rs`):
-
-```
----Role---
-You are a Knowledge Graph Specialist responsible for extracting
-entities and relationships from the input text.
-
----Instructions---
-1. **Entity Extraction:**
-   - Identify clearly defined entities
-   - Use entity types: PERSON, ORGANIZATION, LOCATION, CONCEPT...
-   - Provide concise descriptions
-
-2. **Relationship Extraction:**
-   - Identify direct relationships between entities
-   - Decompose N-ary relationships into binary pairs
-   - Use keywords to summarize relationship nature
-
-3. **Output Format:**
-   entity<|#|>name<|#|>type<|#|>description
-   relation<|#|>source<|#|>target<|#|>keywords<|#|>description
-
-4. **Completion Signal:**
-   Output <|COMPLETE|> when finished
-```
-
-### Extraction State Machine
-
-```
-           ┌─────────────────────────────────────────────────┐
-           │                                                 │
-           v                                                 │
-    ┌──────────────┐                                         │
-    │ PREPARE_PROMPT│                                        │
-    │ (System + User)│                                       │
-    └──────┬───────┘                                         │
-           │                                                 │
-           v                                                 │
-    ┌──────────────┐     finish_reason      ┌──────────────┐ │
-    │  LLM_CALL    │────────────────────────│ RETRY_WITH   │ │
-    │              │     = "length"         │ 2x TOKENS    │ │
-    └──────┬───────┘                        └──────┬───────┘ │
-           │                                       │         │
-           │ finish_reason = "stop"                └─────────┘
-           │                                        (max 3x)
-           v
-    ┌──────────────┐
-    │ PARSE_TUPLES │
-    │ (Line by Line)│
-    └──────┬───────┘
-           │
-           v
-    ┌──────────────┐
-    │  NORMALIZE   │
-    │ ENTITY NAMES │
-    └──────┬───────┘
-           │
-           ├────────────────────────────┐
-           │                            │ (if gleaning enabled)
-           v                            v
-    ┌──────────────┐            ┌──────────────┐
-    │    RESULT    │            │   GLEANING   │
-    │   (Final)    │            │  RE-EXTRACT  │
-    └──────────────┘            └──────┬───────┘
-                                       │
-                                       └───────── Loop back to PARSE
-```
-
-### Adaptive Token Management
-
-EdgeQuake handles varying entity density with progressive token scaling:
-
-```rust
-// From extractor.rs - Adaptive max_tokens based on chunk complexity
-let base_max_tokens = if chunk_size_bytes < 25_000 {
-    4096   // Small chunks, few entities
-} else if chunk_size_bytes < 75_000 {
-    8192   // Medium complexity
-} else if chunk_size_bytes < 125_000 {
-    12288  // High entity density
-} else {
-    16384  // Very complex documents
-};
-```
-
-**Retry strategy on truncation:**
-
-1. Attempt 1: `base_max_tokens` (e.g., 8192)
-2. Attempt 2: `2x tokens` (16384) - if truncated
-3. Attempt 3: `4x tokens` (32768 max) - if still truncated
-
----
-
-## Dual-Level Retrieval
-
-### Low-Level Retrieval (Entity-Centric)
-
-Focuses on specific entities and their immediate neighbors:
-
-```
-Query: "What is Sarah Chen's research about?"
-
-Low-Level Retrieval:
-┌──────────────────────────────────────────────────────────────┐
-│                                                              │
-│     ┌───────────────┐                                        │
-│     │  SARAH_CHEN   │ ← Direct entity match                  │
-│     │   (PERSON)    │                                        │
-│     └───────┬───────┘                                        │
-│             │                                                │
-│    ┌────────┼────────────┬─────────────────┐                 │
-│    │        │            │                 │                 │
-│    v        v            v                 v                 │
-│ ┌──────┐ ┌────────┐ ┌─────────┐ ┌────────────────┐           │
-│ │WORKS │ │RESEARCHES│ │PUBLISHED│ │COLLABORATES_WITH         │
-│ └──┬───┘ └───┬────┘ └────┬────┘ └───────┬────────┘           │
-│    │         │           │              │                    │
-│    v         v           v              v                    │
-│ ┌──────┐ ┌────────────┐ ┌──────┐ ┌──────────┐                │
-│ │ LAB  │ │NEURAL_NETS │ │PAPER │ │BOB_SMITH │                │
-│ └──────┘ └────────────┘ └──────┘ └──────────┘                │
-│                                                              │
-│ Returns: Entity descriptions + 1-hop neighbors               │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### High-Level Retrieval (Topic-Centric)
-
-Focuses on broader themes and community summaries:
-
-```
-Query: "What are the main AI research trends?"
-
-High-Level Retrieval:
-┌──────────────────────────────────────────────────────────────┐
-│                                                              │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │              TOPIC CLUSTER: "AI RESEARCH"               │ │
-│  │                                                         │ │
-│  │  Key themes:                                            │ │
-│  │  • Neural network architectures                         │ │
-│  │  • Machine learning optimization                        │ │
-│  │  • Deep learning applications                           │ │
-│  │                                                         │ │
-│  │  Related entities: 45                                   │ │
-│  │  Related relationships: 128                             │ │
-│  │                                                         │ │
-│  └─────────────────────────────────────────────────────────┘ │
-│                                                              │
-│  Uses global keywords to match relationship clusters         │
-│  Returns: Aggregated summaries + theme keywords              │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### Hybrid Mode: Best of Both Worlds
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    HYBRID RETRIEVAL                          │
-├──────────────────────────────────────────────────────────────┤
-│                                                              │
-│                      USER QUERY                              │
-│                          │                                   │
-│            ┌─────────────┴─────────────┐                     │
-│            │                           │                     │
-│            v                           v                     │
-│     ┌─────────────┐           ┌─────────────┐                │
-│     │  LOW-LEVEL  │           │ HIGH-LEVEL  │                │
-│     │  Entities   │           │  Summaries  │                │
-│     │  + 1-hop    │           │  + Topics   │                │
-│     └──────┬──────┘           └──────┬──────┘                │
-│            │                         │                       │
-│            └───────────┬─────────────┘                       │
-│                        │                                     │
-│                        v                                     │
-│              ┌─────────────────┐                             │
-│              │  CONTEXT FUSION │                             │
-│              │                 │                             │
-│              │ • Deduplicate   │                             │
-│              │ • Score & rank  │                             │
-│              │ • Truncate to   │                             │
-│              │   token limit   │                             │
-│              └────────┬────────┘                             │
-│                       │                                      │
-│                       v                                      │
-│              ┌─────────────────┐                             │
-│              │   LLM ANSWER    │                             │
-│              └─────────────────┘                             │
-│                                                              │
-└──────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Query Modes Explained
-
-EdgeQuake extends LightRAG's 3 modes to 6:
-
-### Mode Selection Decision Tree
-
-```
-                          START
-                            │
-                            v
-                ┌───────────────────────┐
-                │ Is this a test/debug? │
-                └───────────┬───────────┘
-                            │
-               Yes          │          No
-                │           │           │
-                v           │           v
-          ┌──────────┐      │  ┌─────────────────────┐
-          │  BYPASS  │      │  │ Specific entity     │
-          │ (No RAG) │      │  │ question?           │
-          └──────────┘      │  └──────────┬──────────┘
-                            │             │
-                            │  Yes        │         No
-                            │   │         │          │
-                            │   v         │          v
-                            │ ┌────────┐  │  ┌──────────────────┐
-                            │ │ LOCAL  │  │  │ Broad theme/     │
-                            │ │        │  │  │ summary needed?  │
-                            │ └────────┘  │  └────────┬─────────┘
-                            │             │           │
-                            │             │  Yes      │      No
-                            │             │   │       │       │
-                            │             │   v       │       v
-                            │             │ ┌──────┐  │  ┌──────────────┐
-                            │             │ │GLOBAL│  │  │ Need both    │
-                            │             │ └──────┘  │  │ entity +     │
-                            │             │           │  │ context?     │
-                            │             │           │  └──────┬───────┘
-                            │             │           │         │
-                            │             │           │  Yes    │    No
-                            │             │           │   │     │     │
-                            │             │           │   v     │     v
-                            │             │           │ ┌──────┐│ ┌──────┐
-                            │             │           │ │HYBRID││ │NAIVE │
-                            │             │           │ └──────┘│ └──────┘
-                            │             │           │         │
-                            └─────────────┴───────────┴─────────┘
-```
-
-### Mode Comparison Table
-
-| Mode       | Vector Search | Graph Traversal         | Best For               |
-| ---------- | ------------- | ----------------------- | ---------------------- |
-| **Naive**  | ✅ Yes        | ❌ No                   | Simple factual queries |
-| **Local**  | ✅ Yes        | ✅ Entities + neighbors | "Who/What is X?"       |
-| **Global** | ❌ No         | ✅ Community summaries  | "What are the themes?" |
-| **Hybrid** | ✅ Yes        | ✅ Both approaches      | Complex multi-faceted  |
-| **Mix**    | ✅ Weighted   | ✅ Weighted             | Custom blending        |
-| **Bypass** | ❌ No         | ❌ No                   | Testing/debugging      |
-
-### Code Reference
-
-```rust
-// From edgequake-query/src/modes.rs
-pub enum QueryMode {
-    Naive,   // FEAT0101: Vector similarity only
-    Local,   // FEAT0102: Entity-centric graph
-    Global,  // FEAT0103: Community summaries
-    Hybrid,  // FEAT0104: Local + Global (DEFAULT)
-    Mix,     // FEAT0105: Weighted combination
-    Bypass,  // FEAT0106: No RAG, direct LLM
-}
-```
-
----
-
-## Gleaning: Multi-Pass Extraction
-
-### Why Gleaning?
-
-LLMs often miss entities in a single pass due to:
-
-- Attention limits on long texts
-- Implicit entities ("the company" → previously mentioned "Apple")
-- Context overload with many entities
-
-### The Gleaning Process
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    GLEANING (RE-EXTRACTION)                     │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Pass 1: Initial Extraction                                     │
-│  ─────────────────────────                                      │
-│  Input: "Sarah Chen leads the team at Quantum Lab.              │
-│          The company recently expanded..."                      │
-│                                                                 │
-│  Extracted: SARAH_CHEN, QUANTUM_LAB                             │
-│  Missed: "The company" = QUANTUM_LAB (implicit reference)       │
-│                                                                 │
-│  ────────────────────────────────────────────────────────────   │
-│                                                                 │
-│  Pass 2: Gleaning                                               │
-│  ─────────────────                                              │
-│  Prompt: "MANY entities were missed. Already found:             │
-│           SARAH_CHEN, QUANTUM_LAB. Look for implicit mentions." │
-│                                                                 │
-│  Additional: TEAM (implicit), EXPANSION_EVENT (implicit)        │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Research Finding
-
-From LightRAG paper:
-
-- **1-2 gleaning iterations** improve recall by 15-25%
-- Diminishing returns after 2 iterations
-- Cost: Each iteration = 1 additional LLM call
-
-### Configuration
-
-```rust
-// From extractor.rs
-pub struct GleaningConfig {
-    pub max_gleaning: usize,  // Default: 1 (LightRAG recommendation)
-    pub always_glean: bool,   // Default: false
-}
-```
-
----
-
-## EdgeQuake Innovations
-
-EdgeQuake extends the original LightRAG with:
-
-### 1. Adaptive Error Recovery
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                ADAPTIVE TOKEN MANAGEMENT                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Chunk Size (KB)     Base Tokens    Retry Tokens                │
-│  ───────────────     ───────────    ────────────                │
-│  < 25 KB             4,096          8,192 → 16,384              │
-│  25-75 KB            8,192          16,384 → 32,768             │
-│  75-125 KB           12,288         24,576 → 32,768             │
-│  > 125 KB            16,384         32,768 (max)                │
-│                                                                 │
-│  Detection:                                                     │
-│  • finish_reason="length" → LLM hit token limit                 │
-│  • JSON parse error → Response truncated mid-output             │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### 2. Hybrid Parser with Fallback
-
-```rust
-// From parser.rs
-pub struct HybridExtractionParser {
-    json_parser: JsonExtractionParser,
-    tuple_parser: TupleParser,
-    prefer_tuple: bool,  // Default: true
-}
-```
-
-Priority:
-
-1. Try tuple parsing (more robust)
-2. Fallback to JSON if tuples empty
-3. Return best available result
-
-### 3. Extended Query Modes
-
-LightRAG: 3 modes (local, global, hybrid)
-EdgeQuake: 6 modes (+naive, mix, bypass)
-
-### 4. Multi-Provider Support
-
-```rust
-// Providers available
-- OpenAI (gpt-4.1-nano, gpt-4o)
-- Ollama (local models)
-- LM Studio (local models)
-- Mock (testing)
-```
-
-### 5. Multi-Tenant Support
-
-```rust
-// Query can be scoped to tenant/workspace
 QueryRequest::new("What is AI?")
     .with_tenant_id("acme-corp")
     .with_workspace_id("research-team")
 ```
 
----
+In the REST API the scope comes from request headers. See the [REST API reference](../api-reference/rest-api.md).
 
-## Comparisons
+## 7. Where to go next
 
-### EdgeQuake vs LightRAG (Python)
-
-| Feature        | LightRAG        | EdgeQuake                   |
-| -------------- | --------------- | --------------------------- |
-| Language       | Python          | Rust (async Tokio)          |
-| Performance    | Single-threaded | Multi-threaded              |
-| Query modes    | 3               | 6                           |
-| Error handling | Basic           | Adaptive retry              |
-| Multi-tenant   | No              | Yes                         |
-| Streaming      | Limited         | Full SSE                    |
-| Storage        | Multiple backends | PostgreSQL + AGE + pgvector |
-
-### LightRAG vs GraphRAG
-
-| Aspect              | LightRAG    | GraphRAG        |
-| ------------------- | ----------- | --------------- |
-| Retrieval cost      | ~100 tokens | ~610,000 tokens |
-| API calls per query | 1-2         | Hundreds        |
-| Update strategy     | Incremental | Full rebuild    |
-| Community detection | No          | Yes             |
-| Query speed         | Fast        | Slow            |
-
-### LightRAG vs NaiveRAG
-
-| Aspect            | LightRAG     | NaiveRAG   |
-| ----------------- | ------------ | ---------- |
-| Relationships     | ✅ Explicit  | ❌ None    |
-| Multi-hop queries | ✅ Supported | ❌ Limited |
-| Win rate          | 60-85%       | Baseline   |
-| Index complexity  | Higher       | Lower      |
-| Storage needs     | More         | Less       |
-
----
+| If you want to... | Read |
+| --- | --- |
+| Understand the shape of the data | [Data Layer](data-layer.md) |
+| Pick or tune a query mode | [Query Modes](query-modes.md) |
+| Tune extraction | [Entity Extraction](entity-extraction.md), [Gleaning](gleaning.md) |
+| Tune chunking | [Chunking Strategies](chunking-strategies.md) |
+| Choose an embedding model | [Embedding Models](embedding-models.md) |
+| Understand the REST API | [REST API reference](../api-reference/rest-api.md) |
 
 ## References
 
-1. **LightRAG Paper**: Guo et al., "LightRAG: Simple and Fast Retrieval-Augmented Generation", arXiv:2410.05779, 2024
-
-2. **GraphRAG Paper**: Edge et al., "From Local to Global: A Graph RAG Approach to Query-Focused Summarization", arXiv:2404.16130, 2024
-
-3. **EdgeQuake Source Code**:
-   - [entity_extraction.rs](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pipeline/src/prompts/entity_extraction.rs)
-   - [normalizer.rs](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pipeline/src/prompts/normalizer.rs)
-   - [parser.rs](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pipeline/src/prompts/parser.rs)
-   - [engine_impl/modes/](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-query/src/engine_impl/modes/)
-
----
-
-## Next Steps
-
-- [Query Mode Selection Guide](/docs/deep-dives/query-modes/)
-- [Entity Normalization Technical Note](/docs/deep-dives/entity-normalization/)
-- [API Reference: Query Endpoints](/docs/api-reference/rest-api/)
+1. Guo et al., "LightRAG: Simple and Fast Retrieval-Augmented Generation", [arXiv:2410.05779](https://arxiv.org/abs/2410.05779).
+2. Edge et al., "From Local to Global: A Graph RAG Approach to Query-Focused Summarization", [arXiv:2404.16130](https://arxiv.org/abs/2404.16130).

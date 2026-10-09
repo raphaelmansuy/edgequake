@@ -1,12 +1,16 @@
 ---
-title: "EdgeQuake product limits"
+title: EdgeQuake product limits
+description: Which corpus sizes EdgeQuake can promise, what host and PostgreSQL settings each needs, and which tips stay opt-in.
 ---
+
+> **Released: v0.32.2** · Numbers below come from the linked SPEC artifacts, measured on the versions named there.
 
 # EdgeQuake product limits
 
-**Who this is for:** operators sizing a deployment  
-**Rule:** Do not promise a capacity number unless it appears below with evidence.  
-**Claim gates (lab):** `make ceiling-proof` / `make product-limits-check` — not day-2 sizing.
+This page tells operators how big a deployment they can promise and what to configure for it. It is for people who size hardware and set vector-search options.
+
+**Rule:** Do not promise a capacity number unless it appears below with evidence.
+**Claim gates (lab):** `make ceiling-proof` and `make product-limits-check`. These are lab checks, not day-2 sizing.
 
 Related: [FAQ](faq.md) · [Performance tuning](operations/performance-tuning.md) · [SPEC-066](../specs/066-ceiling-proof/e2e/artifacts/RUN_NOTES.md) · [SPEC-067](../specs/067-ops-real-floors/000-index.md) · [SPEC-068](../specs/068-recall-quality-scale/e2e/artifacts/RUN_NOTES.md) · [SPEC-069 dedicated](../specs/069-dedicated-midscale/e2e/artifacts/RUN_NOTES.md) · [SPEC-072 DiskANN Pareto](../specs/072-diskann-recall-pareto/e2e/artifacts/RUN_NOTES.md) · [SPEC-074 storage P0](../specs/074-storage-p0-hardening/000-index.md) · [SPEC-075 filtered recall](../specs/075-filtered-recall-gates/000-index.md) · [SPEC-076 precision](../specs/076-precision-reorder-rrf/000-index.md) · [SPEC-077 binary quantize](../specs/077-binary-quantize-bakeoff/000-index.md) · [SPEC-078 Filtered-DiskANN](../specs/078-filtered-diskann-labels/000-index.md) · [SPEC-079 mid-scale tips](../specs/079-midscale-quantize-labels/000-index.md) · [SPEC-080 tiny-slice](../specs/080-tiny-slice-exact/000-index.md) · [SPEC-081 serving view](../specs/081-serving-view-dual-ssot/000-index.md) · [SPEC-082 push-scale](../specs/082-push-scale-floors/000-index.md)
 
@@ -37,6 +41,26 @@ Related: [FAQ](faq.md) · [Performance tuning](operations/performance-tuning.md)
 | Wave-2 above 100k | 250k+ | **Not promoted** | Mid-scale wall (SPEC-068); single-spot ≠ concurrent floor |
 
 Also proven separately: community Louvain gated at **50k** graph nodes; graph G1 degrees path at **100k** nodes (not a vector floor).
+
+Use the chart to find your row. It asks how many vectors you need and what you are willing to set.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    A["How many vectors at 1536 dimensions?"] --> B{"50k or fewer?"}
+    B -->|yes| C["Defaults. Host 16 GB, shared_buffers 2 GB. Proven"]
+    B -->|no| D{"Up to 100k?"}
+    D -->|yes| E["Wave-2 on a new database. Host 32 GB preferred. Supported"]
+    D -->|no| F{"Up to 250k?"}
+    F -->|yes| G["Opt-in DiskANN, dedicated table, list 800 or more"]
+    F -->|no| H["Not promoted. Do not promise"]
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class E,G eqStore
+```
+
+Read the chart from the top. Each answer leads to a recipe in the next sections. Wave-2 and DiskANN are never turned on silently.
 
 ---
 

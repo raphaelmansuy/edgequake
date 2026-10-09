@@ -1,499 +1,145 @@
 ---
 title: 'Deep Dive: Gleaning'
+description: How EdgeQuake re-prompts the LLM to find entities and relationships it missed - the gleaning loop, merge rules, limits, defaults, and when it is turned off.
 ---
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Product: v0.32.2** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
 
 # Deep Dive: Gleaning
 
-> **Multi-Pass Extraction for Comprehensive Entity Discovery**
+**What this page explains:** the optional second extraction pass that looks for entities the first pass missed.
+**Who it is for:** operators who trade LLM cost against recall, and developers working on `GleaningExtractor`.
+**Read first:** [Entity Extraction](entity-extraction.md).
 
-Gleaning is EdgeQuake's iterative re-extraction strategy that improves entity recall by prompting the LLM to find entities it missed in previous passes.
+**Gleaning** means asking the LLM again about the same chunk. The new prompt says "many entities were missed" and lists the entities already found. The model returns only additions. Each extra pass costs one more LLM call per chunk.
 
----
+The code is `edgequake/crates/edgequake-pipeline/src/extractor/gleaning.rs`. The idea comes from LightRAG.
 
-## Overview
+## Why a second pass helps
 
-Single-pass LLM extraction typically captures 65-80% of entities in a document. Gleaning increases this to 90%+ through iterative refinement:
+A single call can miss items for a few reasons:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    GLEANING CONCEPT                             │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Without Gleaning:                                              │
-│  ────────────────                                               │
-│  Document (100 entities) ──▶ Single Pass ──▶ 70 entities found  │
-│                                              (30 missed)        │
-│                                                                 │
-│  With Gleaning (2 iterations):                                  │
-│  ─────────────────────────────                                  │
-│  Document (100 entities) ──┬─▶ Pass 1 ──▶ 70 entities           │
-│                            │                                    │
-│                            ├─▶ Pass 2 ──▶ +18 entities          │
-│                            │   "What did you miss?"             │
-│                            │                                    │
-│                            └─▶ Pass 3 ──▶ +7 entities           │
-│                                "What else?"                     │
-│                                                                 │
-│                            Total: 95 entities (95% recall)      │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+| Reason | Example |
+| --- | --- |
+| Long or dense text competes for attention | Later paragraphs get less detail. |
+| Indirect mentions | "The company" refers to an earlier "Apple". |
+| Many items at once | The model stops after the most obvious ones. |
+| The per-response cap | With a cap of 40 entities, the rest are cut. Gleaning can recover high-value ones. |
 
----
+EdgeQuake does not publish a recall figure for gleaning. Measure it on your own documents.
 
-## Why LLMs Miss Entities
+## The loop
 
-LLMs miss entities due to several factors:
+`GleaningExtractor` wraps a base extractor. In production the base is `LLMExtractor`. The flowchart shows what happens for one chunk.
 
-| Factor                  | Description                         | Example                  |
-| ----------------------- | ----------------------------------- | ------------------------ |
-| **Attention Limits**    | Long texts exceed attention span    | Later paragraphs ignored |
-| **Implicit References** | Pronouns, indirect mentions         | "the company" vs "Apple" |
-| **Context Overload**    | Many entities compete for attention | Dense technical docs     |
-| **Entity Type Bias**    | Some types harder to recognize      | Abstract concepts        |
-| **Format Challenges**   | Tables, lists, code blocks          | Structured data          |
-
----
-
-## How Gleaning Works
-
-### The Algorithm
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    GLEANING ALGORITHM                           │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  FUNCTION glean(chunk, max_iterations):                         │
-│                                                                 │
-│      1. all_entities = []                                       │
-│      2. all_relationships = []                                  │
-│                                                                 │
-│      3. // First pass: normal extraction                        │
-│         result = extract(chunk)                                 │
-│         all_entities.extend(result.entities)                    │
-│         all_relationships.extend(result.relationships)          │
-│                                                                 │
-│      4. FOR i IN 1..max_iterations:                             │
-│                                                                 │
-│         5. previous_names = all_entities.map(e => e.name)       │
-│                                                                 │
-│         6. // Gleaning prompt                                   │
-│            prompt = """                                         │
-│              MANY entities were missed in the last extraction.  │
-│              Already found: {previous_names}                    │
-│              Find ADDITIONAL entities and relationships.        │
-│            """                                                  │
-│                                                                 │
-│         7. new_result = extract_with_prompt(chunk, prompt)      │
-│                                                                 │
-│         8. IF new_result.entities.is_empty():                   │
-│               BREAK  // No more entities to find                │
-│                                                                 │
-│         9. all_entities.extend(new_result.entities)             │
-│            all_relationships.extend(new_result.relationships)   │
-│                                                                 │
-│      10. RETURN deduplicate(all_entities, all_relationships)    │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    A["Chunk"] --> B["Base extraction"]
+    B --> C{"max_gleaning is 0?"}
+    C -- "yes" --> Z["Return base result"]
+    C -- "no" --> D["Glean prompt with known entity names"]
+    D --> E{"LLM call ok?"}
+    E -- "no" --> Z
+    E -- "yes" --> F["Parse and merge"]
+    F --> G{"Anything new?"}
+    G -- "no" --> H["Stop early"]
+    G -- "yes" --> I{"Passes left?"}
+    I -- "yes" --> D
+    I -- "no" --> H
+    H --> J["Re-apply entity type rules"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class E eqLlm
 ```
 
-### Step-by-Step Example
+Read it top to bottom: the loop ends when a pass adds nothing, when the pass limit is reached, or when the LLM call fails.
 
-**Input Text:**
+Details that matter:
 
-```
-Dr. Sarah Chen, a researcher at MIT's Computer Science department,
-developed a novel approach to neural network optimization. Her work,
-published in Nature, builds on gradient descent methods pioneered by
-Geoffrey Hinton. The project received funding from the NSF and was
-implemented using TensorFlow.
-```
+- **Fail-open.** If a gleaning call fails, the extractor keeps the base result and stops. You never lose the first pass (SPEC-156).
+- **Early stop.** If a pass adds zero entities and zero relationships, the loop ends (SPEC-156).
+- **Parse errors** in one pass are logged and the loop continues to the next pass.
+- **Token accounting.** Gleaning tokens are added to the result's `input_tokens` and `output_tokens`, so [cost tracking](cost-tracking.md) includes them.
+- **Metadata.** The result records `gleaning_iterations`, the number of passes that actually ran.
 
-**Pass 1 (Normal Extraction):**
+## The gleaning prompt
 
-```
-Entities Found:
-  - SARAH_CHEN (PERSON)
-  - MIT (ORGANIZATION)
-  - NEURAL_NETWORK (CONCEPT)
+Gleaning uses the same JSON format as `LLMExtractor`, not the tuple format (`prompts/json_prompts.rs`). Two messages are sent:
 
-Relationships:
-  - SARAH_CHEN → works_at → MIT
-```
+- **System message** (stable): the intro "MANY entities and relationships were missed in the last extraction", instructions to look for implicit entities, extra relationships between known entities, and contextual entities, plus the type schema, the quantity caps, the language, and the JSON format.
+- **User message** (per chunk): `## Already Identified Entities`, the comma-separated names found so far, then `## Text to Re-Analyze` and the chunk text.
 
-**Pass 2 (Gleaning):**
+If the base pass was cut by the per-response cap, the intro changes to "the previous extraction hit the per-response budget" and asks for additional high-value items. The call uses `max_tokens` of 16,384.
 
-Prompt: _"MANY entities were missed. Already found: SARAH_CHEN, MIT, NEURAL_NETWORK. Find ADDITIONAL entities."_
+## How results are merged
 
-```
-Additional Entities:
-  - GRADIENT_DESCENT (METHOD)
-  - GEOFFREY_HINTON (PERSON)
-  - NATURE (PUBLICATION)
-  - NSF (ORGANIZATION)
-  - TENSORFLOW (TECHNOLOGY)
+After each pass, `merge_results` folds the new items into the running result. Names are compared after normalization (see [Entity Normalization](entity-normalization.md)).
 
-Additional Relationships:
-  - SARAH_CHEN → published_in → NATURE
-  - GRADIENT_DESCENT → pioneered_by → GEOFFREY_HINTON
-  - PROJECT → funded_by → NSF
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    A["New item"] --> B{"Same normalized key already present?"}
+    B -- "no" --> C["Add it"]
+    B -- "yes" --> D{"New description longer?"}
+    D -- "yes" --> E["Replace description and type"]
+    D -- "no" --> F["Keep existing"]
 ```
 
-**Final Result (Merged):**
+Read it left to right: gleaning never deletes anything. It only adds new items or replaces a shorter description with a longer one.
 
-- **8 entities** (vs 3 without gleaning)
-- **4 relationships** (vs 1 without gleaning)
+For relationships, the key is the pair of normalized source and target names. After the last pass, the extractor applies the workspace entity-type rules again, so gleaned entities follow the same allowed types as the first pass.
 
----
+## Defaults and limits
 
-## Implementation
+| Setting | Value | Where |
+| --- | --- | --- |
+| Gleaning on by default | yes (`enable_gleaning: true`) | API upload defaults |
+| Passes by default | 1 (`max_gleaning: 1`) | `GleaningConfig::default()` and API defaults |
+| Hard cap on passes | 2 (`MAX_GLEANING_CAP`) | Any larger request is clamped |
+| Local providers | **off** unless you opt in | `resolve_gleaning_for_provider` |
+| Large PDFs | **off** at 500 pages or more | `LARGE_PDF_GLEANING_DISABLE_THRESHOLD` |
 
-### GleaningConfig
+The local-provider rule applies to Ollama, LM Studio, and similar single-machine servers. Gleaning doubles their load. Opt in with `EDGEQUAKE_LOCAL_ENABLE_GLEANING=1`.
 
-```rust
-/// Configuration for gleaning (re-extraction).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GleaningConfig {
-    /// Maximum number of gleaning iterations.
-    pub max_gleaning: usize,
+The text-upload JSON body accepts `enable_gleaning` and `max_gleaning`. The worker reads them from the task metadata and applies the defaults in the table when they are missing. File uploads send no gleaning fields, so they use the defaults. There is no `EDGEQUAKE_GLEANING_ITERATIONS` or `EDGEQUAKE_ENABLE_GLEANING` variable in the code; earlier versions of this page named them by mistake.
 
-    /// Whether to continue extraction even if first pass finds entities.
-    pub always_glean: bool,
-}
-
-impl Default for GleaningConfig {
-    fn default() -> Self {
-        Self {
-            max_gleaning: 1,    // LightRAG default
-            always_glean: false,
-        }
-    }
-}
-```
-
-### GleaningExtractor
-
-```rust
-/// A wrapper extractor that performs gleaning.
-pub struct GleaningExtractor {
-    /// The underlying LLM provider.
-    llm_provider: Arc<dyn LLMProvider>,
-
-    /// The base extractor to use.
-    base_extractor: Arc<dyn EntityExtractor>,
-
-    /// Gleaning configuration.
-    config: GleaningConfig,
-}
-
-impl GleaningExtractor {
-    /// Create a new gleaning extractor.
-    pub fn new(
-        llm_provider: Arc<dyn LLMProvider>,
-        base_extractor: Arc<dyn EntityExtractor>,
-    ) -> Self {
-        Self {
-            llm_provider,
-            base_extractor,
-            config: GleaningConfig::default(),
-        }
-    }
-
-    /// Set maximum gleaning iterations.
-    pub fn with_max_gleaning(mut self, max: usize) -> Self {
-        self.config.max_gleaning = max;
-        self
-    }
-}
-```
-
-### Gleaning Prompt
-
-```rust
-fn build_gleaning_prompt(&self, text: &str, previous_entities: &[String]) -> String {
-    let prev_entities_str = previous_entities.join(", ");
-
-    format!(r#"
-MANY entities and relationships were missed in the last extraction.
-Please identify any ADDITIONAL entities and relationships.
-
-## Already Identified Entities
-{prev_entities_str}
-
-## Instructions
-Look for entities and relationships that were missed:
-- Implicit entities (mentioned indirectly)
-- Additional relationships between known entities
-- Contextual entities (dates, locations, concepts)
-
-## Text to Re-Analyze
-{text}
-
-## JSON Response
-    "#)
-}
-```
-
----
-
-## Effectiveness Analysis
-
-### Recall by Iteration
-
-| Iterations      | Entities Found | Recall | Marginal Gain |
-| --------------- | -------------- | ------ | ------------- |
-| 0 (single pass) | 70             | 70%    | -             |
-| 1               | 88             | 88%    | +18%          |
-| 2               | 95             | 95%    | +7%           |
-| 3               | 97             | 97%    | +2%           |
-| 4+              | 98             | 98%    | <1%           |
-
-**Key Insight**: Diminishing returns after 2 iterations.
-
-### Cost Analysis
-
-| Iterations | LLM Calls | Cost Multiplier | Recall |
-| ---------- | --------- | --------------- | ------ |
-| 0          | 1x        | 1.0x            | 70%    |
-| 1          | 2x        | 2.0x            | 88%    |
-| 2          | 3x        | 3.0x            | 95%    |
-| 3          | 4x        | 4.0x            | 97%    |
-
-**Recommendation**: Use 1-2 iterations for best cost/recall tradeoff.
-
----
-
-## When to Use Gleaning
-
-### Enable Gleaning For:
-
-✅ **High-stakes documents**
-
-- Legal contracts
-- Medical records
-- Research papers
-- Financial reports
-
-✅ **Dense information**
-
-- Technical specifications
-- Academic papers
-- Multi-topic documents
-
-✅ **Quality over speed**
-
-- When recall matters more than latency
-- When documents are ingested once, queried many times
-
-### Skip Gleaning For:
-
-❌ **Simple documents**
-
-- Short emails
-- Basic notes
-- Low-density text
-
-❌ **High-volume ingestion**
-
-- Real-time processing
-- Large-scale batch jobs
-- Cost-sensitive workloads
-
----
-
-## Configuration Options
-
-### Via API
-
-```bash
-# Upload with gleaning enabled
-curl -X POST http://localhost:8080/api/v1/documents/upload \
-  -H "X-Workspace-ID: default" \
-  -F "file=@document.pdf" \
-  -F "gleaning_iterations=2"
-```
-
-### Via Environment
-
-```bash
-# Enable gleaning globally
-export EDGEQUAKE_GLEANING_ITERATIONS=2
-export EDGEQUAKE_ENABLE_GLEANING=true
-```
-
-### Via Rust SDK
+### Library use
 
 ```rust
 use edgequake_pipeline::{GleaningConfig, GleaningExtractor};
 
-let config = GleaningConfig {
-    max_gleaning: 2,
-    always_glean: true,
-};
-
 let extractor = GleaningExtractor::new(llm, base_extractor)
-    .with_config(config);
+    .with_config(GleaningConfig { max_gleaning: 2 });
 ```
 
----
+`GleaningConfig` has one field, `max_gleaning`. Earlier docs listed an `always_glean` flag; it does not exist.
 
-## Integration with Pipeline
+## Cost and latency
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                  PIPELINE WITH GLEANING                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Document                                                       │
-│     │                                                           │
-│     ▼                                                           │
-│  ┌──────────┐                                                   │
-│  │ Chunking │ ──▶ chunk_1, chunk_2, chunk_3, ...                │
-│  └──────────┘                                                   │
-│     │                                                           │
-│     ▼                                                           │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ FOR each chunk:                                          │   │
-│  │                                                          │   │
-│  │   ┌─────────────────┐                                    │   │
-│  │   │ GleaningExtractor│                                   │   │
-│  │   │                  │                                   │   │
-│  │   │ Pass 1 (base)   │──▶ entities_1                      │   │
-│  │   │ Pass 2 (glean)  │──▶ entities_2                      │   │
-│  │   │ Pass 3 (glean)  │──▶ entities_3                      │   │
-│  │   │                  │                                   │   │
-│  │   │ Merge & Dedupe  │──▶ final_entities                  │   │
-│  │   └─────────────────┘                                    │   │
-│  │                                                          │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│     │                                                           │
-│     ▼                                                           │
-│  ┌──────────────┐                                               │
-│  │ Graph Storage │ ◀── All extracted entities & relationships   │
-│  └──────────────┘                                               │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+Passes run one after another inside a chunk. Different chunks still run in parallel (see [concurrency](entity-extraction.md#resilience-timeouts-retries-concurrency)). With `max_gleaning = 1`, each chunk costs up to two LLM calls. With the cap of 2, up to three. The early stop makes the real cost lower on simple text.
 
----
+## When to use it
 
-## Performance Considerations
-
-### Latency Impact
-
-```
-Document Processing Time:
-
-Without Gleaning:
-  Chunk 1: 500ms (1 LLM call)
-  Chunk 2: 500ms
-  Chunk 3: 500ms
-  Total: 1.5s
-
-With Gleaning (2 iterations):
-  Chunk 1: 1.5s (3 LLM calls)
-  Chunk 2: 1.5s
-  Chunk 3: 1.5s
-  Total: 4.5s (3x longer)
-```
-
-### Parallelization
-
-Gleaning passes within a chunk are sequential, but chunks can be processed in parallel:
-
-```rust
-// Process chunks in parallel, gleaning is per-chunk
-let results = futures::future::join_all(
-    chunks.iter().map(|chunk| {
-        let extractor = gleaning_extractor.clone();
-        async move { extractor.extract(chunk).await }
-    })
-).await;
-```
-
----
-
-## Quality Metrics
-
-Track gleaning effectiveness:
-
-```rust
-pub struct GleaningStats {
-    /// Entities found in base extraction
-    pub base_entities: usize,
-
-    /// Additional entities found via gleaning
-    pub gleaned_entities: usize,
-
-    /// Total gleaning iterations performed
-    pub iterations: usize,
-
-    /// Time spent on gleaning (ms)
-    pub gleaning_time_ms: u64,
-}
-
-// Gleaning efficiency ratio
-let efficiency = stats.gleaned_entities as f32 / stats.iterations as f32;
-```
-
----
-
-## Best Practices
-
-1. **Start with 1 iteration** - Default setting balances cost and recall
-2. **Increase for complex docs** - Research papers, legal documents benefit from 2 iterations
-3. **Monitor marginal gains** - If gleaning finds <5% more entities, reduce iterations
-4. **Cache results** - Gleaning results are cached to avoid re-processing
-5. **Use async processing** - Don't block on gleaning for real-time applications
-
----
+| Turn it on | Turn it off |
+| --- | --- |
+| Dense, high-value documents such as contracts, papers, and specifications | Short or simple notes |
+| Documents you ingest once and query often | Very large batch loads where cost matters most |
+| Cloud models with a fast per-call speed | Single-slot local models, which are already slow |
 
 ## Troubleshooting
 
-### Gleaning Finds No New Entities
+| Symptom | Likely cause | What to do |
+| --- | --- | --- |
+| `gleaning_iterations` is 0 for every chunk | Local provider, or a 500+ page PDF | Set `EDGEQUAKE_LOCAL_ENABLE_GLEANING=1` for local models. |
+| Ingestion is much slower | Extra LLM calls | Lower `max_gleaning` to 0 or 1. |
+| Warning "Gleaning LLM failed - keeping base extraction" | Timeout or provider error in the extra call | Normal; the base result is kept. Check provider health. |
 
-**Cause**: Document is simple or first pass was comprehensive
+## See also
 
-**Solution**: Reduce `max_gleaning` for simple documents
-
-### Gleaning Takes Too Long
-
-**Cause**: Too many iterations on large documents
-
-**Solution**:
-
-- Reduce `max_gleaning`
-- Use smaller chunks (e.g., 800 tokens)
-- Process in background
-
-### Duplicate Entities After Gleaning
-
-**Cause**: Deduplication not merging variants
-
-**Solution**: Check entity normalization settings
-
----
-
-## LightRAG Research Reference
-
-Gleaning is based on research from the LightRAG paper (October 2024):
-
-> "Iterative re-extraction with previously-found entity context improves entity recall by 15-25% with diminishing returns after 2 iterations."
-
-Key findings:
-
-- First gleaning pass: +18% entities on average
-- Second gleaning pass: +7% entities on average
-- Third+ passes: <2% additional entities
-
----
-
-## See Also
-
-- [Entity Extraction](/docs/deep-dives/entity-extraction/) - Base extraction process
-- [Entity Normalization](/docs/deep-dives/entity-normalization/) - Deduplication after extraction
-- [Document Ingestion Tutorial](/docs/tutorials/document-ingestion/) - End-to-end guide
-- [Performance Tuning](/docs/operations/performance-tuning/) - Optimization strategies
+- [Entity Extraction](entity-extraction.md): the base pass.
+- [Entity Normalization](entity-normalization.md): how names are matched.
+- [Cost Tracking](cost-tracking.md): where the extra tokens appear.
+- [Performance Tuning](../operations/performance-tuning.md): ingestion tuning.

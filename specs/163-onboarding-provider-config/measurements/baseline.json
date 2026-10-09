@@ -1,0 +1,24 @@
+{
+  "measured_at": "2026-10-09",
+  "head_note": "Pre-SPEC-163 baseline from static audit plus confirmed compose default. Live clone-to-first-answer not timed on this machine (no GHCR pull in plan-mode follow-through).",
+  "confirmed_defects": {
+    "compose_embedding_default": "text-embedding-3-small even when EDGEQUAKE_LLM_PROVIDER=ollama (docker-compose.quickstart.yml)",
+    "from_env_panic": "ProviderFactory::from_env().expect in state/postgres.rs and state/memory.rs",
+    "health_llm_hardcoded_true": true,
+    "local_servers_always_configured": ["omlx", "mtplx", "llamacpp", "vllm-mlx", "mlx-lm"],
+    "wizard_requires_auth_enabled": true
+  },
+  "friction": {
+    "install_paths": 7,
+    "stale_v0_23_banners_docs": 76,
+    "manual_env_edits_typical_local": 4,
+    "ci_runs_quickstart": false
+  },
+  "budgets": {
+    "cold_start_ready_secs": 60,
+    "clone_to_validated_connection_commands": 3,
+    "hermetic_time_to_first_answer_secs": 120,
+    "doc_gate_broken_links": 0,
+    "secret_leak_sentinel": 0
+  }
+}

@@ -1,5 +1,6 @@
 ---
 title: "Upgrade to EdgeQuake v0.26.0"
+description: "Per-release upgrade notes for EdgeQuake v0.26.0: what changed and what to run."
 ---
 
 # Upgrade to EdgeQuake v0.26.0

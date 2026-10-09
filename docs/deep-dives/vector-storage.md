@@ -1,5 +1,6 @@
 ---
 title: 'Deep Dive: Vector Storage'
+description: "Vector storage and similarity search internals."
 ---
 
 > **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)

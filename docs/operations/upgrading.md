@@ -1,262 +1,275 @@
 ---
 title: "Upgrading EdgeQuake (database migrations)"
-description: "Plain-English guide to upgrade any published EdgeQuake version safely."
+description: "Plain-English guide to upgrade any published EdgeQuake version safely: which path to take, the commands, exit codes, and recovery."
 ---
 
 # Upgrading EdgeQuake
 
-This is the **canonical** operator guide for database schema upgrades.
-Per-release notes (`upgrade-to-0.XX.md`) cover product changes; **this page**
-covers the migration process that works from **any** published version to HEAD.
+This is the canonical guide for database upgrades. It is for operators who run EdgeQuake against their own PostgreSQL. Use it before you start a newer image or binary. Per-release notes (`upgrade-to-0.XX.md`) describe product changes; this page describes the migration process that works from any published version to HEAD.
 
-> **Schema train today:** migration **168** (product pin **v0.32.2**).  
-> **Rule:** the API **never** applies numbered migrations. Only
-> `edgequake migrate` (or the Compose / Helm migrate Job) writes schema.
+> **Schema train today:** migration **169** (SPEC-163 provider connections).
+> The released product is **v0.32.2** (schema 168). HEAD ships as **v0.33.0** (schema 169).
+>
+> **One rule:** the API never changes the database schema. Only `edgequake migrate`
+> (or the Compose service / Helm Job that runs it) writes schema.
 
-Design detail lives in [`specs/150-reliable-migration-system/`](../../specs/150-reliable-migration-system/).
+Design detail: [`specs/150-reliable-migration-system/`](../../specs/150-reliable-migration-system/).
 Short reference: [`edgequake/docs/migrations.md`](../../edgequake/docs/migrations.md).
 
 ---
 
-## 1. Which version am I on?
+## 1. Which path do I take?
+
+Read your current schema number first (see [section 2](#2-which-version-am-i-on)), then follow the chart.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["Know your schema number"] --> B{"Database empty?"}
+  B -->|Yes| C["Run edgequake migrate once"]
+  B -->|No| D{"Schema at or below 105?"}
+  D -->|Yes| E["Backup, check, migrate, drain, confirm-drop when guard is green"]
+  D -->|No| F{"Schema 106 to 148?"}
+  F -->|Yes| G["Backup, check, migrate. Watch the SPEC-091 guard"]
+  F -->|No| H{"Schema 149 to 168?"}
+  H -->|Yes| I["Backup, check, migrate. Normal path"]
+  H -->|No| J["Schema 169: nothing to apply. Roll images only"]
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class B eqStore
+```
+
+How to read it: start at the top, answer each question, and stop at the box that matches you. Every path ends with the same verify step in section 3.
+
+| From (schema) | Releases | Risk | What to do |
+|---------------|----------|------|------------|
+| Empty database | none | S | `edgequake migrate` once. A fresh install needs no drop consent. |
+| 105 or lower | before v0.23.0 | XL | Backup, check, migrate, drain, then `--confirm-drop` only when the guard is green. |
+| 106 to 148 | v0.23.0 to v0.25.x | M to L | Known checksum variants repair automatically. Watch the SPEC-091 guard. See [#396](https://github.com/raphaelmansuy/edgequake/issues/396). |
+| 149 | v0.26.x | S to M | Normal path (150 to 169). Leftover drops may still be pending. |
+| 159 to 166 | v0.27 to v0.31 | S | Apply the remaining numbered files. |
+| 168 | v0.32.x | S | Apply 169 (`provider_connections`, expand-only). |
+| 169 | v0.33.0 | none | `migrate` is a no-op. Roll images only. |
+
+Risk assumes a small database. Large graphs take longer (class XL) because some steps rewrite AGE tables or build indexes.
+Proof: `make spec150-matrix` (all epochs) and `make spec150-matrix-quick` (key epochs) replay each epoch to HEAD on PG16, PG17 and PG18.
+
+---
+
+## 2. Which version am I on?
 
 ```bash
 # Running API
 curl -sf localhost:8080/health | jq '{version, schema}'
 
-# Offline / before restart
+# Offline, before a restart
 edgequake migrate status
 edgequake migrate check
 ```
 
 | Signal | Meaning |
 |--------|---------|
-| `health.version` | Binary / image version (e.g. `0.32.2`) |
-| `schema.latest_version` | Highest applied sqlx migration (e.g. `168`) |
-| `schema.pending_count` | Expandable SAFE SCHEMA still missing |
-| `/ready` **200** | Safe for traffic |
-| `/ready` **503** | Schema or index gate not ready — run migrate or wait |
-| Exit **78** | Serve refused pending schema (`EDGEQUAKE_SCHEMA_GATE=fail`) |
-| Exit **75** | Another migrate holds the advisory lock |
-| Exit **65** | Unknown migration checksum (not a listed fossil) |
+| `version` | Binary or image version, for example `0.32.2`. |
+| `schema.latest_version` | Highest applied migration, for example `168`. |
+| `schema.pending_count` | Safe-schema migrations still missing. |
+| `/ready` returns **200** | Safe for traffic. |
+| `/ready` returns **503** | Schema or index not ready. Run migrate, or wait. |
 
-Approximate release for a schema number (schema-distinct epochs):
+Schema number to release (every published tag is mapped in `scripts/spec150/epochs.toml`; `./scripts/check_epoch_coverage.sh` enforces it):
 
-| Schema max | Product releases (examples) |
-|-----------:|-----------------------------|
-| 24 | v0.2.0 – v0.4.1 |
+| Schema max | Product releases |
+|-----------:|------------------|
+| 24 | v0.2.0 to v0.4.1 |
 | 105 | v0.22.0 |
 | 141 | v0.23.0 |
-| 149 | v0.26.0 – v0.26.10 |
+| 147 | v0.24.4 |
+| 148 | v0.25.0 |
+| 149 | v0.26.0 to v0.26.10 |
 | 159 | v0.27.0 |
-| 160 | v0.28.0 – v0.28.2 |
-| 168 | v0.32.0 – v0.32.2 |
-
-Full coverage is enforced by `./scripts/check_epoch_coverage.sh`
-(every published `vX.Y.Z` tag must map to an epoch in
-`scripts/spec150/epochs.toml`).
+| 160 | v0.28.0 to v0.28.2 |
+| 161 | v0.28.3 |
+| 162 | v0.28.4 to v0.28.5 |
+| 163 | v0.29.0 |
+| 165 | v0.30.0 |
+| 166 | v0.31.0 |
+| 168 | v0.32.0 to v0.32.2 |
+| 169 | v0.33.0 (SPEC-163 `provider_connections`) |
 
 ---
 
-## 2. Golden path (every upgrade)
+## 3. The golden path (every upgrade)
 
-```text
-  1. Backup          pg_dump -Fc …  or  volume snapshot
-  2. Preflight       edgequake migrate check
-  3. Preview         edgequake migrate dry-run
-  4. Safe schema     edgequake migrate
-  5. Data drain      edgequake migrate drain   # optional / when mid-cutover
-  6. Drop old        edgequake migrate --confirm-drop   # ONLY when guard GREEN
-  7. Start API       EDGEQUAKE_SCHEMA_GATE=wait recommended under orchestration
-  8. Verify          curl -sf "$HOST/ready" && curl -sf "$HOST/health" | jq .schema
+Run these steps in order. Use the migrator binary or image that matches or is newer than the API you are about to start. Never point an older migrate image at a newer database.
+
+```bash
+# 1. Backup
+pg_dump -Fc "$DATABASE_URL" > edgequake-$(date +%F).dump   # or a volume snapshot
+
+# 2. Preflight: extensions, PostgreSQL major, dirty ledger (no writes)
+edgequake migrate check
+
+# 3. Preview pending steps (no writes)
+edgequake migrate dry-run
+
+# 4. Apply safe schema
+edgequake migrate
+
+# 5. Optional: foreground data drain when mid-cutover
+edgequake migrate drain
+
+# 6. Drop old tables. ONLY when the guard is green
+edgequake migrate --confirm-drop
+
+# 7. Start the API. Under an orchestrator also set EDGEQUAKE_SCHEMA_GATE=wait
+
+# 8. Verify
+curl -sf "$HOST/ready" && curl -sf "$HOST/health" | jq .schema
 ```
 
-**Migrator binary ≥ API binary.** Never point an older migrate image at a
-newer database.
+Other `migrate` verbs: `status` (per-job progress), `console [--watch]` (live dashboard), `plan` (ordered runbook), `guard [--family NAME]` (is a flip or drop safe?), `family list|set`, `pause|resume|cancel STEP_ID`. Run `edgequake migrate nonsense` to print the full usage text.
 
-### What you will see (progress)
+### What you will see
 
 ```text
 EdgeQuake migrate v0.32.2
-database: postgres://edgequake:***@db/edgequake
-
  PREFLIGHT
   [OK  ] postgresql_major: PostgreSQL 16.x (major 16)
-  [OK  ] extension_vector: pgvector …
-  [OK  ] extension_age: Apache AGE …
-  …
-
+  [OK  ] extension_vector: pgvector ...
+  [OK  ] extension_age: Apache AGE ...
 UPGRADE PATH
-  database schema : 149 (≈ v0.26.0–v0.26.10)
-  binary schema   : 168 (v0.32.2 ≈ v0.32.0–v0.32.2)
+  database schema : 149 (v0.26.0 to v0.26.10)
+  binary schema   : 168 (v0.32.x)
   pending steps   : 19
   irreversible    : none
-  duration class  : S (<30s empty DB)
-
-[  1/ 19] 150 provider access ledger … applying
-[  1/ 19] 150 provider access ledger … applied in 0.1s
-…
-[  7/ 19] 156 graph lineage source ids backfill … applying  [heavy DDL — may take minutes on large graphs]
-…
-[ 19/ 19] 168 identity lockout columns … applied in 0.0s
+[ 1/19] 150 provider access ledger ... applied in 0.1s
+[ 7/19] 156 graph lineage source ids backfill ... [heavy DDL - may take minutes on large graphs]
+[19/19] 168 identity lockout columns ... applied in 0.0s
 ```
 
-Captured from a live empty-DB upgrade of schema 149 (v0.26.0 ≡ v0.26.10)
-→ HEAD 168 on PG16 (2026-10-09). Heavy steps (large AGE rewrites / SHARE
-index builds) print `[heavy DDL — may take minutes on large graphs]`.
+This output was captured from an empty-database upgrade of schema 149 to 168 on PG16. On HEAD the last step is `169_spec163_provider_connections.sql`.
 
 ---
 
-## 3. Decision table (from → to)
+## 4. What happens at API boot
 
-Risk assumes an **empty-ish** database. Production graphs scale duration
-(class XL). Mid-cutover from v0.23–v0.26 may hit open issue
-[#396](https://github.com/raphaelmansuy/edgequake/issues/396) (guard RED) —
-finish data drain / guard before `--confirm-drop`.
+The API checks the schema before it serves traffic. The `EDGEQUAKE_SCHEMA_GATE` setting chooses what it does when migrations are pending.
 
-| From (schema) | To HEAD (168) | Risk | What to do |
-|---------------|---------------|------|------------|
-| empty / fresh | 168 | S | `edgequake migrate` once (fresh install skips drop consent) |
-| ≤ 105 (pre-0.23) | 168 | XL | Backup → check → migrate → drain → confirm-drop when GREEN |
-| 141–148 (0.23–0.25) | 168 | M–L | Fossils auto-repair; watch SPEC-091 guard; see #396 |
-| 149 (0.26.x) | 168 | S–M | Normal train (150–168); leftover drops may remain legal |
-| 159 (0.27.0) | 168 | S | Apply 160–168 |
-| 160–166 (0.28–0.31) | 168 | S | Apply remaining numbered files |
-| 168 (0.32.x) | 168 | none | No-op migrate; roll images only |
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+stateDiagram-v2
+  [*] --> Check
+  Check --> Serving: schema caught up
+  Check --> Refused: pending and gate is fail
+  Check --> Waiting: pending and gate is wait
+  Check --> Refused: database newer than binary
+  Waiting --> Check: poll every 2 seconds
+  Refused --> [*]: exit 78
+  Serving --> [*]
+```
 
-Proof: `make spec150-matrix` / `make spec150-matrix-quick` replays every
-schema-distinct epoch to HEAD on PG16/17/18.
+How to read it: the API starts in `Check`. If the schema is current it serves. If migrations are pending, `fail` mode exits with code 78, while `wait` mode answers `/live` (200) and `/ready` (503) and polls until migrate finishes. A database that is newer than the binary always exits 78.
+
+| Mode | Set it | Use it for |
+|------|--------|------------|
+| `fail` (default) | nothing | Bare metal and `make dev`. A missing migrate is a loud error. |
+| `wait` | `EDGEQUAKE_SCHEMA_GATE=wait` | Compose and Kubernetes, where migrate and the API start together. |
 
 ---
 
-## 4. Platform runbooks
+## 5. Platform runbooks
 
 ### Docker Compose
 
-Migrate is a one-shot service; the API waits on
-`service_completed_successfully` and sets `EDGEQUAKE_SCHEMA_GATE=wait`.
+Migrate is a one-shot service. The API waits for `service_completed_successfully` and runs with `EDGEQUAKE_SCHEMA_GATE=wait`.
 
 ```bash
-EDGEQUAKE_VERSION=0.32.2 docker compose pull
-EDGEQUAKE_VERSION=0.32.2 docker compose up -d
-# or: docker compose run --rm migrate
+export EDGEQUAKE_VERSION=0.32.2
+docker compose -f docker-compose.quickstart.yml pull
+docker compose -f docker-compose.quickstart.yml up -d
+# Re-run migrate by hand:
+docker compose -f docker-compose.quickstart.yml run --rm migrate
 curl -sf localhost:8080/ready
 ```
 
-### Helm / Kubernetes
+### Helm and Kubernetes
 
-- **External DB:** Job hooks `pre-install,pre-upgrade`.
-- **Bundled postgres:** non-hook Job `edgequake-migrate-r{{ .Release.Revision }}`;
-  API uses wait-mode + startupProbe on `/live`.
+- With an external database, the migrate Job is a `pre-install,pre-upgrade` hook.
+- With the bundled PostgreSQL, the Job is a normal Job named `edgequake-migrate-r<revision>`, and the API waits (`EDGEQUAKE_SCHEMA_GATE=wait`, startup probe on `/live`).
 
 ```bash
 EDGEQUAKE_VERSION=0.32.2 make k8s-install
 ```
 
-### Bare metal / systemd
+### Bare metal or systemd
 
 ```bash
-# Type=oneshot migrate unit Before=edgequake.service
-sudo -u edgequake DATABASE_URL=… /usr/local/bin/edgequake migrate
+# Run migrate as a oneshot unit ordered Before=edgequake.service
+sudo -u edgequake DATABASE_URL=... /usr/local/bin/edgequake migrate
 sudo systemctl start edgequake
 ```
 
 ### Local development
 
-```bash
-make dev          # runs edgequake migrate before backend start
-make status
-```
+`make dev` runs `edgequake migrate` before it starts the backend. `make migrate` updates the schema only.
 
 ---
 
-## 5. Exit codes
+## 6. Exit codes
 
-| Code | Meaning | Operator action |
-|-----:|---------|-----------------|
-| 0 | Success (or soft-exit with only DROP OLD pending) | Start / keep serving |
-| 65 | Unknown checksum | Do **not** edit shipped SQL; new migration or scoped `EDGEQUAKE_ALLOW_CHECKSUM_REPAIR` |
-| 75 | Migrate lock busy | Wait for the other Job; check `pg_locks` |
-| 78 | Serve boot gate (pending SAFE SCHEMA) | Run `edgequake migrate` |
-
----
-
-## 6. Recovery
-
-### Checksum mismatch (`VersionMismatch`)
-
-1. Confirm nobody edited a shipped `NNN_*.sql` (immutability law).
-2. Known production fossils in `manifest.toml` auto-accept on migrate.
-3. One-shot: `EDGEQUAKE_ALLOW_CHECKSUM_REPAIR=71,78,… edgequake migrate` then **unset**.
-4. Unknown hash → exit 65; ship a **new** migration.
-
-### Dirty version
-
-```sql
-SELECT * FROM public._sqlx_migrations WHERE success = false;
-```
-
-Fix the failed DDL (or confirm it did not partially apply), delete the dirty
-row only after that check, then re-run `edgequake migrate`.
-
-### Concurrent migrate / stuck lock
-
-Second process exits **75** after `EDGEQUAKE_MIGRATE_LOCK_DEADLINE` (default 60s).
-Wait for the other Job; after a crash ensure no session holds
-`hashtext('edgequake.migrate.run')`.
-
-### Disk / extension / binary older
-
-`edgequake migrate check` prints plain-English fixes for:
-
-- missing `vector` / `age`
-- unsupported PostgreSQL major
-- migrator binary older than the database schema
-- dirty ledger rows
-
-### Rollback
-
-**There are no down-migrations.** After an irreversible drop, rollback =
-**restore from backup**. Always take a verified backup before
-`--confirm-drop`.
+| Code | Meaning | What to do |
+|-----:|---------|------------|
+| 0 | Success. Also returned when only DROP OLD steps remain pending. | Start or keep serving. |
+| 65 | Unknown migration checksum. | Do not edit shipped SQL. Add a new migration, or use a scoped `EDGEQUAKE_ALLOW_CHECKSUM_REPAIR`. |
+| 75 | Another migrate holds the advisory lock. | Wait for it. Check `pg_locks`. |
+| 78 | Serve refused by the schema gate. | Run `edgequake migrate`, or upgrade the binary if the database is newer. |
 
 ---
 
-## 7. Environment variables (migrate / gate)
+## 7. Recovery (symptom, cause, fix)
+
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| Exit 65, `VersionMismatch` | A shipped `NNN_*.sql` was edited, or the database was built from an unlisted variant. | Known variants in `manifest.toml` repair automatically. One time only: `EDGEQUAKE_ALLOW_CHECKSUM_REPAIR=71,78 edgequake migrate`, then unset it. An unknown hash needs a new migration. |
+| Migrate stops on a dirty version | A step failed part way. | Inspect `SELECT * FROM public._sqlx_migrations WHERE success = false;`. Fix the DDL or confirm it did not apply, delete the dirty row, rerun `edgequake migrate`. |
+| Exit 75 | Two migrates at once, or a crashed session still holds the lock. | Wait up to `EDGEQUAKE_MIGRATE_LOCK_DEADLINE` (60 s). After a crash make sure no session holds `hashtext('edgequake.migrate.run')`. |
+| `migrate check` fails | Missing `vector` or `age` extension, unsupported PostgreSQL major, binary older than the database, or a dirty ledger. | The command prints a plain-English fix for each. |
+| Need to go back | There are no down-migrations. | Restore from backup. Always take a verified backup before `--confirm-drop`. |
+
+---
+
+## 8. Settings for migrate and the gate
+
+Full list: [env-reference.md](env-reference.md). Defaults are read from code.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `EDGEQUAKE_SCHEMA_GATE` | `fail` | `wait` → lite `/live` until migrate catches up |
-| `EDGEQUAKE_SCHEMA_GATE_POLL` | `2` | Poll seconds in wait mode |
-| `EDGEQUAKE_MIGRATE_LOCK_DEADLINE` | `60` | Advisory lock wait → exit 75 |
-| `EDGEQUAKE_MIGRATE_LOCK_TIMEOUT` | `5s` | Session `lock_timeout` |
-| `EDGEQUAKE_MIGRATE_STATEMENT_TIMEOUT` | (per class) | Session `statement_timeout` |
-| `EDGEQUAKE_ALLOW_CHECKSUM_REPAIR` | unset | Emergency scoped hash rewrite |
-| `EDGEQUAKE_SERVE_RECONCILE` | unset | One-release escape for serve-time support DDL |
-| `EDGEQUAKE_MIGRATION_CONFIRM_DROP` | unset | Env equivalent of `--confirm-drop` |
+| `EDGEQUAKE_SCHEMA_GATE` | `fail` | `wait` serves lite `/live` and `/ready` until migrate catches up. |
+| `EDGEQUAKE_SCHEMA_GATE_POLL` | `2` | Seconds between polls in wait mode. |
+| `EDGEQUAKE_MIGRATE_LOCK_DEADLINE` | `60` | Seconds to wait for the lock before exit 75. |
+| `EDGEQUAKE_MIGRATE_LOCK_TIMEOUT` | `5s` | Session `lock_timeout` for migrate. |
+| `EDGEQUAKE_MIGRATE_STATEMENT_TIMEOUT` | per lock class | Session `statement_timeout` override. |
+| `EDGEQUAKE_ALLOW_CHECKSUM_REPAIR` | unset | Emergency, scoped hash rewrite. Unset it afterwards. |
+| `EDGEQUAKE_SERVE_RECONCILE` | unset | One-release escape: allow serve-time support DDL. |
+| `EDGEQUAKE_MIGRATION_CONFIRM_DROP` | unset | Same as `--confirm-drop`. Never set it in shared env files. |
 
 ---
 
-## 8. Known limits (honest)
+## 9. Known limits
 
-- **[#396](https://github.com/raphaelmansuy/edgequake/issues/396)** — SPEC-091
-  migrate/guard can stay RED on mid-cutover fleets (iw2 / w3). Do not
-  `--confirm-drop` until guard is GREEN.
-- **No `pg_upgrade` of PostgreSQL itself** — changing PG major is a separate
-  cluster migration (`scripts/migrate_postgres_major.sh` / image rebuild).
-- **Large graphs** — migrations 070/071/074/156/158 and HNSW builds can hold
-  SHARE / ACCESS EXCLUSIVE locks for a long time; schedule a maintenance window.
-- **`migrations/scripts/reset_migrations.sql`** — **dev-only**. Drops the
-  sqlx ledger. Never run in production.
-- **`edgequake/docker/init.sql`** — **legacy / not mounted**. Schema SSOT is
-  the numbered sqlx migrations, not this file.
+- **[#396](https://github.com/raphaelmansuy/edgequake/issues/396):** the SPEC-091 guard can stay red on mid-cutover fleets. Do not use `--confirm-drop` until it is green.
+- **PostgreSQL itself is not upgraded.** Changing the PG major is a separate cluster migration (`scripts/migrate_postgres_major.sh` or an image rebuild).
+- **Large graphs.** Migrations 070, 071, 074, 156 and 158, and HNSW builds, can hold SHARE or ACCESS EXCLUSIVE locks for a long time. Plan a maintenance window.
+- **`migrations/scripts/reset_migrations.sql`** is for development only. It drops the migration ledger. Never run it in production.
+- **`edgequake/docker/init.sql`** is legacy and not mounted. The numbered migrations are the schema source of truth.
 
 ---
 
-## 9. Related docs
+## 10. Related pages
 
-- Per-cut notes: [upgrade-to-0.32.2.md](upgrade-to-0.32.2.md) (and siblings)
-- Release process: [release-and-cd.md](release-and-cd.md)
-- Deployment: [deployment.md](deployment.md) · [docker-quickstart.md](docker-quickstart.md)
-- SPEC-150 ops runbook: [`specs/150-reliable-migration-system/11-ops-runbook.md`](../../specs/150-reliable-migration-system/11-ops-runbook.md)
-- Incident catalogue: [`specs/150-reliable-migration-system/02-incident-catalogue.md`](../../specs/150-reliable-migration-system/02-incident-catalogue.md)
+- Per-release notes: [upgrade-to-0.33.0.md](upgrade-to-0.33.0.md), [upgrade-to-0.32.2.md](upgrade-to-0.32.2.md) and earlier.
+- Release process: [release-and-cd.md](release-and-cd.md).
+- Deployment: [deployment.md](deployment.md), [docker-quickstart.md](docker-quickstart.md).
+- SPEC-150 runbook: [`specs/150-reliable-migration-system/11-ops-runbook.md`](../../specs/150-reliable-migration-system/11-ops-runbook.md).
+- Incident catalogue: [`specs/150-reliable-migration-system/02-incident-catalogue.md`](../../specs/150-reliable-migration-system/02-incident-catalogue.md).

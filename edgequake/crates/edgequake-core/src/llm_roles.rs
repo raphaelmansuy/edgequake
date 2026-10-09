@@ -73,6 +73,9 @@ pub struct RoleLlmConfig {
     /// SPEC-109: optional reasoning effort for this role (`none`/`minimal`/`low`/…).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
+    /// SPEC-163: optional `provider_connections.id` for this role.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connection_id: Option<String>,
 }
 
 /// Resolved provider + model for a role (always populated after fallback).
@@ -80,6 +83,8 @@ pub struct RoleLlmConfig {
 pub struct ResolvedRoleLlm {
     pub provider: String,
     pub model: String,
+    /// SPEC-163: connection used for URL/key when set.
+    pub connection_id: Option<String>,
 }
 
 /// SPEC-109: resolved reasoning effort with explainability.
@@ -248,11 +253,16 @@ pub fn resolve_role_llm(ws: &Workspace, role: LlmRole) -> ResolvedRoleLlm {
             .model
             .filter(|m| !m.is_empty())
             .unwrap_or_else(|| default_model_for_role(ws, role));
-        return ResolvedRoleLlm { provider, model };
+        return ResolvedRoleLlm {
+            provider,
+            model,
+            connection_id: cfg.connection_id.filter(|s| !s.is_empty()),
+        };
     }
     ResolvedRoleLlm {
         provider: default_provider_for_role(ws, role),
         model: default_model_for_role(ws, role),
+        connection_id: None,
     }
 }
 
@@ -341,11 +351,19 @@ fn env_role_llm(
     let provider = non_empty_env(provider_key);
     match (provider, model) {
         (None, None) => None,
-        (Some(provider), Some(model)) => Some(ResolvedRoleLlm { provider, model }),
+        (Some(provider), Some(model)) => Some(ResolvedRoleLlm {
+            provider,
+            model,
+            connection_id: None,
+        }),
         (None, Some(model)) => {
             let provider =
                 non_empty_env("EDGEQUAKE_LLM_PROVIDER").unwrap_or_else(|| "mistral".to_string());
-            Some(ResolvedRoleLlm { provider, model })
+            Some(ResolvedRoleLlm {
+                provider,
+                model,
+                connection_id: None,
+            })
         }
         (Some(provider), None) => {
             let model = match provider.to_ascii_lowercase().as_str() {
@@ -354,7 +372,11 @@ fn env_role_llm(
                 "ollama" => "gemma3:latest".to_string(),
                 other => other.to_string(),
             };
-            Some(ResolvedRoleLlm { provider, model })
+            Some(ResolvedRoleLlm {
+                provider,
+                model,
+                connection_id: None,
+            })
         }
     }
 }
@@ -412,6 +434,27 @@ mod tests {
             vision_llm_provider: None,
             pdf_parser_backend: None,
         }
+    }
+
+    #[test]
+    fn connection_id_is_preserved_on_role() {
+        let mut meta = HashMap::new();
+        meta.insert(
+            "llm_roles".into(),
+            serde_json::json!({
+                "query": {
+                    "provider": "openai_chat",
+                    "model": "fake-chat",
+                    "connection_id": "11111111-1111-1111-1111-111111111111"
+                }
+            }),
+        );
+        let ws = sample_workspace(meta);
+        let resolved = resolve_role_llm(&ws, LlmRole::Query);
+        assert_eq!(
+            resolved.connection_id.as_deref(),
+            Some("11111111-1111-1111-1111-111111111111")
+        );
     }
 
     #[test]

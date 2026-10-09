@@ -1,5 +1,6 @@
 ---
 title: 'Fix: Embedding API Validation Error'
+description: "Historical note: embedding API validation error fix."
 ---
 
 # Fix: Embedding API Validation Error

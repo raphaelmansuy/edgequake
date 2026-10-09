@@ -104,7 +104,12 @@ export function FirstRunWizard({ surface = 'dashboard' }: FirstRunWizardProps) {
   } = useWizardDraftPicks(draft, setDraft);
 
   const open = (() => {
-    if (isLoading || !status?.needs_setup || !status.auth_enabled) return false;
+    if (isLoading || !status?.needs_setup) return false;
+    // SPEC-163: show the wizard on the Docker quickstart path (auth off) when
+    // no tenant exists yet, so users can pick models without a login wall.
+    if (!status.auth_enabled) {
+      return status.tenant_count === 0;
+    }
     if (surface === 'login') {
       return !status.has_login_users;
     }

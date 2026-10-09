@@ -9,12 +9,20 @@ impl DocumentTaskProcessor {
         workspace_service: &SharedWorkspaceService,
         cancel: CancellationToken,
     ) -> crate::workspace_pipeline_factory::WorkspacePipelineFactory {
-        crate::workspace_pipeline_factory::WorkspacePipelineFactory::new(
+        let factory = crate::workspace_pipeline_factory::WorkspacePipelineFactory::new(
             Arc::clone(workspace_service),
             Arc::clone(&self.pipeline),
         )
         .with_decision(self.app_state.as_ref().map(|s| s.decision.clone()))
-        .with_cancellation(cancel)
+        .with_cancellation(cancel);
+        #[cfg(feature = "postgres")]
+        {
+            return factory.with_pg_pool(self.app_state.as_ref().and_then(|s| s.pg_pool.clone()));
+        }
+        #[cfg(not(feature = "postgres"))]
+        {
+            factory
+        }
     }
 
     /// SPEC-124 I8: ingest session = document_id; slugs additive to GUIDs (fail-open).

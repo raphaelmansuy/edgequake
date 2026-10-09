@@ -1,5 +1,6 @@
 ---
 title: "C# / .NET SDK"
+description: "C# / .NET SDK for EdgeQuake."
 ---
 
 # C# / .NET SDK

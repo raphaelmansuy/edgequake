@@ -48,6 +48,8 @@ pub struct WorkspacePipelineFactory {
     decision: Option<DecisionRuntime>,
     /// SPEC-160: lets a cancelled task stop decision questions in flight.
     cancel: CancellationToken,
+    #[cfg(feature = "postgres")]
+    pg_pool: Option<sqlx::PgPool>,
 }
 
 impl WorkspacePipelineFactory {
@@ -60,6 +62,8 @@ impl WorkspacePipelineFactory {
             global_pipeline,
             decision: None,
             cancel: CancellationToken::new(),
+            #[cfg(feature = "postgres")]
+            pg_pool: None,
         }
     }
 
@@ -72,6 +76,12 @@ impl WorkspacePipelineFactory {
     /// Stop decision questions when this token is cancelled.
     pub fn with_cancellation(mut self, cancel: CancellationToken) -> Self {
         self.cancel = cancel;
+        self
+    }
+
+    #[cfg(feature = "postgres")]
+    pub fn with_pg_pool(mut self, pool: Option<sqlx::PgPool>) -> Self {
+        self.pg_pool = pool;
         self
     }
 
@@ -148,8 +158,35 @@ impl WorkspacePipelineFactory {
 
         // SPEC-086: EXTRACT≠QUERY — env pin beats workspace llm_roles.extract.
         let extract_role = edgequake_core::resolve_extract_role_llm(&ws);
-        let llm_provider =
-            create_safe_extraction_llm_provider(&extract_role.provider, &extract_role.model);
+        let llm_provider = {
+            let mut connected: Option<Arc<dyn edgequake_llm::LLMProvider>> = None;
+            #[cfg(feature = "postgres")]
+            {
+                if let (Some(raw), Some(pool)) =
+                    (extract_role.connection_id.as_deref(), self.pg_pool.as_ref())
+                {
+                    if let Some(id) = crate::providers::connection_store::parse_connection_id(raw) {
+                        if let Ok(spec) = crate::providers::connection_store::load_connection_spec(
+                            pool,
+                            id,
+                            &extract_role.model,
+                        )
+                        .await
+                        {
+                            connected =
+                                crate::providers::connection_factory::llm_from_connection(&spec)
+                                    .ok();
+                        }
+                    }
+                }
+            }
+            match connected {
+                Some(p) => Ok(p),
+                None => {
+                    create_safe_extraction_llm_provider(&extract_role.provider, &extract_role.model)
+                }
+            }
+        };
         // SPEC-123: embedding via SSOT (metadata gate + tenant), not painted DTO alone.
         let emb =
             edgequake_core::resolve_embedding_choice(None, None, None, Some(&ws), tenant.as_ref());

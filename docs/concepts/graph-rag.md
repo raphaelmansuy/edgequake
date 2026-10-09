@@ -1,152 +1,111 @@
 ---
-title: 'Graph-RAG: The Foundation'
+title: "Graph-RAG: The Foundation"
+description: What Graph-RAG is, why plain vector search misses relationships, and how EdgeQuake adds a knowledge graph to RAG.
 ---
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Released: v0.32.2** · Contract: [OpenAPI snapshot](../../edgequake_webui/openapi/openapi.snapshot.json) · Ops: [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md)
 
 # Graph-RAG: The Foundation
 
-> **Graph-RAG enhances Retrieval-Augmented Generation by using knowledge graphs
-> to capture relationships that vector search alone misses.**
-
----
+Graph-RAG adds a knowledge graph to retrieval-augmented generation (RAG). A graph records how things relate, which plain vector search cannot do. This page is for readers who are new to the idea.
 
 ## What is Graph-RAG?
 
-Graph-RAG is an architecture pattern that combines:
+Graph-RAG combines two parts:
 
-1. **Retrieval-Augmented Generation (RAG)**: Using external documents to ground LLM responses
-2. **Knowledge Graphs**: Storing entities and their relationships as nodes and edges
+1. **RAG.** Fetch passages from your documents and give them to a language model, so its answer rests on your data.
+2. **A knowledge graph.** Store the entities in those documents (people, places, concepts) as nodes, and the links between them as edges.
 
-The key insight: **relationships between entities are as important as the entities themselves**.
+Relationships often matter as much as the entities. The graph keeps them.
 
----
+## The problem with plain RAG
 
-## The Problem with Traditional RAG
+Plain RAG splits documents into chunks, turns each chunk into a vector, and returns the chunks closest to the question.
 
-Traditional RAG uses vector similarity to find relevant text chunks:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    TRADITIONAL RAG                               │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│   Documents ──▶ Chunks ──▶ Embeddings ──▶ Vector Database        │
-│                                                                   │
-│   Query ──▶ Embedding ──▶ Similarity Search ──▶ Top-K Chunks    │
-│                                                                   │
-│   Problem: Chunks are ISOLATED. No relationships captured.       │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Example failure:**
-
-Query: _"How did Sarah's research influence Bob's work?"_
-
-Traditional RAG returns:
-
-- Chunk 1: "Sarah published a paper on neural networks..."
-- Chunk 2: "Bob's latest project uses deep learning..."
-
-But it **cannot connect** that Bob's work was **based on** Sarah's research, because:
-
-- The relationship isn't in either chunk
-- Vector similarity doesn't understand causation
-
----
-
-## How Graphs Solve It
-
-Graphs explicitly model relationships:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    KNOWLEDGE GRAPH                               │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│          ┌─────────────┐         ┌─────────────┐                 │
-│          │   SARAH     │         │     BOB     │                 │
-│          │  (PERSON)   │         │   (PERSON)  │                 │
-│          └──────┬──────┘         └──────┬──────┘                 │
-│                 │                       │                        │
-│      ┌──────────┴───────────────────────┴──────────┐            │
-│      │                                              │            │
-│      v                                              v            │
-│  ┌───────────┐                              ┌───────────────┐   │
-│  │ PUBLISHED │                              │   BASED_ON    │   │
-│  └─────┬─────┘                              └───────┬───────┘   │
-│        │                                            │            │
-│        v                                            v            │
-│  ┌───────────────────┐                    ┌─────────────────┐   │
-│  │ NEURAL_NETWORKS   │◀───────────────────│  BOB'S_PROJECT  │   │
-│  │    (CONCEPT)      │   uses_concepts    │    (PROJECT)    │   │
-│  └───────────────────┘                    └─────────────────┘   │
-│                                                                   │
-│  Now we can TRAVERSE: Sarah → published → Neural Networks       │
-│                        Neural Networks ← based_on ← Bob's work  │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    A["Documents"] --> B["Chunks"]
+    B --> C["Embeddings"]
+    C --> D["Vector index"]
+    Q["Question"] --> E["Question embedding"]
+    E --> F["Nearest chunks"]
+    D --> F
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class C,E eqLlm
+class D eqStore
 ```
 
-With this graph, querying "How did Sarah influence Bob?" becomes a **graph traversal** problem.
+Read the chart from the left. Each chunk stands alone, so no link between chunks is stored.
 
----
+Example question: "How did Sarah's research influence Bob's work?" Plain RAG may return one chunk about Sarah's paper and one about Bob's project. Neither chunk says that Bob's work builds on Sarah's. The model must guess the link.
 
-## EdgeQuake's Approach
+## How a graph helps
 
-EdgeQuake implements Graph-RAG with these components:
+A graph stores the link as an edge. The model can follow edges from one entity to the next.
 
-| Component                   | Purpose               | Implementation                |
-| --------------------------- | --------------------- | ----------------------------- |
-| **Entity Extraction**       | Find entities in text | LLM-based with tuple parsing  |
-| **Relationship Extraction** | Find connections      | Same LLM call, explicit edges |
-| **Knowledge Graph**         | Store structure       | PostgreSQL + Apache AGE       |
-| **Vector Embeddings**       | Semantic search       | pgvector (vector / halfvec)   |
-| **Multimodal assets**       | PDF figures/charts    | mm-assets + vision ingest     |
-| **Hybrid Retrieval**        | Query both            | 6 query modes (default: mix)  |
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    EDGEQUAKE PIPELINE                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Document ──▶ [Chunk] ──▶ [Extract] ──▶ [Store] ──▶ Query       │
-│                             │            │                       │
-│                             │            ├─▶ Entities (nodes)    │
-│                             │            ├─▶ Relations (edges)   │
-│                             │            └─▶ Embeddings (vectors)│
-│                             │                                    │
-│                             └─▶ LLM extracts entities +         │
-│                                 relationships in one pass        │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    S["SARAH (PERSON)"] -->|published| N["NEURAL_NETWORKS (CONCEPT)"]
+    B["BOB (PERSON)"] -->|leads| P["BOBS_PROJECT (PROJECT)"]
+    P -->|based on| N
 ```
 
----
+Read the arrows as sentences. Sarah published work on neural networks. Bob's project is based on neural networks. Following both edges connects Sarah to Bob.
 
-## Key Benefits
+## How EdgeQuake does it
 
-| Benefit                   | Description                             |
-| ------------------------- | --------------------------------------- |
-| **Multi-hop reasoning**   | Follow chains of relationships          |
-| **Entity disambiguation** | "Apple" (company) vs "apple" (fruit)    |
-| **Implicit connections**  | Discover relationships across documents |
-| **Contextual answers**    | Include related entities in responses   |
+| Part | What it does | How |
+|------|--------------|-----|
+| Entity and relationship extraction | Finds entities and links in text | One model call per chunk, with an optional second pass (gleaning) |
+| Knowledge graph | Stores the structure | PostgreSQL with Apache AGE |
+| Vector embeddings | Finds similar text and entities | pgvector (`vector` or `halfvec`) |
+| Multimodal assets | Keeps PDF figures and charts | Multimodal asset store plus vision ingest |
+| Retrieval | Reads both stores | Six query modes; the default is `mix` |
 
----
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    A["Document"] --> B["Chunk"]
+    B --> C["Extract with model"]
+    C --> D["Entities as nodes"]
+    C --> E["Relations as edges"]
+    B --> F["Embeddings"]
+    D --> G["PostgreSQL"]
+    E --> G
+    F --> G
+    G --> H["Query"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class C,F eqLlm
+class G eqStore
+```
 
-## Learn More
+Read the chart from the document. One extraction pass yields nodes and edges. Chunks, entities and relations are all embedded. Everything lands in PostgreSQL, and queries read from there.
 
-- **How extraction works**: [Entity Extraction](/docs/concepts/entity-extraction/)
-- **Where data is stored**: [Knowledge Graph](/docs/concepts/knowledge-graph/)
-- **How queries work**: [Hybrid Retrieval](/docs/concepts/hybrid-retrieval/)
-- **Algorithm details**: [LightRAG Algorithm Deep-Dive](/docs/deep-dives/lightrag-algorithm/)
+## What you gain
 
----
+| Benefit | Meaning |
+|---------|---------|
+| Multi-hop reasoning | Follow a chain of relationships across several steps |
+| Entity disambiguation | Keep "Apple" the company apart from "apple" the fruit |
+| Cross-document links | Connect facts that live in different documents |
+| Richer context | Add related entities to the model's prompt |
 
-## Source Code
+## Learn more
 
-The Graph-RAG orchestration lives in:
+- [Entity extraction](entity-extraction.md): how text becomes entities.
+- [Knowledge graph](knowledge-graph.md): how the graph is stored.
+- [Hybrid retrieval](hybrid-retrieval.md): how queries use both stores.
+- [LightRAG algorithm](../deep-dives/lightrag-algorithm.md): the algorithm EdgeQuake follows.
 
-- [edgequake-core/src/orchestrator.rs](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-core/src/orchestrator.rs)
+## Source code
+
+The ingest pipeline lives in [`edgequake-pipeline`](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-pipeline/src), and the query engine lives in [`edgequake-query`](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-query/src).

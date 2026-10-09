@@ -1,565 +1,241 @@
 ---
 title: 'Deep Dive: Chunking Strategies'
+description: How EdgeQuake splits documents into chunks - the five strategies, adaptive sizing, defaults, overlap, page-aware PDF chunking, and how to override them.
 ---
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Product: v0.32.2** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
 
 # Deep Dive: Chunking Strategies
 
-> **How EdgeQuake Splits Documents for Processing**
+**What this page explains:** how EdgeQuake cuts a document into chunks, which strategy and size it picks, and how you override them.
+**Who it is for:** operators tuning ingestion and developers working on `edgequake-pipeline`.
+**Read first:** [LightRAG Algorithm](lightrag-algorithm.md) (where chunking fits in the pipeline).
 
-This guide explains document chunking in EdgeQuake, including strategies, configuration, and optimization.
+A **chunk** is a slice of a document, sized in tokens. A **token** is the unit an LLM reads, roughly three-quarters of an English word. Chunks are the unit that EdgeQuake embeds, searches, and sends to the LLM for entity extraction.
 
----
+## Why chunk at all
 
-## Why Chunking Matters
+A whole document is too big for three jobs:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 THE CHUNKING PROBLEM                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Documents are too large for:                                   │
-│  • LLM context windows (limited tokens)                         │
-│  • Embedding models (max ~8K tokens)                            │
-│  • Precise retrieval (large docs = low relevance)               │
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ 50-page PDF (25,000 tokens)                              │   │
-│  │                                                            
-│  │ ❌ Can't embed whole document                              
-│  │ ❌ LLM can't process all at once                          
-│  │ ❌ If query matches page 3, all 50 pages retrieved        │
-│  └──────────────────────────────────────────────────────────┘   │
-│                            ↓                                    │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ Solution: Split into chunks                              │   │
-│  │                                                          │   │
-│  │ [Chunk 1: 500 tokens] [Chunk 2: 500 tokens] ...          │   │
-│  │                                                          │   │
-│  │ ✅ Each chunk embeddable                                   
-│  │ ✅ Precise retrieval (only relevant chunks)               
-│  │ ✅ LLM can process multiple chunks in context             
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+- The LLM extracts entities from a limited context window.
+- Embedding models accept a limited input size (for example 2048 tokens for `embeddinggemma`).
+- Retrieval is more precise when each vector covers one topic.
+
+All chunking code lives in `edgequake/crates/edgequake-pipeline/src/chunker/`.
+
+## Where chunking sits
+
+Chunking is the first step after text extraction. The flowchart shows the path from an upload to chunks that are ready for extraction and embedding.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    A["Upload"] --> B["Pick strategy"]
+    B --> C["Pick size and overlap"]
+    C --> D["Split into chunks"]
+    D --> E["Add line numbers and sections"]
+    E --> F["Extract entities"]
+    E --> G["Embed chunks"]
 ```
 
----
+Read it left to right: the strategy and the size are chosen separately, and every chunk goes to both extraction and embedding.
 
-## Default Configuration
+## The five strategies
 
-EdgeQuake's default chunking configuration:
+The enum `ChunkStrategy` in `chunker/registry.rs` defines what you can request. Pass it as `chunk_strategy` on upload.
 
-```rust
-ChunkerConfig {
-    chunk_size: 1200,        // Target tokens per chunk
-    chunk_overlap: 100,      // Overlap between chunks
-    min_chunk_size: 100,     // Minimum chunk size
-    separators: [
-        "\n\n",              // Paragraph breaks (highest priority)
-        "\n",                // Line breaks
-        ". ",                // Sentences
-        "! ",
-        "? ",
-        "; ",
-        ", ",
-        " ",                 // Words (lowest priority)
-    ],
-    preserve_sentences: true,
-}
+| API value | Aliases | Code type | What it does |
+| --- | --- | --- | --- |
+| `recursive` | `r` | `RecursiveCharacterChunking` | **Default.** Tries a list of separators from coarse to fine. Matches LightRAG strategy `R`. |
+| `fixed` | `f` | `TokenBasedChunking` | Sliding window of a fixed token size with overlap. Matches LightRAG `F`. |
+| `markdown` | `md`, `p` | `MarkdownChunking` | Splits at headings, packs sibling sections up to the token budget, and keeps a heading path. |
+| `pdf` | none | `PageAwareChunking` | Splits at page markers first, then packs each page with the markdown packer. |
+| `semantic` | `v`, `semantic_vector` | `SemanticChunking` | Cuts where the meaning changes, using embeddings. Opt-in. |
+
+If you do not set a strategy, `ChunkStrategy::resolve_for_upload` chooses one from the file:
+
+- `.md`, `.markdown`, or a markdown MIME type gives `markdown`.
+- `.pdf` or a PDF MIME type gives `pdf`.
+- Anything else gives `recursive`.
+
+The code also contains `SentenceBoundaryChunking`, `ParagraphBoundaryChunking`, and `CharacterBasedChunking`. They are library building blocks. The upload API cannot select them because `ChunkStrategy::parse` accepts only the five values above.
+
+### Recursive (default)
+
+The recursive splitter walks a separator list. It splits on the first separator, then re-splits any piece that is still too large with the next separator. The default list is `default_recursive_separators()`:
+
+| Priority | Separator |
+| --- | --- |
+| 1 | paragraph break (`\n\n`) |
+| 2 | line break (`\n`) |
+| 3 to 6 | CJK sentence and clause marks (`。` `！` `？` `；`) |
+| 7 | CJK comma (`，`) |
+| 8 | space |
+| 9 | empty string (split anywhere) |
+
+Fenced code blocks, pipe tables, and multimodal blocks such as `[Table Name]` are kept whole. The helper `split_preserving_atomic_regions` in `atomic_blocks.rs` does this, so a table row never separates from its header.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    A["Text"] --> B["Protect code, tables, mm blocks"]
+    B --> C["Split on next separator"]
+    C --> D{"Piece within budget?"}
+    D -- "yes" --> E["Merge pieces up to chunk size"]
+    D -- "no" --> C
+    E --> F["Add overlap from previous chunk"]
+    F --> G["Chunks"]
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class B eqStore
 ```
 
-**Why These Defaults**:
+Read it top to bottom: oversize pieces loop back to a finer separator until every piece fits.
 
-- **1200 tokens**: Fits well in LLM context (~5 chunks in 8K context)
-- **100 token overlap**: 8% overlap captures boundary entities
-- **Separator priority**: Preserves semantic structure
+### Markdown
 
----
+`MarkdownChunking` treats headings as preferred cut points, not forced ones (SPEC-125). Small sibling sections are packed together up to the token budget. When a section must continue in a new chunk, the chunk repeats the heading path. Oversized tables repeat their header row. Each chunk carries `SectionMetadata` with `heading_path` and `heading_level`.
 
-## Overlap: Why It Matters
+Set `EDGEQUAKE_MARKDOWN_PACK=0` to return to one chunk per heading. The flag is on by default; `0`, `false`, `off`, and `no` turn it off.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 OVERLAP PREVENTS INFORMATION LOSS               │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  WITHOUT OVERLAP (Bad):                                         │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ "Dr. Smith works at Microsoft. He developed the Azure"   │   │
-│  │                              ↑                           │   │
-│  │                          CUT HERE                        │   │
-│  │ "platform with his team at the Seattle campus."          │   │
-│  │                                                          │   │
-│  │ Problem: "He" in chunk 2 has no context                  │   │
-│  │ Problem: "Azure platform" split across chunks            │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  WITH OVERLAP (Good):                                           │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ Chunk 1: "Dr. Smith works at Microsoft. He developed"    │   │
-│  │ Chunk 2: "He developed the Azure platform with his team" │   │
-│  │                                                          │   │
-│  │ ✅ "He" has context from overlap                         
-│  │ ✅ "Azure platform" appears complete in chunk 2          
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  Recommended: 8-15% overlap (100-180 tokens for 1200 chunk)     │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+### PDF (page-aware)
+
+PDF conversion writes a marker line before each page: `<!-- edgequake-page:N -->`. `PageAwareChunking` splits on those markers and packs inside each page, so each chunk knows its `page_start` and `page_end`. Citations use `page_start` for deep links.
+
+A short tail left at the end of page N may merge with the start of page N+1 if both fit the budget (SPEC-135). The merged chunk then has `page_end` greater than `page_start`.
+
+| Flag | Default | Effect when set to `0` |
+| --- | --- | --- |
+| `EDGEQUAKE_PDF_PACK` | on | Inner splitter becomes Recursive instead of the markdown packer. |
+| `EDGEQUAKE_PDF_CROSS_PAGE_PACK` | on | Chunks never span pages (`page_start == page_end`). |
+
+See [PDF Processing](pdf-processing.md) for how the markers are produced.
+
+### Semantic
+
+Semantic chunking is off unless you request it. It needs an embedding provider; without one it falls back to Recursive.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    A["Split into sentences"] --> B["Embed each sentence window"]
+    B --> C["Cosine distance between neighbours"]
+    C --> D["Find breakpoints above threshold"]
+    D --> E["Hard-split oversize groups"]
 ```
 
----
+Read it left to right: a break goes where two neighbouring sentences are least alike.
 
-## Chunking Strategies
+| Setting | Env var | Default |
+| --- | --- | --- |
+| Threshold type | `EDGEQUAKE_SEMANTIC_BREAKPOINT` | percentile (`std` and `iqr` also work) |
+| Threshold amount | `EDGEQUAKE_SEMANTIC_BREAKPOINT_AMOUNT` | 95 |
+| Neighbour sentences per window | `EDGEQUAKE_SEMANTIC_BUFFER_SIZE` | 1 (clamped to 0-5) |
 
-EdgeQuake supports three built-in chunking strategies:
+## Choosing chunk size
 
-### 1. Token-Based Chunking (Default)
+Size and overlap come from three layers. The most specific layer wins (LAW-116-2).
 
-Splits text by token count, respecting separator hierarchy.
+1. **Per document:** `chunk_options` on the upload.
+2. **Per workspace:** workspace metadata `chunking_mode` (`inherit`, `adaptive`, or `fixed`) with optional `chunk_token_size` and `chunk_overlap_token_size`.
+3. **Fleet environment:** the variables below.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 TOKEN-BASED CHUNKING                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Input: "Paragraph 1...\n\nParagraph 2...\n\nParagraph 3..."    │
-│                                                                 │
-│  Algorithm:                                                     │
-│  1. Try to split on "\n\n" (paragraph)                          │
-│  2. If chunk too large, try "\n" (line)                         │
-│  3. If still too large, try ". " (sentence)                     │
-│  4. Continue down separator list                                │
-│  5. Last resort: split on " " (word)                            │
-│                                                                 │
-│  Result: Clean chunks at natural boundaries                     │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Best For**: General documents, articles, reports
-
-### 2. Sentence Boundary Chunking
-
-Never splits mid-sentence, accumulates complete sentences.
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 SENTENCE BOUNDARY CHUNKING                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Input: "Sentence 1. Sentence 2. Sentence 3. Sentence 4."       │
-│                                                                 │
-│  Algorithm:                                                     │
-│  1. Split text into sentences                                   │
-│  2. Accumulate sentences until target size                      │
-│  3. Create chunk                                                │
-│  4. Overlap: Carry last N sentences to next chunk               │
-│                                                                 │
-│  Guarantees:                                                    │
-│  • Every sentence is complete                                   │
-│  • No orphaned pronouns                                         │
-│  • Better entity extraction context                             │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    A["Start: document size in bytes"] --> B{"Workspace mode"}
+    B -- "fixed" --> C["Use workspace size and overlap"]
+    B -- "adaptive" --> D["Adaptive table"]
+    B -- "inherit" --> E{"EDGEQUAKE_ADAPTIVE_CHUNKING"}
+    E -- "on (default)" --> D
+    E -- "off" --> F["EDGEQUAKE_CHUNK_SIZE and OVERLAP"]
+    C --> G["Apply chunk_options"]
+    D --> G
+    F --> G
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class D eqStore
 ```
 
-**Best For**: Legal documents, research papers, any text where sentence integrity matters
+Read it top to bottom: the workspace mode decides the base size, then per-document options override it.
 
-### 3. Character-Based Chunking
+**Adaptive sizing** (the default) picks a size from the document's byte length. It follows LightRAG's empirical thresholds (`adaptive_chunking.rs`):
 
-Splits on a specific character (e.g., newline).
+| Document size | Chunk size (tokens) | Overlap (tokens) |
+| --- | --- | --- |
+| 50 KB or less | 1200 | 99 |
+| 50 KB to 100 KB | 800 | 66 |
+| over 100 KB | 600 | 49 |
 
+Overlap is 8.3 percent of the size, rounded down. For recursive, markdown, and PDF strategies, a document of 50 KB or less gets a size floor of 800.
+
+**Fixed sizing** uses `EDGEQUAKE_CHUNK_SIZE` (default 1200) and `EDGEQUAKE_CHUNK_OVERLAP` (default 100). Overlap must be smaller than size. A workspace `fixed` policy that breaks this rule falls back to 1200/100.
+
+`ChunkerConfig::default()` itself uses `chunk_size: 800`, `chunk_overlap: 100`, `min_chunk_size: 100`. The 800 is deliberately smaller than the 1200 paper default. Dense text such as tables or formulas can use two to three times more real tokens than the estimate, and 800 keeps chunks under a 2048-token embedding limit. The value 1200 is used only through the fixed and adaptive paths above.
+
+### Override per document
+
+Send `chunk_options` as a JSON string field in the multipart file upload, or as an object in the text upload body. Invalid JSON is ignored silently:
+
+```json
+{ "chunk_token_size": 1500, "chunk_overlap_token_size": 150, "separators": ["\n\n", "\n", " "] }
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                 CHARACTER-BASED CHUNKING                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Use Cases:                                                     │
-│  • Pre-split content (CSV, TSV)                                 │
-│  • Log files (one entry per line)                               │
-│  • Markdown headers (split on "## ")                            │
-│                                                                 │
-│  Configuration:                                                 │
-│  {                                                              │
-│    "split_by_character": "\n",                                  │
-│    "split_by_character_only": true                              │
-│  }                                                              │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
 
-**Best For**: Log files, structured data, pre-segmented content
+The aliases `chunk_size`, `chunk_overlap`, and `chunk_overlap_size` are also accepted. Validation allows at most 16 separators of at most 8 characters each.
 
----
+## Overlap
 
-## ChunkingStrategy Trait
+Overlap repeats the end of one chunk at the start of the next. It lets an entity or a pronoun reference that sits on a boundary appear whole in at least one chunk. The default of about 100 tokens costs about 8 percent extra processing. Raise it if answers lose context at boundaries.
 
-EdgeQuake's chunking is extensible via the `ChunkingStrategy` trait:
+## What every chunk records
+
+`TextChunk` (`chunker/types.rs`) holds:
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Built from the document ID and chunk index (`kv_keys::doc_chunk`). |
+| `content` | The chunk text. |
+| `index` | Position in the document. |
+| `start_offset`, `end_offset` | Byte offsets in the source text. |
+| `start_line`, `end_line` | 1-based line numbers, used for citations. |
+| `token_count` | Token count of the chunk. |
+| `section` | Heading path and level (markdown chunks). |
+| `page_start`, `page_end` | PDF page span. |
+| `modality` | `chart`, `figure`, `table`, or `equation` for multimodal chunks. |
+| `embedding` | Filled after the embedding step. |
+
+## How tokens are counted
+
+`token_estimator::count_tokens` is the single token counter. It uses the `cl100k_base` tokenizer from `tiktoken-rs`. Only if the tokenizer fails to start does the code fall back to "characters divided by 4". The recursive splitter uses its own word-based length (about 1.5 characters per token for CJK text) so it matches LightRAG.
+
+## Add your own strategy
+
+Implement the `ChunkingStrategy` trait and pass it to `Chunker::with_strategy`:
 
 ```rust
 #[async_trait]
 pub trait ChunkingStrategy: Send + Sync {
-    /// Chunk the given text content into smaller pieces.
-    async fn chunk(&self, content: &str, config: &ChunkerConfig)
-        -> Result<Vec<ChunkResult>>;
-
-    /// Get the name of this chunking strategy.
+    async fn chunk(&self, content: &str, config: &ChunkerConfig) -> Result<Vec<ChunkResult>>;
     fn name(&self) -> &str;
 }
-
-/// Result of a custom chunking operation.
-pub struct ChunkResult {
-    pub content: String,
-    pub tokens: usize,
-    pub chunk_order_index: usize,
-}
 ```
 
-### Implementing Custom Chunking
-
-```rust
-/// Markdown-aware chunking (splits on headers)
-pub struct MarkdownChunking;
-
-#[async_trait]
-impl ChunkingStrategy for MarkdownChunking {
-    async fn chunk(&self, content: &str, _config: &ChunkerConfig)
-        -> Result<Vec<ChunkResult>> {
-        // Split on markdown headers
-        let sections: Vec<&str> = content
-            .split("\n## ")
-            .collect();
-
-        Ok(sections
-            .into_iter()
-            .enumerate()
-            .filter(|(_, s)| !s.trim().is_empty())
-            .map(|(idx, s)| ChunkResult {
-                content: s.to_string(),
-                tokens: s.len() / 4,  // Rough estimate
-                chunk_order_index: idx,
-            })
-            .collect())
-    }
-
-    fn name(&self) -> &str {
-        "markdown"
-    }
-}
-```
-
----
-
-## Size Tradeoffs
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 CHUNK SIZE TRADEOFFS                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  SMALL CHUNKS (256-512 tokens):                                 │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ ✅ More precise retrieval                                 
-│  │ ✅ Lower per-chunk embedding cost                         
-│  │ ✅ Faster embedding generation                            
-│  │ ❌ More LLM extraction calls                              
-│  │ ❌ Less context per chunk                                 
-│  │ ❌ Entity relationships may span chunks                   
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  LARGE CHUNKS (1024-2048 tokens):                               │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ ✅ Better context for entity extraction                 
-│  │ ✅ Fewer LLM calls                                        
-│  │ ✅ Relationships captured within chunk                    
-│  │ ❌ Lower retrieval precision                              
-│  │ ❌ Higher per-chunk embedding cost                        
-│  │ ❌ May hit embedding model limits                         
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  Recommendation: Start with 1200 tokens (default)               │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Chunk Size Guidelines
-
-| Document Type   | Recommended Size | Overlap |
-| --------------- | ---------------- | ------- |
-| Research papers | 1200-1500        | 100-150 |
-| News articles   | 800-1000         | 80-100  |
-| Legal contracts | 1500-2000        | 150-200 |
-| Technical docs  | 1000-1200        | 100     |
-| Chat logs       | 500-800          | 50-80   |
-| Code files      | 800-1000         | 100     |
-
----
-
-## TextChunk Structure
-
-Each chunk includes rich metadata:
-
-```rust
-pub struct TextChunk {
-    /// Unique identifier for the chunk.
-    pub id: String,
-
-    /// The chunk text content.
-    pub content: String,
-
-    /// Index of this chunk in the document.
-    pub index: usize,
-
-    /// Character offset from the start of the document.
-    pub start_offset: usize,
-
-    /// Character offset to the end of the chunk.
-    pub end_offset: usize,
-
-    /// Starting line number (1-based) in the original document.
-    pub start_line: usize,
-
-    /// Ending line number (1-based, inclusive).
-    pub end_line: usize,
-
-    /// Approximate token count.
-    pub token_count: usize,
-
-    /// Chunk embedding (populated after embedding stage).
-    pub embedding: Option<Vec<f32>>,
-}
-```
-
-**Why Line Numbers**:
-
-- Citations in query responses ("See document.pdf, lines 45-52")
-- Debugging entity extraction
-- Source verification
-
----
-
-## Configuration
-
-### Via Environment Variables
-
-```bash
-# Coming soon - currently configured via API
-```
-
-### Via API
-
-```bash
-# Create workspace with custom chunk settings
-curl -X POST http://localhost:8080/api/v1/tenants/default/workspaces \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "research",
-    "chunking_config": {
-      "chunk_size": 1500,
-      "chunk_overlap": 150,
-      "min_chunk_size": 100,
-      "preserve_sentences": true
-    }
-  }'
-```
-
-### Via PipelineConfig
-
-```rust
-let config = PipelineConfig {
-    chunker: ChunkerConfig {
-        chunk_size: 1500,
-        chunk_overlap: 150,
-        min_chunk_size: 100,
-        separators: vec![
-            "\n\n".to_string(),
-            "\n".to_string(),
-            ". ".to_string(),
-        ],
-        preserve_sentences: true,
-        split_by_character: None,
-        split_by_character_only: false,
-    },
-    ..Default::default()
-};
-```
-
----
-
-## Chunking Pipeline
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 CHUNKING PIPELINE                               │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Document Text                                                  │
-│       ↓                                                         │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 1. PREPROCESSING                                           │ │
-│  │    • Remove excessive whitespace                           │ │
-│  │    • Normalize line endings                                │ │
-│  │    • Handle Unicode normalization                          │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│       ↓                                                         │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 2. SEPARATOR DETECTION                                     │ │
-│  │    • Find paragraph breaks ("\n\n")                        │ │
-│  │    • Find line breaks ("\n")                               │ │
-│  │    • Find sentence endings (". ", "! ", "? ")              │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│       ↓                                                         │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 3. SPLIT ON BEST SEPARATOR                                 │ │
-│  │    • Try highest priority separator first                  │ │
-│  │    • If chunks too large, try next separator               │ │
-│  │    • Continue until target size reached                    │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│       ↓                                                         │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 4. OVERLAP CREATION                                        │ │
-│  │    • Copy end of chunk N to start of chunk N+1             │ │
-│  │    • Ensure overlap respects sentence boundaries           │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│       ↓                                                         │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 5. METADATA ENRICHMENT                                     │ │
-│  │    • Calculate line numbers                                │ │
-│  │    • Assign chunk indices                                  │ │
-│  │    • Generate chunk IDs                                    │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│       ↓                                                         │
-│  Vec<TextChunk>                                                 │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Token Estimation
-
-EdgeQuake uses a simple heuristic for token estimation:
-
-```rust
-/// Estimate token count (rough approximation: 1 token ≈ 4 chars).
-fn estimate_tokens(text: &str) -> usize {
-    (text.len() as f32 / 4.0).ceil() as usize
-}
-```
-
-**Why Estimate**:
-
-- Actual tokenization requires model-specific tokenizer
-- 4 chars/token is accurate for English (within 10%)
-- Much faster than calling tokenizer API
-
-**Accuracy**:
-| Language | Actual Tokens/Char | Estimate Error |
-|----------|-------------------|----------------|
-| English | ~4.0 | <10% |
-| German | ~3.5 | ~15% |
-| Chinese | ~1.5 | ~60% |
-| Code | ~5.0 | ~20% |
-
-For precise control, override with custom ChunkingStrategy.
-
----
-
-## Performance Optimization
-
-### Parallel Chunking
-
-EdgeQuake chunks documents in parallel:
-
-```rust
-// Documents are chunked in parallel
-let chunks: Vec<TextChunk> = documents
-    .par_iter()  // Rayon parallel iterator
-    .flat_map(|doc| chunker.chunk(&doc.content))
-    .collect();
-```
-
-### Streaming Large Documents
-
-For very large documents (>100MB), consider streaming:
-
-```bash
-# Split file before upload
-split -b 10m large_document.txt part_
-
-# Upload parts
-for f in part_*; do
-  curl -X POST http://localhost:8080/api/v1/documents/upload \
-    -F "file=@$f"
-done
-```
-
----
+`ChunkResult` carries `content`, `tokens`, `chunk_order_index`, and optional `section`, offsets, and page span.
 
 ## Troubleshooting
 
-### Chunks Too Small
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Embedding error "input length exceeds context length" | Dense text; chunks too large for the embedding model | Lower `chunk_token_size` (try 600). |
+| Answers miss facts at boundaries | Overlap too small | Raise overlap, keeping it below the size. |
+| Many tiny chunks | Many short paragraphs | Use `markdown` or raise `min_chunk_size` through the library config. |
 
-```
-Warning: Many chunks below min_chunk_size
-```
+## See also
 
-**Cause**: Document has many short paragraphs.
-
-**Solution**: Reduce `min_chunk_size` or increase `chunk_size`:
-
-```json
-{ "chunk_size": 2000, "min_chunk_size": 50 }
-```
-
-### Chunks Too Large
-
-```
-Error: Chunk exceeds embedding model limit
-```
-
-**Cause**: No suitable separators found.
-
-**Solution**: Add more separators:
-
-```json
-{
-  "separators": ["\n\n", "\n", ". ", "! ", "? ", "; ", ", ", " "]
-}
-```
-
-### Lost Context
-
-```
-Query returns incomplete answers
-```
-
-**Cause**: Overlap too small.
-
-**Solution**: Increase overlap:
-
-```json
-{ "chunk_overlap": 200 }
-```
-
----
-
-## Best Practices
-
-1. **Start with Defaults**: 1200 tokens, 100 overlap works for most cases
-2. **Match Content Type**: Use sentence boundary for legal, token for general
-3. **Test Retrieval**: Query sample documents to validate chunk quality
-4. **Monitor Chunk Stats**: Check `avg_chunk_size` in pipeline stats
-5. **Consider Domain**: Technical content may need larger chunks
-6. **Preserve Structure**: Use custom separators for structured docs
-
----
-
-## See Also
-
-- [Embedding Models](/docs/deep-dives/embedding-models/) - How chunks are embedded
-- [Entity Extraction](/docs/deep-dives/entity-extraction/) - How entities are extracted from chunks
-- [LightRAG Algorithm](/docs/deep-dives/lightrag-algorithm/) - Overall pipeline design
+- [Embedding Models](embedding-models.md): how chunks become vectors.
+- [Entity Extraction](entity-extraction.md): what happens to each chunk next.
+- [PDF Processing](pdf-processing.md): where page markers come from.

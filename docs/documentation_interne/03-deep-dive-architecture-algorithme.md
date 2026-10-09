@@ -2,6 +2,7 @@
 title: "EdgeQuake — Deep dive architecture & algorithme"
 version: "0.26.4"
 audience: "Architectes, développeurs, data scientists"
+description: "Historical internal note: architecture and algorithm (French)."
 ---
 
 # EdgeQuake — Deep dive architecture & algorithme

@@ -43,6 +43,7 @@ pub fn resolve_workspace_vlm_config(
     edgequake_core::ResolvedRoleLlm {
         provider: resolved.provider,
         model: resolved.model,
+        connection_id: None,
     }
 }
 

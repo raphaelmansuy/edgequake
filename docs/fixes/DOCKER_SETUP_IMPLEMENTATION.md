@@ -1,3 +1,10 @@
+---
+title: "EdgeQuake Docker Setup - Implementation Summary"
+description: "Historical note: Docker setup implementation."
+---
+
+> **Historical note.** This page may not match the current product. Prefer the guides under Getting started, Operations, and Providers.
+
 # EdgeQuake Docker Setup - Implementation Summary
 
 ## Overview

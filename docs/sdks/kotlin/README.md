@@ -1,5 +1,6 @@
 ---
 title: "Kotlin SDK"
+description: "Kotlin SDK for EdgeQuake."
 ---
 
 # Kotlin SDK

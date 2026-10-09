@@ -1,5 +1,6 @@
 ---
 title: "EdgeQuake SDKs"
+description: "EdgeQuake client SDKs: install, versions, and language index."
 ---
 
 # EdgeQuake SDKs

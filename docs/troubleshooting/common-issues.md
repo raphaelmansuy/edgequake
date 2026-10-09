@@ -1,406 +1,277 @@
 ---
-title: 'Troubleshooting Guide'
+title: Troubleshooting guide
+description: Symptom, cause and fix tables for the problems operators hit most, checked against the error messages and exit codes in the EdgeQuake code.
 ---
 
-# Troubleshooting Guide
+This page helps you find out why EdgeQuake does not start, does not ingest, or does not answer. Find your symptom, read the cause, and apply the fix. Every message in quotes comes from the code.
 
-> **Product: v0.23.0** · Ingestion SSOT: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> Product release: v0.32.2. Sections 5.2, 11 and the `edgequake doctor` command describe SPEC-163, which ships in v0.33.0. Ingestion internals: [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md).
 
-> **Diagnosing and Resolving Common EdgeQuake Issues**
+## Start here
 
-This guide helps you identify and fix common problems when running EdgeQuake.
-
----
-
-## Quick Diagnostics
-
-### Health Check
+Run these four checks first. They take a minute and narrow most problems to one area.
 
 ```bash
-# Check basic health
-curl http://localhost:8080/health
-
-# Check readiness with dependencies
-curl http://localhost:8080/ready
-
-# Check if backend is responding
-curl -I http://localhost:8080/api/v1/workspaces
-```
-
-### Service Status
-
-```bash
-# Check all services (if using make)
-make status
-
-# Check PostgreSQL reachability
-pg_isready -h localhost -p 5432
-
-# Check Ollama
-curl http://localhost:11434/api/tags
-```
-
----
-
-## Common Issues
-
-### 1. Document Upload Errors
-
-#### Symptom: "Expected request with `Content-Type: application/json`"
-
-**Cause**: Using multipart form data (`-F "file=@..."`) with the wrong endpoint.
-
-**Solution**: EdgeQuake has **two different endpoints** for document upload:
-
-**Option A - Upload Text as JSON** (`/api/v1/documents`):
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": "Your text content here...",
-    "title": "Document Title"
-  }'
-```
-
-**Option B - Text / Markdown / JSON / images** (`/api/v1/documents/upload`):
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/upload \
-  -F "file=@your-document.md" \
-  -F "title=My Document"
-```
-
-**Option C - PDF** (`/api/v1/documents/pdf` — required; `.pdf` is **not** accepted on `/documents/upload`):
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/pdf \
-  -F "file=@your-document.pdf" \
-  -F "title=My Document"
-```
-
-> Format matrix (SPEC-121 / [#370](https://github.com/raphaelmansuy/edgequake/issues/370)): TXT/MD/JSON/images/PDF supported; DOCX/Excel **not** supported. See [FAQ](../faq.md#what-document-formats-are-supported) and [upload quick reference](../api-reference/document-upload-quick-reference.md).
-
-#### Symptom: "Failed to parse the request body as JSON"
-
-**Cause**: Using `-F` flag (multipart) with a JSON endpoint, or mixing content types.
-
-**Solution**: Choose the correct endpoint and format:
-
-| Upload Type | Endpoint                         | Content-Type          | Format         |
-| ----------- | -------------------------------- | --------------------- | -------------- |
-| Text/JSON   | `/api/v1/documents`              | `application/json`    | `-d '{...}'`   |
-| Text/images | `/api/v1/documents/upload`       | `multipart/form-data` | `-F "file=@"`  |
-| PDF         | `/api/v1/documents/pdf`          | `multipart/form-data` | `-F "file=@"`  |
-| Multi-PDF   | `/api/v1/documents/pdf/batch`    | `multipart/form-data` | `-F "files=@"` |
-| Batch text  | `/api/v1/documents/upload/batch` | `multipart/form-data` | `-F "files=@"` (no PDFs) |
-
-**Examples**:
-
-```bash
-# ❌ WRONG - multipart to JSON endpoint
-curl -X POST http://localhost:8080/api/v1/documents \
-  -F "file=@doc.pdf"
-
-# ❌ WRONG - PDF on text/image upload or /upload/batch (SPEC-123)
-curl -X POST http://localhost:8080/api/v1/documents/upload \
-  -F "file=@doc.pdf"
-
-# ✅ CORRECT - PDF endpoint
-curl -X POST http://localhost:8080/api/v1/documents/pdf \
-  -F "file=@doc.pdf"
-
-# ✅ CORRECT - JSON to documents endpoint
-curl -X POST http://localhost:8080/api/v1/documents \
-  -H "Content-Type: application/json" \
-  -d '{"content": "Text here", "title": "My Doc"}'
-```
-
----
-
-### 2. Server Won't Start
-
-#### Symptom: "Address already in use"
-
-**Cause**: Port 8080 is already in use.
-
-**Solution**:
-
-```bash
-# Find what's using port 8080
-lsof -i :8080
-
-# Kill the process
-kill -9 <PID>
-
-# Or use different port
-PORT=9090 cargo run
-```
-
-#### Symptom: "DATABASE_URL is not valid" or a startup log says PostgreSQL storage failed to initialize
-
-**Cause**: Invalid PostgreSQL connection string, unreachable database, or a database daemon that is not running.
-
-**Solution**:
-
-```bash
-# Check format
-DATABASE_URL="postgresql://user:password@host:port/database"
-
-# Test connection directly
-psql "$DATABASE_URL" -c "SELECT 1"
-
-# Or use a lightweight readiness probe
+edgequake doctor                         # checks env settings (v0.33.0+)
+curl -s http://localhost:8080/health | jq
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/ready
 pg_isready -h localhost -p 5432
 ```
 
-**Why this matters**: EdgeQuake now fails fast and clearly at startup when PostgreSQL is unavailable. This is intentional and prevents flaky half-started server states.
+| Check | What it tells you |
+|-------|-------------------|
+| `edgequake doctor` | Whether `DATABASE_URL`, the secrets key, `JWT_SECRET` and the listen host are set. Exit 0 = all pass, 1 = `DATABASE_URL` missing, 2 = another check failed. Add `--json` for scripts. |
+| `/health` | `status` is `healthy` or `degraded`. Look at `components` (storage and LLM provider) and `security_posture`. |
+| `/ready` | 200 when the server can take traffic. 503 while a migration or index is pending, or when queue pressure is high. |
+| `pg_isready` | Whether PostgreSQL answers at all. |
 
-#### Symptom: OrbStack stops unexpectedly or `make dev` says Docker daemon is unavailable
+The next diagram shows where to go from the first symptom.
 
-**Cause**: often Docker/OrbStack was already down, **or** an older EdgeQuake recipe called `open -ga OrbStack`, which can trigger an OrbStack VM handoff (`vmgr`) and drop the Docker socket / containers. Make must **never** open, wake, kill, or restart OrbStack.
-
-**What `make db-start` does now**:
-
-1. Reuse any reachable EdgeQuake Postgres (`/tmp/edgequake-db-url`, ports **5432–5449**).
-2. If Docker is down and no Postgres is reachable → **fail fast** with instructions. Do **not** call `open -ga`.
-3. VPN-aware tips only (`make docker-network-diagnose`); home LAN `en*` routes are ignored.
-
-**Solution**:
-
-```bash
-# Prefer reuse when Postgres is still up
-make db-start
-
-# If Docker is down: open OrbStack.app yourself, wait, then:
-docker info
-make dev
-
-# External / shared Postgres (skips Docker entirely)
-export DATABASE_URL='postgresql://edgequake:edgequake_secret@localhost:5432/edgequake'
-make dev
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["Something is wrong"] --> B{"Does the server start?"}
+  B -->|No| C["Section 2"]
+  B -->|Yes| D{"Does /health say healthy?"}
+  D -->|No| E["Section 5: provider and storage"]
+  D -->|Yes| F{"Where does it fail?"}
+  F -->|Upload| G["Sections 1 and 4"]
+  F -->|Stuck or Failed| H["Sections 3 and 6"]
+  F -->|Empty answer| I["Section 12"]
+  F -->|401 403 423 429| J["Section 11"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+classDef eqBad fill:#FEE2E2,stroke:#EF4444,color:#7F1D1D
+class E eqLlm
+class F eqBad
 ```
 
-**Do not**: `open -ga OrbStack` from scripts, `killall OrbStack`, or `docker system prune` as first recovery.
+Read it from the top. Each leaf names the section of this page that covers that case.
 
-#### Symptom: "Extension 'vector' not found"
+## Diagnostic commands
 
-**Cause**: pgvector extension not installed.
+```bash
+# Backend and frontend logs when started with make dev-bg
+tail -f /tmp/edgequake-backend.log
+tail -f /tmp/edgequake-frontend.log
 
-**Solution**:
+# Docker deployments
+docker compose logs -f edgequake
+docker compose logs -f postgres
+
+# More detail from the server
+RUST_LOG="edgequake=debug" cargo run
+```
 
 ```sql
--- As superuser in PostgreSQL
-CREATE EXTENSION IF NOT EXISTS vector;
+-- Documents by status
+SELECT status, count(*) FROM documents GROUP BY status;
+
+-- Failed documents
+SELECT id, title, error_message FROM documents WHERE status = 'failed';
 ```
 
-Or rebuild Docker container:
+## 1. Document upload errors
+
+EdgeQuake has three upload routes. Most upload errors come from sending the wrong body to the wrong route.
+
+| Upload type | Endpoint | Content-Type | Body |
+|-------------|----------|--------------|------|
+| Text or JSON content | `POST /api/v1/documents` | `application/json` | `-d '{...}'` |
+| Text, Markdown, JSON file, images | `POST /api/v1/documents/upload` | `multipart/form-data` | `-F "file=@"` |
+| One PDF | `POST /api/v1/documents/pdf` | `multipart/form-data` | `-F "file=@"` |
+| Several PDFs | `POST /api/v1/documents/pdf/batch` | `multipart/form-data` | `-F "files=@"` |
+| Several text files (no PDFs) | `POST /api/v1/documents/upload/batch` | `multipart/form-data` | `-F "files=@"` |
+
+DOCX and Excel files are not supported. See the [FAQ](../faq.md#what-document-formats-are-supported) and the [upload quick reference](../api-reference/document-upload-quick-reference.md).
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| "Expected request with `Content-Type: application/json`" | You sent a multipart file to `/api/v1/documents` | Send JSON there, or use `/documents/upload` (or `/documents/pdf` for PDFs) |
+| "Failed to parse the request body as JSON" | The JSON is malformed, or the content type is mixed | Check the body, and send `Content-Type: application/json` |
+| A `.pdf` is rejected by `/documents/upload` or `/upload/batch` | PDFs have their own route | Use `/api/v1/documents/pdf` |
+| HTTP 413 | The file is larger than 50 MiB | Split the file |
+| HTTP 408 | The request timed out | Retry. For large PDFs, check section 3 |
 
 ```bash
-docker compose down -v
-docker compose up -d
+# JSON content
+curl -X POST http://localhost:8080/api/v1/documents \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Your text here", "title": "Document title"}'
+
+# A text or Markdown file
+curl -X POST http://localhost:8080/api/v1/documents/upload \
+  -F "file=@your-document.md" -F "title=My document"
+
+# A PDF
+curl -X POST http://localhost:8080/api/v1/documents/pdf \
+  -F "file=@your-document.pdf" -F "title=My document"
 ```
 
----
+## 2. The server will not start
 
-### 3. Document Processing Stuck
+The server stops early on purpose when something unsafe or missing would give you a half-working system. Use the message or exit code to find the row.
 
-#### Symptom: Documents stay in "processing" status
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["Server exits at boot"] --> B{"Exit code?"}
+  B -->|78| C["Schema gate: run edgequake migrate"]
+  B -->|75| D["Migrate lock held: wait or retry"]
+  B -->|1| E{"Read the last log line"}
+  E --> F["DATABASE_URL missing or bad"]
+  E --> G["Security check refused to start"]
+  E --> H["Port already in use"]
+  E --> I["Replica setting invalid"]
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+classDef eqBad fill:#FEE2E2,stroke:#EF4444,color:#7F1D1D
+class F eqStore
+class G,I eqBad
+```
 
-**Diagnosis**:
+Exit 78 and 75 are the two codes that orchestrators can act on. Exit 1 has several causes, so read the last log line.
+
+| Message or exit code | Cause | Fix |
+|----------------------|-------|-----|
+| "DATABASE_URL is required; start PostgreSQL and rerun make dev or make dev-auth" | `DATABASE_URL` is not set. There is no in-memory mode. | Set it, or run `make dev`. Check with `psql "$DATABASE_URL" -c "SELECT 1"` |
+| "failed to initialize PostgreSQL storage at ..." | The URL is wrong, the database is down, or credentials are wrong | `pg_isready -h localhost -p 5432`, then fix the URL |
+| "Address already in use (port ...)" | Another process listens on the port | `lsof -i :8080`, stop it, or set `PORT=9090` |
+| Exit 78 and a line starting `BOOT_GATE_REFUSAL:` | Schema gate: a migration is pending and `EDGEQUAKE_SCHEMA_GATE` is `fail` (default) | Run `edgequake migrate`, or set `EDGEQUAKE_SCHEMA_GATE=wait` so the server serves `/live` and `/ready` (503) until the schema is ready |
+| Exit 75 | `edgequake migrate` could not take its advisory lock within `EDGEQUAKE_MIGRATE_LOCK_DEADLINE` (default 60 s) | Wait for the other migrate run to end, then retry |
+| "JWT_SECRET is the insecure default ..." or "JWT_SECRET is shorter than 32 bytes ..." | Outside dev mode the JWT secret must be 32 bytes or more and not the default | Set a strong `JWT_SECRET`, or `EDGEQUAKE_DEV_MODE=true` on a laptop |
+| "Authentication disabled with non-local DATABASE_URL ..." | Auth is off and the database host is not local | Enable auth (`EDGEQUAKE_AUTH_ENABLED=true`), or use a local database in dev mode |
+| "EDGEQUAKE_CORS_ORIGINS is required in production ..." | Non-local database and no allowed web origins | Set `EDGEQUAKE_CORS_ORIGINS` to your web origin list |
+| "invalid EDGEQUAKE_DECISION_* setting" | A decision-extraction variable has a bad value | Fix the variable named in the error |
+| Boot fails after setting `EDGEQUAKE_REPLICAS` above 1 | Task delivery is `local`, which is single-process | See [3.4](#34-multi-replica-boot-failure-edgequake_replicas1) |
+| Boot continues but warns | A soft posture check failed | Fix the warning, or set `EDGEQUAKE_STRICT_STARTUP=1` so warnings stop the boot |
+
+The full list of startup checks is in the [security guide](../security/best-practices.md#startup-posture-checks). Local database hosts are `localhost`, `127.0.0.1`, `::1` and `host.docker.internal`.
+
+### PostgreSQL extensions
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| "Extension 'vector' not found" | pgvector is not installed in this database | As a superuser run `CREATE EXTENSION IF NOT EXISTS vector;`, or use the project's Docker image |
+| "AGE extension not loaded" | Apache AGE is not loaded in the session | Use the project's PostgreSQL image. Manual check: `LOAD 'age'; SET search_path = ag_catalog, "$user", public;` |
+
+### Docker is down
+
+`make db-start` reuses a reachable EdgeQuake PostgreSQL (ports 5432 to 5449). If Docker is down and none is reachable, it stops with instructions. It does not start Docker for you. Start Docker (or OrbStack) yourself, wait for `docker info` to work, and run `make dev`. To skip Docker, point `DATABASE_URL` at an existing PostgreSQL.
+
+## 3. Documents stay in Processing
+
+Check queue pressure and recent tasks first.
 
 ```bash
-# Queue pressure + store contention (v0.23 SSOT)
 curl -s http://localhost:8080/api/v1/pipeline/queue-metrics | jq
-
-# Check pending tasks
-curl http://localhost:8080/api/v1/tasks?status=pending
-
-# Check backend logs
-docker compose logs -f edgequake
-
-# Or if running locally
+curl -s "http://localhost:8080/api/v1/tasks?status=pending" | jq
 tail -f /tmp/edgequake-backend.log
 ```
 
-**Common Causes**:
+| Cause | Fix |
+|-------|-----|
+| The model server is down or slow | Check section 5. Start Ollama with `ollama serve` |
+| Invalid or missing API key | Check the key for the provider that does extraction |
+| Tenant fairness is parking the task | Normal with a local model. Look at the waiters in `queue-metrics`. See [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md) |
+| A lease expired | See 3.1 and 3.2 |
+| The worker died | Restart the backend |
 
-| Cause              | Solution                     |
-| ------------------ | ---------------------------- |
-| LLM rate limit     | Wait and retry               |
-| Invalid API key    | Check `OPENAI_API_KEY`       |
-| Ollama not running | Start Ollama: `ollama serve` |
-| Worker crash       | Restart backend              |
-| Lease expired      | See **Interrupted / Reprocess** below |
-| Tenant fairness park | Normal under local LLM clamp (ingest≤2, lifecycle≤4); check `tenant_park_waiters` / per-lane waiters in queue-metrics. Deletes use the lifecycle lane so a new PDF should not stay Queued behind deletes. |
-
-**Solution**:
+To retry one document, post its id in the body:
 
 ```bash
-# Restart workers cleanly
-make stop
-make dev
-
-# Or manually retry document (POST body, not path id)
 curl -X POST "http://localhost:8080/api/v1/documents/reprocess" \
   -H "Content-Type: application/json" \
   -d "{\"document_id\":\"$DOC_ID\",\"force\":true,\"mode\":\"full\"}"
 ```
 
-**Reliability note**: delete, reprocess, and recovery flows are workspace-scoped and restart-safe. A deleted document should not be resurrected by stale task recovery after a backend restart.
+### 3.1 Interrupted / Reprocess
 
-Full cancel, fairness, lease, and multi-replica semantics: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md).
+A document shows Failed with "Interrupted — use Reprocess". A task was in `Processing` when the server restarted or its lease expired.
 
----
-
-### 3.1 Interrupted / Reprocess (v0.23)
-
-#### Symptom: Document shows **Failed** with message containing "Interrupted — use Reprocess"
-
-**Cause**: A task was in `Processing` when the server restarted or its lease expired. With `EDGEQUAKE_STARTUP_AUTO_RESUME=0` (opt-out), stale `Processing` rows become **Failed** with an Interrupted message. The code default when the env var is **unset** is **ON** (auto-reclaim to Pending).
-
-**Solution**:
-
-```bash
-# Reprocess (real route — body carries document_id)
-curl -X POST "http://localhost:8080/api/v1/documents/reprocess" \
-  -H "Content-Type: application/json" \
-  -d "{\"document_id\":\"$DOC_ID\",\"force\":true,\"mode\":\"full\"}"
-```
-
-**Default auto-resume** (unset env): reclaim stale Processing → Pending on boot. Opt out:
-
-```bash
-export EDGEQUAKE_STARTUP_AUTO_RESUME=0
-```
-
-Pending tasks always survive restart — workers claim via `FOR UPDATE SKIP LOCKED` whether or not auto-resume is on.
-
----
+When `EDGEQUAKE_STARTUP_AUTO_RESUME` is unset, the server moves stale `Processing` tasks back to `Pending` at boot. Set it to `0`, `false`, `off` or `no` to opt out. Then those tasks become Failed with the Interrupted message. Pending tasks always survive a restart. Reprocess with the command above.
 
 ### 3.2 Lease stuck in Processing
 
-#### Symptom: Task row stays `Processing` for longer than expected; no progress updates
-
-**Diagnosis**:
+A task stays `Processing` with no progress. A worker died without releasing its lease, or an LLM call ran past the lease.
 
 ```bash
-# Inspect queue depth and pressure
 curl -s http://localhost:8080/api/v1/pipeline/queue-metrics | jq '{pending, processing, pressure, store_contention}'
-
-# Check for lease reaper messages
 grep -i "lease expired\|heartbeat lost\|Interrupted" /tmp/edgequake-backend.log | tail -20
 ```
 
-**Cause**: Worker died without releasing lease, or LLM call blocked past the lease TTL. Leases refresh every ~60s; TTL defaults to 120s (`EDGEQUAKE_TASK_LEASE_TTL_SECS`).
+The lease lasts `EDGEQUAKE_TASK_LEASE_TTL_SECS` (default 120, minimum 30). Wait for the reaper to mark the task Failed, then reprocess. You can also restart the backend. If it keeps happening, lower ingest concurrency or raise the lease for slow local models.
 
-**Solution**:
+### 3.3 Cancel shows Failed
 
-1. Wait for the lease reaper to mark the task Failed (Interrupted) — then **Reprocess**
-2. Or restart backend to trigger orphan recovery
-3. If recurring, reduce ingest concurrency or raise lease TTL for slow local LLMs
-
-Fairness park **releases** the claim before waiting on tenant capacity — a parked task should not hold a lease indefinitely.
-
----
-
-### 3.3 Cancel is not Failed (v0.23)
-
-#### Symptom: User cancelled ingestion but UI or API still shows **Failed** instead of **Cancelled**
-
-**Cause (pre-v0.19)**: Cancel paths sometimes mapped to `Failed`. v0.19 adds `PdfProcessingStatus::Cancelled`, `display_status=cancelled`, and `ui_phase=terminal`.
-
-**Solution**:
-
-```bash
-# Canonical cancel
-curl -X POST "http://localhost:8080/api/v1/tasks/$TRACK_ID/cancel"
-```
-
-Check presentation fields (prefer over raw `status`):
+Cancel is a separate final state. Cancel with `POST /api/v1/tasks/{track_id}/cancel`. Then read the presentation fields, not the raw `status`:
 
 ```bash
 curl -s "http://localhost:8080/api/v1/documents/$DOC_ID" | jq '{display_status, ui_phase, status, failure_class}'
 ```
 
-Expected after cancel: `display_status=cancelled`, `ui_phase=terminal` (or `stopping` briefly while cooperative abort completes). Cancelled documents are **excluded** from failed-count chips in the WebUI.
-
-See [Ingestion cancel & fairness — Status SSOT](../ingestion-cancel-and-fairness.md#status-ssot-spec-057-p4).
-
----
+After a cancel you should see `display_status` as `cancelled` and `ui_phase` as `terminal` (or `stopping` for a moment).
 
 ### 3.4 Multi-replica boot failure (`EDGEQUAKE_REPLICAS>1`)
 
-#### Symptom: Server exits at startup with a task-delivery validation error
-
-**Cause**: `EDGEQUAKE_REPLICAS` is set above `1` but `EDGEQUAKE_TASK_DELIVERY=local` (default). Local delivery is single-process only.
-
-**Solution**:
+The server refuses to start when `EDGEQUAKE_REPLICAS` is above 1 and `EDGEQUAKE_TASK_DELIVERY` is `local` (the default). Local delivery works inside one process only.
 
 ```bash
 export EDGEQUAKE_REPLICAS=2
 export EDGEQUAKE_TASK_DELIVERY=bridged   # or notify_only
-make dev-bg
 ```
 
-Correctness always comes from Postgres `claim_next` + lease — `bridged` / `notify_only` are **wake signals only**. Never process a task from a channel payload without claiming it in the database.
+Both modes only wake workers. Correctness always comes from the database claim and lease. Details: [Multi-replica delivery](../ingestion-cancel-and-fairness.md#multi-replica-delivery-spec-057-p3).
 
-Details: [Multi-replica delivery](../ingestion-cancel-and-fairness.md#multi-replica-delivery-spec-057-p3).
+## 4. PDF extraction problems
 
----
+A PDF is parsed by one of these backends. Pick it with the form field `pdf_parser_backend` on `POST /api/v1/documents/pdf`, with the workspace setting, or with `EDGEQUAKE_PDF_PARSER_BACKEND`.
 
-### 3. CI or local runs feel flaky
+| Value | Aliases | Use it for |
+|-------|---------|-----------|
+| `edgeparse` | `edge-parse`, `edge_parse` | Digital PDFs with a text layer. Fast, no LLM cost. |
+| `edgeparse-ocr` | `edgeparse_ocr`, `edge-parse-ocr` | EdgeParse with OCR for scanned pages |
+| `vision` | `llm` | Scans, handwriting, image-heavy pages. Uses the vision model, so it costs more and is slower. |
+| `auto` | none | Let EdgeQuake choose |
 
-#### Symptom: repeated pushes trigger too many redundant CI runs
+An unknown value is ignored, so check the spelling. These form fields are accepted on the PDF routes: `enable_vision`, `vision_provider`, `vision_model`, `vision_reasoning_effort`, `title`, `metadata`, `track_id`, `pdf_parser_backend`, `vision_extract_images`, `vision_extract_charts`, `vision_extract_figures` and the four `vision_*_system_prompt` fields.
 
-**Cause**: multiple in-progress jobs for the same branch create stale signal and wasted runner time.
-
-**Solution**:
-
-- use the repository workflow concurrency settings so newer runs cancel older ones
-- keep heavy coverage and full-E2E flows out of the fastest blocking loop
-- prefer readiness probes over fixed sleeps when starting backend and frontend services
-- keep the pinned Rust toolchain active locally so clippy and formatting results match CI
-
----
-
-### 4. PDF Extraction Issues
-
-PDF extraction can fail or produce poor quality results due to PDF structure, encoding, or layout complexity. This section covers the most common PDF-specific problems.
-
-#### Issue 3.1: No Text Extracted or Low-Content Warning
-
-**Symptom**: After PDF upload, `chunk_count = 0`, chunks are empty, or the UI shows
-"Low text content - consider using Vision extraction"
-
-**Diagnosis**:
-
-```bash
-# Check document details
-curl http://localhost:8080/api/v1/documents/doc-uuid
-
-# Response shows:
-{
-  "chunk_count": 0,
-  "metadata": {"pages": 50, "pdf_extraction_method": "edgeparse"}
-}
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["PDF problem"] --> B{"Which symptom?"}
+  B -->|"No text or empty chunks"| C["Retry with vision"]
+  B -->|"Garbled characters"| C
+  B -->|"Upload fails or times out"| D["Check size, then section 4.3"]
+  B -->|"Vision timeouts"| E["Check provider and model match"]
+  C --> F{"Still empty?"}
+  F -->|Yes| G["Check for a password-protected file"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class C,E eqLlm
 ```
 
-**Cause**:
-- PDF is image-based (scanned document, no embedded text layer)
-- `edgeparse` was used on a scan or image-only PDF
+Most PDF problems are fixed by switching the backend or fixing the vision model setting.
 
-**Solution 1** - Retry with Vision backend:
+### 4.1 No text, empty chunks or garbled characters
+
+A scan has no text layer, and some fonts have no usable encoding. Both give `chunk_count` of 0, empty chunks, or `?` and replacement characters.
 
 ```bash
-# Re-upload with explicit Vision backend
+curl -s http://localhost:8080/api/v1/documents/$DOC_ID | jq
+```
+
+Retry with the vision backend:
+
+```bash
 curl -X POST http://localhost:8080/api/v1/documents/pdf \
-  -F "file=@scanned_book.pdf" \
-  -F "title=Scanned Book" \
-  -F "pdf_parser_backend=vision"
+  -F "file=@scanned.pdf" -F "pdf_parser_backend=vision"
 ```
 
-**Solution 2** - Set Vision as the workspace default for scan-heavy corpora:
+To make vision the default for a workspace of scans, update the workspace:
 
 ```bash
 curl -X PUT http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID \
@@ -408,1018 +279,282 @@ curl -X PUT http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID \
   -d '{"pdf_parser_backend":"vision"}'
 ```
 
-**When to use EdgeParse**:
-- Digital-native reports
-- Invoices and statements with embedded text
-- PDFs where speed and deterministic output matter more than OCR-like robustness
+To check fonts, run `pdffonts document.pdf` (from poppler-utils) and look for fonts with `no` in the `emb` column. If the PDF is password-protected, remove the password first.
 
-**When to use Vision**:
-- Scanned documents
-- Image-heavy PDFs
-- Layouts with poor embedded text quality
+### 4.2 Tables or reading order look wrong
 
-**Cost Warning**: Vision mode consumes LLM calls and is slower than EdgeParse.
+EdgeQuake has no per-request switches for table repair or column detection. Two things help:
 
-**Verification**:
+- Use `pdf_parser_backend=vision`. The vision model reads the rendered page, so it follows tables and columns the way a person does.
+- For handwritten or old documents, see the `EDGEQUAKE_PDF_MANUSCRIPT_*` and `EDGEQUAKE_VISION_*_MANUSCRIPT` settings in the [environment reference](../operations/env-reference.md).
 
-- Check `chunk_count > 0` in response
-- Check document lineage shows `pdf_extraction_method = "vision"`
-- Download chunks to verify content extracted
+Very complex tables (many levels of merged cells) can still be imperfect. If you have a sample file, open an issue on GitHub with the page count, size and logs.
 
-**Related**: See [PDF Ingestion Tutorial](/docs/tutorials/pdf-ingestion/) for backend selection guidance.
+### 4.3 Upload fails, times out, or Vision times out
 
----
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| 413 | The file is over 50 MiB | Split it, for example `pdftk large.pdf cat 1-50 output part1.pdf` |
+| 500 on a damaged file | The PDF is corrupt | Repair it: `gs -o repaired.pdf -sDEVICE=pdfwrite -dPDFSETTINGS=/prepress original.pdf` |
+| "Vision extraction timed out after ..." | The vision model is slow, or the model does not belong to the provider | See below |
+| "Circuit breaker tripped after N consecutive timeouts" | Several timeouts in a row stopped the task | Fix the cause, then reprocess |
+| "Provider 'ollama' may be unresponsive" | The provider does not answer | Check the provider, section 5 |
 
-#### Issue 3.2: Tables Not Detected or Malformed
-
-**Symptom**: Tables appear as scrambled text or not detected at all
-
-**Before** (raw extraction):
-
-```
-Header1 Header2 Header3 Data1a Data1b
-Data1c Data2a Data2b Data2c Data3a
-```
-
-**Diagnosis**:
+The most common cause of vision timeouts is a model that the provider cannot serve. An example is `EDGEQUAKE_VISION_MODEL=gpt-4.1-nano` with `EDGEQUAKE_VISION_PROVIDER=ollama`. It happens when a Makefile or compose file sets the model and `.env` sets the provider. Check the effective settings:
 
 ```bash
-# Check table detection
-curl http://localhost:8080/api/v1/documents/doc-uuid
-
-# Response:
-{
-  "metadata": {
-    "tables_detected": 0  // Should be > 0 if tables exist
-  }
-}
-```
-
-**Cause**: Complex table layout (merged cells, nested structures, no clear borders)
-
-**Solution 1** - Enable Table Enhancement:
-
-```bash
-# LLM-based table refinement
-curl -X POST http://localhost:8080/api/v1/documents \
-  -F "file=@financial_report.pdf" \
-  -F "title=Financial Report" \
-  -F 'config={"enhance_tables": true, "ai_temperature": 0.1}'
-```
-
-**Solution 2** - Combine with Multi-Column Detection:
-
-```bash
-# For academic papers with tables in columns
-curl -X POST http://localhost:8080/api/v1/documents \
-  -F "file=@research_paper.pdf" \
-  -F 'config={
-    "enhance_tables": true,
-    "layout": {"detect_columns": true}
-  }'
-```
-
-**After** (enhanced):
-
-```markdown
-| Header 1 | Header 2 | Header 3 |
-| -------- | -------- | -------- |
-| Data 1a  | Data 1b  | Data 1c  |
-| Data 2a  | Data 2b  | Data 2c  |
-| Data 3a  | Data 3b  | Data 3c  |
-```
-
-**Trade-offs**:
-
-- Processing time: 2x slower
-- Cost: ~$0.0001 per table
-- Accuracy: Significantly improved for complex tables
-
-**Limitations**:
-
-- Very complex tables (5+ levels of merged cells) may still fail
-- Tables without any borders are harder to detect
-
-**Verification**:
-
-- Check `tables_detected > 0` in response
-- Inspect chunk content for proper markdown table format
-- Verify cell alignments correct
-
-**Related**: See [PDF Processing Deep Dive](/docs/deep-dives/pdf-processing/#table-detection) for algorithm details.
-
----
-
-#### Issue 3.3: Wrong Text Order (Multi-Column Layout)
-
-**Symptom**: Text from different columns interleaved incorrectly
-
-**Example Problem**:
-
-```
-# PDF has 2 columns:
-Column 1: "The experiment showed that X leads to Y..."
-Column 2: "In conclusion, we recommend Z..."
-
-# Extracted (wrong order):
-"The experiment In showed conclusion, that we X recommend leads Z... to Y..."
-```
-
-**Diagnosis**:
-
-```bash
-# Download chunks and check text order
-curl http://localhost:8080/api/v1/documents/doc-uuid/chunks
-
-# Look for interleaved text from different sections
-```
-
-**Cause**: PDF has multi-column layout (academic papers, newspapers, magazines)
-
-**Solution** - Enable Column Detection:
-
-```bash
-# Detect and respect column boundaries
-curl -X POST http://localhost:8080/api/v1/documents \
-  -F "file=@research_paper.pdf" \
-  -F "title=Research Paper" \
-  -F 'config={
-    "layout": {
-      "detect_columns": true,
-      "column_gap_threshold": 20.0
-    }
-  }'
-```
-
-**Configuration Options**:
-
-- `detect_columns`: Enable multi-column detection (default: `true`)
-- `column_gap_threshold`: Minimum gap in points between columns (default: 20.0)
-  - Increase for wider column gaps
-  - Decrease for narrower column gaps
-
-**Verification**:
-
-- Read first few chunks - text should flow naturally
-- Check column boundaries respected
-- Verify reading order left-to-right within each column
-
-**Tip**: Academic papers almost always need column detection enabled.
-
-**Related**: See [PDF Processing Deep Dive](/docs/deep-dives/pdf-processing/#layout-analysis) for XY-Cut algorithm.
-
----
-
-#### Issue 3.4: Encoding Errors (Special Characters)
-
-**Symptom**: `�` or `?` characters appear instead of actual text
-
-**Examples**:
-
-- `"Caf�"` instead of `"Café"`
-- `"Na�ve"` instead of `"Naïve"`
-- `"????"` instead of Chinese/Arabic text
-
-**Diagnosis**:
-
-```bash
-# Check extracted content for garbled characters
-curl http://localhost:8080/api/v1/documents/doc-uuid/chunks | jq -r '.chunks[0].content'
-
-# Look for � or ? characters
-```
-
-**Cause**: PDF uses custom fonts or non-standard encoding not supported by text extraction
-
-**Solution 1** - Retry with the Vision backend:
-
-```bash
-# LLM vision reads the actual glyphs
-curl -X POST http://localhost:8080/api/v1/documents/pdf \
-  -F "file=@custom_fonts.pdf" \
-  -F "pdf_parser_backend=vision"
-```
-
-**Solution 2** - Check PDF Font Embedding:
-
-```bash
-# Use pdffonts to check font embedding (requires poppler-utils)
-pdffonts document.pdf
-
-# Look for fonts marked "no" in "emb" column
-# These fonts may cause encoding issues
-```
-
-**Workaround**: If Vision is too expensive, consider:
-
-1. Re-generate PDF with embedded fonts
-2. Convert PDF to another format (DOCX) then back to PDF
-3. Use OCR tool (Tesseract) to create new PDF with text layer
-
-**Verification**:
-
-- Check special characters render correctly
-- Verify non-English text (if applicable)
-- Compare extracted text with PDF visual
-
-**Related**: Vision mode uses LLM to read actual rendered text, avoiding encoding issues entirely.
-
----
-
-#### Issue 3.5: Low Chunk Quality or Empty Chunks
-
-**Symptom**: Some chunks are very short, empty, or contain garbage
-
-**Example**:
-
-```json
-{
-  "chunks": [
-    { "content": "Page 1", "token_count": 2 }, // Too short
-    { "content": "", "token_count": 0 }, // Empty
-    { "content": "||||||||", "token_count": 8 } // Garbage
-  ]
-}
-```
-
-**Diagnosis**:
-
-```bash
-# Count empty or short chunks
-curl http://localhost:8080/api/v1/documents/doc-uuid/chunks | \
-  jq '[.chunks[] | select(.token_count < 10)] | length'
-
-# If many short chunks → extraction quality issue
-```
-
-**Causes**:
-
-1. PDF has headers/footers (page numbers, logos)
-2. Complex layout confuses chunking
-3. Embedded images without captions
-4. Poor quality scan
-
-**Solution 1** - Enable Readability Enhancement:
-
-```bash
-# LLM cleans up extracted text
-curl -X POST http://localhost:8080/api/v1/documents \
-  -F "file=@complex_layout.pdf" \
-  -F 'config={"enhance_readability": true}'
-```
-
-**Solution 2** - Normalize Spacing:
-
-```bash
-# Fix concatenated words and spacing issues
-curl -X POST http://localhost:8080/api/v1/documents \
-  -F "file=@poor_spacing.pdf" \
-  -F 'config={"normalize_spacing": true, "consolidate_headers": true}'
-```
-
-**Solution 3** - Adjust Chunking:
-
-```bash
-# Increase chunk size to merge small fragments
-curl -X POST http://localhost:8080/api/v1/documents \
-  -F "file=@fragmented.pdf" \
-  -F "chunk_size=1024" \
-  -F "chunk_overlap=100"
-```
-
-**Verification**:
-
-- Check average chunk token count (should be 100-500 tokens)
-- Verify no empty chunks
-- Inspect chunks for coherent content
-
----
-
-#### Issue 3.6: Upload Fails or Times Out
-
-**Symptom**: PDF upload returns 500 error or times out
-
-**Common Errors**:
-
-```json
-{
-  "error": "Request timeout",
-  "status": 408
-}
-```
-
-```json
-{
-  "error": "File too large",
-  "status": 413
-}
-```
-
-**Diagnosis**:
-
-```bash
-# Check file size
-ls -lh document.pdf
-
-# Check backend logs
-docker compose logs -f edgequake
-
-# Or local logs
-tail -f /tmp/edgequake-backend.log
-```
-
-**Common Causes**:
-
-| Error                 | Cause              | Solution                            |
-| --------------------- | ------------------ | ----------------------------------- |
-| 413 Payload Too Large | File > 50MB        | Split PDF or increase limit         |
-| 408 Timeout           | Processing > 60s   | Use vision mode or increase timeout |
-| 500 Internal Error    | Corrupted PDF      | Repair with pdftk or ghostscript    |
-| 500 Memory Error      | Large PDF + Vision | Process in batches with `max_pages` |
-
-**Solution 1** - Test with Page Limit:
-
-```bash
-# Process first 10 pages to verify config
-curl -X POST http://localhost:8080/api/v1/documents \
-  -F "file=@large_report.pdf" \
-  -F 'config={"max_pages": 10}'
-
-# If successful, process full document
-```
-
-**Solution 2** - Increase Server Timeouts:
-
-```bash
-# Increase timeout in config (if you control server)
-REQUEST_TIMEOUT=300  # 5 minutes
-
-# Or split PDF into smaller files
-pdftk large.pdf cat 1-50 output part1.pdf
-pdftk large.pdf cat 51-100 output part2.pdf
-```
-
-**Solution 3** - Repair Corrupted PDF:
-
-```bash
-# Using ghostscript to repair
-gs -o repaired.pdf -sDEVICE=pdfwrite -dPDFSETTINGS=/prepress original.pdf
-
-# Using pdftk
-pdftk original.pdf output repaired.pdf
-```
-
-**Verification**:
-
-- Check upload returns 200 OK
-- Verify `status: "completed"` in response
-- Check no error logs in backend
-
----
-
-#### Issue 3.7: Vision Extraction Timeout — Provider/Model Mismatch
-
-**Symptom**: PDF processing fails with:
-- "Processing failed permanently after 3 attempts"
-- "Circuit breaker tripped after 3 consecutive timeouts"
-- "Vision extraction timed out after 480s"
-- "Provider 'ollama' may be unresponsive"
-
-**Root Cause**: The vision **model** does not belong to the vision **provider**.
-For example, `EDGEQUAKE_VISION_MODEL=gpt-4.1-nano` paired with provider `ollama`
-will always time out because Ollama cannot serve OpenAI models.
-
-This commonly happens when:
-- A Makefile or Docker Compose file sets `EDGEQUAKE_VISION_MODEL` to an OpenAI model
-  but `.env` overrides the provider to `ollama`
-- Env vars are inherited from a parent process (e.g. Makefile `export`)
-
-**Diagnosis**:
-
-```bash
-# Check the effective configuration and mismatch status
 curl -s http://localhost:8080/api/v1/config/effective | jq '.areas[] | select(.name == "Vision")'
-
-# Expected response when mismatched:
-# {
-#   "name": "Vision",
-#   "has_mismatch": true,
-#   "mismatch_description": "Model 'gpt-4.1-nano' is incompatible with provider 'ollama'.\nHow to fix:\n..."
-# }
 ```
 
-You can also check in the **Settings UI** → **Configuration Explainability** panel.
-Sections with mismatches are auto-expanded and show remediation options.
+If `has_mismatch` is `true`, `mismatch_description` says how to fix it. The Settings page shows the same data under Configuration Explainability. EdgeQuake skips an incompatible model at run time and logs a warning, but you should fix the variables.
 
-**Fix** — choose one:
+| Fix | Command |
+|-----|---------|
+| Use the provider's default model | `unset EDGEQUAKE_VISION_MODEL` |
+| Use an OpenAI model | `EDGEQUAKE_VISION_PROVIDER=openai` and `OPENAI_API_KEY` |
+| Stay on Ollama | `EDGEQUAKE_VISION_MODEL=gemma4:latest` |
 
-| Option | Command                                                   | When to use                                         |
-| ------ | --------------------------------------------------------- | --------------------------------------------------- |
-| A      | `unset EDGEQUAKE_VISION_MODEL`                            | You want to use the default model for your provider |
-| B      | `EDGEQUAKE_VISION_PROVIDER=openai` + set `OPENAI_API_KEY` | You want to use the OpenAI model                    |
-| C      | `EDGEQUAKE_VISION_MODEL=gemma4:latest`                    | You want to stay on Ollama                          |
+Restart the backend, then re-upload through `/api/v1/documents/pdf`.
 
-Then restart the backend.
+## 5. LLM and provider errors
 
-**Verification**:
+### 5.1 Common provider errors
+
+An error from the model server comes back as HTTP 502 with code `LLM_ERROR`.
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| "Rate limit exceeded" from OpenAI | Your quota or rate limit was hit | Wait and retry. Lower `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS`, or switch the provider |
+| "Invalid API key" | The key is wrong or revoked | `curl https://api.openai.com/v1/models -H "Authorization: Bearer $OPENAI_API_KEY"` |
+| "Connection refused" to Ollama | Ollama is not running, or `OLLAMA_HOST` is wrong | `ollama serve`, then `curl http://localhost:11434/api/tags` |
+| Model not found | The model is not pulled | `ollama pull gemma4:latest` and `ollama pull embeddinggemma` |
+| Embedding dimension mismatch | You changed the embedding model after ingesting | Re-embed the workspace. See [Roles](../providers/roles.md) |
+| `/health` is `degraded` and `llm_provider` is false | A local provider does not answer, or a cloud provider has no key | Fix the provider, then check `/health` again |
+
+### 5.2 Test a connection before you use it (v0.33.0)
+
+`POST /api/v1/providers/test` and the Test button in Settings check a model server without saving anything. They try to list models, send a one-word chat, and (for most shapes) request one embedding. Each try waits at most 8 seconds and does not follow redirects.
 
 ```bash
-# Confirm no mismatch
-curl -s http://localhost:8080/api/v1/config/effective | jq '.areas[] | select(.name == "Vision") | .has_mismatch'
-# Should return: false
-
-# Re-upload the failed PDF (must use PDF endpoint — not /documents/upload)
-curl -X POST http://localhost:8080/api/v1/documents/pdf -F "file=@document.pdf"
+curl -sS -X POST http://localhost:8080/api/v1/providers/test \
+  -H 'Content-Type: application/json' \
+  -d '{"shape":"openai_chat","base_url":"http://127.0.0.1:9050/v1","allow_private_network":true}'
 ```
 
-**Prevention**: EdgeQuake now auto-corrects mismatches at runtime — if a model
-is incompatible with the resolved provider, it is skipped and the next candidate
-in the resolution chain is used (with a WARN log). The explainability endpoint
-helps you fix the env vars permanently.
+The answer has a `kind`. Use it to pick the fix.
 
----
+| `kind` | Meaning | Fix |
+|--------|---------|-----|
+| `ok` | Reachable, chat works | Nothing to do |
+| `invalid_url` | No `base_url`, or it cannot be parsed | Give a full `http://` or `https://` URL |
+| `ssrf_denied` | The URL is blocked | See the SSRF table in 11.3 |
+| `unreachable` | The server did not answer in time | Is it running, and is the host and port right? From Docker use `host.docker.internal`, not `localhost` |
+| `unauthorized` | The server returned 401 | Check the key and `auth_scheme` (`bearer`, `x_api_key` or `none`) |
+| `shape_mismatch` | The server answered but not in the expected format | Pick the right shape. Check that the base URL ends where the server expects |
+| `model_not_found` | The model is not on the server | Use a model from the list the test returns |
+| `dim_mismatch` | The embedding size differs from the expected size | Use the same embedding model as the workspace |
 
-### PDF Troubleshooting Decision Tree
+The test adds `/v1/models` and `/v1/chat/completions` to your base URL itself. The chat client used at run time takes the base URL as given and adds only `/chat/completions`. Save a Connection with a base URL that ends in `/v1` for OpenAI-compatible servers. A URL without `/v1` can pass the test and then fail in use. This comes from reading the code and was not run against a live server. See [OpenAI-compatible](../providers/openai-compatible.md).
 
-Use this ASCII decision tree to diagnose PDF issues:
+### 5.3 Saving a Connection fails
 
-```
-┌───────────────────────────────────────────────────┐
-│ PDF troubleshooting decision tree                 │
-│                                                   │
-│ PDF upload issue?                                 │
-│   |                                               │
-│   +-- chunk_count = 0                             │
-│   |     +-- Retry with pdf_parser_backend=vision  │
-│   |     +-- Still 0? Check encrypted/protected PDF│
-│   |     +-- Still 0? File GitHub issue with sample│
-│   |                                               │
-│   +-- Tables malformed                            │
-│   |     +-- enhance_tables=true                   │
-│   |     +-- vision + enhance_tables               │
-│   |     +-- Complex table? known limitation       │
-│   |                                               │
-│   +-- Text order wrong                            │
-│   |     +-- layout.detect_columns=true            │
-│   |     +-- adjust column_gap_threshold           │
-│   |                                               │
-│   +-- Encoding errors                             │
-│   |     +-- Retry vision                          │
-│   |     +-- Check fonts (pdffonts)                │
-│   |                                               │
-│   +-- Upload fails / timeout                      │
-│   |     +-- Split if >50MB / max_pages=10         │
-│   |     +-- Check vision provider mismatch        │
-│   |     +-- Repair PDF (ghostscript/pdftk)        │
-│   |                                               │
-│   +-- Poor quality chunks                         │
-│         +-- enhance_readability=true              │
-│         +-- normalize_spacing=true                │
-│         +-- chunk_size=1024                       │
-└───────────────────────────────────────────────────┘
-```
+| Message | Cause | Fix |
+|---------|-------|-----|
+| "EDGEQUAKE_SECRETS_KEY is required to store API keys" (HTTP 400) | The server has no key to encrypt with | Set `EDGEQUAKE_SECRETS_KEY` to 64 hex characters (`openssl rand -hex 32`) and restart |
+| "EDGEQUAKE_SECRETS_KEY must be 32 bytes (raw, base64, or 64-char hex)" | The key has the wrong length | Use 64 hex characters, base64 of 32 bytes, or 32 raw characters |
+| "provider URL host is blocked (...)" | Metadata or internal host | Use a different host |
+| "private or loopback URLs require locality=local (set allow_private_network)" | A private address with `locality` set to cloud | Set `locality` to `local` or set `allow_private_network` to true |
+| HTTP 401 or 403 on `/api/v1/connections` | These routes need an admin | Sign in as an admin, or use the master API key |
 
----
+### 5.4 A saved Connection is not used
 
-### PDF Configuration Quick Reference
+Role and Connection resolution falls back silently. A bad `connection_id`, a missing row, a failed decrypt (for example after you changed `EDGEQUAKE_SECRETS_KEY`) or a client build error makes EdgeQuake fall back to the workspace, tenant and then environment settings. Nothing is shown to the user.
 
-Common configurations for different PDF types (always `POST /api/v1/documents/pdf`):
+1. Check the server log for the provider name actually used.
+2. Re-save the Connection with its key, so the key is encrypted with the current secrets key.
+3. Remember that only the `extract` and `query` roles use `connection_id` today. See [Roles](../providers/roles.md).
+4. A Connection with an Ollama shape still reads `OLLAMA_HOST` at run time, not its `base_url`.
 
-**Digital PDF (good quality)**:
+Keys are never returned by the API. If you lose the secrets key, you must enter the provider keys again. `quickstart.sh` creates a new `EDGEQUAKE_SECRETS_KEY` on each run unless you export one, so keep yours in your environment or `.env` file.
+
+## 6. Slow answers and timeouts
+
+### 6.1 Slow queries
+
+Turn on debug logs (`RUST_LOG="edgequake=debug"`) and look at the timing in the log.
+
+| Cause | Fix |
+|-------|-----|
+| The model is cold | Run one warm-up query |
+| Too much context | Send a smaller `max_results` in the query body |
+| Embedding runs on CPU | Use a GPU or a cloud embedding model |
+| The database pool is full | See section 7 |
+
+### 6.2 "Timeout after 180s (attempt X/3)" during ingestion
+
+The per-chunk limit ended before your model finished. There are two layers. The first fires first.
+
+| Layer | Variable | Default | Notes |
+|-------|----------|---------|-------|
+| Per chunk | `EDGEQUAKE_CHUNK_TIMEOUT_SECS` | 180 s for cloud providers, 600 s for local ones | Minimum 10 |
+| HTTP cap for extraction calls | `EDGEQUAKE_LLM_TIMEOUT_SECS` | 600 s for cloud, 900 s for local | Range 10 to 3600 |
+
+"Local" means Ollama, LM Studio, oMLX, MTPLX, llama.cpp, vLLM-MLX and mlx-lm. Local providers also run one extraction at a time by default. Cloud providers run 16 at a time. `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` accepts 1 to 32. Raising it above 1 for a local provider only has effect when `EDGEQUAKE_ALLOW_LOCAL_HIGH_CONCURRENCY=1` is set.
+
+Lowering concurrency often fixes timeouts better than raising limits, because many parallel calls to one GPU all wait behind each other.
 
 ```bash
-# Default settings - no config needed
-curl -X POST http://localhost:8080/api/v1/documents/pdf -F "file=@digital.pdf"
+# A slow local model
+export EDGEQUAKE_CHUNK_TIMEOUT_SECS=900
+export EDGEQUAKE_LLM_TIMEOUT_SECS=1800
+export EDGEQUAKE_CHUNK_RETRY_DELAY_MS=5000
 ```
 
-**Scanned Document**:
+To measure one call on your hardware:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/documents/pdf -F "file=@scanned.pdf" \
-     -F "pdf_parser_backend=vision"
-```
-
-**Academic Paper (multi-column)**:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/pdf -F "file=@paper.pdf" \
-     -F 'config={"layout": {"detect_columns": true}}'
-```
-
-**Financial Report (complex tables)**:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/pdf -F "file=@financials.pdf" \
-     -F 'config={"enhance_tables": true}'
-```
-
-**Unknown Quality**:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/pdf -F "file=@unknown.pdf" \
-     -F "pdf_parser_backend=edgeparse"
-```
-
-**Critical Document (maximum accuracy)**:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/pdf -F "file=@critical.pdf" \
-     -F 'config={
-       "pdf_parser_backend": "vision",
-       "enhance_tables": true,
-       "enhance_readability": true,
-       "vision_dpi": 200
-     }'
-```
-
----
-
-### When to Seek Further Help
-
-If PDF extraction still fails after trying these solutions:
-
-1. **Read Full Documentation**:
-   - [PDF Ingestion Tutorial](/docs/tutorials/pdf-ingestion/) - Configuration details
-   - [PDF Processing Deep Dive](/docs/deep-dives/pdf-processing/) - Algorithm internals
-
-2. **Check GitHub Issues**:
-   - Search existing issues: `https://github.com/org/edgequake/issues`
-   - Look for similar PDF problems
-   - Check if limitation is already known
-
-3. **File New Issue**:
-   - Include PDF metadata (pages, file size, type)
-   - Include error messages / logs
-   - Attach problematic PDF (if not confidential)
-   - Describe expected vs actual behavior
-
-4. **Community Support**:
-   - Discord: `#pdf-extraction` channel
-   - Stack Overflow: Tag `edgequake pdf`
-
----
-
-### 3b. Knowledge Graph shows UUID/GUID entity names
-
-#### Symptom: Organization/Concept nodes labeled like `84b69e27-E38b-444a-…`
-
-**Cause (067):** The extractor treated opaque machine/resource IDs in the document as entity names. Those strings were stored as graph identity. Display was faithful — this was not a UI-only bug. (Drawing `im-…` labels are a separate case; see improvement **066**.)
-
-**After upgrade (067+):**
-
-- New ingest **rejects** UUID/GUID/ULID/ObjectId/hex-hash/ARN-shaped names at `EntityId` normalization.
-- Prompts instruct the model not to emit opaque IDs as `entity_name`.
-- Legacy opaque nodes get a soft label (`description` snippet or `Opaque ID · {type}`) without re-ingest.
-
-**Cleanup for a clean graph:**
-
-1. Re-ingest UUID-heavy documents after upgrading, **or**
-2. Manually delete low-value opaque nodes from the Graph UI / API, **or**
-3. Prune nodes whose bare id matches an opaque identifier pattern and have low degree.
-
-See: `specs/001-benchmark/001-edgquake-improvements/067-opaque-entity-name-reject.md`.
-
----
-
-### 4. Empty Query Results
-
-#### Symptom: Query returns empty answer
-
-**Diagnosis**:
-
-```bash
-# Check document count
-curl "http://localhost:8080/api/v1/documents?workspace_id=$WORKSPACE_ID"
-
-# Check entity count
-curl "http://localhost:8080/api/v1/graph/entities?workspace_id=$WORKSPACE_ID"
-
-# Check chunk count
-curl "http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID/stats"
-```
-
-**Common Causes**:
-
-| Symptom                  | Cause              | Solution            |
-| ------------------------ | ------------------ | ------------------- |
-| 0 documents              | No uploads         | Upload documents    |
-| Documents but 0 entities | Processing failed  | Reprocess documents |
-| Entities but no results  | Query not matching | Try different mode  |
-
-**Debug Query**:
-
-```bash
-# Try naive mode (vector only) to verify basic retrieval
-curl -X POST "http://localhost:8080/api/v1/query?workspace_id=$WORKSPACE_ID" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "test", "mode": "naive"}'
-```
-
----
-
-### 5. LLM Errors
-
-#### Symptom: "OpenAI API error: Rate limit exceeded"
-
-**Solution**:
-
-```bash
-# Wait and retry
-sleep 60
-
-# Or switch to different provider
-export EDGEQUAKE_LLM_PROVIDER=ollama
-```
-
-#### Symptom: "OpenAI API error: Invalid API key"
-
-**Solution**:
-
-```bash
-# Check key is set
-echo $OPENAI_API_KEY
-
-# Check key starts with sk-
-# Keys should look like: sk-proj-abc123...
-
-# Test key directly
-curl https://api.openai.com/v1/models \
-  -H "Authorization: Bearer $OPENAI_API_KEY"
-```
-
-#### Symptom: "Connection refused to Ollama"
-
-**Solution**:
-
-```bash
-# Start Ollama
-ollama serve
-
-# Check it's running
-curl http://localhost:11434/api/tags
-
-# Pull required model
-ollama pull gemma4:latest
-ollama pull nomic-embed-text
-```
-
----
-
-### 6. Slow Performance
-
-#### Symptom: Queries taking > 5 seconds
-
-**Diagnosis**:
-
-```bash
-# Enable debug logging
-RUST_LOG="edgequake=debug" cargo run
-
-# Check query timing in logs
-# Look for: "query completed in Xms"
-```
-
-**Common Causes**:
-
-| Cause          | Diagnosis        | Solution                |
-| -------------- | ---------------- | ----------------------- |
-| Cold LLM       | First query slow | Warm up with test query |
-| Large context  | Too many chunks  | Reduce `max_chunks`     |
-| Slow embedding | Ollama on CPU    | Use GPU or OpenAI       |
-| DB connection  | Pool exhausted   | Check connections       |
-
-**Quick Fixes**:
-
-```bash
-# Use faster model
-curl -X POST "http://localhost:8080/api/v1/query" \
-  -d '{"query": "test", "llm_model": "gpt-4.1-nano"}'
-
-# Reduce context size (per-query knobs)
-curl -X POST "http://localhost:8080/api/v1/query" \
-  -d '{"query": "test", "max_results": 5}'
-```
-
----
-
-#### Symptom: "Timeout after 180s (attempt X/3)" during document ingestion
-
-**Root Cause**: The default 180-second per-chunk timeout fires before your local LLM finishes
-processing. This is common with Ollama on CPU or a slow GPU, or when ingesting large documents
-with many text chunks.
-
-Two timeout layers exist and both need to be configured:
-
-| Layer           | Variable                       | Default | Description                      |
-| --------------- | ------------------------------ | ------- | -------------------------------- |
-| 1 (fires first) | `EDGEQUAKE_CHUNK_TIMEOUT_SECS` | 180s    | Per-chunk pipeline timeout       |
-| 2 (HTTP cap)    | `EDGEQUAKE_LLM_TIMEOUT_SECS`   | 600s    | HTTP-level safety cap (max 3600) |
-
-**Diagnosis**:
-
-```bash
-# Check backend logs for the pattern
-grep "Timeout after\|attempt.*/" /tmp/edgequake-backend.log | tail -20
-
-# Measure how long a single LLM call actually takes on your hardware
 time curl -s http://localhost:11434/api/chat \
   -d '{"model":"gemma4:latest","messages":[{"role":"user","content":"extract entities from: Alice works at Acme"}]}'
 ```
 
-**Fix — raise both timeout layers to match your hardware:**
+More profiles: [Performance tuning](../operations/performance-tuning.md#ingestion-pipeline-tuning).
 
-```bash
-# Single-GPU Ollama workstation
-export EDGEQUAKE_CHUNK_TIMEOUT_SECS=600        # 10 minutes per chunk
-export EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=4   # avoid GPU overload
-export EDGEQUAKE_LLM_TIMEOUT_SECS=3600         # 1-hour HTTP cap
-```
+## 7. Database problems
 
-```bash
-# CPU-only (slow — be patient)
-export EDGEQUAKE_CHUNK_TIMEOUT_SECS=600
-export EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=2
-export EDGEQUAKE_CHUNK_RETRY_DELAY_MS=5000
-export EDGEQUAKE_LLM_TIMEOUT_SECS=3600
-```
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| "Connection pool exhausted" | More concurrent work than connections | Check `SELECT count(*) FROM pg_stat_activity WHERE datname='edgequake'`. Raise `DATABASE_POOL_SIZE` (default 32). Use PgBouncer if needed |
+| "relation 'documents' does not exist" | The schema has not been created | Run `edgequake migrate`, then start the server |
+| Disk full or slow inserts | The disk is full or tables are bloated | `df -h`, find big tables with `pg_total_relation_size`, run `VACUUM ANALYZE` |
 
-> **Key insight:** Reducing `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` often fixes timeouts even
-> without raising the timeout limit. 16 parallel LLM calls on a single GPU creates contention
-> where each request queues behind 15 others — all 16 then time out together.
+## 8. Graph problems
 
-See [Performance Tuning — Ingestion Pipeline](/docs/operations/performance-tuning/#ingestion-pipeline-tuning) for
-profile-based recommendations.
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Entities have no relationships | Extraction found none, or it failed | Check `GET /api/v1/graph/relationships`. Reprocess with `RUST_LOG="edgequake_pipeline=debug"` |
+| Graph page is empty | No entities, or the browser cannot reach the API | Check `GET /api/v1/graph/entities`, then the browser console |
+| Nodes named like `84b69e27-e38b-444a-...` | Older versions stored opaque ids from the text as entity names | Re-ingest after upgrading. New ingests reject UUID, ULID, hash and ARN-shaped names. Delete leftover nodes in the Graph page |
+| PostgreSQL stays busy during a community refresh | The refresh is scanning a large graph | See below |
 
----
+Community refresh loads the workspace graph in pages. Each page is cancelled after `EDGEQUAKE_COMMUNITY_STATEMENT_TIMEOUT_MS` (default 30 s, range 1 s to 300 s). The refresh is skipped when the workspace has more than `EDGEQUAKE_COMMUNITY_BACKFILL_MAX_NODES` nodes (default 50,000), when counting nodes fails, or when another replica holds the lock. When it runs, it loads at most `EDGEQUAKE_COMMUNITY_MAX_NODES` nodes (default 50,000) and clusters a sample beyond that. Look for `Skipping community index refresh` or `statement_timeout` in the log. Raise the limits only for a plan you trust.
 
-### 7. Database Issues
+## 9. Web UI problems
 
-#### Symptom: "Connection pool exhausted"
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| The UI cannot reach the API | The backend is down, or CORS blocks the origin | `curl http://localhost:8080/health`. Outside dev mode set `EDGEQUAKE_CORS_ORIGINS` to the UI origin |
+| Stale data after an upgrade | Browser cache | Hard refresh (Cmd+Shift+R) |
+| Port 3000 in use | A stale process | `lsof -ti:3000 \| xargs kill` |
+| The "provider down" banner shows | `/health` reports `components.llm_provider` as false (checked every 30 s) | See 5.1 and 5.2 |
 
-**Solution**:
+## 10. Documents page: Read path busy
 
-```bash
-# Check active connections
-psql $DATABASE_URL -c "SELECT count(*) FROM pg_stat_activity WHERE datname='edgequake'"
-
-# Increase pool size in DATABASE_URL
-DATABASE_URL="postgresql://user:pass@host:5432/db?max_connections=50"
-
-# Or use PgBouncer for pooling
-```
-
-#### Symptom: "relation 'documents' does not exist"
-
-**Cause**: Migrations haven't run.
-
-**Solution**:
-
-```bash
-# Migrations run automatically on startup
-# Restart the backend
-cargo run
-
-# Or run manually if needed
-psql $DATABASE_URL -f migrations/001_initial.sql
-```
-
-#### Symptom: "disk full" or slow inserts
-
-**Solution**:
-
-```bash
-# Check disk usage
-df -h
-
-# Check table sizes
-psql $DATABASE_URL -c "
-SELECT schemaname, relname,
-       pg_size_pretty(pg_total_relation_size(relid))
-FROM pg_catalog.pg_statio_user_tables
-ORDER BY pg_total_relation_size(relid) DESC LIMIT 10;
-"
-
-# Vacuum database
-psql $DATABASE_URL -c "VACUUM ANALYZE"
-```
-
----
-
-### 8. Graph Issues
-
-#### Symptom: "AGE extension not loaded"
-
-**Solution**:
-
-```sql
--- Load AGE extension
-LOAD 'age';
-SET search_path = ag_catalog, "$user", public;
-
--- Create graph if not exists
-SELECT create_graph('edgequake_graph');
-```
-
-#### Symptom: Postgres stays busy during community refresh
-
-Ingest community refresh loads a workspace-scoped snapshot in keyset pages (#404). Each page is cancelled in Postgres (`EDGEQUAKE_COMMUNITY_STATEMENT_TIMEOUT_MS`, default **30s**, clamp 1s–300s). Refresh is skipped when the workspace is above `EDGEQUAKE_COMMUNITY_BACKFILL_MAX_NODES` (default **50_000**), when that count fails, or when another replica holds the advisory lock. A run that does start loads at most `EDGEQUAKE_COMMUNITY_MAX_NODES` nodes (default **50_000**, clamp 100–5_000_000) and, past that cap, clusters a sample instead of walking every edge.
-
-Check logs for `statement_timeout` or `Skipping community index refresh`. Raise the statement budget only for a known-good plan. Raising the node cap does not turn the scan back into a full-graph walk.
-
-#### Symptom: Entities not connected
-
-**Diagnosis**:
-
-```bash
-# Check relationship count
-curl "http://localhost:8080/api/v1/graph/relationships?workspace_id=$WORKSPACE_ID"
-
-# If 0 relationships, check extraction logs
-```
-
-**Solution**:
-
-```bash
-# Reprocess with verbose logging
-RUST_LOG="edgequake_pipeline=debug" cargo run
-
-# Then reprocess document
-curl -X POST "http://localhost:8080/api/v1/documents/reprocess" \
-  -H "Content-Type: application/json" \
-  -d "{\"document_id\":\"$DOC_ID\",\"force\":true,\"mode\":\"full\"}"
-```
-
----
-
-### 9. Frontend Issues
-
-#### Symptom: Frontend can't connect to backend
-
-**Check**:
-
-```bash
-# Is backend running?
-curl http://localhost:8080/health
-
-# CORS enabled?
-# Backend should return Access-Control-Allow-Origin header
-curl -I http://localhost:8080/health
-```
-
-**Solution**:
-
-```bash
-# Start backend first, then frontend
-make backend-dev &
-sleep 5
-make frontend-dev
-```
-
-#### Symptom: Graph visualization empty
-
-**Causes**:
-
-1. No entities extracted
-2. WebSocket connection failed
-3. Sigma.js not loading
-
-**Solution**:
-
-```bash
-# Check entities exist via API
-curl "http://localhost:8080/api/v1/graph/entities?workspace_id=$WORKSPACE_ID"
-
-# Check browser console for errors
-# Open DevTools → Console
-```
-
----
-
-### 10. Documents page: Read path busy
-
-#### Symptom: "Error loading documents — Read path busy", header shows Busy
-
-Interactive catalog reads share one deadline and a small DB permit so ingest cannot hold the pool until the client gives up ([#400](https://github.com/raphaelmansuy/edgequake/issues/400)). HTTP **503** with code `read_path_busy` means that budget was spent. It is retryable. It is not a lock that stays taken after the response.
+The page shows "Error loading documents — Read path busy" and the header shows Busy. Interactive reads share one deadline and a small database permit, so ingest cannot hold the pool until the client gives up ([#400](https://github.com/raphaelmansuy/edgequake/issues/400)). HTTP 503 with code `read_path_busy` means that budget ran out. It is retryable and does not leave a lock behind.
 
 | `details.reason` | Meaning |
-| ---------------- | ------- |
-| `work_deadline` | The handler exceeded `EDGEQUAKE_DOCUMENTS_READ_TIMEOUT_MS` (default 2500, clamp 500–30000) |
-| `permit_wait` | Too many list/search/tenant/workspace reads were already in flight |
-| `permit_closed` | The permit semaphore was shut down |
+|------------------|---------|
+| `work_deadline` | The handler took longer than `EDGEQUAKE_DOCUMENTS_READ_TIMEOUT_MS` (default 2500, range 500 to 30000) |
+| `permit_wait` | Too many list or search reads were already running |
+| `permit_closed` | The permit was shut down |
 
-Guarded routes: `GET /api/v1/documents`, document detail, `GET /api/v1/documents/search`, `GET /api/v1/tenants`, `GET /api/v1/tenants/{id}/workspaces`.
+Guarded routes: `GET /api/v1/documents`, document detail, `GET /api/v1/documents/search`, `GET /api/v1/tenants` and `GET /api/v1/tenants/{id}/workspaces`.
 
-The WebUI retries the 503 **once**, waiting `details.retry_after_ms` (clamped 500–8000), then shows **Try again**. The header **Busy** pill is readiness `degraded` (`/live` ok, `/health` not healthy). While degraded, the header re-checks `/live` and `/health` every **5s** so Busy clears without a reload. Dashboard component details stay on a **30s** floor. `EDGEQUAKE_HEALTH_POLL_MS` still controls the healthy-state loop (default off).
+The web UI retries once after `details.retry_after_ms`, then shows Try again. The Busy pill means readiness is `degraded`. `?include_stats=true` on the workspace list returns `stats: null` on a cache miss under this deadline. Open the workspace, or call `GET /api/v1/workspaces/{id}/stats`, to fill the cache.
 
-`?include_stats=true` on the workspace list does not compute stats under this deadline. A cache miss returns `stats: null`. Open the workspace or call `GET /api/v1/workspaces/{id}/stats` to fill the cache.
+What to do:
 
-**What to do:**
+1. Retry. One 503 during a heavy ingest is expected.
+2. If every list fails, look at pool use and slow queries in `pg_stat_activity`. Do not restart to "release a lock".
+3. Raise `EDGEQUAKE_DOCUMENTS_READ_TIMEOUT_MS` only if the list query is really slower than 2.5 s. PostgreSQL stops 250 ms earlier so the connection returns to the pool.
+4. The permit count is `max(2, DATABASE_POOL_SIZE / 8)`, which is 4 with the default pool of 32.
 
-1. Retry. A single 503 during a heavy ingest is expected.
-2. If every list fails, check pool saturation and slow queries (`pg_stat_activity`) rather than restarting to "release a lock".
-3. Raise `EDGEQUAKE_DOCUMENTS_READ_TIMEOUT_MS` only when the list query is legitimately slower than 2.5s. Postgres is killed 250ms earlier so the connection returns to the pool.
-4. Permit count is `max(2, DATABASE_POOL_SIZE / 8)` (`DATABASE_POOL_SIZE` default 32 → 4). That env sizes the bulkhead; the four role pools (`EDGEQUAKE_DB_POOL_SIZE_*`) are separate.
+## 11. Sign-in, access and security errors
 
----
+### 11.1 HTTP status reference
 
-## Diagnostic Commands
+| Status and code | Meaning | What to do |
+|-----------------|---------|------------|
+| 400 `BAD_REQUEST` | Bad request | Check the body |
+| 401 `UNAUTHORIZED` | No valid credential | Send `Authorization: Bearer <token or key>`. Refresh an expired token |
+| 403 `FORBIDDEN` | Valid credential, not allowed | Check the role and key scopes. A read-only user cannot write |
+| 404 `NOT_FOUND` | Not found, or not in your tenant | Check the id and the `X-Tenant-ID` and `X-Workspace-ID` headers |
+| 408 `REQUEST_TIMEOUT` | Timed out | Retry |
+| 409 `CONFLICT` | Duplicate or conflicting state | Read the message |
+| 422 `VALIDATION_ERROR` or `CONFIG_ERROR` | A field or setting is invalid | Fix the field |
+| 423 `ACCOUNT_LOCKED` | Five failed logins | Wait 15 minutes. See `MAX_LOGIN_ATTEMPTS` and `LOCKOUT_DURATION_MINUTES` |
+| 429 `RATE_LIMITED` | Rate limit (only when `EDGEQUAKE_RATE_LIMIT_ENABLED` is on) | Wait for `Retry-After` seconds |
+| 502 `LLM_ERROR` | The model server failed | See section 5 |
+| 503 `SERVICE_UNAVAILABLE` | A dependency is not ready | `read_path_busy`: section 10. Otherwise check `/ready` |
 
-### Logs
+### 11.2 Common sign-in problems
 
-```bash
-# Backend logs
-tail -f /tmp/edgequake-backend.log
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Every call is 401 after turning auth on | No credentials configured | Set `EDGEQUAKE_MASTER_API_KEY`, or the bootstrap admin (`EDGEQUAKE_BOOTSTRAP_ADMIN_USERNAME` and `_PASSWORD`) |
+| `/api/v1/setup/initialize` returns 401 | The `x-edgequake-setup-token` header does not match `EDGEQUAKE_SETUP_TOKEN` | Send the right header |
+| WebSocket closes at once | The token was sent as `?token=`, which is rejected | Use the `Authorization` header or `Sec-WebSocket-Protocol: edgequake.bearer, <jwt>` |
+| SSO errors such as `org_unknown` | Mapping from the identity provider failed | See [SSO troubleshooting](../security/authentication/troubleshooting.md) |
 
-# Frontend logs
-tail -f /tmp/edgequake-frontend.log
+### 11.3 Provider URL blocked (SSRF)
 
-# Docker logs
-docker compose logs -f
+EdgeQuake checks every provider URL before it connects. The error text tells you the rule.
 
-# Specific component
-docker compose logs -f edgequake
-docker compose logs -f postgres
-```
+| Message | Rule |
+|---------|------|
+| "provider URL must be http or https" | Other schemes are refused |
+| "provider URL host is blocked (...)" | Metadata and internal names such as `metadata.google.internal`, `*.internal` and `169.254.*` are always blocked |
+| "private or loopback URLs require locality=local (set allow_private_network)" | Private and loopback addresses are allowed only for local providers |
+| "invalid provider URL: ..." | The URL cannot be parsed |
 
-### Database Queries
+Details and limits: [Security guide](../security/best-practices.md#ssrf-defense-for-provider-urls).
 
-```sql
--- Check document status
-SELECT status, count(*) FROM documents GROUP BY status;
+### 11.4 `edgequake doctor` fails
 
--- Find failed documents
-SELECT id, title, error_message FROM documents WHERE status = 'failed';
+| Check | Fails when | Fix |
+|-------|-----------|-----|
+| `database` | `DATABASE_URL` is empty | Set it. This is the only failure that gives exit 1 |
+| `secrets_key` | No `EDGEQUAKE_SECRETS_KEY` (and `EDGEQUAKE_DEV_MODE` is not set at all) | Set a 64-hex key |
+| `jwt_secret` | `JWT_SECRET` is under 32 bytes or the default (dev mode excepted) | Set a strong secret |
+| `bind` | `EDGEQUAKE_HOST` is not `127.0.0.1` or `localhost` (it defaults to `0.0.0.0`) and dev mode is off | Set `EDGEQUAKE_HOST=127.0.0.1`, or `EDGEQUAKE_DEV_MODE=true` locally. The server itself binds with `HOST` and `PORT` |
 
--- Check entity counts by workspace
-SELECT workspace_id, count(*) FROM entities GROUP BY workspace_id;
+The `llm_provider` check never fails. It only prints the default provider.
 
--- Check embedding dimensions
-SELECT embedding_dimension, count(*) FROM embeddings GROUP BY embedding_dimension;
-```
-
-### API Debugging
-
-```bash
-# Verbose curl output
-curl -v http://localhost:8080/api/v1/workspaces
-
-# Pretty print JSON
-curl http://localhost:8080/api/v1/workspaces | jq
-
-# Check response headers
-curl -I http://localhost:8080/health
-```
-
----
-
-## Error Reference
-
-| Error Code | Meaning             | Solution                  |
-| ---------- | ------------------- | ------------------------- |
-| 400        | Bad request         | Check request format      |
-| 401        | Unauthorized        | Add API key               |
-| 404        | Not found           | Check workspace_id exists |
-| 422        | Validation error    | Check required fields     |
-| 429        | Rate limited        | Wait and retry            |
-| 500        | Server error        | Check logs                |
-| 503        | Service unavailable | `read_path_busy`: retry (see §10). Other 503: DB/LLM or `/ready` blockers |
-
----
-
-## Getting Help
-
-### Before Asking for Help
-
-1. Check this troubleshooting guide
-2. Check logs for specific error messages
-3. Verify environment variables are set
-4. Try with minimal configuration (PostgreSQL + mock LLM)
-
-### Debug Mode
-
-Start with maximum logging:
+## 12. Queries return nothing
 
 ```bash
-RUST_LOG="edgequake=trace,sqlx=debug,tower_http=debug" cargo run
+curl -s "http://localhost:8080/api/v1/documents" -H "X-Workspace-ID: $WORKSPACE_ID" | jq
+curl -s "http://localhost:8080/api/v1/graph/entities" -H "X-Workspace-ID: $WORKSPACE_ID" | jq
+curl -s "http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID/stats" | jq
 ```
 
-### Report an Issue
+| What you see | Cause | Fix |
+|--------------|-------|-----|
+| 0 documents | Nothing was uploaded to this workspace | Upload, and check that you use the right workspace |
+| Documents, but 0 entities | Extraction failed | Check the document error, then reprocess |
+| Entities, but an empty answer | The mode does not match the question | Try another mode, such as `naive` (vector search only) |
 
-Include in your report:
+```bash
+curl -X POST "http://localhost:8080/api/v1/query" \
+  -H "Content-Type: application/json" -H "X-Workspace-ID: $WORKSPACE_ID" \
+  -d '{"query": "test", "mode": "naive"}'
+```
 
-1. EdgeQuake version (`cargo run --version`)
-2. Storage mode (PostgreSQL or Memory)
-3. LLM provider and model
-4. Steps to reproduce
-5. Relevant log output
-6. Expected vs actual behavior
+If `naive` works and `hybrid` does not, the graph is the problem. Go to section 8.
 
----
+## Getting help
 
-## See Also
+Before you open an issue, collect:
 
-- [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md) — cancel SSOT, leases, multi-replica, queue-metrics
-- [Observability](../OBSERVABILITY.md) — Prometheus metrics, GenAI spans, queue pressure
-- [Configuration Reference](/docs/operations/configuration/) - All settings
-- [Monitoring Guide](/docs/operations/monitoring/) - Observability setup
-- [Deployment Guide](/docs/operations/deployment/) - Production setup
+1. The EdgeQuake version (`curl -s http://localhost:8080/health | jq .version`).
+2. The output of `edgequake doctor --json` and `/health`.
+3. The LLM provider and model.
+4. The steps to reproduce and the relevant log lines.
+
+For maximum logging start with `RUST_LOG="edgequake=trace,sqlx=debug,tower_http=debug"`.
+
+## See also
+
+- [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md) for cancel, leases and multi-replica delivery
+- [Observability](../OBSERVABILITY.md) for metrics and queue pressure
+- [Configuration reference](../operations/configuration.md) and [environment reference](../operations/env-reference.md)
+- [Providers](../providers/index.md) and [Security](../security/index.md)

@@ -131,8 +131,13 @@ impl AppState {
         super::provider_setup::normalize_local_provider_hosts_for_docker();
 
         // Create providers via factory (auto-detects from environment)
-        let (llm_provider, embedding_provider) =
-            ProviderFactory::from_env().expect("Failed to create LLM provider from environment");
+        let (llm_provider, embedding_provider) = ProviderFactory::from_env().map_err(|e| {
+            format!(
+                "Failed to create LLM provider from environment: {e}. \
+                 Set EDGEQUAKE_LLM_PROVIDER (ollama, openai, omlx, …) and the matching key or host, \
+                 or run `edgequake doctor`."
+            )
+        })?;
 
         // Application runtime must never serve Mock as the process-wide default
         // unless an explicit test escape hatch is set (EDGEQUAKE_ALLOW_MOCK_PROVIDER=1).

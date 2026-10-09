@@ -1,5 +1,6 @@
 ---
 title: 'SQLx Offline Mode'
+description: "How to use SQLx offline mode when building EdgeQuake."
 ---
 
 # SQLx Offline Mode

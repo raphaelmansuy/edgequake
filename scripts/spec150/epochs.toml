@@ -287,4 +287,5 @@ mode = "image"
 pg_majors = [16,17,18]
 key = true
 replay = true
-# Schema-identical aliases: v0.32.1 v0.32.2 · HEAD (max mig 168)
+# Schema-identical aliases: v0.32.1 v0.32.2 (max mig 168)
+# HEAD adds 169_spec163_provider_connections.sql (SPEC-163) — product cut v0.33.0

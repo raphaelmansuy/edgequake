@@ -1,255 +1,208 @@
 ---
-title: 'Docker Quickstart'
+title: "Docker quickstart"
+description: "Start the full EdgeQuake stack (API, web UI, PostgreSQL) from prebuilt images with one command, then pick an LLM provider and manage the stack."
 ---
 
-> **Product: v0.32.2** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+# Docker quickstart
 
-# Docker Quickstart — Full Stack in One Command
+This page is for anyone who wants EdgeQuake running in minutes. You need only Docker. You do not need Rust, Node.js or a build. For a production deployment, read [Deployment](deployment.md) next.
 
-> **Zero prerequisites beyond Docker.**  
-> No Rust, no Node.js, no `cargo build`, no `npm install`.  
-> Cold start: **~30 seconds** on a fast connection (image layers cache after first pull).
+## What starts
 
----
+The quickstart file `docker-compose.quickstart.yml` runs four containers from prebuilt GHCR images.
 
-## The One-Liner (no git clone required)
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  P["postgres: PostgreSQL + pgvector + AGE"] --> M["migrate: one-shot"]
+  M --> A["api: port 8080"]
+  A --> F["frontend: port 3000"]
+  A -. "LLM calls" .-> O["Ollama or cloud LLM"]
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class P eqStore
+class O eqLlm
+```
 
-Copy and paste this into any terminal that has Docker:
+How to read it: an arrow means "must be ready first". `migrate` runs `edgequake migrate` once and exits. The API waits for it to finish (`EDGEQUAKE_SCHEMA_GATE=wait`). The web UI waits for a healthy API. The LLM is outside the stack.
+
+Ports bind to `127.0.0.1` only. Put a reverse proxy in front for remote access.
+
+## Start it
+
+### Option A: one command (no clone)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/docker-compose.quickstart.yml \
   | docker compose -f - up -d
 ```
 
-That's it. Three versioned images (API, Web UI, PostgreSQL) are pulled from GitHub Container Registry and started.
-
-The API image is distroless (no shell). Compose healthchecks run `edgequake healthcheck` (`GET /live`). Use `docker compose logs` rather than `docker exec sh`.
-
-**OCR in the API image:** Tesseract 5 + tessdata language packs (`eng`, `osd`, `fra`, `deu`, `spa`, `por`, `chi_sim`) are harvested into the distroless runtime for `pdf_parser_backend=edgeparse-ocr`. Vision LLM weights remain external (Ollama / OpenAI / …). pdfium stays compile-time embedded.
-
-**Then open:** http://localhost:3000
-
-> **Auth note:** Product default is auth **on**. Quickstart compose sets `EDGEQUAKE_DEV_MODE=true` (open API, no login) for frictionless demos — **do not use in production**. For production, set `EDGEQUAKE_DEV_MODE=false`, `EDGEQUAKE_AUTH_ENABLED=true`, and `EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD`.
-
----
-
-## Option A — Pure `docker compose` (download file first)
+### Option B: download, then start
 
 ```bash
-# 1. Download the compose file
 curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/docker-compose.quickstart.yml \
   -o docker-compose.quickstart.yml
-
-# 2. Start the full stack
 docker compose -f docker-compose.quickstart.yml up -d
-
-# 3. Check health
 curl http://localhost:8080/health
 ```
 
----
+### Option C: guided wizard
 
-## Option B — With git clone + make
+`quickstart.sh` asks which provider you want and writes the settings for you. It needs a terminal, unless you pass `--yes`.
 
 ```bash
-git clone https://github.com/raphaelmansuy/edgequake.git
-cd edgequake
+curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/quickstart.sh | sh
+# Non-interactive:
+sh quickstart.sh --yes --provider ollama
+# Flags: [--yes] [--provider ollama|openai|omlx|anthropic|lmstudio] [--base-url URL] [--model ID] [--embed-model ID]
+```
+
+### Option D: with a clone
+
+```bash
+git clone https://github.com/raphaelmansuy/edgequake.git && cd edgequake
 make stack
 ```
 
----
+### Pin a version
 
-## Option C — Pinned version (production-stable)
+`EDGEQUAKE_VERSION` defaults to `latest`. For anything long-lived, pin it:
 
 ```bash
-# Download a specific version's compose file
-EDGEQUAKE_VERSION=0.24.2
-curl -fsSL "https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/docker-compose.quickstart.yml" \
-  -o docker-compose.quickstart.yml
-
-# Start with that version
-EDGEQUAKE_VERSION=${EDGEQUAKE_VERSION} docker compose -f docker-compose.quickstart.yml up -d
+EDGEQUAKE_VERSION=0.32.2 docker compose -f docker-compose.quickstart.yml up -d
 ```
 
----
+## Open it
 
-## Access Points
+| Service | URL |
+|---------|-----|
+| Web UI | <http://localhost:3000> |
+| REST API | <http://localhost:8080> |
+| Swagger UI | <http://localhost:8080/swagger-ui> |
+| Health | <http://localhost:8080/health> |
 
-| Service      | URL                              | Description                               |
-| ------------ | -------------------------------- | ----------------------------------------- |
-| 🌐 Web UI     | http://localhost:3000            | Upload documents, explore knowledge graph |
-| 🔗 REST API   | http://localhost:8080            | Programmatic access                       |
-| 📚 Swagger UI | http://localhost:8080/swagger-ui | Interactive API explorer                  |
-| 🏥 Health     | http://localhost:8080/health     | JSON health status                        |
+The API image is distroless, so there is no shell. Compose runs `edgequake healthcheck` (`GET /live`). Use `docker compose logs api`, not `docker exec`.
 
----
+## Choose an LLM provider
 
-## LLM Providers
-
-### Default: Ollama (free, local, no API key)
-
-Requires [Ollama](https://ollama.ai) running on your machine:
+The default is Ollama on your host (`http://host.docker.internal:11434`).
 
 ```bash
-# Install and run Ollama (once)
-curl -fsSL https://ollama.ai/install.sh | sh
+# Ollama (default). Run it on the host first.
 ollama serve &
 ollama pull gemma4:latest
-
-# Start EdgeQuake
 docker compose -f docker-compose.quickstart.yml up -d
-```
 
-### OpenAI
+# OpenAI
+EDGEQUAKE_LLM_PROVIDER=openai OPENAI_API_KEY=sk-... \
+  docker compose -f docker-compose.quickstart.yml up -d
 
-```bash
-EDGEQUAKE_LLM_PROVIDER=openai \
-OPENAI_API_KEY=sk-... \
+# Any OpenAI-compatible server (LM Studio, vLLM, ...)
+EDGEQUAKE_LLM_PROVIDER=openai OPENAI_API_KEY=your-key OPENAI_BASE_URL=http://host.docker.internal:1234/v1 \
   docker compose -f docker-compose.quickstart.yml up -d
 ```
 
-### Any OpenAI-compatible endpoint (LM Studio, vLLM, Azure, etc.)
+Inside a container, `localhost` means the container itself. Use `host.docker.internal` to reach a server on your machine.
+
+Provider guides, the role matrix and how to save keys in the database are in [Providers](../providers/index.md).
+
+### Compose settings you are likely to change
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `EDGEQUAKE_VERSION` | `latest` | Image tag for API, web UI and PostgreSQL. |
+| `EDGEQUAKE_POSTGRES_TAG` | same as version | PostgreSQL image tag, for example `0.32.2-pg16`. |
+| `EDGEQUAKE_LLM_PROVIDER` | `ollama` | LLM provider. |
+| `EDGEQUAKE_LLM_MODEL` | empty | Model. Empty means the provider default. |
+| `EDGEQUAKE_EMBEDDING_PROVIDER` / `EDGEQUAKE_EMBEDDING_MODEL` | empty | Embedding provider and model. Empty follows the LLM provider. |
+| `EDGEQUAKE_VISION_PROVIDER` / `EDGEQUAKE_VISION_MODEL` | follow the LLM | Used for PDF to Markdown. |
+| `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MISTRAL_API_KEY` | empty | Cloud keys. |
+| `OLLAMA_HOST` | `http://host.docker.internal:11434` | Ollama address. |
+| `OLLAMA_CONTEXT_LENGTH` | `32768` | Ollama token window. Use `131072` for large documents. |
+| `EDGEQUAKE_DEV_MODE` | `true` | Open API, no login. Not for production. |
+| `EDGEQUAKE_AUTH_ENABLED` | `false` | See [Enable login](auth-quickstart.md). |
+| `JWT_SECRET`, `EDGEQUAKE_SECRETS_KEY` | default / empty | Set both before you leave demo mode. |
+| `EDGEQUAKE_PORT` | `8080` | Host port for the API. |
+| `FRONTEND_PORT` | `3000` | Host port for the web UI. |
+| `POSTGRES_PASSWORD` | `edgequake_secret` | Change it for anything shared. |
+
+The complete list is in [Configuration](configuration.md) and the generated [env reference](env-reference.md). `EDGEQUAKE_DEFAULT_LLM_PROVIDER` and `EDGEQUAKE_DEFAULT_LLM_MODEL` also exist. When set, they win over `EDGEQUAKE_LLM_PROVIDER` and `EDGEQUAKE_LLM_MODEL` (this is what `make dev` sets). The compose file passes only the `EDGEQUAKE_LLM_*` pair.
+
+LightRAG-style names work as aliases: `MODEL_PROVIDER` or `CHAT_PROVIDER` for the provider, `CHAT_MODEL` or `LLM_MODEL` for the model, and `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`, `EMBEDDING_DIMENSION`. The `EDGEQUAKE_*` name wins when both are set.
+
+## Manage the stack
 
 ```bash
-EDGEQUAKE_LLM_PROVIDER=openai \
-OPENAI_API_KEY=your-key \
-OPENAI_BASE_URL=http://localhost:1234/v1 \
-  docker compose -f docker-compose.quickstart.yml up -d
+docker compose -f docker-compose.quickstart.yml ps          # status
+docker compose -f docker-compose.quickstart.yml logs -f api # logs
+docker compose -f docker-compose.quickstart.yml restart api # restart one service
+docker compose -f docker-compose.quickstart.yml pull && docker compose -f docker-compose.quickstart.yml up -d   # update
+docker compose -f docker-compose.quickstart.yml down        # stop, keep data
+docker compose -f docker-compose.quickstart.yml down -v     # stop and delete data
 ```
 
-### Provider reference
-
-| Variable                       | Default                             | Description                            |
-| ------------------------------ | ----------------------------------- | -------------------------------------- |
-| `EDGEQUAKE_DEFAULT_LLM_PROVIDER` | `ollama` (no API key) / `openai` (with key) | Primary LLM provider (`make dev` sets this) |
-| `EDGEQUAKE_DEFAULT_LLM_MODEL`    | `gemma4:latest` / `gpt-5-nano`¹             | Primary LLM model                         |
-| `EDGEQUAKE_EMBEDDING_PROVIDER`   | same as LLM                                 | Override embedding provider               |
-| `EDGEQUAKE_EMBEDDING_MODEL`      | provider-specific default                   | Embedding model override                  |
-| `OPENAI_API_KEY`               | _(empty)_                           | Required when provider is `openai`     |
-| `OPENAI_BASE_URL`              | _(empty)_                           | Override OpenAI base URL               |
-| `OLLAMA_HOST`                  | `http://host.docker.internal:11434` | Ollama server address                  |
-| `EDGEQUAKE_VERSION`            | `latest`                            | Pin to a specific release tag          |
-| `EDGEQUAKE_POSTGRES_TAG`       | same as `EDGEQUAKE_VERSION`         | PG image tag (`0.24.2-pg16\|pg17\|pg18`) |
-| `EDGEQUAKE_DEV_MODE`           | `true` (quickstart)                 | Open API without login — not for prod  |
-| `EDGEQUAKE_PORT`               | `8080`                              | API port                               |
-| `FRONTEND_PORT`                | `3000`                              | Web UI port                            |
-| `POSTGRES_PASSWORD`            | `edgequake_secret`                  | PostgreSQL password                    |
-
-¹ With `OPENAI_API_KEY`, Makefile sets `gpt-5-nano`; bundled catalog default is `gpt-4.1-mini`.
-
-Supported providers include `ollama`, `openai`, `lmstudio`, `anthropic`, `mistral`, `gemini`, `vertexai`, `openrouter`, `mock`, and others in `models.toml`.
-
-### Migration aliases
-
-If you are migrating from a LightRAG-style environment file, EdgeQuake also accepts:
-
-| Alias                 | Canonical variable              |
-| --------------------- | ------------------------------- |
-| `MODEL_PROVIDER`      | `EDGEQUAKE_LLM_PROVIDER`        |
-| `CHAT_MODEL`          | `EDGEQUAKE_LLM_MODEL`           |
-| `EMBEDDING_PROVIDER`  | `EDGEQUAKE_EMBEDDING_PROVIDER`  |
-| `EMBEDDING_MODEL`     | `EDGEQUAKE_EMBEDDING_MODEL`     |
-| `EMBEDDING_DIMENSION` | `EDGEQUAKE_EMBEDDING_DIMENSION` |
-
-Canonical `EDGEQUAKE_*` variables always win when both are set.
-
----
-
-## Managing the Stack
-
-```bash
-# Stop and remove containers (data persists in the edgequake-pg-data volume)
-docker compose -f docker-compose.quickstart.yml down
-
-# Stop and remove containers + data
-docker compose -f docker-compose.quickstart.yml down -v
-
-# Tail all logs
-docker compose -f docker-compose.quickstart.yml logs -f
-
-# Check container status
-docker compose -f docker-compose.quickstart.yml ps
-
-# Pull latest images (then restart)
-docker compose -f docker-compose.quickstart.yml pull
-docker compose -f docker-compose.quickstart.yml up -d
-
-# Restart a single service
-docker compose -f docker-compose.quickstart.yml restart api
-```
-
----
+Data lives in the `edgequake-pg-data` volume. `make stack-down`, `stack-logs`, `stack-status`, `stack-restart` and `stack-pull` do the same through the Makefile.
 
 ## Images
 
-All images are multi-arch (`linux/amd64`, `linux/arm64`) and published to GitHub Container Registry on every tagged release.
+All images are multi-arch (`linux/amd64`, `linux/arm64`) and published to GitHub Container Registry for each `vX.Y.Z` tag.
 
-| Image                                      | Tag                                      | Description                        |
-| ------------------------------------------ | ---------------------------------------- | ---------------------------------- |
-| `ghcr.io/raphaelmansuy/edgequake`          | `latest` / `0.24.2`                      | Rust API server                    |
-| `ghcr.io/raphaelmansuy/edgequake-frontend` | `latest` / `0.24.2`                      | Next.js Web UI                     |
-| `ghcr.io/raphaelmansuy/edgequake-postgres` | `latest` / `0.24.2` / `0.24.2-pg16\|pg17\|pg18` | PostgreSQL + pgvector + Apache AGE |
+| Image | Tags |
+|-------|------|
+| `ghcr.io/raphaelmansuy/edgequake` | `latest`, `X.Y.Z` |
+| `ghcr.io/raphaelmansuy/edgequake-frontend` | `latest`, `X.Y.Z` |
+| `ghcr.io/raphaelmansuy/edgequake-postgres` | `latest`, `X.Y.Z` (PG18), `X.Y.Z-pg16`, `X.Y.Z-pg17`, `X.Y.Z-pg18`, `latest-pgNN` |
 
-**PostgreSQL major tags** (extension pins: pgvector **0.8.3**, AGE **1.6.0** on PG16 / **1.7.0** on PG17+):
-
-| Tag | PostgreSQL |
-| --- | ---------- |
-| `0.24.2` / `latest` / `0.24.2-pg18` / `latest-pg18` | PG18 (default) |
-| `0.24.2-pg17` / `latest-pg17` | PG17 |
-| `0.24.2-pg16` / `latest-pg16` | PG16 |
-
-Pin PostgreSQL major when starting:
+PostgreSQL extension pins: pgvector 0.8.5 on all majors. Apache AGE 1.6.0 on PG16, 1.7.0 on PG17, 1.8.0 on PG18 (default).
 
 ```bash
-EDGEQUAKE_VERSION=0.24.2 EDGEQUAKE_POSTGRES_TAG=0.24.2-pg16 \
+# Pin the PostgreSQL major
+EDGEQUAKE_VERSION=0.32.2 EDGEQUAKE_POSTGRES_TAG=0.32.2-pg16 \
   docker compose -f docker-compose.quickstart.yml up -d
 ```
 
-Pull an image manually:
-```bash
-docker pull ghcr.io/raphaelmansuy/edgequake:0.24.2
-docker pull ghcr.io/raphaelmansuy/edgequake-frontend:0.24.2
-docker pull ghcr.io/raphaelmansuy/edgequake-postgres:0.24.2
-```
-
----
+Do not switch the PostgreSQL major on an existing volume. A major upgrade is a separate cluster migration (see [Upgrading](upgrading.md#9-known-limits)).
 
 ## Troubleshooting
 
-### API never becomes healthy
-
-```bash
-# Check logs
-docker compose -f docker-compose.quickstart.yml logs api
-
-# Common cause: Ollama not running
-curl http://localhost:11434/api/tags   # should return model list
-ollama serve &                          # start if not running
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["API not healthy"] --> B{"docker compose ps shows migrate exited 0?"}
+  B -->|No| C["Read migrate logs: DB or checksum problem"]
+  B -->|Yes| D{"api logs show exit 1 at startup?"}
+  D -->|Yes| E["Security check failed: see Enable login"]
+  D -->|No| F{"LLM reachable from the container?"}
+  F -->|No| G["Fix OLLAMA_HOST or provider key"]
+  F -->|Yes| H["Check /ready JSON blockers"]
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+classDef eqBad fill:#FEE2E2,stroke:#EF4444,color:#7F1D1D
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class C eqStore
+class E eqBad
+class F,G eqLlm
 ```
 
-### Port already in use
+How to read it: follow the first "No" or "Yes" that matches what you see. Each leaf names where to look next.
 
-```bash
-# Change ports
-EDGEQUAKE_PORT=8081 FRONTEND_PORT=3001 \
-  docker compose -f docker-compose.quickstart.yml up -d
-```
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| API never healthy, `migrate` failed | PostgreSQL not ready, or a schema problem | `docker compose -f docker-compose.quickstart.yml logs migrate`. See [Upgrading, recovery](upgrading.md#7-recovery-symptom-cause-fix). |
+| API exits right after start | A fatal security check (weak `JWT_SECRET`, missing CORS) | Run with `EDGEQUAKE_DEV_MODE=true`, or follow [Enable login](auth-quickstart.md#troubleshooting). |
+| `/ready` returns 503 | Schema or index not ready | `curl -s localhost:8080/ready`. The JSON lists the blockers. |
+| Entity extraction fails with "Network error" | Ollama is not running or unreachable | `curl http://localhost:11434/api/tags` on the host. Do not set `OLLAMA_HOST` to `localhost`. |
+| Port already in use | Another service owns 8080 or 3000 | `EDGEQUAKE_PORT=8081 FRONTEND_PORT=3001 docker compose -f docker-compose.quickstart.yml up -d` |
+| Start from scratch | n/a | `docker compose -f docker-compose.quickstart.yml down -v` then `up -d`. |
 
-### Reset all data
+To run the preflight checks inside the container, use `docker compose -f docker-compose.quickstart.yml exec api edgequake doctor`. It needs no shell, only the `edgequake` binary. It checks `DATABASE_URL`, the secrets key, `JWT_SECRET` and the bind host, and prints `--json` if you ask.
 
-```bash
-docker compose -f docker-compose.quickstart.yml down -v
-docker compose -f docker-compose.quickstart.yml up -d
-```
+## Next steps
 
-### Apple Silicon (M-series) / ARM64
-
-Images include native `linux/arm64` layers — no QEMU emulation needed. Docker Desktop on macOS auto-selects the right architecture.
-
----
-
-## Next Steps
-
-- [REST API Reference](/docs/api-reference/) — upload documents, query, manage the graph
-- [Configuration Guide](/docs/operations/configuration/) — tune LLM models, embedding dimensions, timeouts
-- [Production Deployment](/docs/operations/deployment/) — TLS, secrets management, scaling
+- [Configuration](configuration.md): models, embedding dimensions, timeouts.
+- [Deployment](deployment.md): TLS, secrets, scaling.
+- [Enable login](auth-quickstart.md)
+- [REST API reference](../api-reference/index.md)

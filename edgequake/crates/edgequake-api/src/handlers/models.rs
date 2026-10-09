@@ -394,6 +394,21 @@ async fn check_provider_health(
             }
         }
         _ => {
+            if crate::locality::is_slow_local_provider(&provider.name) {
+                let start = Instant::now();
+                let available =
+                    crate::providers::probe::probe_named_provider_reachable(&provider.name).await;
+                return ProviderHealthResponse {
+                    available,
+                    latency_ms: start.elapsed().as_millis() as u64,
+                    error: if available {
+                        None
+                    } else {
+                        Some(format!("{} is not reachable", provider.name))
+                    },
+                    checked_at: checked_at.to_string(),
+                };
+            }
             use crate::providers::credentials::{
                 probe_vertex_auth_live, provider_credentials_configured,
                 provider_credentials_health_error,

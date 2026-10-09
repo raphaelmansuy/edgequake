@@ -1,173 +1,141 @@
 ---
 title: "EdgeQuake REST API Reference"
+description: "Core REST endpoints for EdgeQuake v0.32.x: conventions, auth, health, documents, parse, query, chat, graph, conversations, knowledge injection, models and settings."
 ---
 
 # EdgeQuake REST API Reference
 
-> **Product: v0.23.0** · Contract: [`openapi.snapshot.json`](../../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+This page covers the core HTTP API: how requests are authenticated and scoped, how errors look, and the main endpoints for documents, queries, chat, the knowledge graph, conversations and settings. It is for developers who call EdgeQuake directly with `curl` or an HTTP client.
 
-> **Base URL**: `http://localhost:8080` (API under `/api/v1`)  
-> **Interactive docs**: `/swagger-ui/` when the backend is running
+Product pin: **v0.32.2**. Base URL in examples: `http://localhost:8080`. Resource routes live under `/api/v1`. For tasks, pipeline, costs, tenants and workspaces see [Extended API](extended-api.md). For saved provider endpoints (v0.33.0) see [Connections](connections.md).
 
-This page is a **guided overlay** for v0.23.0. For the full endpoint catalog, request/response schemas, and Try-it-out, use OpenAPI — it is regenerated on every release and matches the running server.
+The server publishes its full contract at `/api-docs/openapi.json` and a Try-it-out UI at `/swagger-ui/`.
 
----
-
-## v0.23.0 quick reference
+## Conventions
 
 ### Authentication
 
-Most `/api/v1/*` routes require:
+Authentication is controlled by `EDGEQUAKE_AUTH_ENABLED`. When it is off (the local default), requests run as a built-in default user and no credentials are needed. When it is on, send one of:
 
-- `Authorization: Bearer <JWT>` (from `POST /api/v1/auth/login`), **or**
-- `X-API-Key: <key>` (from `POST /api/v1/api-keys`)
+| Credential | How to send it |
+|------------|----------------|
+| JWT access token | `Authorization: Bearer <token>` |
+| API key | `Authorization: Bearer <key>` or `X-API-Key: <key>` |
 
-Multi-tenant context (required for document/query operations):
+Get a JWT with `POST /api/v1/auth/login`, and create an API key with `POST /api/v1/api-keys`.
 
-| Header | Purpose |
-| ------ | ------- |
+```bash
+curl -s -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"<password>"}'
+```
+
+```json
+{
+  "access_token": "eyJ...",
+  "refresh_token": "eyJ...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "user": { "user_id": "...", "username": "admin", "email": "admin@example.com", "role": "admin" }
+}
+```
+
+Refresh with `POST /api/v1/auth/refresh` and log out with `POST /api/v1/auth/logout` (both take a `refresh_token` body). `GET /api/v1/auth/me` returns the current user. When the browser flow sets an HttpOnly cookie, `refresh_token` is omitted from the login body.
+
+These paths need no credentials: `/health`, `/ready`, `/live`, `/swagger-ui`, `/api-docs`, `/api/v1/auth/login`, `/auth/refresh`, `/auth/oidc/login`, `/auth/oidc/callback`, `/auth/handoff`, `/auth/sso/providers`, `/setup/status`, `/setup/initialize`, `POST /mcp`, and `POST /api/v1/users` when self-registration is allowed. The MCP gateway checks credentials itself.
+
+WebSockets cannot set headers in a browser. Send the token as `Sec-WebSocket-Protocol: edgequake.bearer, <token>` or as a `?token=` query parameter.
+
+### Tenant and workspace headers
+
+Data belongs to a **tenant** (an organisation) and a **workspace** (a separate knowledge base inside it). Select them with headers:
+
+| Header | Meaning |
+|--------|---------|
 | `X-Tenant-ID` | Tenant UUID |
 | `X-Workspace-ID` | Workspace UUID |
+| `X-User-ID` | User UUID (ignored when a JWT or API key identifies the user) |
 
-Public (no auth): `/health`, `/ready`, `/live`, `/swagger-ui/*`, `/api-docs/*`.
+When auth succeeds, the server takes tenant and user from your credentials, not from spoofable headers. If you send no workspace, the default workspace is used.
 
-### Async admission model
+### Errors
 
-Uploads are **accepted asynchronously** — they return `202 Accepted` with a `task_id`, not a synchronous `completed` body.
+Errors use JSON with RFC 7807 fields added. The content type is `application/problem+json`.
 
-| Upload | Endpoint | Progress key |
-| ------ | -------- | ------------ |
-| File (PDF/TXT/MD) | `POST /api/v1/documents/upload` | `FileUploadResponse.task_id` |
-| PDF (vision pipeline) | `POST /api/v1/documents/pdf` | `PdfUploadResponse.task_id` |
-| JSON text | `POST /api/v1/documents` | track via list/detail `track_id` |
-
-PDF flow is **convert then ingest** (two tasks). See [Pipeline Progress](/docs/deep-dives/pipeline-progress/).
-
-### Status presentation (SPEC-057 P4)
-
-Document list/detail includes `display_status` and `ui_phase` from `IngestionStatusMapper`. **Use these for UI badges** instead of re-deriving from raw `status`.
-
-| `ui_phase` | UI behavior |
-| ---------- | ----------- |
-| `idle` | Queued / not yet running |
-| `running` | Active stage (`display_status`: `converting`, `extracting`, …) |
-| `stopping` | Cancel in flight — show **"Stopping…"** even if stage unchanged |
-| `terminal` | Done (`completed`, `failed`, `cancelled`, …) |
-
-### Progress, cancel, delete
-
-| Action | Endpoint |
-| ------ | -------- |
-| Ingest progress (poll) | `GET /api/v1/ingestion/{track_id}/progress` |
-| Ingest progress (batch) | `POST /api/v1/ingestion/progress` |
-| PDF progress (poll) | `GET /api/v1/documents/pdf/progress/{track_id}` |
-| PDF progress (SSE) | `GET /api/v1/documents/pdf/progress/stream/{track_id}` |
-| Global WS | `ws://localhost:8080/ws/pipeline/progress` |
-| Per-track WS | `ws://localhost:8080/ws/progress/{track_id}` |
-| Cancel task | `POST /api/v1/tasks/{track_id}/cancel` |
-| PDF cancel | `DELETE /api/v1/documents/pdf/{pdf_id}/cancel` |
-| Delete impact preview | `GET /api/v1/documents/{document_id}/deletion-impact` |
-| Queue metrics | `GET /api/v1/pipeline/queue-metrics` |
-
-Deletion broadcasts phase events on `/ws/pipeline/progress` (SPEC-050). Details: [Pipeline Progress](/docs/deep-dives/pipeline-progress/) and [Ingestion cancel & fairness](/docs/ingestion-cancel-and-fairness.md).
-
-> **Removed paths:** `/api/v1/rag/upload`, `/api/v1/rag/progress/*` — do not use.
-
-### Entity routes
-
-Entities live under **`/api/v1/graph/entities`**, not `/api/v1/entities`:
-
-- `GET /api/v1/graph/entities` — list
-- `GET /api/v1/graph/entities/{entity_name}` — detail
-- Provenance: `GET /api/v1/entities/{entity_id}/provenance` (separate lineage route)
-
-### Cost endpoints
-
-- `GET /api/v1/pipeline/costs/pricing`
-- `GET /api/v1/costs/summary`, `/costs/history`, `/costs/budget`
-
-See [Cost Tracking](/docs/deep-dives/cost-tracking/).
-
----
-
-## Table of Contents
-
-- [Authentication](#authentication)
-- [Health & Diagnostics](#health--diagnostics)
-- [Documents API](#documents-api)
-- [Parse API](#parse-api-spec-094)
-- [Query API](#query-api)
-- [Chat API](#chat-api)
-- [Graph API](#graph-api)
-- [Workspaces API](#workspaces-api)
-- [Knowledge Injection API](#knowledge-injection-api)
-- [Conversations API](#conversations-api)
-- [Models & Settings](#models--settings)
-- [Error Handling](#error-handling)
-- [Rate Limiting](#rate-limiting)
-
----
-
-## Authentication
-
-EdgeQuake supports two authentication methods:
-
-### API Key Authentication
-
-Include your API key in the `X-API-Key` header:
-
-```bash
-curl -H "X-API-Key: your-api-key" \
-     http://localhost:8080/api/v1/documents
+```json
+{
+  "code": "NOT_FOUND",
+  "message": "Not found: document 'abc'",
+  "type": "https://edgequake.dev/problems/not-found",
+  "title": "Not Found",
+  "status": 404,
+  "details": { "request_id": "..." }
+}
 ```
 
-### Bearer Token Authentication
+| Status | `code` | Meaning |
+|--------|--------|---------|
+| 400 | `BAD_REQUEST` | Malformed request or missing field |
+| 401 | `UNAUTHORIZED` | Missing or invalid credentials |
+| 403 | `FORBIDDEN` | Valid user, not allowed (for example admin-only routes) |
+| 404 | `NOT_FOUND` | Resource does not exist in your workspace |
+| 409 | `CONFLICT` | Duplicate or conflicting state |
+| 410 | `GONE` | Resource expired (for example a retrieval id) |
+| 422 | `VALIDATION_ERROR` | Valid JSON, invalid values |
+| 423 | `ACCOUNT_LOCKED` | Too many failed logins |
+| 429 | `RATE_LIMITED` | Rate limit hit (only when enabled) |
+| 502 | `LLM_ERROR` | Upstream model provider failed |
+| 503 | `SERVICE_UNAVAILABLE`, `read_path_busy` | Dependency down, or reads are shed under heavy ingest. Retry. |
 
-Use `Authorization: Bearer` header:
+Parse errors use codes such as `parse.too_large` and `parse.unsupported_media_type`.
 
-```bash
-curl -H "Authorization: Bearer your-api-key" \
-     http://localhost:8080/api/v1/documents
+### Pagination
+
+List endpoints use one of two styles. Check each endpoint.
+
+| Style | Parameters | Used by |
+|-------|------------|---------|
+| Page | `page` (from 1), `page_size` (documents and graph entities: default 20, max 100) | documents, graph entities and relationships, tasks, API keys, users, v2 jobs |
+| Offset | `offset`, `limit` | tenants, workspaces, injections, metrics history |
+| Cursor | `cursor`, `limit` | conversations (default 20, max 100), messages (default 50, max 200) |
+
+### Rate limits
+
+Rate limiting is **off by default**. Set `EDGEQUAKE_RATE_LIMIT_ENABLED=true` to turn it on. It uses a token bucket per authenticated tenant. Successful responses carry `X-RateLimit-Limit` and `X-RateLimit-Remaining`. A rejected request returns 429 with `Retry-After` and this body:
+
+```json
+{
+  "error": "rate_limit_exceeded",
+  "message": "Too many requests for tenant '...'",
+  "retry_after_seconds": 2,
+  "request_id": "...",
+  "error_code": "RATE_LIMITED",
+  "retryable": true
+}
 ```
 
-### Multi-Tenant Headers
+### Long-running work is asynchronous
 
-For multi-tenant deployments, include workspace context:
+Uploads, deletes and rebuilds return quickly and finish in the background. The response carries a `task_id` or `track_id`. Poll `GET /api/v1/tasks/{track_id}`, or follow progress over [WebSocket or SSE](extended-api.md#progress-streams). See [Document upload](document-upload-quick-reference.md) for the full flow.
 
-| Header           | Description                 | Required                         |
-| ---------------- | --------------------------- | -------------------------------- |
-| `X-Tenant-ID`    | Tenant identifier (UUID)    | Required for multi-tenant        |
-| `X-Workspace-ID` | Workspace identifier (UUID) | Required for workspace isolation |
+## Health
+
+These three routes need no auth. They are for operators and orchestrators.
+
+| Route | Purpose | Success | Failure |
+|-------|---------|---------|---------|
+| `GET /health` | Detailed status of storage, providers, schema and queue | 200 | n/a (degraded still returns 200) |
+| `GET /ready` | Can this node take traffic? | 200 `{"ready":true,"blockers":[]}` | 503 with `blockers` and `operator_action` |
+| `GET /live` | Is the process alive? | 200, plain text `OK` | n/a |
 
 ```bash
-curl -H "X-API-Key: your-key" \
-     -H "X-Tenant-ID: tenant-uuid" \
-     -H "X-Workspace-ID: workspace-uuid" \
-     http://localhost:8080/api/v1/documents
+curl -s http://localhost:8080/health
 ```
-
-### Public Endpoints (No Auth Required)
-
-- `GET /health`
-- `GET /ready`
-- `GET /live`
-- `GET /swagger-ui/*`
-- `GET /api-docs/*`
-
----
-
-## Health & Diagnostics
-
-### GET /health
-
-Deep health check with component status for monitoring dashboards.
-
-**Response**:
 
 ```json
 {
   "status": "healthy",
-  "version": "0.23.0",
+  "version": "0.32.2",
   "storage_mode": "postgresql",
   "workspace_id": "default",
   "components": {
@@ -177,1163 +145,468 @@ Deep health check with component status for monitoring dashboards.
     "llm_provider": true
   },
   "llm_provider_name": "ollama",
-  "attribution": {
-    "app_id": "edgequake",
-    "app_name": "EdgeQuake",
-    "active": true
+  "providers": {
+    "llm": { "name": "ollama", "model": "gemma3:latest" },
+    "embedding": { "name": "ollama", "model": "embeddinggemma:latest", "dimension": 768 }
   },
-  "schema": {
-    "latest_version": 20240115001,
-    "migrations_applied": 12,
-    "last_applied_at": "2024-01-15T10:30:00Z"
+  "security_posture": {
+    "auth_enabled": false,
+    "dev_mode": true,
+    "secrets_key_configured": false,
+    "jwt_secret_is_default": true,
+    "rate_limit_enabled": false,
+    "swagger_enabled": true
   }
 }
 ```
 
-### GET /ready
+`status` is `healthy` or `degraded`. It turns `degraded` when a storage component is down, the task queue is overloaded, a required index is missing, or the active LLM is a local provider that does not answer a probe. In v0.33.0, `components.llm_provider` is a live probe of local providers, not only a configuration check. Other optional fields include `schema`, `operational`, `capabilities`, `build_info`, `pdf_storage_enabled` and `attribution`.
 
-Kubernetes readiness probe. Returns 200 if service can accept traffic.
+## Documents
 
-```bash
-curl http://localhost:8080/ready
-# Response: 200 OK
-```
+A document is a unit of source text. Uploading creates a background task that chunks the text, extracts entities and relationships, embeds the chunks and stores everything. The [upload guide](document-upload-quick-reference.md) explains which endpoint to pick. Summary:
 
-### GET /live
+| Endpoint | Use it for | Success |
+|----------|------------|---------|
+| `POST /api/v1/documents` | JSON text body | 202 |
+| `POST /api/v1/documents/upload` | One file (txt, md, json, csv, html, htm, xml, yaml, yml, or an image) | 202 |
+| `POST /api/v1/documents/upload/batch` | Several files | 202 |
+| `POST /api/v1/documents/pdf` | One PDF | 200 |
+| `POST /api/v1/documents/pdf/batch` | Several PDFs | 200 |
+| `POST /api/v1/documents/scan` | Server-side directory scan | 200 |
 
-Kubernetes liveness probe. Returns 200 if process is alive.
-
-```bash
-curl http://localhost:8080/live
-# Response: 200 OK
-```
-
----
-
-## Documents API
-
-Document ingestion with automatic entity extraction and knowledge graph construction.
+The maximum upload size is 50 MiB. Larger files return 413.
 
 ### POST /api/v1/documents
 
-Upload document content as JSON text.
-
-**Text Upload (JSON)**:
-
 ```bash
-curl -X POST http://localhost:8080/api/v1/documents \
+curl -s -X POST http://localhost:8080/api/v1/documents \
   -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: workspace-uuid" \
-  -d '{
-    "content": "Your document text here...",
-    "title": "Document Title",
-    "source": "manual_entry"
-  }'
+  -H "X-Workspace-ID: $WORKSPACE_ID" \
+  -d '{"content":"Marie Curie won two Nobel Prizes.","title":"Curie notes"}'
 ```
-
-### POST /api/v1/documents/upload
-
-Upload a file (PDF, TXT, MD, JSON) via multipart form data.
-
-**File Upload (Multipart)**:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/upload \
-  -H "X-Workspace-ID: workspace-uuid" \
-  -F "file=@document.pdf" \
-  -F "title=My PDF Document"
-```
-
-**Supported File Types**:
-
-| Extension | MIME Type        | Max Size |
-| --------- | ---------------- | -------- |
-| `.pdf`    | application/pdf  | 50 MB    |
-| `.txt`    | text/plain       | 10 MB    |
-| `.md`     | text/markdown    | 10 MB    |
-| `.json`   | application/json | 10 MB    |
-
-**Response** (`202 Accepted` — async processing):
 
 ```json
 {
-  "document_id": "doc-uuid",
-  "filename": "document.pdf",
-  "size": 1024000,
-  "content_hash": "sha256:...",
+  "document_id": "5b1f...",
+  "track_id": "track-1f2e...",
+  "task_id": "9c7a...",
   "status": "pending",
-  "chunk_count": 0,
-  "entity_count": 0,
-  "relationship_count": 0,
-  "is_duplicate": false,
-  "task_id": "insert-uuid"
+  "queue_position": 1,
+  "eta_seconds": null,
+  "eta_basis": "no_history",
+  "extraction_mode": "llm",
+  "extraction_mode_source": "default"
 }
 ```
 
-Poll progress via `GET /api/v1/ingestion/{task_id}/progress` or subscribe on `ws://localhost:8080/ws/progress/{task_id}`. When complete, list/detail includes `display_status` and `ui_phase`.
+| Field | Type | Notes |
+|-------|------|-------|
+| `content` | string, required | Document text |
+| `title` | string | Display title |
+| `metadata` | object | Free-form metadata |
+| `track_id` | string | Your own grouping id. For correlation only; progress and cancel use `task_id`. |
+| `async_processing` | boolean | Kept for compatibility. Uploads are always queued, so you always get a `task_id`. |
+| `chunk_strategy` | string | `fixed`, `recursive` or `markdown` |
+| `chunk_options` | object | Chunk size, overlap and separator overrides |
+| `enable_gleaning`, `max_gleaning` | boolean, integer | Extra extraction passes |
+| `use_llm_summarization` | boolean | Summarise merged descriptions with the LLM |
+| `extraction_mode` | string | `llm`, `decision` or `inherit` ([decision extraction](../concepts/decision-extraction.md)) |
+| `decision_gate_preset` | string | `strict`, `balanced` or `recall` |
+| `extract_max_entities`, `extract_max_records` | integer | Per-upload extraction caps |
 
-**PDF upload** — use `POST /api/v1/documents/pdf` instead; returns `PdfUploadResponse` with `task_id` (progress key) and optional client `track_id` (correlation only).
+If the same content is already being processed, you get 200 with `status: "duplicate_processing"` and `duplicate_of` set to the existing document id. Errors: 400 (missing `content`), 413 (too large).
 
 ### GET /api/v1/documents
 
-List all documents in the workspace.
-
-**Query Parameters**:
-
-| Parameter          | Type    | Default | Description                                                          |
-| ------------------ | ------- | ------- | -------------------------------------------------------------------- |
-| `limit`            | integer | 50      | Max documents to return                                              |
-| `offset`           | integer | 0       | Pagination offset                                                    |
-| `status`           | string  | all     | Filter by status (processing, completed, failed)                     |
-| `date_from`        | string  | null    | ISO 8601 date. Only include documents created on or after this date  |
-| `date_to`          | string  | null    | ISO 8601 date. Only include documents created on or before this date |
-| `document_pattern` | string  | null    | Comma-separated title search terms (case-insensitive, OR logic)      |
+Query parameters: `page`, `page_size`, `status`, `date_from`, `date_to`, `document_pattern` (case-insensitive title match; commas mean OR).
 
 ```bash
-curl http://localhost:8080/api/v1/documents?limit=10&status=completed \
-  -H "X-Workspace-ID: workspace-uuid"
+curl -s "http://localhost:8080/api/v1/documents?page=1&page_size=20&status=failed" \
+  -H "X-Workspace-ID: $WORKSPACE_ID"
 ```
-
-**Response**:
 
 ```json
 {
   "documents": [
     {
-      "id": "doc-uuid-1",
-      "title": "Document 1",
+      "id": "5b1f...",
+      "title": "Curie notes",
       "status": "completed",
       "display_status": "completed",
       "ui_phase": "terminal",
-      "chunk_count": 15,
-      "created_at": "2024-01-15T10:30:00Z"
+      "current_stage": "completed",
+      "chunk_count": 3,
+      "entity_count": 12,
+      "created_at": "2026-10-09T10:00:00Z"
     }
   ],
-  "total": 42,
-  "limit": 10,
-  "offset": 0
-}
-```
-
-The relational scan does not read `documents.content` (preview and length come from metadata). It is capped (`LIMIT`, same envelope as the KV list) and runs under `SET LOCAL statement_timeout`.
-
-**503** `read_path_busy` when the interactive deadline is spent (default 2.5s, `EDGEQUAKE_DOCUMENTS_READ_TIMEOUT_MS`). Same code on document detail, `GET /api/v1/documents/search`, `GET /api/v1/tenants`, and workspace list. Body is `application/problem+json`:
-
-```json
-{
-  "code": "read_path_busy",
-  "message": "Read path busy",
-  "title": "Read Path Busy",
-  "status": 503,
-  "type": "https://edgequake.dev/problems/read-path-busy",
-  "details": {
-    "reason": "work_deadline",
-    "retry_after_ms": 2500,
-    "retryable": true
+  "total": 1,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 1,
+  "has_more": false,
+  "status_counts": {
+    "pending": 0, "processing": 0, "completed": 1,
+    "partial_failure": 0, "failed": 0, "cancelled": 0, "unknown": 0
   }
 }
 ```
 
-`reason` is `permit_wait` (bulkhead queue), `permit_closed`, or `work_deadline` (handler exceeded the shared budget). `Retry-After` is `retry_after_ms` rounded up to seconds. The WebUI retries once, then shows Try again. See [Read path busy](/docs/troubleshooting/common-issues/#10-documents-page-read-path-busy).
+`status_counts` covers the whole workspace, even when you filter by `status`. A 503 means reads are being shed under ingest load; retry. Use `GET /api/v1/documents/search?q=...` for a fast title search.
 
-### GET /api/v1/documents/:id
+### GET /api/v1/documents/{document_id}
 
-Get document details by ID.
+Returns the same fields as a list item plus `content`, `content_hash`, token counts, `llm_model`, `embedding_model` and `warning_message`. Returns 404 when the document is not in your workspace.
 
-```bash
-curl http://localhost:8080/api/v1/documents/doc-uuid \
-  -H "X-Workspace-ID: workspace-uuid"
+### Document statuses
+
+`status` is the raw state. For UI badges, use `display_status` and `ui_phase`, which already merge task and document state.
+
+| Field | Values |
+|-------|--------|
+| `status` | `pending`, `processing`, `converting`, `chunking`, `extracting`, `embedding`, `indexing`, `projecting`, `completed` (also `indexed`), `partial_failure`, `failed`, `cancelled` |
+| `ui_phase` | `idle`, `running`, `stopping`, `terminal` |
+
+Lifecycle diagrams are in [Extended API](extended-api.md#lifecycle).
+
+### DELETE /api/v1/documents/{document_id}
+
+Deletes the document and its chunks, vectors and graph contributions. It is an async job: you get **202**, not 200.
+
+```json
+{ "document_id": "5b1f...", "accepted": true, "deleted": false, "track_id": "del-...", "chunks_deleted": 0 }
 ```
 
-**Response**:
+Watch the `track_id` on the WebSocket for `DeletionCompleted`. Use `GET /api/v1/documents/{id}/deletion-impact` first to preview what will be removed.
+
+### Bulk and recovery operations
+
+| Endpoint | What it does |
+|----------|--------------|
+| `DELETE /api/v1/documents` | Wipe every document in the workspace. 202 with `wipe_track_id`. Send `X-EdgeQuake-Confirm: delete-all-documents` (enforced when `EDGEQUAKE_REQUIRE_DELETE_ALL_CONFIRM=true`). 409 if a wipe is already running. |
+| `POST /api/v1/documents/batch-delete` | Delete a chosen set (body `BatchDeleteDocumentsRequest`). 202. |
+| `POST /api/v1/documents/{id}/cancel` | Cancel in-flight work for one document. |
+| `POST /api/v1/documents/reprocess` | Requeue failed documents. |
+| `POST /api/v1/documents/recover-stuck` | Requeue documents stuck in an active status. |
+| `GET /api/v1/documents/{id}/failed-chunks`, `POST .../retry-chunks` | Inspect and retry failed chunks. |
+| `GET /api/v1/documents/{id}/download/markdown`, `.../download/original` | Download extracted Markdown or the original bytes. |
+| `GET /api/v1/documents/{id}/pages`, `.../pages/health`, `POST .../pages/reprocess` | Per-page health and partial reprocess for PDFs. |
+| `POST /api/v1/documents/{id}/reanalyze` | Re-run multimodal analysis on stored Markdown. |
+
+Details for these are in [Extended API](extended-api.md#advanced-document-endpoints).
+
+## Parse
+
+`POST /api/v1/parse` converts a PDF to Markdown and returns it. It stores nothing and builds no graph. Use it when you only need text extraction.
+
+Send multipart form data with a `file` field and an optional `options` JSON field, or send the raw PDF body with `Content-Type: application/pdf` and an `X-Filename` header.
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/parse \
+  -F "file=@paper.pdf" \
+  -F 'options={"backend":"edgeparse","pages":"1-3"}'
+```
 
 ```json
 {
-  "id": "doc-uuid",
-  "title": "Document Title",
-  "status": "completed",
-  "display_status": "completed",
-  "ui_phase": "terminal",
-  "content_hash": "sha256:...",
-  "chunk_count": 15,
-  "entity_count": 23,
-  "relationship_count": 18,
-  "file_path": "/uploads/document.pdf",
-  "file_size": 1024000,
-  "created_at": "2024-01-15T10:30:00Z",
-  "updated_at": "2024-01-15T10:32:40Z"
-}
-```
-
-### DELETE /api/v1/documents/:id
-
-Delete a document and all associated data (chunks, entities, relationships). Emits SPEC-050 deletion progress on `/ws/pipeline/progress`.
-
-Preview impact first: `GET /api/v1/documents/{document_id}/deletion-impact`.
-
-```bash
-curl -X DELETE http://localhost:8080/api/v1/documents/doc-uuid \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-**Response** (`200 OK`):
-
-```json
-{
-  "document_id": "doc-uuid",
-  "deleted": true,
-  "chunks_deleted": 15,
-  "entities_affected": 8,
-  "relationships_affected": 12,
-  "embeddings_deleted": 15,
-  "partial_failure": false
-}
-```
-
-### Page health and partial reprocess (SPEC-151)
-
-PDF documents can reprocess selected pages without discarding healthy ones. Migration **160** stores per-page state.
-
-| Endpoint | Description |
-| -------- | ----------- |
-| `GET /api/v1/documents/{id}/pages/health` | Per-page parse / figures / entities health |
-| `POST /api/v1/documents/{id}/pages/reprocess` | `dry_run: true` returns a plan (200). Omit it to enqueue (202) |
-
-`stages` is one or more of `parse`, `figures`, `entities`. `pages` is a JSON array or a range string (`"1-3,7"`). PDF only; an active task on the document returns **409**.
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/$DOC_ID/pages/reprocess \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: workspace-uuid" \
-  -d '{"pages":"1-3","stages":["parse"],"dry_run":true}'
-```
-
----
-
-## Parse API (SPEC-094)
-
-Stateless **PDF → Markdown** conversion with **no document residue** — nothing is stored, embedded, or indexed. Use this when you only need the extracted text (preview, eval, export), not a full ingestion.
-
-| Endpoint | Description |
-| -------- | ----------- |
-| `POST /api/v1/parse` | Parse a PDF (multipart `file` field or raw `application/pdf` body) |
-| `GET /api/v1/parse/backends` | List available parse backends (`vision`, `edgeparse`, `edgeparse-ocr`, …) |
-| `GET /api/v1/parse/jobs/{id}` | Poll an async parse job (in-memory TTL) |
-
-**Sync vs async:**
-
-| Input | Sync (≤ 15 pages, ≤ 20 MiB) | Async (up to 1000 pages) |
-| ----- | --------------------------- | ------------------------ |
-| `Prefer: respond-async` header | Optional — forces async | — |
-| Over ceiling | 202 + job id (async) | — |
-
-**Response** (sync 200) — `ParseResponse`: Markdown plus timing/cost metrics only (no `job_id` — that field exists only on async responses):
-
-```json
-{
-  "markdown": "# Extracted content\n...",
-  "backend": "vision",
-  "backend_effective": "vision",
+  "markdown": "# Title\n...",
+  "page_count": 3,
+  "backend": "edgeparse",
+  "backend_effective": "edgeparse",
   "fallback_applied": false,
-  "page_count": 12,
-  "metrics": {
-    "total_ms": 3450,
-    "pages_per_second": 3.5,
-    "estimated_cost_usd": 0.0042
-  },
   "warnings": [],
-  "request_id": "req-uuid"
+  "metrics": { "total_ms": 812 },
+  "request_id": "req-..."
 }
 ```
 
-Example — parse a PDF synchronously:
+| Option | Values |
+|--------|--------|
+| `backend` | `vision`, `edgeparse`, `edgeparse-ocr`, `auto` |
+| `provider`, `model` | Vision provider and model (vision backend) |
+| `dpi` | 72 to 400 |
+| `concurrency` | 1 to 16 |
+| `pages` | Page selection such as `1-3,7` |
+| `table_method`, `emit_assets`, `allow_fallback`, `include_page_timings` | Optional tuning |
+| `async` | `true` forces a background job |
 
-```bash
-curl -X POST http://localhost:8080/api/v1/parse \
-  -F "file=@document.pdf"
-```
+Large inputs, or a `Prefer: respond-async` header, return **202** with `{"job_id","status","request_id"}`. Poll `GET /api/v1/parse/jobs/{job_id}`; its `status` is `pending`, `running`, `completed` or `failed`, and `result` holds the same body as the sync response. Jobs expire after about an hour. `GET /api/v1/parse/backends` lists backends, reachable vision models and the size and page limits.
 
-Example — EdgeParse + Tesseract OCR backend:
+Errors: 400, 413 (too large), 415 (not a PDF), 422 (unreadable), 502 (backend unavailable), 504 (timeout).
 
-```bash
-curl -X POST http://localhost:8080/api/v1/parse \
-  -F "file=@document.pdf" \
-  -F 'options={"backend":"edgeparse-ocr"}'
-```
-
-Example — request async processing:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/parse \
-  -H "Prefer: respond-async" \
-  -F "file=@large-document.pdf"
-# → 202 { "job_id": "pr_...", "status": "accepted", "request_id": "req-uuid" }
-#   poll GET /api/v1/parse/jobs/{job_id} → { "job_id": ..., "status": "completed|processing|failed", "result": {ParseResponse}, "error": {code, message} }
-```
-
-Async jobs are held in an **in-memory TTL store** (default 1 hour) — restarting the API loses them.
-
-> The parse API never creates documents or tasks — nothing to cancel, nothing to clean up. Full spec: [`specs/94-api-markdown/00-spec.md`](../../specs/94-api-markdown/00-spec.md).
-
----
-
-## Query API
-
-Execute RAG queries with multi-mode retrieval.
+## Query
 
 ### POST /api/v1/query
 
-Execute a query with configurable retrieval mode.
-
-**Request**:
+Runs retrieval over the workspace knowledge graph and returns an answer with sources.
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/query \
+curl -s -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: workspace-uuid" \
-  -d '{
-    "query": "What are the main themes discussed?",
-    "mode": "hybrid",
-    "enable_rerank": true,
-    "rerank_top_k": 5
-  }'
+  -H "X-Workspace-ID: $WORKSPACE_ID" \
+  -d '{"query":"How many Nobel Prizes did Marie Curie win?","mode":"mix"}'
 ```
-
-**Request Body**:
-
-| Field                  | Type    | Default  | Description                                         |
-| ---------------------- | ------- | -------- | --------------------------------------------------- |
-| `query`                | string  | required | The question to answer                              |
-| `mode`                 | string  | "mix" | Query mode (see below)                              |
-| `context_only`         | boolean | false    | Return only retrieved context, no LLM answer        |
-| `prompt_only`          | boolean | false    | Return formatted prompt for debugging               |
-| `enable_rerank`        | boolean | true     | Apply reranking to improve relevance                |
-| `rerank_top_k`         | integer | 5        | Number of top chunks after reranking                |
-| `conversation_history` | array   | null     | Previous messages for multi-turn context            |
-| `system_prompt`        | string  | null     | Custom instructions prepended to LLM context        |
-| `document_filter`      | object  | null     | Optional filter to restrict RAG context (see below) |
-
-**Document Filter Object**:
-
-| Field              | Type   | Description                                                                  |
-| ------------------ | ------ | ---------------------------------------------------------------------------- |
-| `date_from`        | string | ISO 8601 date. Only include documents created on or after this date          |
-| `date_to`          | string | ISO 8601 date. Only include documents created on or before this date         |
-| `document_pattern` | string | Comma-separated terms. Matches document titles case-insensitively (OR logic) |
-
-All filter fields are optional and AND-ed together. Omit `document_filter` entirely to query all documents.
-
-**Query Modes** (default when unset is **`mix`** — the code falls back to `QueryMode::Mix`):
-
-| Mode     | Description              | Use Case                          |
-| -------- | ------------------------ | --------------------------------- |
-| `naive`  | Vector search only       | Fast, simple queries              |
-| `local`  | Entity-centric retrieval | Questions about specific entities |
-| `global` | Relationship-centric search | Theme/overview questions        |
-| `hybrid` | Local + Global + Naive (round-robin) | General queries      |
-| `mix`    | Weighted blend of all arms (**default**) | Complex queries      |
-| `bypass` | Direct LLM, no RAG       | When context not needed           |
-
-**Response**:
 
 ```json
 {
-  "answer": "The main themes discussed include...",
-  "mode": "hybrid",
+  "answer": "Marie Curie won two Nobel Prizes...",
+  "mode": "mix",
   "sources": [
     {
+      "id": "chunk-1",
       "source_type": "chunk",
-      "id": "chunk-uuid",
-      "score": 0.89,
-      "rerank_score": 0.95,
-      "snippet": "The first theme relates to...",
-      "reference_id": 1,
-      "document_id": "doc-uuid",
-      "file_path": "document.pdf",
-      "start_line": 45,
-      "end_line": 52,
-      "chunk_index": 3
-    },
-    {
-      "source_type": "entity",
-      "id": "CLIMATE_CHANGE",
-      "score": 0.85,
-      "snippet": "A global phenomenon affecting...",
-      "reference_id": 2,
-      "document_id": "doc-uuid"
+      "score": 0.83,
+      "document_id": "5b1f...",
+      "snippet": "Marie Curie won two Nobel Prizes.",
+      "reference_id": 1
     }
   ],
   "stats": {
-    "embedding_time_ms": 45,
-    "retrieval_time_ms": 123,
-    "generation_time_ms": 890,
-    "total_time_ms": 1058,
-    "sources_retrieved": 8,
-    "rerank_time_ms": 67,
-    "tokens_used": 256,
-    "tokens_per_second": 287.6,
+    "embedding_time_ms": 12,
+    "retrieval_time_ms": 45,
+    "generation_time_ms": 900,
+    "total_time_ms": 960,
+    "sources_retrieved": 5,
     "llm_provider": "ollama",
-    "llm_model": "gemma4:latest"
+    "llm_model": "gemma3:latest"
   },
-  "reranked": true
+  "reranked": false,
+  "conversation_id": null
 }
 ```
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `query` | string, required | Up to 10,000 characters |
+| `mode` | string | `naive`, `local`, `global`, `hybrid`, `mix` or `bypass`. Default `mix`. |
+| `llm_provider`, `llm_model` | string | Override the workspace model for this call |
+| `document_filter` | object | Limit scope: `document_ids`, `document_pattern`, `date_from`, `date_to` |
+| `conversation_history` | array | Earlier turns for multi-turn context |
+| `max_results` | integer | Result cap |
+| `enable_rerank`, `rerank_model`, `rerank_top_k` | boolean, string, integer | Reranking |
+| `context_only` | boolean | Return context without calling the LLM |
+| `prompt_only` | boolean | Return the built prompt only |
+| `include_references`, `include_subgraph` | boolean | Add reference metadata or the matched sub-graph |
+| `content_granularity` | string | Snippet size: `citation`, `agent` or `debug` |
+| `system_prompt` | string | Extends the system prompt |
+| `response_type` | string | Answer format cue |
+| `hl_keywords`, `ll_keywords` | array | Pre-supplied keywords; skips keyword extraction |
+| `reasoning_effort` | string | `none`, `minimal`, `low`, and so on |
+
+The API has no `top_k` or `rerank` field on this endpoint; unknown fields are ignored. Use `max_results` and `enable_rerank`.
+
+Related retrieval routes: `POST /api/v1/query/context` (retrieve without answering), `POST /api/v1/query/context/search`, `GET /api/v1/query/context/{retrieval_id}` (410 when expired) and `GET /api/v1/query/context/artifacts/{artifact_type}/{artifact_id}`.
 
 ### POST /api/v1/query/stream
 
-Stream query response using Server-Sent Events (SSE).
+Same request as `/query` plus `stream_format`. The response is Server-Sent Events (`text/event-stream`).
 
-**Request**:
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+sequenceDiagram
+    participant C as Client
+    participant S as EdgeQuake
+    C->>S: POST /api/v1/query/stream
+    S-->>C: data context (sources, timing)
+    loop while generating
+        S-->>C: data thinking (optional)
+        S-->>C: data token
+    end
+    S-->>C: data done (stats, final answer)
+```
+
+Read it as one request and many small events. Each `data:` line is a JSON object with a `type` field.
+
+| `type` | Fields |
+|--------|--------|
+| `context` | `sources`, `query_mode`, `retrieval_time_ms`, optional `subgraph` |
+| `token` | `content` |
+| `thinking` | `content` (model reasoning, when available) |
+| `done` | `stats`, `llm_provider`, `llm_model`, `answer` (verified Markdown; replace the streamed text with it) |
+| `error` | `message`, `code` |
+
+`stream_format` is `v2` by default (JSON events). `v1` sends raw text chunks instead.
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/query/stream \
+curl -N -X POST http://localhost:8080/api/v1/query/stream \
   -H "Content-Type: application/json" \
-  -H "Accept: text/event-stream" \
-  -d '{"query": "Explain the key findings", "mode": "hybrid"}'
+  -d '{"query":"Summarise the corpus"}'
 ```
 
-**Request Parameters**:
+## Chat
 
-| Field             | Type   | Required | Description                                              |
-| ----------------- | ------ | -------- | -------------------------------------------------------- |
-| `query`           | string | yes      | Natural language query                                   |
-| `mode`            | string | no       | Query mode: `hybrid`, `local`, `global`, `naive`, `mix`  |
-| `system_prompt`   | string | no       | System prompt extension                                  |
-| `document_filter` | object | no       | Document filter to scope RAG context (SPEC-005)          |
-| `llm_provider`    | string | no       | LLM provider override (e.g., `openai`, `ollama`)         |
-| `llm_model`       | string | no       | LLM model override (e.g., `gpt-4.1-nano`)                  |
-| `stream_format`   | string | no       | `v1` for raw text (backward compat), `v2` for structured |
-
-**SSE Events (v2 format — default)**:
-
-```
-data: {"type":"context","sources":[{"source_type":"chunk","id":"...","score":0.89,"entity_type":"PERSON","degree":5}],"query_mode":"hybrid","retrieval_time_ms":120}
-
-data: {"type":"token","content":"The"}
-
-data: {"type":"token","content":" key"}
-
-data: {"type":"token","content":" findings"}
-
-data: {"type":"done","stats":{"retrieval_time_ms":120,"generation_time_ms":800,"total_time_ms":920,"sources_retrieved":8,"tokens_used":256,"tokens_per_second":320.0,"query_mode":"hybrid"},"llm_provider":"ollama","llm_model":"gemma4:latest"}
-```
-
-**SSE Events (v1 format — `stream_format: "v1"`)**:
-
-```
-data: The
-
-data:  key
-
-data:  findings
-```
-
----
-
-## Chat API
-
-Unified chat completions API with OpenAI-compatible format.
-
-### POST /api/v1/chat/completions
-
-Execute a chat completion with automatic conversation management.
-
-**Request**:
+Chat adds conversation storage on top of query. `POST /api/v1/chat/completions` returns one JSON response. `POST /api/v1/chat/completions/stream` returns SSE. (There is no OpenAI-style `/v1/chat/completions` route; for that shape see the [Ollama emulation](extended-api.md#ollama-emulation).)
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/chat/completions \
+curl -s -X POST http://localhost:8080/api/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: workspace-uuid" \
-  -d '{
-    "message": "What is the relationship between X and Y?",
-    "conversation_id": "conv-uuid",
-    "mode": "hybrid",
-    "stream": false
-  }'
+  -d '{"message":"Who is Marie Curie?","mode":"mix"}'
 ```
-
-**Request Body**:
-
-| Field             | Type    | Default  | Description                                                        |
-| ----------------- | ------- | -------- | ------------------------------------------------------------------ |
-| `message`         | string  | required | User message                                                       |
-| `conversation_id` | string  | null     | Existing conversation ID (creates new if null)                     |
-| `mode`            | string  | "hybrid" | Query mode                                                         |
-| `stream`          | boolean | false    | Enable SSE streaming                                               |
-| `system_prompt`   | string  | null     | Custom instructions prepended to LLM context                       |
-| `document_filter` | object  | null     | Optional filter to restrict RAG context (same schema as Query API) |
-
-**Response** (Non-streaming):
 
 ```json
 {
-  "id": "msg-uuid",
-  "conversation_id": "conv-uuid",
-  "role": "assistant",
-  "content": "The relationship between X and Y is...",
-  "sources": [...],
-  "stats": {...},
-  "created_at": "2024-01-15T10:30:00Z"
+  "conversation_id": "c1...",
+  "user_message_id": "m1...",
+  "assistant_message_id": "m2...",
+  "content": "Marie Curie was a physicist...",
+  "mode": "mix",
+  "sources": [],
+  "tokens_used": 120,
+  "duration_ms": 1100,
+  "llm_provider": "ollama",
+  "llm_model": "gemma3:latest",
+  "stats": { "total_time_ms": 1100 }
 }
 ```
 
-**Streaming Response**:
+| Field | Notes |
+|-------|-------|
+| `message` | Required user text |
+| `conversation_id` | Existing conversation. Omit to create one. |
+| `parent_id` | Parent message for threading |
+| `mode`, `provider`, `model`, `top_k`, `temperature`, `max_tokens` | Retrieval and generation options |
+| `language` | Preferred answer language (ISO 639-1) |
+| `images` | Base64 images for vision models (up to 20 MiB each) |
+| `document_filter`, `seed_entity_ids`, `system_prompt`, `reasoning_effort` | Scope and prompt options |
+
+Stream event `type` values: `conversation`, `context`, `token`, `thinking`, `stage` (`retrieving`, `reading`, `generating`), `done`, `title_update`, `error`.
+
+## Graph
+
+The knowledge graph holds entities (nodes) and relationships (edges). Entity names are normalised to UPPERCASE with underscores.
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/v1/graph` | Sub-graph. Query: `start_node`, `depth` (default 2), `max_nodes` (default 100, clamped to a server maximum). |
+| `GET /api/v1/graph/stream` | Progressive SSE: `metadata`, `nodes`, `edges`, `done`, `error` events. Query: `start_node`, `max_nodes`, `batch_size`. |
+| `GET /api/v1/graph/nodes/{node_id}` | One node |
+| `GET /api/v1/graph/nodes/search` | Search nodes by label or description. Query: `q`, `limit`, `include_neighbors`, `neighbor_depth`, `entity_type`. |
+| `GET /api/v1/graph/labels/search`, `/labels/popular` | Label search and most-connected labels |
+| `POST /api/v1/graph/degrees/batch` | Degrees for many nodes |
+| `GET /api/v1/graph/communities`, `/graph/facets` | Community and type facets |
+| `GET /api/v1/graph/entities` | Paged list. Query: `page`, `page_size`, `entity_type`, `search`. |
+| `POST /api/v1/graph/entities` | Create (201; 409 if it exists) |
+| `GET /api/v1/graph/entities/exists?entity_name=` | Existence check |
+| `POST /api/v1/graph/entities/merge` | Merge two entities |
+| `GET`, `PUT`, `DELETE /api/v1/graph/entities/{entity_name}` | Read, update, delete |
+| `GET /api/v1/graph/entities/{entity_name}/neighborhood?depth=` | Connected nodes |
+| `GET`, `POST /api/v1/graph/relationships`; `GET`, `PUT`, `DELETE .../{relationship_id}` | Relationship CRUD |
+
+There is no `/graph/stats` route. For counts use `GET /api/v1/workspaces/{id}/stats`.
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/chat/completions \
-  -H "Accept: text/event-stream" \
-  -d '{"message": "...", "stream": true}'
+curl -s "http://localhost:8080/api/v1/graph?depth=2&max_nodes=50" \
+  -H "X-Workspace-ID: $WORKSPACE_ID"
 ```
-
-```
-data: {"type":"conversation","conversation_id":"conv-uuid","user_message_id":"msg-uuid"}
-
-data: {"type":"context","sources":[{"source_type":"entity","id":"X","score":0.95,"entity_type":"PERSON","degree":12}],"query_mode":"hybrid","retrieval_time_ms":85}
-
-data: {"type":"token","content":"The"}
-
-data: {"type":"token","content":" relationship"}
-
-data: {"type":"done","assistant_message_id":"asst-uuid","tokens_used":128,"duration_ms":920,"llm_provider":"ollama","llm_model":"gemma4:latest"}
-```
-
----
-
-## Graph API
-
-Knowledge graph exploration and visualization endpoints.
-
-### GET /api/v1/graph
-
-Get the knowledge graph with optional traversal.
-
-**Query Parameters**:
-
-| Parameter    | Type    | Default | Description                     |
-| ------------ | ------- | ------- | ------------------------------- |
-| `start_node` | string  | null    | Entity ID to center traversal   |
-| `depth`      | integer | 2       | Max traversal hops              |
-| `max_nodes`  | integer | 100     | Max nodes to return (max: 1000) |
-
-```bash
-curl "http://localhost:8080/api/v1/graph?start_node=ENTITY_NAME&depth=2&max_nodes=50" \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-**Response**:
 
 ```json
 {
   "nodes": [
     {
-      "id": "ENTITY_NAME",
-      "label": "Entity Name",
+      "id": "MARIE_CURIE",
+      "label": "MARIE_CURIE",
       "node_type": "PERSON",
-      "description": "Description of the entity...",
-      "degree": 5,
+      "description": "Physicist and chemist",
+      "degree": { "in": 1, "out": 2, "total": 3 },
+      "community_id": null,
       "properties": {}
     }
   ],
   "edges": [
     {
-      "source": "ENTITY_A",
-      "target": "ENTITY_B",
-      "edge_type": "WORKS_WITH",
+      "id": "MARIE_CURIE|WON|NOBEL_PRIZE",
+      "source": "MARIE_CURIE",
+      "target": "NOBEL_PRIZE",
+      "relationship_type": "WON",
+      "keywords": ["award"],
       "weight": 1.0,
+      "description": "",
       "properties": {}
     }
   ],
-  "total_nodes": 150,
-  "total_edges": 200,
-  "is_truncated": true
+  "total_nodes": 42,
+  "total_edges": 57,
+  "is_truncated": false,
+  "max_nodes": 50
 }
 ```
 
-### GET /api/v1/graph/stats
-
-Get graph statistics.
+Create an entity and a relationship:
 
 ```bash
-curl http://localhost:8080/api/v1/graph/stats \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-**Response**:
-
-```json
-{
-  "total_nodes": 1500,
-  "total_edges": 4200,
-  "node_types": {
-    "PERSON": 250,
-    "ORGANIZATION": 180,
-    "CONCEPT": 820,
-    "LOCATION": 150,
-    "EVENT": 100
-  },
-  "edge_types": {
-    "RELATED_TO": 2100,
-    "WORKS_WITH": 450,
-    "LOCATED_IN": 320,
-    "PART_OF": 580
-  },
-  "avg_degree": 2.8,
-  "density": 0.0019
-}
-```
-
-### GET /api/v1/graph/entities
-
-List entities with pagination.
-
-```bash
-curl "http://localhost:8080/api/v1/graph/entities?limit=20&type=PERSON" \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-### GET /api/v1/graph/entities/:id
-
-Get entity details by ID.
-
-```bash
-curl http://localhost:8080/api/v1/graph/entities/ENTITY_NAME \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-### GET /api/v1/graph/relationships
-
-List relationships with pagination.
-
-```bash
-curl "http://localhost:8080/api/v1/graph/relationships?limit=20&type=WORKS_WITH" \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-### GET /api/v1/graph/stream
-
-Stream graph updates via SSE (for real-time visualization).
-
-```bash
-curl http://localhost:8080/api/v1/graph/stream \
-  -H "Accept: text/event-stream" \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
----
-
-## Workspaces API
-
-Manage workspaces for multi-tenant isolation.
-
-### POST /api/v1/tenants/{tenant_id}/workspaces
-
-Create a new workspace.
-
-```bash
-curl -X POST http://localhost:8080/api/v1/tenants/$TENANT_ID/workspaces \
+curl -s -X POST http://localhost:8080/api/v1/graph/entities \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "Research Project",
-    "description": "Workspace for research documents",
-    "embedding_model": "text-embedding-3-small",
-    "embedding_dimension": 1536,
-    "llm_model": "gpt-4.1-nano"
-  }'
-```
+  -d '{"entity_name":"ADA_LOVELACE","entity_type":"PERSON","description":"Early programmer","source_id":"manual_entry"}'
 
-### GET /api/v1/tenants/{tenant_id}/workspaces
-
-List workspaces for a tenant. `total` is `COUNT(*)`. Optional `?include_stats=true` attaches stats **from cache only**: a cold cache returns `stats: null` and does not run the AGE/SQL stats query inside the list deadline. `GET /api/v1/workspaces/{id}/stats` warms that cache.
-
-**503** `read_path_busy` under the same interactive budget as the documents list ([above](#get-apiv1documents)). There is no unscoped `GET /api/v1/workspaces` list.
-
-### GET /api/v1/workspaces/:id
-
-Get workspace details.
-
-### PUT /api/v1/workspaces/:id
-
-Update workspace settings.
-
-### DELETE /api/v1/workspaces/:id
-
-Delete a workspace and all its data.
-
----
-
-## Conversations API
-
-Manage chat conversations.
-
-### GET /api/v1/conversations
-
-List conversations.
-
-### POST /api/v1/conversations
-
-Create a new conversation.
-
-### GET /api/v1/conversations/:id
-
-Get conversation with messages.
-
-### DELETE /api/v1/conversations/:id
-
-Delete a conversation.
-
-### GET /api/v1/conversations/:id/messages
-
-Get messages in a conversation.
-
----
-
-## Models & Settings
-
-### GET /api/v1/models
-
-List available LLM models.
-
-```bash
-curl http://localhost:8080/api/v1/models
-```
-
-**Response** (`ModelsListResponse`):
-
-```json
-{
-  "providers": [
-    {
-      "name": "openai",
-      "display_name": "OpenAI",
-      "provider_type": "openai",
-      "enabled": true,
-      "priority": 10,
-      "description": "OpenAI GPT models",
-      "models": [
-        {
-          "name": "gpt-4.1-mini",
-          "display_name": "GPT-4.1 Mini",
-          "model_type": "llm",
-          "deprecated": false,
-          "capabilities": {
-            "context_length": 1047576,
-            "max_output_tokens": 32768,
-            "supports_vision": true,
-            "supports_streaming": true,
-            "embedding_dimension": 0
-          }
-        }
-      ],
-      "auth_kind": "api_key"
-    },
-    {
-      "name": "ollama",
-      "display_name": "Ollama",
-      "provider_type": "ollama",
-      "enabled": true,
-      "models": [
-        {
-          "name": "gemma4:latest",
-          "display_name": "Gemma 4 Latest",
-          "model_type": "llm"
-        }
-      ],
-      "auth_kind": "local"
-    }
-  ],
-  "default_llm_provider": "openai",
-  "default_llm_model": "gpt-4.1-mini",
-  "default_embedding_provider": "openai",
-  "default_embedding_model": "text-embedding-3-small"
-}
-```
-
-> Runtime `default_llm_*` fields reflect the active provider from env/server config, not only `models.toml` static defaults.
-
-### GET /api/v1/models/{provider}
-
-Get models for a specific provider (e.g. `/api/v1/models/openai`).
-
-### GET /api/v1/settings/llm-defaults
-
-Get server-level LLM/embedding defaults (Settings UI).
-
-### GET /api/v1/settings/providers
-
-List available providers with credential requirements and default models.
-
-### GET /api/v1/settings/attribution
-
-Returns the effective application attribution context and a **provider header catalog** describing what EdgeQuake sends upstream to each LLM provider (OpenRouter referer, OpenAI client ID, Anthropic application ID, etc.).
-
-**Auth:** Bearer token or API key (same as other `/api/v1/settings/*` routes).
-
-```bash
-curl http://localhost:8080/api/v1/settings/attribution \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response**:
-
-```json
-{
-  "effective_context": {
-    "app_id": "edgequake",
-    "app_name": "EdgeQuake",
-    "app_url": "http://localhost:3000",
-    "tenant_id": null,
-    "request_id": null,
-    "end_user_id": null,
-    "active": true,
-    "sources": ["env:EDGEQUAKE_APP_ID", "env:EDGEQUAKE_APP_NAME"]
-  },
-  "providers": [
-    {
-      "id": "openai",
-      "display_name": "OpenAI",
-      "attribution_support": "full",
-      "headers": ["X-Client-Request-Id"],
-      "body_fields": ["user"]
-    },
-    {
-      "id": "anthropic",
-      "display_name": "Anthropic",
-      "attribution_support": "full",
-      "headers": ["x-application-id", "x-request-id"],
-      "body_fields": []
-    },
-    {
-      "id": "openrouter",
-      "display_name": "OpenRouter",
-      "attribution_support": "full",
-      "headers": ["HTTP-Referer", "X-OpenRouter-Title", "X-Title"],
-      "body_fields": []
-    }
-  ],
-  "ingress_headers": [
-    "x-edgequake-app-id",
-    "x-edgequake-app-name",
-    "x-edgequake-app-url",
-    "x-edgequake-tenant-id",
-    "x-edgequake-request-id"
-  ],
-  "environment_variables": [
-    "EDGEQUAKE_APP_ID",
-    "EDGEQUAKE_APP_NAME",
-    "EDGEQUAKE_APP_URL",
-    "EDGEQUAKE_TENANT_ID"
-  ]
-}
-```
-
-| Field | Description |
-| ----- | ----------- |
-| `effective_context.active` | `true` when at least one of `app_id`, `app_name`, or `app_url` is set |
-| `providers[].attribution_support` | `full`, `passthrough`, `observability_only`, or `none` (from provider catalog in edgequake-core) |
-| `providers[].headers` | HTTP headers injected on upstream LLM requests for that provider |
-| `providers[].body_fields` | JSON body fields set for attribution (e.g. OpenAI `user`) |
-| `ingress_headers` | Request headers clients may send to override attribution per call |
-| `environment_variables` | Env vars that populate `ApplicationContext` at process start |
-
-### GET /api/v1/settings/app-attribution
-
-Same response as `GET /settings/attribution`. Used by the Settings UI **Application Attribution** card.
-
-### PATCH /api/v1/settings/app-attribution
-
-Persist application attribution to PostgreSQL `server_config` (admin role required). Does **not** store API keys — only `app_id`, `app_name`, and `app_url`.
-
-```bash
-curl -X PATCH http://localhost:8080/api/v1/settings/app-attribution \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
+curl -s -X POST http://localhost:8080/api/v1/graph/relationships \
   -H "Content-Type: application/json" \
-  -d '{
-    "app_id": "edgequake",
-    "app_name": "EdgeQuake",
-    "app_url": "http://localhost:3000"
-  }'
+  -d '{"src_id":"ADA_LOVELACE","tgt_id":"ANALYTICAL_ENGINE","keywords":"wrote programs","description":"Wrote the first program","source_id":"manual_entry","weight":0.9}'
 ```
 
-**Response**:
+Delete an entity: `DELETE /api/v1/graph/entities/{name}?confirm=true`. `confirm=true` is required; `delete_relationships` defaults to `true`. Merge body: `{"source_entity","target_entity","merge_strategy"}` where strategy is `prefer_source`, `prefer_target` or `merge`.
 
-```json
-{
-  "saved": true,
-  "note": "Saved to server_config and applied immediately. Env vars (EDGEQUAKE_APP_*) still override on conflict."
-}
-```
+An entity response has `id`, `entity_name`, `entity_type`, `description`, `source_id`, `degree`, `metadata`, `created_at`, `updated_at`. `GET .../entities/{name}` wraps it as `{ "entity", "relationships": {"incoming","outgoing"}, "statistics" }`.
 
-> **Note:** Env vars (`EDGEQUAKE_APP_*`) override `server_config` values on conflict. PATCH applies immediately without restart.
+## Conversations
 
-### GET /api/v1/config/effective
+Conversations store chat history per user. They use cursor pagination.
 
-Get the effective configuration resolution chain (env → server config → compiled defaults).
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/v1/conversations` | List. Query: `cursor`, `limit`, `sort` (`updated_at`, `created_at`, `title`), `order`, and filters `filter[mode]`, `filter[archived]`, `filter[pinned]`, `filter[folder_id]`, `filter[unfiled]`, `filter[search]`. |
+| `POST /api/v1/conversations` | Create. Body: `title`, `mode`, `folder_id` (all optional). 201. |
+| `GET`, `PATCH`, `DELETE /api/v1/conversations/{id}` | Read, update, delete (204) |
+| `GET`, `POST /api/v1/conversations/{id}/messages` | List and add messages. Body: `role`, `content`, optional `parent_id`. |
+| `PATCH`, `DELETE /api/v1/messages/{message_id}` | Edit or delete a message |
+| `PATCH /api/v1/conversations/{conversation_id}/messages/{message_id}/feedback` | Thumbs feedback |
+| `POST`, `DELETE /api/v1/conversations/{id}/share` | Share or unshare. Read a shared one at `GET /api/v1/shared/{share_id}`. |
+| `POST /api/v1/conversations/bulk/delete`, `/bulk/archive`, `/bulk/move` | Bulk actions. Body: `{"conversation_ids":[...]}`. |
+| `POST /api/v1/conversations/import` | Import from browser local storage |
+| `GET`, `POST /api/v1/folders`; `PATCH`, `DELETE /api/v1/folders/{folder_id}` | Folders |
 
----
+A list response is `{ "items": [...], "pagination": { "has_more", "next_cursor", "prev_cursor", "total" } }`. Pass `next_cursor` as `cursor` to get the next page.
 
-## Error Handling
+## Knowledge injection
 
-EdgeQuake uses RFC 7807 Problem Details for error responses.
+Injection adds trusted reference text (glossaries, acronyms, definitions) to a workspace. EdgeQuake processes it into the graph like a document. Content is limited to 100 KiB.
 
-**Error Response Format**:
-
-```json
-{
-  "type": "https://edgequake.dev/errors/not-found",
-  "title": "Resource Not Found",
-  "status": 404,
-  "detail": "Document with ID 'doc-uuid' not found in workspace",
-  "instance": "/api/v1/documents/doc-uuid"
-}
-```
-
-**Common Error Codes**:
-
-| Status | Type                  | Description                         |
-| ------ | --------------------- | ----------------------------------- |
-| 400    | `bad-request`         | Invalid request parameters          |
-| 401    | `unauthorized`        | Missing or invalid authentication   |
-| 403    | `forbidden`           | Access denied to resource           |
-| 404    | `not-found`           | Resource not found                  |
-| 409    | `conflict`            | Resource already exists (duplicate) |
-| 413    | `payload-too-large`   | File exceeds size limit             |
-| 422    | `validation-error`    | Request validation failed           |
-| 429    | `rate-limited`        | Too many requests                   |
-| 500    | `internal-error`      | Server error                        |
-| 503    | `service-unavailable` | Dependency unavailable              |
-
----
-
-## Rate Limiting
-
-Rate limiting is applied per API key or IP address.
-
-**Headers in Response**:
-
-| Header                  | Description                         |
-| ----------------------- | ----------------------------------- |
-| `X-RateLimit-Limit`     | Max requests per window             |
-| `X-RateLimit-Remaining` | Requests remaining                  |
-| `X-RateLimit-Reset`     | Epoch timestamp when limit resets   |
-| `Retry-After`           | Seconds to wait (when rate limited) |
-
-**Default Limits**:
-
-| Endpoint Category | Requests  | Window   |
-| ----------------- | --------- | -------- |
-| Document upload   | 10        | 1 minute |
-| Query execution   | 60        | 1 minute |
-| Graph traversal   | 100       | 1 minute |
-| Health checks     | Unlimited | -        |
-
----
-
-## Ollama Compatibility Layer
-
-EdgeQuake provides Ollama-compatible endpoints for tool integration.
-
-### POST /v1/embeddings
-
-Generate embeddings (Ollama format).
+| Endpoint | Purpose |
+|----------|---------|
+| `PUT /api/v1/workspaces/{workspace_id}/injection` | Create or replace by `name`. Body `{"name","content"}`. 202. |
+| `PUT /api/v1/workspaces/{workspace_id}/injection/file` | Same from an uploaded plain-text file (multipart). 202. |
+| `GET /api/v1/workspaces/{workspace_id}/injections` | List. Query `limit`, `offset`. |
+| `GET`, `PATCH`, `DELETE /api/v1/workspaces/{workspace_id}/injections/{injection_id}` | Read, update (reprocesses if content changes), delete |
 
 ```bash
-curl -X POST http://localhost:8080/v1/embeddings \
+curl -s -X PUT http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID/injection \
   -H "Content-Type: application/json" \
-  -d '{"model": "nomic-embed-text", "input": "Hello world"}'
+  -d '{"name":"Glossary","content":"RAG: Retrieval-Augmented Generation"}'
 ```
-
-### POST /v1/chat/completions
-
-Chat completions (OpenAI format, Ollama compatible).
-
-```bash
-curl -X POST http://localhost:8080/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gemma4:latest",
-    "messages": [
-      {"role": "user", "content": "Hello!"}
-    ],
-    "stream": false
-  }'
-```
-
----
-
-## Request Flow
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    API REQUEST PROCESSING                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Client Request                                                  │
-│       ↓                                                          │
-│  ┌─────────────────┐                                            │
-│  │  Rate Limiter   │ ─ 429 if exceeded                          │
-│  └────────┬────────┘                                            │
-│           ↓                                                      │
-│  ┌─────────────────┐                                            │
-│  │ Authentication  │ ─ 401 if invalid                           │
-│  └────────┬────────┘                                            │
-│           ↓                                                      │
-│  ┌─────────────────┐                                            │
-│  │ Tenant Context  │ ─ Extract X-Tenant-ID, X-Workspace-ID      │
-│  └────────┬────────┘                                            │
-│           ↓                                                      │
-│  ┌─────────────────┐                                            │
-│  │ Request Handler │ ─ Business logic                           │
-│  └────────┬────────┘                                            │
-│           ↓                                                      │
-│  ┌─────────────────┐                                            │
-│  │  Response       │ ─ JSON or SSE stream                       │
-│  └─────────────────┘                                            │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Knowledge Injection API
-
-> **Added in v0.8.0** — Closes [#131](https://github.com/raphaelmansuy/edgequake/issues/131)
-
-Knowledge injection lets you enrich a workspace's knowledge graph with acronym definitions, synonym mappings, and domain glossaries. Injection entries are processed through the standard entity-extraction pipeline but are **never listed as source citations** in query results — they silently improve retrieval quality.
-
-### List Injections
-
-```http
-GET /api/v1/workspaces/{workspace_id}/injections
-X-Workspace-ID: {workspace_id}
-```
-
-**Response 200**
 
 ```json
-[
-  {
-    "injection_id": "a1b2c3d4-...",
-    "name": "Domain Glossary",
-    "status": "completed",
-    "entity_count": 15,
-    "content_length": 420,
-    "source_type": "text",
-    "created_at": "2026-04-03T10:00:00Z",
-    "updated_at": "2026-04-03T10:01:30Z"
-  }
-]
+{ "injection_id": "i1...", "workspace_id": "...", "version": 1, "status": "processing" }
 ```
 
-### Create / Replace Injection (Text)
+Errors: 400 (invalid), 413 (over 100 KiB), 404 (unknown id).
 
-```http
-PUT /api/v1/workspaces/{workspace_id}/injection
-Content-Type: application/json
-X-Workspace-ID: {workspace_id}
+## Models and settings
 
-{
-  "name": "Domain Glossary",
-  "content": "OEE = Overall Equipment Effectiveness\nNLP = Natural Language Processing\n"
-}
-```
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/v1/models` | All configured providers and their models |
+| `GET /api/v1/models/llm`, `/models/embedding` | Only chat or only embedding models |
+| `GET /api/v1/models/health` | Array of providers, each with a `health` object (`available`, `latency_ms`, `checked_at`, `error`) |
+| `GET /api/v1/models/{provider}`, `/models/{provider}/{model}` | One provider or model (404 if unknown) |
+| `GET /api/v1/models/search` | Search by capability: `q`, `provider`, `requires_vision`, `requires_tools`, `requires_thinking`, `min_context_length`, `fuzzy`, `limit` |
+| `POST /api/v1/models/discover/refresh` | Clear discovery caches |
+| `GET /api/v1/settings/providers` | Providers you can switch to, with `active_llm_provider` and `active_embedding_provider` |
+| `GET /api/v1/settings/provider/status` | Active provider, embedding and storage status |
+| `GET`, `PATCH /api/v1/settings/llm-defaults` | Server-wide default models. PATCH needs admin and PostgreSQL. |
+| `GET`, `PATCH /api/v1/settings/app-attribution`, `GET /settings/attribution` | Application attribution headers sent to providers (PATCH needs admin) |
+| `GET /api/v1/config/effective` | The effective configuration and where each value came from |
 
-**Response 202**
+Model entries come from `edgequake/models.toml`. Provider setup is described in [Providers](../providers/index.md).
 
-```json
-{
-  "injection_id": "a1b2c3d4-...",
-  "workspace_id": "default",
-  "name": "Domain Glossary",
-  "status": "processing"
-}
-```
-
-### Upload Injection File
-
-```http
-PUT /api/v1/workspaces/{workspace_id}/injection/file
-Content-Type: multipart/form-data
-X-Workspace-ID: {workspace_id}
-
-name=Domain Glossary
-file=@glossary.txt
-```
-
-Accepted MIME types: `text/plain`, `text/markdown`, `application/octet-stream` (for `.md`/`.txt` files).
-
-**Response 202** — same shape as PUT.
-
-### Get Injection Detail
-
-```http
-GET /api/v1/workspaces/{workspace_id}/injections/{injection_id}
-X-Workspace-ID: {workspace_id}
-```
-
-**Response 200**
-
-```json
-{
-  "injection_id": "a1b2c3d4-...",
-  "name": "Domain Glossary",
-  "content": "OEE = Overall Equipment Effectiveness\n...",
-  "status": "completed",
-  "entity_count": 15,
-  "source_type": "text",
-  "created_at": "2026-04-03T10:00:00Z",
-  "updated_at": "2026-04-03T10:01:30Z"
-}
-```
-
-### Update Injection
-
-```http
-PATCH /api/v1/workspaces/{workspace_id}/injections/{injection_id}
-Content-Type: application/json
-X-Workspace-ID: {workspace_id}
-
-{
-  "name": "Updated Glossary",
-  "content": "OEE = Overall Equipment Effectiveness\nKPI = Key Performance Indicator\n"
-}
-```
-
-Updating `content` re-triggers the pipeline (old entities are deleted first). Updating only `name` is instant.
-
-**Response 200** — updated `InjectionDetail`.
-
-### Delete Injection
-
-```http
-DELETE /api/v1/workspaces/{workspace_id}/injections/{injection_id}
-X-Workspace-ID: {workspace_id}
-```
-
-Cascades: removes all KV entries, vectors, graph nodes, and edges created by this injection.
-
-**Response 204 No Content**
-
-### Citation Exclusion
-
-Injection entries enrich the knowledge graph and improve retrieval but are filtered out of `sources` arrays in all query and chat responses:
-
-```json
-{
-  "answer": "OEE stands for Overall Equipment Effectiveness...",
-  "sources": [
-    { "id": "doc-123", "title": "Line 3 Report", "source_type": "chunk" }
-    // injection entries never appear here
-  ]
-}
-```
-
----
-
-## See Also
-
-- [OpenAPI snapshot](../../edgequake_webui/openapi/openapi.snapshot.json) — full endpoint catalog (v0.23.0)
-- [Pipeline Progress](/docs/deep-dives/pipeline-progress/) — progress WS/REST/SSE
-- [Ingestion cancel & fairness](/docs/ingestion-cancel-and-fairness.md) — cancel SSOT
-- [Quick Start Guide](/docs/getting-started/quick-start/) - Get running in 5 minutes
-- [Query Modes](/docs/deep-dives/lightrag-algorithm/#query-modes) - Detailed mode comparison
-- [Architecture Overview](/docs/architecture/overview/) - System design
+Related: [Extended API](extended-api.md), [Connections](connections.md), [SDKs](../sdks/README.md).

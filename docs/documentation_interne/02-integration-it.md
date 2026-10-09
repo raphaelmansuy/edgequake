@@ -2,6 +2,7 @@
 title: "EdgeQuake — Guide d'intégration IT"
 version: "0.26.4"
 audience: "Équipes d'exploitation, DBA, supervision, sécurité opérationnelle"
+description: "Historical internal note: IT integration (French)."
 ---
 
 # EdgeQuake — Guide d'intégration IT

@@ -1,0 +1,39 @@
+name: SPEC-163 onboarding proof
+
+on:
+  pull_request:
+    paths:
+      - "edgequake/crates/edgequake-api/**"
+      - "edgequake/crates/edgequake-core/**"
+      - "edgequake/crates/edgequake-secrets/**"
+      - "edgequake/crates/edgequake-fake-llm/**"
+      - "edgequake/migrations/169_*.sql"
+      - "docs/providers/**"
+      - "quickstart.sh"
+      - "docker-compose.quickstart.yml"
+      - "scripts/spec163/**"
+      - ".github/workflows/spec163-onboarding.yml"
+  push:
+    branches: [main, edgequake-main]
+    paths:
+      - "edgequake/crates/edgequake-secrets/**"
+      - "edgequake/crates/edgequake-fake-llm/**"
+      - "scripts/spec163/**"
+  schedule:
+    # Nightly hermetic; real Ollama is opt-in on a self-hosted runner.
+    - cron: "17 7 * * *"
+
+jobs:
+  hermetic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+      - name: SPEC-163 hermetic
+        run: make spec163-proof
+      - name: Env registry
+        run: make spec163-env-docs
+      - name: Schema train docs
+        run: make schema-train-docs

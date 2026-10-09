@@ -41,6 +41,7 @@ edgequake-tasks = { path = "../edgequake-tasks", features = ["openapi"] }
 edgequake-auth = { path = "../edgequake-auth" }
 edgequake-rate-limiter = { path = "../edgequake-rate-limiter" }
 edgequake-audit = { path = "../edgequake-audit" }
+edgequake-secrets = { path = "../edgequake-secrets" }
 edgequake-observability = { path = "../edgequake-observability", features = ["metrics", "otel"] }
 # Direct dependency kept because the API crate implements the progress callback type.
 edgequake-pdf2md = { workspace = true }
@@ -116,6 +117,7 @@ sqlx = { workspace = true, features = [
 serial_test = "3.2"
 urlencoding = "2.1"
 wiremock = "0.6"
+edgequake-fake-llm = { path = "../edgequake-fake-llm" }
 jsonwebtoken = { workspace = true }
 # SPEC-149: real WebSocket client for frame-level e2e proofs
 tokio-tungstenite = { version = "0.26", default-features = false, features = ["connect"] }

@@ -1,17 +1,21 @@
 ---
 title: Comparisons
-description: See how EdgeQuake compares to other RAG solutions.
+description: Fair, sourced comparisons of EdgeQuake with LightRAG, Microsoft GraphRAG, and plain vector RAG, including the published benchmark.
 ---
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+# Comparisons
 
-Objective comparisons with alternative RAG approaches.
+These pages compare EdgeQuake with other ways to build RAG. They are for people choosing a tool. Each page says what is measured, what is only a design difference, and what we have not verified.
 
-- **[vs Traditional RAG](/docs/comparisons/vs-traditional-rag/)** — Why graph-based retrieval outperforms vector-only RAG.
-- **[vs LightRAG (Python)](/docs/comparisons/vs-lightrag-python/)** — EdgeQuake's Rust rewrite compared to the Python original.
-- **[EQ vs LightRAG Acc Bench](/docs/comparisons/eq-vs-lightrag-acc-bench/)** — Measured GraphRAG-Bench Acc + fair cold latency (SPEC-001 publish SSOT).
-- **[vs GraphRAG](/docs/comparisons/vs-graphrag/)** — Microsoft GraphRAG vs EdgeQuake.
+The one measured result is against LightRAG: a statistical tie on accuracy. Other pages compare design and features only.
 
-### Historical / archived
+| Page | What it covers |
+| ---- | -------------- |
+| [Acc benchmark](./eq-vs-lightrag-acc-bench.md) | The measured accuracy and latency results against LightRAG. This is the source of truth for those numbers. |
+| [vs LightRAG (Python)](./vs-lightrag-python.md) | EdgeQuake and the Python original: modes, storage, and operations |
+| [vs GraphRAG](./vs-graphrag.md) | Microsoft GraphRAG: communities and reports versus relationship search |
+| [vs traditional RAG](./vs-traditional-rag.md) | What a graph adds to vector-only search, and what it costs |
 
-- **[LightRAG superiority analysis](/docs/comparisons/edgequake-vs-lightrag-superiority-analysis/)** — Point-in-time audit (Feb 2026). Kept for reference; prefer the three guides above for current decisions.
+## Historical
+
+- [Implementation differences, Feb 2026 snapshot](./edgequake-vs-lightrag-superiority-analysis.md): an old code audit, corrected and made neutral. Prefer the pages above.

@@ -1,5 +1,6 @@
 ---
 title: 'Integration: Custom Clients'
+description: "Build a custom HTTP client against the EdgeQuake REST API."
 ---
 
 # Integration: Custom Clients

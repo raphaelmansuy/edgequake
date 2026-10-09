@@ -1,707 +1,436 @@
 ---
-title: 'EdgeQuake Cookbook'
+title: Cookbook
+description: Copy-paste recipes for uploading documents, querying, exploring the graph, managing workspaces, monitoring, and backups with the EdgeQuake REST API.
 ---
 
-> **Product: v0.23.0** · Contract: [`openapi.snapshot.json`](../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](ingestion-cancel-and-fairness.md)
+> **Released: v0.32.2** · Contract: [`openapi.snapshot.json`](../edgequake_webui/openapi/openapi.snapshot.json) · Ops: [Ingestion cancel and fairness](ingestion-cancel-and-fairness.md)
 
-# EdgeQuake Cookbook
+# Cookbook
 
-> **Practical Recipes for Common Tasks**
+This page holds short, tested-by-reading recipes for common EdgeQuake tasks. It is for developers who already have a stack running. If you do not, start with the [Quick Start](getting-started/quick-start.md).
 
-This cookbook provides copy-paste solutions for common EdgeQuake operations. Each recipe includes complete code examples and expected outputs.
+## Set up your shell
 
-**Headers**: `make dev` sets `EDGEQUAKE_DEV_MODE=true` (no auth). Production requires `Authorization: Bearer $TOKEN` or `X-API-Key`. Scope requests with `X-Workspace-ID`.
-
-**Status fields**: Prefer `DocumentSummary.display_status` / `ui_phase` / `current_stage` / `track_id` over legacy `status` alone.
-
----
-
-## Document Operations
-
-### Recipe: Upload a PDF and Wait for Processing
+Every recipe uses these variables.
 
 ```bash
-#!/bin/bash
-# Upload and poll for completion
+export API=http://localhost:8080          # make dev: http://localhost:8090
+export WS=00000000-0000-0000-0000-000000000003   # default workspace
+H_WS="X-Workspace-ID: $WS"
+H_AUTH="Accept: application/json"          # dev mode; see below for auth
+```
 
-# Upload the document
-RESPONSE=$(curl -s -X POST http://localhost:8080/api/v1/documents/upload \
-  -H "X-Workspace-ID: default" \
-  -F "file=@document.pdf")
+- **Dev mode** (`make dev`, Docker quickstart): the API is open. The `H_AUTH` line above is a harmless placeholder.
+- **Auth on:** set `H_AUTH="Authorization: Bearer $TOKEN"` or `H_AUTH="X-API-Key: $KEY"`. See [Runtime auth hardening](operations/runtime-auth-hardening.md).
+- **Scope:** `X-Workspace-ID` accepts a workspace UUID or `default`. `X-Tenant-ID` selects the tenant; the default tenant is `00000000-0000-0000-0000-000000000002`.
+- **Status fields:** read `display_status` and `ui_phase` on a document. Read `status` on a task. Task status values are `pending`, `processing`, `indexed`, `failed` and `cancelled`.
 
-DOC_ID=$(echo $RESPONSE | jq -r '.id')
-echo "Uploaded document: $DOC_ID"
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    A["Documents"] --> B["Query"]
+    A --> C["Graph"]
+    B --> D["Monitoring"]
+    C --> D
+    E["Workspaces"] --> A
+```
 
-# Poll for completion (DocumentSummary SSOT)
+Read the chart as the order most people use the recipes: set up a workspace, load documents, then query, explore and monitor.
+
+## Document recipes
+
+### Upload text content
+
+```bash
+curl -s -X POST "$API/api/v1/documents" \
+  -H "Content-Type: application/json" -H "$H_WS" -H "$H_AUTH" \
+  -d '{
+    "title": "about-edgequake",
+    "content": "EdgeQuake is a Graph-RAG framework built in Rust...",
+    "metadata": {"source": "manual", "category": "documentation"}
+  }' | jq '{document_id, status, track_id}'
+```
+
+Expected output: HTTP 202 with `status` set to `pending`. The title field is `title`, not `name`.
+
+### Upload a text file and wait for it
+
+`POST /api/v1/documents/upload` takes text-like files (`txt`, `md`, `json`, `csv`, `html`, `htm`, `xml`, `yaml`, `yml`) and images (`png`, `jpg`, `jpeg`, `gif`, `webp`). It rejects PDFs; use the PDF recipe below.
+
+```bash
+RESPONSE=$(curl -s -X POST "$API/api/v1/documents/upload" \
+  -H "$H_WS" -H "$H_AUTH" -F "file=@notes.md")
+DOC_ID=$(echo "$RESPONSE" | jq -r .document_id)
+echo "Uploaded: $DOC_ID"
+
 while true; do
-  ROW=$(curl -s "http://localhost:8080/api/v1/documents/$DOC_ID" \
-    -H "X-Workspace-ID: default")
-
-  DISPLAY=$(echo "$ROW" | jq -r '.display_status')
-  PHASE=$(echo "$ROW" | jq -r '.ui_phase')
-
-  echo "display_status: $DISPLAY (ui_phase: $PHASE)"
-
-  if [ "$DISPLAY" = "completed" ]; then
-    echo "Document processed successfully!"
-    break
-  elif [ "$DISPLAY" = "failed" ] || [ "$DISPLAY" = "cancelled" ]; then
-    echo "Document processing ended: $DISPLAY"
-    exit 1
-  fi
-
+  ROW=$(curl -s "$API/api/v1/documents/$DOC_ID" -H "$H_WS" -H "$H_AUTH")
+  DISPLAY=$(echo "$ROW" | jq -r .display_status)
+  echo "display_status: $DISPLAY (ui_phase: $(echo "$ROW" | jq -r .ui_phase))"
+  case "$DISPLAY" in
+    completed|indexed) echo "Done"; break ;;
+    failed|cancelled|partial_failure) echo "Ended: $DISPLAY"; exit 1 ;;
+  esac
   sleep 2
 done
 ```
 
----
+Expected output ends with `Done`. A document that reaches `partial_success` finished with some warnings; read `warning_message`.
 
-### Recipe: Bulk Upload Multiple Files
+### Upload many files
 
 ```bash
-#!/bin/bash
-# Upload all PDFs in a directory
-
-WORKSPACE="default"
-DIR="./documents"
-
-for file in "$DIR"/*.pdf; do
-  if [ -f "$file" ]; then
-    echo "Uploading: $file"
-    curl -s -X POST http://localhost:8080/api/v1/documents/upload \
-      -H "X-Workspace-ID: $WORKSPACE" \
-      -F "file=@$file" | jq '.id, .name'
-    echo "---"
-  fi
+for file in ./documents/*.md; do
+  [ -f "$file" ] || continue
+  echo "Uploading: $file"
+  curl -s -X POST "$API/api/v1/documents/upload" \
+    -H "$H_WS" -H "$H_AUTH" -F "file=@$file" | jq -c '{document_id, filename, status}'
 done
-
-echo "All files uploaded!"
 ```
 
----
+For many files at once, use `POST /api/v1/documents/upload/batch`. Local providers process one ingest task per tenant by default, so the queue drains slowly. See [Ingestion cancel and fairness](ingestion-cancel-and-fairness.md).
 
-### Recipe: Upload Text Content Directly
+### Upload a PDF (two phases)
 
-```bash
-# Upload raw text without a file
-curl -X POST http://localhost:8080/api/v1/documents \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: default" \
-  -d '{
-    "content": "EdgeQuake is a Graph-RAG framework built in Rust...",
-    "name": "about-edgequake.txt",
-    "metadata": {
-      "source": "manual",
-      "category": "documentation"
-    }
-  }'
+A PDF runs as two tasks. First a **convert** task turns pages into Markdown. Then an **ingest** task builds the graph. If ingest fails, the converted Markdown is kept.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    A["POST /documents/pdf"] --> B["Convert task"]
+    B --> C["Markdown stored"]
+    C --> D["Ingest task"]
+    D --> E["Graph built"]
 ```
 
----
-
-### Recipe: Delete All Documents in a Workspace
+Read the chart from the left. The upload returns after the convert task is queued.
 
 ```bash
-#!/bin/bash
-# Clean up a workspace (destructive!)
+UPLOAD=$(curl -s -X POST "$API/api/v1/documents/pdf" \
+  -H "$H_WS" -H "$H_AUTH" -F "file=@report.pdf" -F "title=Q3 Report")
+TASK_ID=$(echo "$UPLOAD" | jq -r .task_id)
+DOC_ID=$(echo "$UPLOAD" | jq -r .document_id)
 
-WORKSPACE="test-workspace"
-
-# Get all document IDs
-DOC_IDS=$(curl -s "http://localhost:8080/api/v1/documents?workspace_id=$WORKSPACE" \
-  -H "X-Workspace-ID: $WORKSPACE" | jq -r '.documents[].id')
-
-# Delete each document
-for id in $DOC_IDS; do
-  echo "Deleting: $id"
-  curl -s -X DELETE "http://localhost:8080/api/v1/documents/$id" \
-    -H "X-Workspace-ID: $WORKSPACE"
-done
-
-echo "Workspace cleaned!"
+curl -s "$API/api/v1/documents/pdf/progress/$TASK_ID" -H "$H_WS" -H "$H_AUTH" \
+  | jq '{overall_percentage, is_complete, is_failed}'
 ```
 
----
+The default parser backend is `vision`, which needs a vision-capable model. Add `-F pdf_parser_backend=edgeparse` to skip the model. See the [PDF ingestion tutorial](tutorials/pdf-ingestion.md).
 
-## Query Operations
-
-### Recipe: Simple Query with Sources
+### Cancel in-flight processing
 
 ```bash
-# Query with source citations
-curl -X POST http://localhost:8080/api/v1/query \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: default" \
+curl -s -X POST "$API/api/v1/tasks/$TASK_ID/cancel" -H "$H_WS" -H "$H_AUTH" | jq
+
+curl -s "$API/api/v1/documents/$DOC_ID" -H "$H_WS" -H "$H_AUTH" \
+  | jq '{display_status, ui_phase}'
+```
+
+Expected output after a moment: `"display_status": "cancelled"` and `"ui_phase": "terminal"`. See [Ingestion cancel and fairness](ingestion-cancel-and-fairness.md).
+
+### Delete all documents in a workspace
+
+This is destructive. The call returns 202 with a `wipe_track_id`; the wipe runs in the background.
+
+```bash
+curl -s -X DELETE "$API/api/v1/documents" \
+  -H "$H_WS" -H "$H_AUTH" \
+  -H "X-EdgeQuake-Confirm: delete-all-documents" | jq
+```
+
+The confirm header is required when `EDGEQUAKE_REQUIRE_DELETE_ALL_CONFIRM=true`. Send it anyway. Track the wipe with `GET /api/v1/tasks/{wipe_track_id}`. To delete one document, use `DELETE /api/v1/documents/{id}`.
+
+## Query recipes
+
+### Ask a question and list sources
+
+```bash
+curl -s -X POST "$API/api/v1/query" \
+  -H "Content-Type: application/json" -H "$H_WS" -H "$H_AUTH" \
   -d '{
     "query": "What are the main topics discussed?",
     "mode": "hybrid",
-    "top_k": 5,
-    "include_sources": true
-  }' | jq '{
-    answer: .answer,
-    sources: [.sources[] | {doc: .document_id, score: .score, snippet: .snippet[:80]}]
-  }'
+    "max_results": 5,
+    "include_references": true
+  }' | jq '{answer, source_count: (.sources | length), sources}'
 ```
 
----
+The reply field is `answer`. There is no `top_k`, `include_sources` or `entity_filter` field on this endpoint. Use `max_results` to limit context items.
 
-### Recipe: Compare Query Modes
+### Compare query modes
 
 ```bash
-#!/bin/bash
-# Compare results across query modes
-
 QUERY="Who is mentioned in the documents?"
-
-for MODE in naive local global hybrid; do
-  echo "=== Mode: $MODE ==="
-
-  RESPONSE=$(curl -s -X POST http://localhost:8080/api/v1/query \
-    -H "Content-Type: application/json" \
-    -H "X-Workspace-ID: default" \
-    -d "{\"query\": \"$QUERY\", \"mode\": \"$MODE\"}")
-
-  echo "$RESPONSE" | jq '{
-    mode: "'$MODE'",
-    source_count: (.sources | length),
-    answer_preview: .answer[:100]
-  }'
-  echo ""
+for MODE in naive local global hybrid mix; do
+  curl -s -X POST "$API/api/v1/query" \
+    -H "Content-Type: application/json" -H "$H_WS" -H "$H_AUTH" \
+    -d "{\"query\": \"$QUERY\", \"mode\": \"$MODE\"}" \
+    | jq -c --arg m "$MODE" '{mode: $m, sources: (.sources | length), preview: .answer[:100]}'
 done
 ```
 
----
-
-### Recipe: Streaming Chat Response
-
-```python
-# Python: Stream chat response
-import requests
-import json
-
-def stream_chat(message, workspace_id="default"):
-    response = requests.post(
-        "http://localhost:8080/api/v1/chat/completions/stream",
-        json={
-            "message": message,
-            "workspace_id": workspace_id,
-            "mode": "hybrid"
-        },
-        stream=True
-    )
-
-    for line in response.iter_lines():
-        if line:
-            if line.startswith(b"data: "):
-                data = json.loads(line[6:])
-                if "content" in data:
-                    print(data["content"], end="", flush=True)
-                if data.get("done"):
-                    print()  # New line at end
-                    break
-
-# Usage
-stream_chat("What are the key findings?")
-```
-
----
-
-### Recipe: Query with Entity Filter
+### Limit a query to some documents
 
 ```bash
-# Find information about a specific entity
-curl -X POST http://localhost:8080/api/v1/query \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: default" \
+curl -s -X POST "$API/api/v1/query" \
+  -H "Content-Type: application/json" -H "$H_WS" -H "$H_AUTH" \
   -d '{
     "query": "What projects is John Smith working on?",
     "mode": "local",
-    "entity_filter": ["JOHN_SMITH"],
-    "top_k": 10
-  }'
+    "document_filter": {"document_pattern": "report", "date_from": "2026-01-01"}
+  }' | jq .answer
 ```
 
----
+`document_filter` accepts `date_from`, `date_to`, `document_pattern` (comma-separated, case-insensitive) and `document_ids`.
 
-### Recipe: Cancel In-Flight Processing
+### Stream a chat reply
 
-```bash
-# task_id from PDF upload (PdfUploadResponse.task_id) or document track_id
-TASK_ID="pdf-550e8400-e29b-41d4-a716-446655440000"
+The stream sends server-sent events. Each event is JSON with a `type` field: `conversation`, `context`, `stage`, `thinking`, `token`, `done`.
 
-curl -X POST "http://localhost:8080/api/v1/tasks/${TASK_ID}/cancel" \
-  -H "X-Workspace-ID: default"
+```python
+import json
+import requests
 
-# Poll until display_status=cancelled, ui_phase=terminal
-curl -s "http://localhost:8080/api/v1/documents/$DOC_ID" \
-  -H "X-Workspace-ID: default" | jq '{display_status, ui_phase}'
+API = "http://localhost:8080"  # make dev: 8090
+
+def stream_chat(message, mode="mix"):
+    resp = requests.post(
+        f"{API}/api/v1/chat/completions/stream",
+        json={"message": message, "mode": mode},
+        headers={"X-Workspace-ID": "00000000-0000-0000-0000-000000000003"},
+        stream=True,
+    )
+    for line in resp.iter_lines():
+        if not line.startswith(b"data: "):
+            continue
+        event = json.loads(line[6:])
+        if event["type"] == "token":
+            print(event["content"], end="", flush=True)
+        elif event["type"] == "done":
+            print()
+            break
+
+stream_chat("What are the key findings?")
 ```
 
-See [Ingestion cancel & fairness](ingestion-cancel-and-fairness.md).
+Scope the chat with the workspace header. The body has no `workspace_id` field.
 
----
-
-### Recipe: PDF Convert → Ingest (Two Phases)
-
-PDF admission runs **convert** (`TaskType::PdfProcessing`) first; after markdown is stored, a separate **ingest** task (`TaskType::Insert`) builds the knowledge graph. Ingest failure keeps PDF `Completed` + markdown checkpoint.
+### Search the model catalog
 
 ```bash
-# Upload PDF (returns task_id for convert phase)
-UPLOAD=$(curl -s -X POST http://localhost:8080/api/v1/documents/pdf \
-  -H "X-Workspace-ID: default" \
-  -F "file=@report.pdf" \
-  -F "title=Q3 Report")
-
-TASK_ID=$(echo "$UPLOAD" | jq -r .task_id)
-PDF_ID=$(echo "$UPLOAD" | jq -r .pdf_id)
-
-# Poll convert progress
-curl -s "http://localhost:8080/api/v1/documents/pdf/progress/${TASK_ID}" \
-  -H "X-Workspace-ID: default" | jq '{stage, percent, message}'
-
-# After convert completes, watch document row for ingest (display_status → completed)
+curl -s "$API/api/v1/models/search?q=gpt&requires_vision=true&limit=5" \
+  -H "$H_AUTH" | jq '.hits[] | {provider, id, context_length, supports_vision}'
 ```
 
-Details: [PDF Ingestion Tutorial](/docs/tutorials/pdf-ingestion/).
+## Graph recipes
 
----
+### Export the graph
 
-### Recipe: Search Models (SPEC-043)
+`GET /api/v1/graph` returns at most 500 nodes and a depth of at most 5. Use `max_nodes`, `depth` and `start_node` to shape it.
 
 ```bash
-# Server-side model search for picker / integrations
-curl -s "http://localhost:8080/api/v1/models/search?q=gpt&capability=chat" \
-  -H "Authorization: Bearer $TOKEN" | jq '.models[:5] | .[] | {id, provider, capabilities}'
+curl -s "$API/api/v1/graph?max_nodes=500" -H "$H_WS" -H "$H_AUTH" > graph_export.json
+jq '{total_nodes, total_edges, is_truncated}' graph_export.json
+jq '[.nodes[] | {id, label, node_type}]' graph_export.json | head -20
 ```
 
----
+If `is_truncated` is `true`, the workspace is bigger than the export. Page through `GET /api/v1/graph/entities` and `GET /api/v1/graph/relationships` for the full list.
 
-### Recipe: Pipeline Queue Metrics
+### Read one entity and its relationships
 
 ```bash
-# Worker queue depth, claim/lease health (SPEC-057 observability)
-curl -s http://localhost:8080/api/v1/pipeline/queue-metrics \
-  -H "Authorization: Bearer $TOKEN" | jq '{
-    pending: .pending_count,
-    processing: .processing_count,
-    blocked: .readiness_blockers
-  }'
+ENTITY=JOHN_SMITH
+curl -s "$API/api/v1/graph/entities/$ENTITY" -H "$H_WS" -H "$H_AUTH" | jq '{
+  name: .entity.entity_name,
+  type: .entity.entity_type,
+  outgoing: [.relationships.outgoing[] | {to: .target, type: .relation_type}],
+  incoming: [.relationships.incoming[] | {from: .source, type: .relation_type}]
+}'
 ```
 
-Also check `GET /ready` for traffic-blocking readiness blockers.
+For the neighbors of an entity, call `GET /api/v1/graph/entities/{name}/neighborhood`.
 
----
+### Find a connection between two entities
 
-## Graph Operations
+There is no path-finding endpoint. Use one of these instead:
 
-### Recipe: Export Knowledge Graph to JSON
+1. Start from one entity: `GET /api/v1/graph?start_node=ENTITY_A&depth=3` and look for `ENTITY_B` in `nodes`.
+2. Ask in natural language with `POST /api/v1/query`, using mode `local` or `mix`.
 
-```bash
-# Export graph for visualization
-curl -s "http://localhost:8080/api/v1/graph?limit=1000" \
-  -H "X-Workspace-ID: default" | jq '{
-    nodes: [.nodes[] | {id: .id, label: .label, type: .type}],
-    edges: [.edges[] | {source: .source, target: .target, label: .label}]
-  }' > graph_export.json
+## Workspace recipes
 
-echo "Exported $(jq '.nodes | length' graph_export.json) nodes"
-echo "Exported $(jq '.edges | length' graph_export.json) edges"
-```
+### Create a workspace
 
----
-
-### Recipe: Find Entity Relationships
+Workspaces belong to a tenant, so the path includes the tenant ID.
 
 ```bash
-# Get all relationships for an entity
-ENTITY="JOHN_SMITH"
-
-curl -s "http://localhost:8080/api/v1/graph/entities/$ENTITY" \
-  -H "X-Workspace-ID: default" | jq '{
-    entity: .name,
-    type: .entity_type,
-    outgoing: [.relationships[] | select(.source == .name) | {to: .target, type: .relation_type}],
-    incoming: [.relationships[] | select(.target == .name) | {from: .source, type: .relation_type}]
-  }'
-```
-
----
-
-### Recipe: Find Path Between Entities
-
-```bash
-# Find connection path between two entities
-curl -s "http://localhost:8080/api/v1/graph/path?from=ENTITY_A&to=ENTITY_B" \
-  -H "X-Workspace-ID: default" | jq '.path'
-```
-
----
-
-## Workspace Operations
-
-### Recipe: Create Workspace with Settings
-
-```bash
-# Create workspace with custom configuration
-curl -X POST http://localhost:8080/api/v1/workspaces \
-  -H "Content-Type: application/json" \
+TENANT=00000000-0000-0000-0000-000000000002
+curl -s -X POST "$API/api/v1/tenants/$TENANT/workspaces" \
+  -H "Content-Type: application/json" -H "$H_AUTH" \
   -d '{
     "name": "Research Project",
     "description": "Documents for Q3 research",
-    "llm_model": "gemma3:12b",
     "llm_provider": "ollama",
+    "llm_model": "gemma4:latest",
     "entity_types": ["PERSON", "ORGANIZATION", "CONCEPT", "METHOD"],
     "extraction_language": "English"
-  }'
+  }' | jq '{id, name, slug}'
 ```
 
----
+`entity_types` accepts at most 20 values.
 
-### Recipe: List All Workspaces with Stats
+### List workspaces and their counts
 
 ```bash
-# Get workspaces with document counts
-curl -s http://localhost:8080/api/v1/workspaces | jq '.workspaces[] | {
-  id: .id,
-  name: .name,
-  documents: .document_count,
-  entities: .entity_count,
-  created: .created_at[:10]
-}'
+curl -s "$API/api/v1/tenants/$TENANT/workspaces" -H "$H_AUTH" | jq -r '.items[].id' \
+  | while read -r ID; do
+      curl -s "$API/api/v1/workspaces/$ID/stats" -H "$H_AUTH" \
+        | jq -c --arg id "$ID" '{id: $id, document_count, entity_count, relationship_count}'
+    done
 ```
 
----
+## Python client
 
-## Python Client Recipes
-
-### Recipe: Complete Python Client
+This small client covers the common calls.
 
 ```python
-"""EdgeQuake Python Client with common operations."""
-
+"""Minimal EdgeQuake client."""
 import requests
-from typing import Generator, Optional, List
 
 class EdgeQuakeClient:
-    def __init__(self, base_url: str = "http://localhost:8080", workspace: str = "default"):
-        self.base_url = base_url
-        self.workspace = workspace
-        self.headers = {"X-Workspace-ID": workspace}
+    def __init__(self, base_url="http://localhost:8080",
+                 workspace="00000000-0000-0000-0000-000000000003", headers=None):
+        self.base = base_url
+        self.headers = {"X-Workspace-ID": workspace, **(headers or {})}
 
-    def upload_text(self, content: str, name: str) -> dict:
-        """Upload text content."""
-        return requests.post(
-            f"{self.base_url}/api/v1/documents",
-            json={"content": content, "name": name},
-            headers=self.headers
-        ).json()
+    def upload_text(self, content, title):
+        r = requests.post(f"{self.base}/api/v1/documents",
+                          json={"content": content, "title": title},
+                          headers=self.headers)
+        r.raise_for_status()
+        return r.json()                      # document_id, track_id, status
 
-    def upload_file(self, file_path: str) -> dict:
-        """Upload a file."""
-        with open(file_path, "rb") as f:
-            return requests.post(
-                f"{self.base_url}/api/v1/documents/upload",
-                files={"file": f},
-                headers=self.headers
-            ).json()
+    def task_status(self, track_id):
+        r = requests.get(f"{self.base}/api/v1/tasks/{track_id}", headers=self.headers)
+        r.raise_for_status()
+        return r.json()["status"]            # pending|processing|indexed|failed|cancelled
 
-    def query(self, question: str, mode: str = "hybrid") -> dict:
-        """Execute a query."""
-        return requests.post(
-            f"{self.base_url}/api/v1/query",
-            json={"query": question, "mode": mode},
-            headers=self.headers
-        ).json()
+    def query(self, question, mode="mix"):
+        r = requests.post(f"{self.base}/api/v1/query",
+                          json={"query": question, "mode": mode},
+                          headers=self.headers)
+        r.raise_for_status()
+        return r.json()                      # answer, sources, stats, ...
 
-    def chat_stream(self, message: str) -> Generator[str, None, None]:
-        """Stream chat response."""
-        import json
-        response = requests.post(
-            f"{self.base_url}/api/v1/chat/completions/stream",
-            json={"message": message},
-            headers=self.headers,
-            stream=True
-        )
-        for line in response.iter_lines():
-            if line and line.startswith(b"data: "):
-                data = json.loads(line[6:])
-                if "content" in data:
-                    yield data["content"]
+    def entities(self):
+        r = requests.get(f"{self.base}/api/v1/graph/entities", headers=self.headers)
+        r.raise_for_status()
+        return r.json()["items"]
 
-    def list_documents(self) -> List[dict]:
-        """List all documents."""
-        return requests.get(
-            f"{self.base_url}/api/v1/documents",
-            headers=self.headers
-        ).json().get("documents", [])
-
-    def get_graph(self, limit: int = 100) -> dict:
-        """Get knowledge graph."""
-        return requests.get(
-            f"{self.base_url}/api/v1/graph?limit={limit}",
-            headers=self.headers
-        ).json()
-
-
-# Usage example
 if __name__ == "__main__":
+    import time
     client = EdgeQuakeClient()
-
-    # Upload a document
-    doc = client.upload_text("EdgeQuake is great!", "test.txt")
-    print(f"Uploaded: {doc['id']}")
-
-    # Query
-    result = client.query("What is EdgeQuake?")
-    print(f"Answer: {result['answer']}")
-
-    # Stream chat
-    print("Streaming: ", end="")
-    for chunk in client.chat_stream("Tell me more"):
-        print(chunk, end="", flush=True)
-    print()
+    doc = client.upload_text("EdgeQuake is a Graph-RAG framework.", "intro")
+    while client.task_status(doc["track_id"]) in ("pending", "processing"):
+        time.sleep(2)
+    print(client.query("What is EdgeQuake?")["answer"])
 ```
 
----
+For official clients in other languages, see the [SDK index](sdks/README.md).
 
-## Monitoring Recipes
+## Monitoring recipes
 
-### Recipe: Check System Health
+### Check health and queue depth
 
 ```bash
-#!/bin/bash
-# Health check script
-
-echo "=== EdgeQuake Health Check ==="
-
-# API health
-API_STATUS=$(curl -s http://localhost:8080/health | jq -r '.status')
-echo "API: $API_STATUS"
-
-# Database connection
-DB_STATUS=$(curl -s http://localhost:8080/health | jq -r '.storage_mode')
-echo "Database: $DB_STATUS"
-
-# Document count
-DOC_COUNT=$(curl -s http://localhost:8080/api/v1/documents \
-  -H "X-Workspace-ID: default" | jq '.documents | length')
-echo "Documents: $DOC_COUNT"
-
-# Entity count
-ENTITY_COUNT=$(curl -s "http://localhost:8080/api/v1/graph?limit=1" \
-  -H "X-Workspace-ID: default" | jq '.total_nodes')
-echo "Entities: $ENTITY_COUNT"
-
-echo "=== Done ==="
+curl -s "$API/health" | jq '{status, storage_mode, components, llm_provider_name}'
+curl -s "$API/ready" -o /dev/null -w "ready: %{http_code}\n"
+curl -s "$API/api/v1/pipeline/queue-metrics" -H "$H_AUTH" \
+  | jq '{pending_count, processing_count, active_workers, max_workers, pressure}'
 ```
 
----
+`/ready` returns 503 when the schema is behind, storage is down, or the task queue is at critical pressure. The reason is in the response body. Queue metrics carry no `readiness_blockers` field.
 
-### Recipe: Monitor Processing Costs
+### Read cost totals
 
 ```bash
-# Get cost tracking data
-curl -s http://localhost:8080/api/v1/costs/summary \
-  -H "X-Workspace-ID: default" | jq '{
-    total_input_tokens: .total_input_tokens,
-    total_output_tokens: .total_output_tokens,
-    estimated_cost_usd: .estimated_cost,
-    by_operation: .breakdown
-  }'
+curl -s "$API/api/v1/costs/summary" -H "$H_WS" -H "$H_AUTH" \
+  | jq '{total_input_tokens, total_output_tokens, total_cost_usd, operations}'
 ```
 
----
-
-## Docker Recipes
-
-### Recipe: Docker Compose for Development
-
-```yaml
-# docker-compose.dev.yml
-version: "3.8"
-
-services:
-  edgequake:
-    build: .
-    ports:
-      - "8080:8080"
-    environment:
-      - DATABASE_URL=postgresql://edgequake:edgequake@postgres:5432/edgequake
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - RUST_LOG=info,edgequake=debug
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - ./data:/app/data
-
-  postgres:
-    image: ghcr.io/raphaelmansuy/edgequake-postgres:0.23.0
-    environment:
-      POSTGRES_USER: edgequake
-      POSTGRES_PASSWORD: edgequake
-      POSTGRES_DB: edgequake
-    volumes:
-      - postgres_data:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U edgequake"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  postgres_data:
-```
-
-Start with:
+### Debug one document
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d
-```
-
----
-
-### Recipe: Backup and Restore
-
-```bash
-#!/bin/bash
-# Backup EdgeQuake data
-
-BACKUP_DIR="./backups/$(date +%Y%m%d)"
-mkdir -p "$BACKUP_DIR"
-
-# Backup PostgreSQL
-docker compose exec postgres pg_dump -U edgequake edgequake > "$BACKUP_DIR/db.sql"
-
-# Backup uploaded files (if any)
-cp -r ./data/uploads "$BACKUP_DIR/uploads" 2>/dev/null || true
-
-echo "Backup complete: $BACKUP_DIR"
-```
-
-Restore:
-
-```bash
-#!/bin/bash
-# Restore from backup
-
-BACKUP_DIR="$1"
-if [ -z "$BACKUP_DIR" ]; then
-  echo "Usage: ./restore.sh <backup_dir>"
-  exit 1
-fi
-
-# Restore database
-docker compose exec -T postgres psql -U edgequake edgequake < "$BACKUP_DIR/db.sql"
-
-echo "Restore complete!"
-```
-
----
-
-## Performance Recipes
-
-### Recipe: Benchmark Query Performance
-
-```bash
-#!/bin/bash
-# Simple query benchmark
-
-QUERY="What are the main topics?"
-ITERATIONS=10
-
-echo "Benchmarking $ITERATIONS queries..."
-
-total_time=0
-
-for i in $(seq 1 $ITERATIONS); do
-  start=$(date +%s%N)
-
-  curl -s -X POST http://localhost:8080/api/v1/query \
-    -H "Content-Type: application/json" \
-    -H "X-Workspace-ID: default" \
-    -d "{\"query\": \"$QUERY\", \"mode\": \"hybrid\"}" > /dev/null
-
-  end=$(date +%s%N)
-  duration=$(( (end - start) / 1000000 ))
-  total_time=$((total_time + duration))
-
-  echo "Query $i: ${duration}ms"
-done
-
-avg=$((total_time / ITERATIONS))
-echo "---"
-echo "Average: ${avg}ms"
-```
-
----
-
-## Troubleshooting Recipes
-
-### Recipe: Debug Document Processing
-
-```bash
-# Check document processing details
-DOC_ID="your-doc-id"
-
-curl -s "http://localhost:8080/api/v1/documents/$DOC_ID" \
-  -H "X-Workspace-ID: default" | jq '{
-    id: .id,
-    name: .name,
-    display_status: .display_status,
-    ui_phase: .ui_phase,
-    current_stage: .current_stage,
-    track_id: .track_id,
-    chunks: .chunk_count,
-    entities: .entity_count,
-    error: .error_message
-  }'
-```
-
----
-
-### Recipe: Check for Empty Responses
-
-```bash
-#!/bin/bash
-# Diagnose empty query responses
-
-QUERY="$1"
-if [ -z "$QUERY" ]; then
-  QUERY="test query"
-fi
-
-echo "Testing query: $QUERY"
-echo ""
-
-# Check document count
-DOC_COUNT=$(curl -s http://localhost:8080/api/v1/documents \
-  -H "X-Workspace-ID: default" | jq '.documents | length')
-echo "Documents in workspace: $DOC_COUNT"
-
-# Check entity count
-ENTITY_COUNT=$(curl -s "http://localhost:8080/api/v1/graph?limit=1" \
-  -H "X-Workspace-ID: default" | jq '.total_nodes')
-echo "Entities in graph: $ENTITY_COUNT"
-
-# Try query
-RESPONSE=$(curl -s -X POST http://localhost:8080/api/v1/query \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: default" \
-  -d "{\"query\": \"$QUERY\", \"mode\": \"hybrid\"}")
-
-echo ""
-echo "Query result:"
-echo "$RESPONSE" | jq '{
-  has_answer: (.answer | length > 0),
-  sources_found: (.sources | length)
+curl -s "$API/api/v1/documents/$DOC_ID" -H "$H_WS" -H "$H_AUTH" | jq '{
+  id, title, file_name, status, display_status, ui_phase,
+  track_id, chunk_count, entity_count, relationship_count, error_message
 }'
 ```
 
----
+### Diagnose an empty answer
 
-## See Also
+```bash
+curl -s "$API/api/v1/documents" -H "$H_WS" -H "$H_AUTH" | jq '{total, status_counts}'
+curl -s "$API/api/v1/graph?max_nodes=1" -H "$H_WS" -H "$H_AUTH" | jq '{total_nodes, total_edges}'
+curl -s -X POST "$API/api/v1/query" -H "Content-Type: application/json" -H "$H_WS" -H "$H_AUTH" \
+  -d '{"query": "test query"}' | jq '{has_answer: (.answer | length > 0), sources: (.sources | length)}'
+```
 
-- [REST API Reference](/docs/api-reference/rest-api/) - Complete API documentation
-- [Troubleshooting](/docs/troubleshooting/common-issues/) - Common problems and solutions
-- [Performance Tuning](/docs/operations/performance-tuning/) - Optimization guide
+If `total_nodes` is 0, no document has finished indexing. Check `status_counts` and any task `error_message`.
+
+## Docker recipes
+
+### Run the prebuilt stack at a pinned version
+
+```bash
+EDGEQUAKE_VERSION=0.32.2 docker compose -f docker-compose.quickstart.yml up -d
+```
+
+The file starts PostgreSQL, a one-time `migrate` container, the API and the UI. To switch to OpenAI, add `EDGEQUAKE_LLM_PROVIDER=openai OPENAI_API_KEY=sk-...` to the same command. See [Docker quickstart](operations/docker-quickstart.md).
+
+### Back up and restore
+
+PostgreSQL holds all state. Back it up with `pg_dump`.
+
+```bash
+BACKUP_DIR="./backups/$(date +%Y%m%d)"
+mkdir -p "$BACKUP_DIR"
+docker compose -f docker-compose.quickstart.yml exec -T postgres \
+  pg_dump -U edgequake edgequake > "$BACKUP_DIR/db.sql"
+```
+
+To restore, start from an empty database. This removes the current data, so run it only on a stack you can discard:
+
+```bash
+docker compose -f docker-compose.quickstart.yml down -v
+docker compose -f docker-compose.quickstart.yml up -d postgres
+docker compose -f docker-compose.quickstart.yml exec -T postgres \
+  psql -U edgequake edgequake < "$BACKUP_DIR/db.sql"
+docker compose -f docker-compose.quickstart.yml up -d
+```
+
+The last command also runs the `migrate` container, which brings the schema to the version of the images you started.
+
+Test a restore on a copy before you rely on it. The graph lives in Apache AGE schemas that `pg_dump` includes, but this page does not claim a verified round trip for every version.
+
+## Performance recipe
+
+### Time a few queries
+
+```bash
+for i in $(seq 1 10); do
+  curl -s -o /dev/null -w "query $i: %{time_total}s\n" -X POST "$API/api/v1/query" \
+    -H "Content-Type: application/json" -H "$H_WS" -H "$H_AUTH" \
+    -d '{"query": "What are the main topics?", "mode": "hybrid"}'
+done
+```
+
+Timings depend on your model and hardware. For sizing, see [Product limits](product-limits.md) and [Performance tuning](operations/performance-tuning.md).
+
+## See also
+
+- [REST API reference](api-reference/rest-api.md)
+- [Troubleshooting](troubleshooting/common-issues.md)
+- [Performance tuning](operations/performance-tuning.md)

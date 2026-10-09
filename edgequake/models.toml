@@ -12,7 +12,7 @@
 # Environment variable overrides:
 #   - OPENAI_API_KEY: Required for OpenAI provider
 #   - OLLAMA_BASE_URL: Override Ollama API endpoint (default: http://localhost:11434)
-#   - LM_STUDIO_BASE_URL: Override LM Studio endpoint (default: http://localhost:1234)
+#   - LMSTUDIO_HOST: Override LM Studio endpoint (default: http://localhost:1234)
 
 # =============================================================================
 # DEFAULT SELECTIONS
@@ -1335,7 +1335,7 @@ image_per_unit = 0.0
 # =============================================================================
 # Local models via LM Studio with OpenAI-compatible API
 # No API key required
-# Override endpoint: LM_STUDIO_BASE_URL (default: http://localhost:1234)
+# Override endpoint: LMSTUDIO_HOST (default: http://localhost:1234)
 
 [[providers]]
 name = "lmstudio"

@@ -1,349 +1,94 @@
 ---
-title: 'EdgeQuake vs LightRAG: Comprehensive Superiority Analysis'
+title: 'EdgeQuake and LightRAG: Implementation Differences (Feb 2026 Snapshot)'
+description: A historical, neutral list of design differences between EdgeQuake and LightRAG from a February 2026 code audit, corrected to match the current code. It makes no accuracy claim.
 ---
 
-# EdgeQuake vs LightRAG: Comprehensive Superiority Analysis
+# EdgeQuake and LightRAG: Implementation Differences (Feb 2026 Snapshot)
 
-> **Historical document.** Written Feb 2026 against a fixed evaluation dataset. Product and API have moved on (v0.23.0: SPEC-057 cancel/lease, multi-replica, PG 16–18). For current comparisons, see [vs LightRAG (Python)](/docs/comparisons/vs-lightrag-python/) and [Comparisons index](/docs/comparisons/).
+This is a historical page. It records design differences found in a code audit in February 2026 and keeps them correct for the current code. It is for contributors who want to know why EdgeQuake does something differently from LightRAG.
 
-**Date**: 2026-02-08
-**Evaluation Dataset**: Emil Frey (100 French business questions, 200 markdown documents)
-**Method**: First-principles code audit + E2E test validation
+An earlier version of this page was titled a "superiority analysis" and scored EdgeQuake as winning 13 of 17 areas. That was wrong, and it has been removed. A design difference is not a quality win. The only measured result is the [Acc benchmark](./eq-vs-lightrag-acc-bench.md), and it shows a **statistical tie** on accuracy, with LightRAG ahead on evidence recall and context relevancy.
 
----
-
-## Executive Summary
-
-EdgeQuake matches or exceeds LightRAG across every critical dimension of a Graph-RAG system. This document provides a point-by-point comparison across **17 dimensions** spanning query quality, ingestion quality, architecture, and production readiness.
-
-**Scorecard**: EdgeQuake wins 13/17, ties 3/17, LightRAG leads 1/17.
+For current guidance, read [vs LightRAG (Python)](./vs-lightrag-python.md).
 
 ---
 
-## 1. Query Pipeline
+## How to read this page
 
-### 1.1 Chunk Score Ranking
+Each row says what each project does. "Differs" means the designs are not the same, not that one is better. The LightRAG column follows the LightRAG README and paper; where we could not confirm a detail, the row says so.
 
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Chunk selection method | VECTOR (cosine similarity re-ranking) | VECTOR (cosine similarity via VectorStorage.query) |
-| Implementation | `pick_by_vector_similarity()` in operate.py | Pass ALL candidate IDs to `VectorStorage.query(top_k)` |
-| Tested | No explicit unit test | 6 E2E tests (score ordering, max_chunks truncation, alphabetic regression) |
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    q["Question"] --> prep["Prepare: keywords and embedding"]
+    prep --> ret["Retrieve: local, global, naive"]
+    ret --> ctx["Build context"]
+    ctx --> ans["Answer"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class prep eqLlm
+```
 
-**Winner**: EdgeQuake — same semantics, better tested, plus regression test proving chunk-zzz (best score) beats chunk-aaa (worst score).
-
-### 1.2 Keyword Extraction
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Method | LLM-based (high_level + low_level) | LLM-based (high_level + low_level) |
-| Validation | None | **Validates against knowledge graph** — drops keywords with zero entity matches |
-| Caching | Hash-based TTL | Trait-based `CachedKeywordExtractor` (24h TTL) |
-
-**Winner**: EdgeQuake — keyword validation prevents "embedding dilution" where non-existent terms waste cosine similarity computation. This is a unique advantage.
-
-### 1.3 Hybrid Mode Merging
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Merge strategy | Round-robin (local, global, naive) | Triple round-robin (local, global, naive) with KG-first priority |
-| Entity merge | Round-robin | Round-robin interleave |
-| Relationship merge | Concatenation | Deduplication by (source, target, type) |
-
-**Winner**: EdgeQuake — KG-first priority ensures entity-graph chunks (higher signal) are selected before naive chunks (broader recall).
-
-### 1.4 Adaptive Mode Selection
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Mode selection | User-specified | **Automatic via QueryIntent** (Factual→Local, Thematic→Global, etc.) |
-| Intent detection | None | Heuristic classification of query type |
-
-**Winner**: EdgeQuake — users don't need to know graph-RAG internals.
-
-### 1.5 Answer Generation Prompt
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Structure | Role → Goal → Instructions → Context | Role → Goal → Instructions → Context |
-| Reasoning | Step-by-step, scrutinize KG + chunks | Step-by-step reasoning, scrutinize KG + chunks |
-| Grounding | Strict (DO NOT invent) | Strict (DO NOT invent, assume, or infer) |
-| Language | Same as query | Same as query |
-| References | Numbered citations with document titles | Numbered reference IDs in context |
-| Domain-specific | Generic (domain-agnostic) | Generic (domain-agnostic) |
-
-**Winner**: Tie — both use LightRAG-quality structured prompts with CoT.
-
-### 1.6 Context Formatting
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Structure | Entities JSON → Relations JSON → Chunks JSON → Reference List | Entities → Relationships → Chunks with reference IDs |
-| Entity info | name, type, description | name, type, description, **degree (connections)** |
-| Relationship info | src, tgt, keywords, description | source, target, type, **description** |
-| Chunk info | content with reference_id | content with **[ref_id]** and cosine score |
-
-**Winner**: EdgeQuake — includes graph degree (importance signal) and cosine scores in context.
-
-### 1.7 Embedding Batching
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Strategy | Sequential (per-query, per-entity) | **Batch all 3 embeddings** (query, high_level, low_level) in one API call |
-| API calls | Multiple per query | 1 per query |
-
-**Winner**: EdgeQuake — 15-25% latency reduction on embedding computation.
-
-### 1.8 Parallelization
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Local + Global | Sequential (Python asyncio) | **Parallel** (`tokio::join!`) |
-| Hybrid execution | Sequential merge | Parallel mode execution + round-robin merge |
-
-**Winner**: EdgeQuake — parallel execution leveraging Rust's zero-cost async reduces query latency.
-
-### 1.9 Reranking
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Method | Jina (external API), BM25 | BM25 (built-in, enhanced with Porter2 stemming + NFKD Unicode) |
-| Fallback | None visible | **OODA-231 fallback**: if all chunks filtered, returns top-k originals |
-| Default | Configurable | Enabled by default |
-
-**Winner**: EdgeQuake — built-in reranker with robust fallback, no external API dependency.
-
-### 1.10 Token Truncation
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Method | Dynamic calculation per query | Fixed per-category budgets (entities: 10K, relations: 10K, total: 30K) |
-| Implementation | Inline in query flow | Modular `balance_context()` function |
-
-**Winner**: Tie — LightRAG is more adaptive, EdgeQuake is more predictable. Both achieve the same effective 30K token budget.
+Both projects follow this shape. The rows below describe where the steps differ.
 
 ---
 
-## 2. Ingestion Pipeline
+## Query side
 
-### 2.1 Chunking
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Default size | 1200 tokens | 1200 tokens |
-| Overlap | 100 tokens | 100 tokens |
-| Strategies | 1 (token-based + split_by_char) | **4** (token, character, sentence boundary, paragraph boundary) |
-| Min chunk size | Not enforced | 100 tokens minimum |
-
-**Winner**: EdgeQuake — sentence/paragraph-aware chunking preserves semantic boundaries.
-
-### 2.2 Entity Extraction
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Format | Tuple-based (`<\|#\|>` delimiter) | JSON + Tuple (SOTAExtractor) |
-| Extractors | 1 (LLM) | **3** (LLMExtractor, SOTAExtractor, SimpleExtractor) |
-| Max tokens | Fixed | **Adaptive** (4K-16K based on document complexity) |
-| Retry logic | Basic | Exponential backoff with configurable retries |
-| Entity types | Configurable list | 7 defaults (PERSON, ORGANIZATION, LOCATION, EVENT, CONCEPT, TECHNOLOGY, PRODUCT) |
-
-**Winner**: EdgeQuake — adaptive max_tokens prevents truncation on complex documents; multiple extractors for different use cases.
-
-### 2.3 Gleaning (Multiple Extraction Passes)
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Passes | 1 max (inline) | **N configurable** (decorator pattern via GleaningExtractor) |
-| Merge | Compare description length | Compare description length (same) |
-| Architecture | Inline in extract_entities() | Composable decorator pattern |
-
-**Winner**: EdgeQuake — configurable iterations, composable architecture.
-
-### 2.4 Entity Deduplication
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Key | Description match + timestamp | Entity name (case-insensitive) |
-| Description merge | **LLM summarization** when >8 fragments | Longer description wins |
-
-**Winner**: LightRAG — LLM summarization produces better merged descriptions for frequently-seen entities. This is the one dimension where LightRAG has an edge.
-
-### 2.5 Source Tracking
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Entity → chunks | Delimited string (GRAPH_FIELD_SEP) | `Vec<String>` (native, type-safe) |
-| Relationship → chunks | Delimited string | `Option<String>` |
-| Limit management | FIFO/KEEP with max limit | Dedup on insert |
-
-**Winner**: Tie — both track lineage, different storage approaches.
+| Step | EdgeQuake | LightRAG | Note |
+| ---- | --------- | -------- | ---- |
+| Keywords | One LLM call returns high-level and low-level keywords, cached for 24 hours. A request can pass its own keywords to skip the call. | LLM keyword extraction, also cached | Same idea |
+| Modes | `naive`, `local`, `global`, `hybrid`, `mix`, `bypass` | `local`, `global`, `hybrid`, `naive`, `mix` | Differs: EdgeQuake `hybrid` includes the naive arm |
+| `mix` blending | Parallel arms, blended by weight or rank fusion | Graph and vector retrieval together | Differs |
+| Mode choice | Optional intent-based arm selection (`use_adaptive_mode` is on by default) | Chosen by the caller | Differs |
+| Reranking | On by default, built-in lexical reranker. Optional neural reranker with `EDGEQUAKE_RERANKER=cross_encoder`. | Reranker supported | Differs |
+| Context budget | 60 entities, 60 relationships, 20 chunks, 30,000 tokens, graph depth 2, minimum score 0.1 | Configurable per query | Values differ by setting |
+| Streaming | Server-sent events, with several streaming entry points in the engine | Supported through the LLM provider | Differs in plumbing |
+| Arm timing | Retrieval arms run in parallel with a time limit per arm | Not compared | Not verified |
 
 ---
 
-## 3. Architecture & Production Readiness
+## Ingestion side
 
-### 3.1 Multi-Tenancy
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Tenant isolation | None | **Full** (SPEC-033): workspace-specific vector storage, embeddings, LLM |
-| Data isolation | Global config | STRICT mode — workspace-specific, no cross-tenant fallback |
-
-**Winner**: EdgeQuake — production multi-tenant support is a fundamental requirement for SaaS.
-
-### 3.2 Performance
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Language | Python (asyncio) | Rust (tokio) |
-| Parallelism | asyncio.gather | tokio::join! (zero-cost futures) |
-| Memory safety | GC-managed | Compile-time guaranteed |
-| Startup | Python interpreter | Native binary |
-
-**Winner**: EdgeQuake — Rust provides 5-10x lower latency and constant memory.
-
-### 3.3 Streaming
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| API | Basic (delegate to LLM provider) | **4 variants** (stream, stream+context, stream+LLM, stream+full_config) |
-| Fallback | None | Graceful fallback for non-streaming providers |
-| SSE | Via provider | Built-in SSE endpoint |
-
-**Winner**: EdgeQuake — rich streaming API with graceful degradation.
-
-### 3.4 Determinism
-
-| Aspect | LightRAG | EdgeQuake |
-|--------|----------|-----------|
-| Entity ordering | HashMap (non-deterministic) | Vec (deterministic, preserves vector score order) |
-| Chunk ordering | Score-sorted | Score-sorted |
-| Reproducibility | Same query → different entity order | Same query → same results |
-
-**Winner**: EdgeQuake — deterministic results are essential for testing and debugging.
+| Step | EdgeQuake | LightRAG | Note |
+| ---- | --------- | -------- | ---- |
+| Chunk size | 800 estimated tokens, overlap 100, minimum 100. The benchmark pins 1200 and 100 to match LightRAG. | Token-based, 1200 by default per the LightRAG docs | The defaults differ |
+| Chunk strategies | Five: `Fixed`, `Recursive` (default), `Markdown`, `Pdf`, `Semantic` | Token-based with an optional split character | Differs |
+| Extractors | LLM, SOTA, simple, gleaning (a wrapper), and decision mode (SPEC-160) | LLM extraction | Differs |
+| Gleaning | Optional extra passes, capped at 2 | Optional extra pass | Same idea |
+| Entity matching | Normalized name. Optional embedding match and optional LLM adjudication, both off by default. | Name based | Similar by default |
+| Description merge | Fragments are joined with a separator. An LLM summary replaces them when there are 8 fragments or the token budget is exceeded. | LLM summary after a fragment threshold | Same approach |
+| Source tracking | Chunk ids stored per entity and relationship, plus link tables and a lineage API | Chunk ids stored on graph items | Both track sources |
+| Local models | Lower concurrency, longer timeouts, gleaning off by default | Not compared | Not verified |
 
 ---
 
-## 4. Configuration Parity
+## System side
 
-| Parameter | LightRAG Default | EdgeQuake Default | Status |
-|-----------|-----------------|-------------------|--------|
-| Entity candidates (top_k) | 40 | 60 | EdgeQuake retrieves 50% more |
-| Chunk candidates (chunk_top_k) | 20 | 20 | Parity |
-| Max entity tokens | 6,000 | 10,000 | EdgeQuake 67% more budget |
-| Max relation tokens | 8,000 | 10,000 | EdgeQuake 25% more budget |
-| Max total tokens | 30,000 | 30,000 | Parity |
-| Cosine threshold | 0.2 | 0.1 | EdgeQuake more inclusive |
-| Chunk selection method | VECTOR | VECTOR (via VectorStorage.query) | Parity |
-| Reranking | Configurable | Enabled (BM25 enhanced) | EdgeQuake enabled by default |
-| Graph depth | Not exposed | 2 | EdgeQuake configurable |
-| Keyword cache TTL | Hash-based | 24 hours | Both cache |
+| Area | EdgeQuake | LightRAG |
+| ---- | --------- | -------- |
+| Language | Rust | Python |
+| Storage | PostgreSQL only | Many backends |
+| Isolation | Tenants, workspaces, row-level security | Workspace data isolation |
+| Ingestion jobs | Task queue with leases, cancel, and tenant fairness | Not compared |
+| PDFs | Built-in conversion | RAG-Anything integration |
 
 ---
 
-## 5. E2E Test Coverage
+## What changed since February 2026
 
-### EdgeQuake Tests (44 total)
+The original audit described several things that are no longer true:
 
-| Category | Count | Focus |
-|----------|-------|-------|
-| Chunk score ranking | 6 | Score ordering, alphabetic regression, all-candidates-before-truncation |
-| Hybrid diversity | 2 | Round-robin merge, deduplication |
-| Multi-entity recall | 1 | Chunks from multiple entities found |
-| Config parity | 1 | Asserts max_entities=60, max_chunks=20, max_context_tokens=30000 |
-| Reranker integration | 6 | BM25 stemming, Unicode, French, semantic phrase boost |
-| Query modes | 5 | Local, Global, Hybrid, Mix, Naive |
-| Adaptive mode | 3 | Intent-based mode selection |
-| Keywords | 3 | Extraction, mock, extended |
-| Prompt/Stats/Tenant | 5 | Prompt-only mode, stats tracking, workspace filter |
-| Fixtures/Queries | 12 | Dataset validation |
+- **Chunk size.** It listed EdgeQuake's default as 1200. The current default is 800.
+- **Merging.** It said EdgeQuake keeps the longer description and that LightRAG leads on merging. EdgeQuake now uses the same LLM summary approach.
+- **Strategies and extractors.** It counted 4 strategies and 3 extractors. There are now 5 and more.
+- **Speed and test counts.** It claimed "5 to 10 times lower latency" and counted unit tests. Neither claim was backed by a published measurement, so both are removed. The measured cold latency is about equal (1.02x).
+- **Evaluation numbers.** It quoted scores from a single French-language business dataset (Emil Frey, 100 questions) taken before several fixes. They are not comparable to the current benchmark, so they are not repeated here.
 
-### LightRAG Tests
-- Generic RAGAS evaluation (3 sample questions about LightRAG itself)
-- No score-ordering tests
-- No hybrid merge tests
-- No configuration parity tests
+## See also
 
-**Winner**: EdgeQuake — 44 focused tests vs generic evaluation.
-
----
-
-## 6. Overall Scorecard
-
-| Dimension | LightRAG | EdgeQuake | Winner |
-|-----------|----------|-----------|--------|
-| Chunk score ranking | VECTOR | VECTOR + tested | **EdgeQuake** |
-| Keyword validation | None | Graph-validated | **EdgeQuake** |
-| Hybrid merge | Round-robin | KG-first round-robin | **EdgeQuake** |
-| Adaptive mode | None | QueryIntent-based | **EdgeQuake** |
-| Answer prompt | Structured + CoT | Structured + CoT | Tie |
-| Context format | Entities, relations, chunks | Entities+degree, relations+desc, chunks+refs | **EdgeQuake** |
-| Embedding batching | Sequential | Batched (1 API call) | **EdgeQuake** |
-| Parallelization | Sequential | tokio::join! | **EdgeQuake** |
-| Reranking | External API | Built-in BM25 + fallback | **EdgeQuake** |
-| Token truncation | Dynamic | Fixed budgets | Tie |
-| Chunking | 1 strategy | 4 strategies | **EdgeQuake** |
-| Entity extraction | 1 extractor | 3 extractors + adaptive tokens | **EdgeQuake** |
-| Gleaning | 1 pass, inline | N passes, decorator | **EdgeQuake** |
-| Entity dedup | LLM summarization | Longer description | **LightRAG** |
-| Multi-tenancy | None | Full SPEC-033 | **EdgeQuake** |
-| Determinism | HashMap (random) | Vec (deterministic) | **EdgeQuake** |
-| Streaming | Basic | 4 variants + fallback | **EdgeQuake** |
-
-**Final Score: EdgeQuake 13 / Tie 3 / LightRAG 1**
-
----
-
-## 7. Latest Evaluation Results (Pre-fix Baseline)
-
-**Feb 7, 2026** (before score-ranking + prompt fixes):
-- Overall: **0.758** (73/100 successful, 27 server errors)
-- Context Recall: 84.9%
-- LLM-judged Correctness: 0.884
-- Numerical Precision: 0.934
-- Completeness: 0.836
-
-### Fixes Applied (Feb 8, 2026)
-
-1. **Score-ranked chunk retrieval** in 4 query methods (commit 268df779)
-2. **Round-robin hybrid merge** in 2 methods (commit 268df779)
-3. **Upgraded answer prompt** to LightRAG-quality structure (commit e640fa0d)
-4. **Improved context formatting** with references, descriptions, degree (commit e640fa0d)
-
-### Expected Impact
-
-| Metric | Before | After (estimated) |
-|--------|--------|-------------------|
-| Overall | 0.758 | 0.82-0.88 |
-| Recall | 84.9% | 86-90% |
-| Correctness | 0.884 | 0.92-0.95 |
-| Precision | 0.934 | 0.95-0.97 |
-| Failed queries | 27% | Infrastructure (not RAG) |
-
----
-
-## 8. Remaining Opportunity
-
-The single dimension where LightRAG leads — **LLM-based entity description summarization** — could be added as an optional pipeline stage in EdgeQuake's `GleaningExtractor`. This would involve:
-
-1. Tracking description fragments per entity across chunks
-2. When fragments exceed threshold (8), calling LLM to summarize
-3. Storing the merged description
-
-This is a low-priority optimization since EdgeQuake's "longer description wins" strategy already produces good results for most corpora.
-
----
-
-## Conclusion
-
-EdgeQuake is architecturally superior to LightRAG across the full Graph-RAG stack. It matches LightRAG's proven retrieval strategy (VECTOR chunk selection, round-robin merge, 30K context budget) while adding:
-
-- **Keyword validation** (prevents embedding waste)
-- **KG-first hybrid merge** (better signal for KG-derived chunks)
-- **Deterministic results** (testable, reproducible)
-- **Multi-tenant isolation** (production SaaS readiness)
-- **Built-in BM25 with fallback** (no external API dependency)
-- **Rust performance** (5-10x lower latency)
-- **44 focused E2E tests** (vs generic evaluation)
-
-The EMILE_FREY evaluation demonstrates 0.758 overall score (pre-fix), with expected improvement to 0.82-0.88 after the Feb 8 fixes for score ranking, hybrid merge, and prompt quality.
+- [Acc benchmark](./eq-vs-lightrag-acc-bench.md)
+- [vs LightRAG (Python)](./vs-lightrag-python.md)
+- [Query flow](../architecture/query-flow.md)
+- [Entity extraction](../deep-dives/entity-extraction.md)

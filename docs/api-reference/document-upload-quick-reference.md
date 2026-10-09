@@ -1,388 +1,243 @@
 ---
-title: 'Document Upload Quick Reference'
+title: Document Upload Quick Reference
+description: Which EdgeQuake upload endpoint to use for text, files, PDFs, batches and directory scans, with working curl examples and how to follow progress.
 ---
 
 # Document Upload Quick Reference
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+This page helps you choose the right upload endpoint and shows how to follow a document from upload to "searchable". It is for developers who ingest content over HTTP. Examples assume `http://localhost:8080`, auth off, and a `WORKSPACE_ID` shell variable. With auth on, add `Authorization: Bearer <token>`. See [REST API conventions](rest-api.md#conventions).
 
-> **Choose the Right Endpoint for Your Upload Method**
+## Pick an endpoint
 
-EdgeQuake provides multiple ingestion paths. **Production uploads are async by default** — file and PDF endpoints enqueue tasks and return `task_id` for progress/cancel. JSON text upload supports optional sync (`async_processing: false`) for small payloads only; do not assume sync-first for files or PDFs.
-
-**Progress key:** subscribe to server **`task_id`** (e.g. `pdf-<uuid>`), not optional client batch `track_id`. WebSocket: `ws://localhost:8080/ws/progress/{task_id}`.
-
----
-
-## Quick Decision Tree
-
-```
-What are you ingesting?
-├─ Raw text / structured JSON (no file)?
-│  └─ POST /api/v1/documents  (application/json)
-│     • Set async_processing: true for production (returns task_id)
-│     • async_processing: false only for small sync smoke tests
-│
-└─ Files from disk?
-   ├─ PDF (vision convert → separate Insert ingest)?
-   │  ├─ Single PDF
-   │  │  └─ POST /api/v1/documents/pdf   ← required (not /documents/upload)
-   │  └─ Multiple PDFs
-   │     └─ POST /api/v1/documents/pdf/batch
-   │
-   ├─ Images (PNG/JPG/GIF/WEBP)?
-   │  └─ POST /api/v1/documents/upload
-   │
-   └─ Text files (TXT, MD, JSON; API also CSV/HTML/XML/YAML)?
-      ├─ Single file  → POST /api/v1/documents/upload
-      └─ Multiple     → POST /api/v1/documents/upload/batch
-
-   DOCX / Excel → not supported (SPEC-121). Export to PDF or Markdown.
-
-After async admission:
-  task_id → GET /api/v1/ingestion/{task_id}/progress
-         → ws://localhost:8080/ws/progress/{task_id}
-  PDF only → GET /api/v1/documents/pdf/progress/{task_id}
-  Cancel   → POST /api/v1/tasks/{task_id}/cancel
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    S["What are you uploading?"] --> T{"Plain text in JSON?"}
+    T -->|yes| A["POST /documents"]
+    T -->|no| P{"PDF?"}
+    P -->|one| B["POST /documents/pdf"]
+    P -->|many| C["POST /documents/pdf/batch"]
+    P -->|no| F{"Other files?"}
+    F -->|one| D["POST /documents/upload"]
+    F -->|many| E["POST /documents/upload/batch"]
+    F -->|server folder| G["POST /documents/scan"]
 ```
 
-**Convert → ingest (PDF):** `POST /documents/pdf` enqueues `TaskType::PdfProcessing` (convert only). After durable markdown + PDF `Completed`, the worker enqueues `TaskType::Insert` for KG ingest under a separate lease. PDF `Completed` means convert artifact only — doc stage continues through Insert. See [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md#convert-then-ingest-spec-057-p2).
+Follow the questions top to bottom to land on one endpoint. All paths start with `/api/v1`.
 
----
+| Endpoint | Body | Success | Returns |
+|----------|------|---------|---------|
+| `POST /documents` | JSON | 202 | `document_id`, `task_id`, `track_id` |
+| `POST /documents/upload` | multipart | 202 | `document_id`, `task_id`, `track_id`, `content_hash` |
+| `POST /documents/upload/batch` | multipart | 202 | per-file `document_id` and status |
+| `POST /documents/pdf` | multipart | **200** | `pdf_id`, `task_id` (`pdf-<uuid>`) |
+| `POST /documents/pdf/batch` | multipart | 200 | per-file `pdf_id`, `task_id` |
+| `POST /documents/scan` | JSON | 200 | `track_id`, queued file paths |
 
-## Method 1: Text/JSON Upload
+Every upload is queued. There is no synchronous mode. The size limit is 50 MiB per file (413 above that).
 
-**Endpoint**: `POST /api/v1/documents`  
-**Content-Type**: `application/json`  
-**Use When**: Programmatic text ingestion (API integration, pre-extracted markdown)
+## What happens after you upload
 
-> **No sync-first myth:** OpenAPI default is `async_processing: false` for backward compatibility on JSON only. For anything non-trivial, set `async_processing: true` and poll/WebSocket on returned `task_id`.
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+sequenceDiagram
+    participant C as Client
+    participant A as API
+    participant W as Worker
+    C->>A: POST /documents/pdf (file)
+    A-->>C: 200 pdf_id, task_id
+    A->>W: queue pdf_processing task
+    W->>W: convert PDF to Markdown
+    W->>W: queue insert task
+    W->>W: chunk, extract, embed, store
+    loop poll or subscribe
+        C->>A: GET /tasks/{task_id}
+        A-->>C: status processing
+    end
+    C->>A: GET /tasks/{task_id}
+    A-->>C: status indexed
+```
 
-### Example: Basic Text Upload
+Read it top to bottom. For a PDF the work has two parts: convert to Markdown, then ingest the text. Use the `task_id` from the upload response as the key for progress, cancel and retry. The `track_id` you may send is only a label for grouping.
+
+Track progress with one of these:
+
+| Method | Route | Notes |
+|--------|-------|-------|
+| Poll task | `GET /api/v1/tasks/{task_id}` | `status`: `pending`, `processing`, `indexed`, `failed`, `cancelled` |
+| Poll ingest progress | `GET /api/v1/ingestion/{track_id}/progress` | Stage, percentage, counts |
+| Poll PDF progress | `GET /api/v1/documents/pdf/progress/{track_id}` | Per-phase progress for PDFs |
+| Server-Sent Events | `GET /api/v1/documents/pdf/progress/stream/{track_id}` | PDF progress stream |
+| WebSocket | `GET /ws/progress/{track_id}` | Live events, can send `cancel` |
+| Batch poll | `POST /api/v1/ingestion/progress` with `{"track_ids":[...]}` | Many tracks at once |
+
+Event formats are in [Extended API: progress streams](extended-api.md#progress-streams). Task and document states are in [Extended API: lifecycle](extended-api.md#lifecycle).
+
+## Text or JSON: POST /documents
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/documents \
+curl -s -X POST http://localhost:8080/api/v1/documents \
   -H "Content-Type: application/json" \
-  -d '{
-    "content": "Marie Curie was a pioneering physicist...",
-    "title": "Marie Curie Biography"
-  }'
+  -H "X-Workspace-ID: $WORKSPACE_ID" \
+  -d '{"content":"Marie Curie won two Nobel Prizes.","title":"Curie notes","metadata":{"source":"wiki"}}'
 ```
-
-### Example: With Metadata
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: workspace-uuid" \
-  -d '{
-    "content": "Your document text here...",
-    "title": "Document Title",
-    "metadata": {
-      "source": "wikipedia",
-      "author": "John Doe",
-      "category": "science"
-    },
-    "enable_gleaning": true,
-    "max_gleaning": 2
-  }'
-```
-
-### Request Body Schema
-
-```typescript
-{
-  content: string;              // Required: Document text
-  title?: string;               // Optional: Document title
-  metadata?: object;            // Optional: Custom metadata
-  async_processing?: boolean;   // true = task queue (recommended); false = sync (small text only)
-  track_id?: string;            // Optional batch correlation (not PDF progress key)
-  enable_gleaning?: boolean;    // Optional: Multi-pass extraction (default: true)
-  max_gleaning?: number;        // Optional: Max gleaning passes (default: 1)
-  use_llm_summarization?: boolean; // Optional: LLM-powered descriptions (default: true)
-}
-```
-
----
-
-## Method 2: Single File Upload
-
-**Endpoint**: `POST /api/v1/documents/upload`  
-**Content-Type**: `multipart/form-data`  
-**Use When**: Non-PDF files or generic file upload (PDFs work but **`POST /documents/pdf`** is preferred for vision convert → ingest semantics)
-
-Returns **`task_id`** when processing is async (typical for PDF/large files).
-
-### Example: PDF Upload (preferred path)
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/pdf \
-  -H "X-Workspace-ID: workspace-uuid" \
-  -F "file=@research_paper.pdf" \
-  -F "title=My Research Paper"
-```
-
-Response includes `task_id` (`pdf-<uuid>`) — use for progress WebSocket and cancel.
-
----
-
-## Method 2b: Single File Upload (generic)
-
-**Endpoint**: `POST /api/v1/documents/upload`  
-**Use When**: TXT, MD, JSON, or PDF when you do not need PDF-specific routes
-
-### Example: With Configuration
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/upload \
-  -F "file=@document.pdf" \
-  -F "title=Financial Report" \
-  -F 'metadata={"category": "finance", "year": 2024}' \
-  -F 'config={"enhance_tables": true, "mode": "Hybrid"}'
-```
-
-### Supported File Types
-
-| Extension | MIME Type          | Max Size | Notes                     |
-| --------- | ------------------ | -------- | ------------------------- |
-| `.pdf`    | `application/pdf`  | 50 MB    | Supports vision/hybrid mode |
-| `.txt`    | `text/plain`       | 10 MB    | Plain text               |
-| `.md`     | `text/markdown`    | 10 MB    | Markdown formatting      |
-| `.json`   | `application/json` | 10 MB    | Structured data          |
-
-### Form Fields
-
-| Field      | Type   | Required | Description                              |
-| ---------- | ------ | -------- | ---------------------------------------- |
-| `file`     | File   | Yes      | The file to upload                       |
-| `title`    | String | No       | Custom title (defaults to filename)      |
-| `metadata` | JSON   | No       | Custom metadata object                   |
-| `config`   | JSON   | No       | PDF processing configuration             |
-
----
-
-## Method 3: Batch File Upload (text / images)
-
-**Endpoint**: `POST /api/v1/documents/upload/batch`  
-**Content-Type**: `multipart/form-data`  
-**Use When**: Uploading multiple **non-PDF** files at once (TXT/MD/JSON/images).  
-**PDFs:** use `POST /api/v1/documents/pdf/batch` (or N× `/documents/pdf`). PDF parts on `/upload/batch` fail per-file with a SPEC-123 message (SPEC-132).
-
-### Example: Multiple Files
-
-```bash
-curl -X POST http://localhost:8080/api/v1/documents/upload/batch \
-  -F "files=@doc1.txt" \
-  -F "files=@doc2.txt" \
-  -F "files=@doc3.md"
-```
-
-### Response Format
 
 ```json
 {
-  "results": [
-    {
-      "filename": "doc1.pdf",
-      "document_id": "doc-uuid-1",
-      "status": "success",
-      "chunk_count": 15
-    },
-    {
-      "filename": "doc2.txt",
-      "status": "duplicate",
-      "duplicate_of": "doc-uuid-2"
-    },
-    {
-      "filename": "doc3.md",
-      "status": "failed",
-      "error": "File too large"
-    }
-  ],
-  "processed": 2,
-  "duplicates": 1,
-  "failed": 0
+  "document_id": "5b1f6c0e-...",
+  "track_id": "track-1f2e...",
+  "task_id": "9c7a41d2-...",
+  "status": "pending",
+  "queue_position": 1,
+  "eta_seconds": null,
+  "eta_basis": "no_history"
 }
 ```
 
----
+| Field | Required | Description |
+|-------|----------|-------------|
+| `content` | yes | Document text |
+| `title` | no | Display title |
+| `metadata` | no | Free-form object |
+| `track_id` | no | Your own grouping label |
+| `chunk_strategy` | no | `fixed`, `recursive` or `markdown` |
+| `chunk_options` | no | Size, overlap and separator overrides |
+| `enable_gleaning`, `max_gleaning` | no | Extra extraction passes |
+| `use_llm_summarization` | no | LLM-written merged descriptions |
+| `extraction_mode`, `decision_gate_preset` | no | See [extraction mode](#extraction-mode) |
+| `extract_max_entities`, `extract_max_records` | no | Per-upload caps |
 
-## Method 3b: Batch PDF Upload
+## One file: POST /documents/upload
 
-**Endpoint**: `POST /api/v1/documents/pdf/batch`  
-**Content-Type**: `multipart/form-data`  
-**Use When**: Uploading multiple PDFs in one request while preserving PDF-specific processing semantics
-
-### Example: Multiple PDFs
+Use it for `txt`, `md`, `json`, `csv`, `html`, `htm`, `xml`, `yaml` and `yml`, and for images (`png`, `jpg`, `jpeg`, `gif`, `webp`), which go through a vision model. The server also checks that the file content matches its extension. A PDF works here, but prefer `/documents/pdf`.
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/documents/pdf/batch \
-  -F "files=@paper1.pdf" \
-  -F "files=@paper2.pdf" \
-  -F "enable_vision=true"
+curl -s -X POST http://localhost:8080/api/v1/documents/upload \
+  -H "X-Workspace-ID: $WORKSPACE_ID" \
+  -F "file=@notes.md" \
+  -F 'metadata={"category":"finance"}'
 ```
 
-### Response Format
+Multipart fields: `file` (required), `metadata` (JSON string), `chunk_strategy`, `chunk_options` (JSON string), `extract_max_entities`, `extract_max_records`, `extraction_mode`, `decision_gate_preset`. The title is taken from the file name.
+
+Response fields include `document_id`, `filename`, `size`, `content_hash`, `is_duplicate`, `status`, `task_id`, `track_id`. Errors: 400 (no file or bad type), 409 (duplicate file already processed), 413.
+
+## Many files: POST /documents/upload/batch
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/documents/upload/batch \
+  -H "X-Workspace-ID: $WORKSPACE_ID" \
+  -F "files=@a.txt" -F "files=@b.md"
+```
 
 ```json
 {
   "total_files": 2,
-  "accepted": 1,
+  "processed": 1,
   "duplicates": 1,
   "failed": 0,
   "results": [
-    {
-      "filename": "paper1.pdf",
-      "status": "processing",
-      "pdf_id": "pdf-uuid-1",
-      "task_id": "task-uuid-1"
-    },
-    {
-      "filename": "paper2.pdf",
-      "status": "duplicate",
-      "duplicate_of": "pdf-uuid-existing"
-    }
+    { "filename": "a.txt", "document_id": "d1...", "status": "pending" },
+    { "filename": "b.md", "document_id": "d0...", "status": "duplicate" }
   ]
 }
 ```
 
----
+Each result has `status` `pending` (queued), `duplicate` or `failed`. A PDF in this batch fails for that file with a message that points you to `/documents/pdf`. Batch results do not include a `task_id`; poll `GET /api/v1/documents/{document_id}` or list documents instead.
 
-## Method 4: Directory Scan
+## PDFs: POST /documents/pdf
 
-**Endpoint**: `POST /api/v1/documents/scan`  
-**Content-Type**: `application/json`  
-**Use When**: Bulk uploading from a server directory
-
-### Example: Recursive Scan
+This is the preferred path for PDFs. It converts pages to Markdown, then ingests the Markdown.
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/documents/scan \
-  -H "Content-Type: application/json" \
-  -d '{
-    "path": "/data/documents",
-    "recursive": true,
-    "extensions": [".pdf", ".txt", ".md"],
-    "max_files": 1000
-  }'
+curl -s -X POST http://localhost:8080/api/v1/documents/pdf \
+  -H "X-Workspace-ID: $WORKSPACE_ID" \
+  -F "file=@paper.pdf" \
+  -F "title=My paper" \
+  -F "pdf_parser_backend=edgeparse"
 ```
 
-### Request Schema
-
-```typescript
+```json
 {
-  path: string;              // Required: Directory path
-  recursive?: boolean;       // Optional: Scan subdirectories (default: true)
-  extensions?: string[];     // Optional: File extensions to include
-  max_files?: number;        // Optional: Max files to process (default: 1000)
+  "pdf_id": "7d2e...",
+  "document_id": "5b1f...",
+  "task_id": "pdf-7d2e...",
+  "track_id": null,
+  "status": "queued",
+  "message": "PDF uploaded successfully. Processing in background.",
+  "estimated_time_seconds": 120,
+  "metadata": {
+    "filename": "paper.pdf",
+    "file_size_bytes": 1048576,
+    "page_count": null,
+    "sha256_checksum": "ab12...",
+    "vision_enabled": true,
+    "vision_model": null
+  }
 }
 ```
 
----
+| Multipart field | Description |
+|-----------------|-------------|
+| `file` | The PDF (required) |
+| `pdf_parser_backend` | `vision`, `edgeparse`, `edgeparse-ocr` or `auto` |
+| `enable_vision`, `vision_provider`, `vision_model`, `vision_reasoning_effort` | Vision model selection |
+| `vision_extract_images`, `vision_extract_charts`, `vision_extract_figures` | Describe images, charts or figures |
+| `vision_page_system_prompt`, `vision_image_system_prompt`, `vision_chart_system_prompt`, `vision_figure_system_prompt` | Prompt overrides |
+| `title`, `metadata`, `track_id` | Labels |
+| `force_reindex` | Re-process a duplicate (`true`/`false`) |
+| `process_options` | Advanced options string |
 
-## Common Errors and Fixes
+The `document_id` is reserved at upload time. A duplicate PDF returns `status: "duplicate"` with `duplicate_of`. Errors: 400, 409, 413, 500. The PDF routes do not read `extraction_mode`; they use the workspace or server setting.
 
-### Error: "Expected request with `Content-Type: application/json`"
+Batch version: `POST /documents/pdf/batch` with repeated `files` fields plus the same options. It returns `{ total_files, accepted, duplicates, failed, results[] }`, where each result has `filename`, `status` (`processing`, `duplicate`, `reindexing`, `failed`), `pdf_id`, `task_id`, `duplicate_of` and `error`.
 
-**Cause**: Using `-F` (multipart) with `/api/v1/documents`
+Other PDF routes: `GET /documents/pdf` (list), `GET /documents/pdf/{pdf_id}`, `DELETE /documents/pdf/{pdf_id}`, `GET .../content`, `GET .../download` (supports byte ranges), `POST .../retry`, `DELETE .../cancel`. To convert a PDF without storing it, use [`POST /parse`](rest-api.md#parse).
 
-**Fix**: Use `/api/v1/documents/upload` for file uploads
+## Directory scan: POST /documents/scan
 
-```bash
-# ❌ WRONG
-curl -X POST http://localhost:8080/api/v1/documents \
-  -F "file=@doc.pdf"
-
-# ✅ CORRECT
-curl -X POST http://localhost:8080/api/v1/documents/upload \
-  -F "file=@doc.pdf"
-```
-
----
-
-### Error: "Failed to parse the request body as JSON"
-
-**Cause**: Using `-F` with a JSON endpoint or missing quotes
-
-**Fix**: Use `-d` with properly formatted JSON
+The server reads files from a path **on the server's disk**. The path must be inside a directory the server allows (this blocks path traversal). Use it for bulk imports.
 
 ```bash
-# ❌ WRONG
-curl -X POST http://localhost:8080/api/v1/documents \
-  -F "content=text here"
-
-# ✅ CORRECT
-curl -X POST http://localhost:8080/api/v1/documents \
+curl -s -X POST http://localhost:8080/api/v1/documents/scan \
   -H "Content-Type: application/json" \
-  -d '{"content": "text here"}'
+  -d '{"path":"/data/docs","recursive":true,"extensions":["txt","md"],"max_files":500}'
 ```
 
----
-
-### Error: "missing field `content`"
-
-**Cause**: JSON upload missing required `content` field
-
-**Fix**: Include `content` in request body
-
-```bash
-# ❌ WRONG
-curl -X POST http://localhost:8080/api/v1/documents \
-  -H "Content-Type: application/json" \
-  -d '{"title": "My Doc"}'
-
-# ✅ CORRECT
-curl -X POST http://localhost:8080/api/v1/documents \
-  -H "Content-Type: application/json" \
-  -d '{"content": "Document text...", "title": "My Doc"}'
+```json
+{
+  "track_id": "scan_20261009_100000_ab12cd34",
+  "files_found": 10,
+  "files_queued": 8,
+  "files_skipped": 2,
+  "queued_files": ["/data/docs/a.txt"],
+  "skipped_files": [{ "path": "/data/docs/b.txt", "reason": "duplicate" }]
+}
 ```
 
----
+Errors: 400 (not a directory), 403 (path not allowed), 404 (directory not found).
 
-## Extraction mode (SPEC-160)
+## Extraction mode
 
-Optional on every ingest route above. Omit it and the document follows the workspace, then `EDGEQUAKE_EXTRACTION_MODE`, then `llm`.
+`extraction_mode` chooses how entities are extracted: `llm` (default), `decision` (local decision model), or `inherit`. It is read on `POST /documents`, `/documents/upload` and `/documents/upload/batch`. Omit it and the document follows the workspace, then `EDGEQUAKE_EXTRACTION_MODE`, then `llm`. The response echoes `extraction_mode` and `extraction_mode_source`. A `decision` upload with no reachable decision backend returns 422 and stores nothing. See [Decision extraction](../concepts/decision-extraction.md).
 
-| Field | Where | Values |
-| ----- | ----- | ------ |
-| `extraction_mode` | JSON body or multipart field | `inherit`, `llm`, `decision` |
-| `decision_gate_preset` | multipart field, optional | `strict`, `balanced`, `recall` |
+## Common mistakes
 
-`decision` requires the local decision backend. A missing model or a down backend returns **422** and stores nothing. See [Decision extraction](../concepts/decision-extraction.md).
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| 415 or "Expected request with `Content-Type: application/json`" | You sent a file with `-F` to `/documents` | Use `/documents/upload` for files |
+| "Failed to parse the request body as JSON" | You sent form data to a JSON route | Use `-H "Content-Type: application/json" -d '{...}'` |
+| "missing field `content`" | JSON body without `content` | Add `content` |
+| 409 on upload | Same file already processed | Use `force_reindex=true` (PDF) or delete the old document |
+| PDF fails in `/upload/batch` | PDFs are rejected there | Use `/documents/pdf/batch` |
 
----
+## Good habits
 
-## API Endpoint Summary
+1. Save the `task_id` from every upload. It is the only key for progress, cancel and retry.
+2. Cancel with `POST /api/v1/tasks/{task_id}/cancel`. See [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md).
+3. Subscribe to progress before long PDF conversions.
+4. Send the tenant and workspace headers on every call.
 
-| Endpoint                          | Method | Content-Type               | Purpose                    |
-| --------------------------------- | ------ | -------------------------- | -------------------------- |
-| `/api/v1/documents`               | POST   | `application/json`         | Text/JSON (optional sync)  |
-| `/api/v1/documents/pdf`           | POST   | `multipart/form-data`      | Single PDF (convert→ingest)|
-| `/api/v1/documents/pdf/batch`     | POST   | `multipart/form-data`      | Multiple PDFs              |
-| `/api/v1/documents/upload`        | POST   | `multipart/form-data`      | Single file (generic)      |
-| `/api/v1/documents/upload/batch`  | POST   | `multipart/form-data`      | Multiple files             |
-| `/api/v1/documents/scan`          | POST   | `application/json`         | Scan directory for files   |
-| `/api/v1/ingestion/{task_id}/progress` | GET | N/A                   | Ingest progress (poll)     |
-| `/ws/progress/{task_id}`          | WS     | N/A                        | Per-track progress + cancel|
-| `/api/v1/tasks/{task_id}/cancel`  | POST   | N/A                        | Cancel (canonical)         |
-
----
-
-## Best Practices
-
-1. **PDFs:** use `POST /documents/pdf` (or `/pdf/batch`) for convert → ingest and PDF cancel routes
-2. **Always capture `task_id`** from upload responses — sole progress/cancel/WebSocket key (SPEC-054)
-3. **Prefer async** — sync JSON is for small tests; file/PDF paths enqueue tasks
-4. **Subscribe early** — `ws://localhost:8080/ws/progress/{task_id}` before long converts
-5. **Cancel via** `POST /api/v1/tasks/{task_id}/cancel` — see [cancel SSOT](../ingestion-cancel-and-fairness.md)
-6. **Include tenant/workspace headers** on all authenticated routes
-
----
-
-## Next Steps
-
-- **OpenAPI SSOT**: [`openapi.snapshot.json`](../../edgequake_webui/openapi/openapi.snapshot.json) · [`/swagger-ui/`](http://localhost:8080/swagger-ui/)
-- **Full API Reference**: [REST API Documentation](/docs/api-reference/rest-api/)
-- **PDF tutorial**: [PDF Ingestion](/docs/tutorials/pdf-ingestion/)
-- **Cancel & fairness**: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
-- **Troubleshooting**: [Common Issues](/docs/troubleshooting/common-issues/#1-document-upload-errors)
+Next: [REST API](rest-api.md), [Extended API](extended-api.md), [PDF ingestion tutorial](../tutorials/pdf-ingestion.md), [Troubleshooting](../troubleshooting/common-issues.md).

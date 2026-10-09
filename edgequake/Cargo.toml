@@ -5,12 +5,14 @@ members = [
     "crates/edgequake-audit",
     "crates/edgequake-auth",
     "crates/edgequake-core",
+    "crates/edgequake-fake-llm",
     "crates/edgequake-migrate-manifest",
     "crates/edgequake-observability",
     "crates/edgequake-pdf",
     "crates/edgequake-pipeline",
     "crates/edgequake-query",
     "crates/edgequake-rate-limiter",
+    "crates/edgequake-secrets",
     "crates/edgequake-storage",
     "crates/edgequake-storage-contracts",
     "crates/edgequake-tasks",
@@ -200,6 +202,7 @@ edgequake-pipeline = { path = "crates/edgequake-pipeline" }
 edgequake-query = { path = "crates/edgequake-query" }
 edgequake-storage = { path = "crates/edgequake-storage" }
 edgequake-storage-contracts = { path = "crates/edgequake-storage-contracts" }
+edgequake-secrets = { path = "crates/edgequake-secrets" }
 edgequake-tasks = { path = "crates/edgequake-tasks" }
 edgequake-observability = { path = "crates/edgequake-observability" }
 # 0.3.2: Type 3 / Skia widths, ActualText, CID fallback, header/footer, OCG.

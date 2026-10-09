@@ -1,5 +1,6 @@
 ---
 title: "Migrate to EdgeQuake v0.23.0+"
+description: "Historical guide to migrate an older EdgeQuake database to v0.23.0 and later. See Upgrading for the current process."
 ---
 
 # Migrate to EdgeQuake v0.23.0+

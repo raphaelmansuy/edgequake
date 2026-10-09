@@ -821,6 +821,10 @@ fn main() -> Result<()> {
     match argv.next().as_deref() {
         Some("healthcheck") => return container_ops::run_healthcheck(),
         Some("pre-stop") => return container_ops::run_pre_stop(argv.next()),
+        Some("doctor") => {
+            let json = std::env::args().any(|a| a == "--json");
+            std::process::exit(edgequake_api::doctor::run_doctor(json));
+        }
         _ => {}
     }
 

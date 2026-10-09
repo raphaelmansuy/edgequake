@@ -1,5 +1,6 @@
 ---
 title: EdgeQuake + Langfuse 3.1.x
+description: "Configure Langfuse 3.1 with EdgeQuake."
 ---
 
 # EdgeQuake + Langfuse 3.1.x

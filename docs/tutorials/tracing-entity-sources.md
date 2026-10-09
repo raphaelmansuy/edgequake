@@ -1,277 +1,173 @@
 ---
-title: 'Tracing Entity Sources Tutorial'
+title: "Tutorial: Trace entities to their sources"
+description: Follow an answer, an entity or a relationship in EdgeQuake back to the exact chunk, line range and document it came from, using the lineage and provenance endpoints.
 ---
 
-> **Product: v0.23.0** · Contract: [`openapi.snapshot.json`](../../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+In this tutorial you trace facts back to their origin. You start from a query answer, an entity or a document, and end at the chunk and line range that support it. Use this to audit answers and to find bad extractions.
 
-# Tracing Entity Sources Tutorial
+**Prerequisites:** a workspace with at least one completed document (see [First RAG app](first-rag-app.md)) and the variables `EQ_API` and `WORKSPACE_ID`.
 
-> Learn how to trace any entity in EdgeQuake's knowledge graph back to its source document and exact location
+## The lineage chain
 
----
+Every fact in the graph keeps a link to the text it came from. The diagram shows the chain from a document down to an entity, and the three ways to walk it.
 
-## Overview
-
-EdgeQuake maintains a complete lineage chain for every entity in the knowledge graph:
-
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+erDiagram
+  DOCUMENT ||--o{ CHUNK : "split into"
+  CHUNK ||--o{ ENTITY : "mentions"
+  CHUNK ||--o{ RELATIONSHIP : "supports"
+  ENTITY ||--o{ RELATIONSHIP : "connects"
 ```
-PDF/Markdown File
-  └─→ Document (with file metadata)
-        └─→ Chunk (with line numbers)
-              └─→ Entity (with extraction metadata)
-```
 
-This tutorial shows how to follow this chain in both directions — from entity back to source, and from document forward to entities.
+Read it from the top: a document is split into chunks, and each chunk can produce entities and relationships. An entity that appears in many chunks keeps all of them as sources.
 
----
+Pick the endpoint for your starting point:
 
-## Prerequisites
+| You have | Call | You get |
+|----------|------|---------|
+| A document ID | `GET /api/v1/lineage/documents/{document_id}` | All entities and relationships of the document, each with its source chunks. |
+| An entity name | `GET /api/v1/lineage/entities/{entity_name}` | Every document, chunk and line range that mentions it, and its description history. |
+| An entity name | `GET /api/v1/entities/{entity_id}/provenance` | Sources with the source text, plus related entities. The ID is the uppercase entity name. |
+| A chunk ID | `GET /api/v1/chunks/{chunk_id}` | The chunk text, line range, entities, relationships and extraction metadata. |
+| A chunk ID | `GET /api/v1/chunks/{chunk_id}/lineage` | The parent document, position and entity names. |
+| A document ID | `GET /api/v1/documents/{document_id}/lineage` | The chunk tree of the document with entity links. |
 
-- EdgeQuake backend running (`make dev` or `make dev-bg`)
-- At least one document ingested
-- An SDK installed (Rust, TypeScript, or Python) or use `curl`
+Send `X-Workspace-ID` on every call. Chunk IDs have the form `{document_id}-chunk-{N}`.
 
----
+## 1. Start from an answer
 
-## Step 1: Find an Entity
-
-### Using the WebUI
-
-1. Navigate to `http://localhost:3000/graph`
-2. Click on any entity node in the graph visualization
-3. Note the entity name (e.g., `SARAH_CHEN`)
-
-### Using the API
-
-List entities in a document:
+Run a query and read the `sources` array. Each source has a `source_type` and an `id`. For chunk sources, the `id` is a chunk ID.
 
 ```bash
-curl http://localhost:8080/api/v1/lineage/documents/{document_id} \
-  -H "X-Workspace-ID: default" | jq '.entities[].name'
+curl -s -X POST "$EQ_API/api/v1/query" \
+  -H "Content-Type: application/json" \
+  -H "X-Workspace-ID: $WORKSPACE_ID" \
+  -d '{"query": "Who leads the NeuralSearch project?", "include_references": true}' \
+  | tee answer.json | jq '.sources[] | {source_type, id, document_id, file_path, start_line, end_line, score}'
 ```
 
----
-
-## Step 2: Get Entity Provenance
-
-The provenance endpoint tells you every source document and chunk where this entity was found.
-
-### Using curl
-
-```bash
-curl http://localhost:8080/api/v1/entities/SARAH_CHEN/provenance \
-  -H "X-Workspace-ID: default" | jq
-```
-
-### Using Python SDK
-
-```python
-from edgequake import EdgeQuake
-
-client = EdgeQuake(base_url="http://localhost:8080")
-provenance = client.operations.provenance.get("SARAH_CHEN")
-
-print(f"Entity: {provenance.entity_name}")
-print(f"Type: {provenance.entity_type}")
-print(f"Extracted {provenance.total_extraction_count} times")
-
-for source in provenance.sources:
-    print(f"\nFrom document: {source.document_id}")
-    for chunk in source.chunks:
-        print(f"  Chunk: {chunk.chunk_id}")
-        if chunk.start_line:
-            print(f"  Lines: {chunk.start_line}-{chunk.end_line}")
-```
-
-### Expected Output
-
-```
-Entity: SARAH_CHEN
-Type: PERSON
-Extracted 3 times
-
-From document: abc123def456
-  Chunk: abc123def456-chunk-0
-  Lines: 1-25
-  Chunk: abc123def456-chunk-3
-  Lines: 76-100
-```
-
----
-
-## Step 3: Trace to Source Chunk
-
-Now drill into a specific chunk to see the exact text:
-
-### Using curl
-
-```bash
-curl http://localhost:8080/api/v1/chunks/abc123def456-chunk-0 | jq
-```
-
-### Using TypeScript SDK
-
-```typescript
-import { EdgeQuake } from "@edgequake/sdk";
-
-const client = new EdgeQuake({ baseUrl: "http://localhost:8080" });
-
-// Get chunk detail
-const chunk = await client.chunks.get("abc123def456-chunk-0");
-console.log(`Content: ${chunk.content}`);
-console.log(`Lines: ${chunk.char_range.start}-${chunk.char_range.end}`);
-console.log(`Entities found: ${chunk.entities.length}`);
-
-for (const entity of chunk.entities) {
-  console.log(`  ${entity.name} (${entity.entity_type})`);
-}
-```
-
----
-
-## Step 4: Get Full Chunk Lineage
-
-The chunk lineage endpoint provides everything in one call — parent document info, position data, and model provenance:
-
-### Using curl
-
-```bash
-curl http://localhost:8080/api/v1/chunks/abc123def456-chunk-0/lineage | jq
-```
-
-### Using Rust SDK
-
-```rust
-use edgequake_sdk::EdgeQuake;
-
-let client = EdgeQuake::new("http://localhost:8080")?;
-let lineage = client.chunks().get_lineage("abc123def456-chunk-0").await?;
-
-println!("Document: {}", lineage.document_id);
-println!("Document type: {:?}", lineage.document_type);
-println!("Chunk index: {}", lineage.chunk_index.unwrap_or(0));
-println!("Lines: {:?}-{:?}", lineage.start_line, lineage.end_line);
-println!("LLM model: {:?}", lineage.llm_model);
-println!("Embedding model: {:?}", lineage.embedding_model);
-println!("Entities: {:?}", lineage.entity_names);
-```
-
----
-
-## Step 5: View Complete Document Lineage
-
-Get the full picture — all chunks and entities for a document:
-
-### Using curl
-
-```bash
-curl http://localhost:8080/api/v1/documents/abc123def456/lineage | jq
-```
-
-### Using Python SDK
-
-```python
-from edgequake import EdgeQuake
-
-client = EdgeQuake(base_url="http://localhost:8080")
-lineage = client.documents.get_lineage("abc123def456")
-
-print(f"Document: {lineage.document_id}")
-print(f"Total chunks: {len(lineage.chunks)}")
-print(f"Total entities: {len(lineage.entities)}")
-
-print("\nChunks:")
-for chunk in lineage.chunks:
-    print(f"  [{chunk.get('chunk_index', '?')}] {chunk.get('content_preview', '')[:50]}...")
-    print(f"      Lines {chunk.get('start_line', '?')}-{chunk.get('end_line', '?')}, "
-          f"Entities: {chunk.get('entity_count', 0)}")
-
-print("\nEntities:")
-for entity in lineage.entities:
-    print(f"  {entity.get('entity_name', '?')} ({entity.get('entity_type', '?')})")
-    print(f"      From chunks: {entity.get('chunk_ids', [])}")
-```
-
----
-
-## Step 6: Get Document Metadata
-
-Additional metadata (file hash, size, processing info) is available:
-
-```bash
-curl http://localhost:8080/api/v1/documents/abc123def456/metadata | jq
-```
-
-Example response:
+Expected output (values vary):
 
 ```json
 {
-  "id": "abc123def456",
-  "title": "research_paper.pdf",
-  "document_type": "pdf",
-  "file_size_bytes": 2097152,
-  "sha256_checksum": "e3b0c44298fc1c149...",
-  "page_count": 24,
-  "llm_model": "gpt-4.1-nano",
-  "embedding_model": "text-embedding-3-small"
+  "source_type": "chunk",
+  "id": "9d1e0a52-...-chunk-0",
+  "document_id": "9d1e0a52-...",
+  "file_path": "sample.md",
+  "start_line": 1,
+  "end_line": 8,
+  "score": 0.82
 }
 ```
 
----
+Pick a chunk ID for the next step:
 
-## Using the WebUI
-
-### Metadata Sidebar
-
-1. Open a document at `http://localhost:3000/documents/{id}`
-2. The **Metadata Sidebar** shows:
-   - **Extended Metadata** — All stored KV metadata fields
-   - **Data Hierarchy** — Interactive tree: Document → Chunks → Entities
-   - **Source Info** — Document type, page count, checksum, file size
-
-### Lineage Explorer
-
-1. Navigate to `http://localhost:3000/lineage`
-2. Select a document from the list
-3. Browse the entity graph with source traceability
-4. Click any entity to see its provenance
-
----
-
-## Complete Traceability Example
-
-Here's a complete workflow tracing the entity `QUANTUM_COMPUTING` back to its source:
-
-```
-1. Entity: QUANTUM_COMPUTING (TECHNOLOGY)
-   │
-   ├─ Provenance: Extracted 5 times from 2 documents
-   │
-   ├─ Document A: "quantum_review.pdf"
-   │   ├─ Chunk 0 (lines 1-30): "Quantum computing represents..."
-   │   ├─ Chunk 3 (lines 91-120): "Recent advances in quantum..."
-   │   └─ Chunk 7 (lines 211-240): "Applications of quantum..."
-   │
-   └─ Document B: "tech_survey.md"
-       ├─ Chunk 1 (lines 15-45): "Among emerging technologies..."
-       └─ Chunk 4 (lines 100-130): "Quantum supremacy was..."
+```bash
+export CHUNK_ID=$(jq -r '[.sources[] | select(.source_type=="chunk")][0].id' answer.json)
 ```
 
-Each level provides:
-- **Entity**: Name, type, description, related entities
-- **Document**: File metadata, processing info, models used
-- **Chunk**: Exact text, line numbers, character offsets, token count
-- **Models**: Which LLM extracted entities, which embedding model vectorized
+## 2. Read the chunk
 
----
+```bash
+curl -s "$EQ_API/api/v1/chunks/$CHUNK_ID" -H "X-Workspace-ID: $WORKSPACE_ID" \
+  | jq '{document_id, document_name, index, start_line, end_line, token_count, entities: [.entities[].name], extraction_metadata}'
+```
 
-## Summary
+Expected output:
 
-| What you want to know            | Endpoint                                | SDK Method                    |
-| -------------------------------- | --------------------------------------- | ----------------------------- |
-| Where was this entity found?     | `GET /entities/{id}/provenance`         | `operations.provenance.get()` |
-| What entities are in this doc?   | `GET /lineage/documents/{id}`           | `documents.get_lineage()`     |
-| What's in this chunk?            | `GET /chunks/{id}`                      | `chunks.get()`                |
-| Full chunk lineage chain?        | `GET /chunks/{id}/lineage`              | `chunks.get_lineage()`        |
-| All document metadata?           | `GET /documents/{id}/metadata`          | `documents.get_metadata()`    |
-| Complete lineage tree?           | `GET /documents/{id}/lineage`           | `documents.get_lineage()`     |
+```json
+{
+  "document_id": "9d1e0a52-...",
+  "document_name": "sample.md",
+  "index": 0,
+  "start_line": 1,
+  "end_line": 8,
+  "token_count": 96,
+  "entities": ["SARAH_CHEN", "TECHCORP", "NEURALSEARCH"],
+  "extraction_metadata": { "model": "...", "gleaning_iterations": 1, "cached": false }
+}
+```
+
+The `extraction_metadata` block, when present, names the model that extracted the chunk. It shows whether gleaning ran and whether the result came from cache. Use it to compare extraction quality between models. Chunks from PDFs can also carry `page_start` and `page_end`.
+
+## 3. Trace an entity
+
+Ask where an entity appears. The name is the uppercase form shown in the graph.
+
+```bash
+curl -s "$EQ_API/api/v1/lineage/entities/SARAH_CHEN" -H "X-Workspace-ID: $WORKSPACE_ID" \
+  | jq '{entity_name, entity_type, source_count, sources: [.source_documents[] | {document_id, chunk_ids, line_ranges}]}'
+```
+
+Expected output:
+
+```json
+{
+  "entity_name": "SARAH_CHEN",
+  "entity_type": "PERSON",
+  "source_count": 1,
+  "sources": [
+    { "document_id": "9d1e0a52-...", "chunk_ids": ["9d1e0a52-...-chunk-0"], "line_ranges": [{ "start_line": 1, "end_line": 8 }] }
+  ]
+}
+```
+
+The response also has `description_versions`. When an entity appears in several chunks, EdgeQuake merges the descriptions. Each version lists its `source_chunk_id`, so you can see which text added which detail.
+
+For the source text itself and for related entities, use the provenance route:
+
+```bash
+curl -s "$EQ_API/api/v1/entities/SARAH_CHEN/provenance" -H "X-Workspace-ID: $WORKSPACE_ID" \
+  | jq '{total_extraction_count, sources: [.sources[] | {document_name, chunks: [.chunks[] | {chunk_id, source_text}]}], related: [.related_entities[].entity_name]}'
+```
+
+## 4. Trace a document
+
+List everything one document contributed to the graph:
+
+```bash
+curl -s "$EQ_API/api/v1/lineage/documents/$DOC_ID" -H "X-Workspace-ID: $WORKSPACE_ID" \
+  | jq '{chunk_count, extraction_stats, entities: [.entities[] | {name, entity_type, is_shared, source_chunks}]}'
+```
+
+The field `is_shared` is `true` when the entity also appears in another document. The numbers in `extraction_stats` compare raw extractions with unique ones, so they show how much merging happened.
+
+To export a document's lineage, call `GET /api/v1/documents/{document_id}/lineage/export`.
+
+## 5. Audit a suspicious answer
+
+Follow this loop when an answer looks wrong:
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["Wrong or odd answer"] --> B["Read sources in the query response"]
+  B --> C["Fetch each source chunk"]
+  C --> D{"Chunk text supports the answer?"}
+  D -- "Yes" --> E["Answer is grounded"]
+  D -- "No" --> F["Check extraction metadata and entities of the chunk"]
+  F --> G["Fix: bigger model, entity types, reprocess"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class G eqLlm
+```
+
+Read it top to bottom. If the chunk text supports the answer, the fault is in the question or the prompt. If it does not, the extraction is the problem. See [Document ingestion](document-ingestion.md) for the remedies and [Query optimization](query-optimization.md) for retrieval fixes.
+
+Common findings:
+
+| Finding | Meaning | Action |
+|---------|---------|--------|
+| The source path is `injection` | The text came from [knowledge injection](knowledge-injection.md), not from a document. | Check the injection list. |
+| The same real-world thing has two entity names | Names did not normalize to the same ID. | See [Entity normalization](../deep-dives/entity-normalization.md); merge with `POST /api/v1/graph/entities/merge`. |
+| The description mixes unrelated facts | Two things share one name. | Read `description_versions` and split the sources. |
+| Extraction metadata shows `cached: true` for a bad result | A cached extraction was reused. | Reprocess the document after you fix the cause. |
+
+## Next steps
+
+- [Lineage tracking architecture](../architecture/lineage-tracking.md)
+- [Lineage API reference](../api-reference/lineage-endpoints.md)
+- [Knowledge injection](knowledge-injection.md)

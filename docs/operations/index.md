@@ -1,37 +1,62 @@
 ---
 title: Operations
-description: Deploy, monitor, and tune EdgeQuake in production.
+description: Run EdgeQuake in production - deploy, configure, secure, upgrade, monitor, tune, and release.
 ---
 
-> **Product: v0.32.2** · Schema train **168** · Contract: OpenAPI
+# Operations
 
-Production deployment and operations guides.
+This section is for people who run EdgeQuake: platform engineers, SREs, and anyone who owns a deployment. Start here to find the right page for your task.
 
-## Reliability-first operating model
+> **Product: v0.32.2 released** · HEAD ships as v0.33.0 · Schema train **169** · Contract: OpenAPI
 
-EdgeQuake now documents and follows a few simple operational invariants:
+## Operating rules
 
-- pin the Rust toolchain so local results and CI results do not drift
-- use readiness probes instead of fixed sleeps when starting services
-- cancel superseded CI runs on the same branch to reduce stale signal and wasted minutes
-- keep heavyweight coverage and full-E2E flows outside the fastest blocking feedback loop
-- fail closed when an explicit workspace context is invalid or missing
-- **never** rely on API boot to migrate the database — run `edgequake migrate` explicitly
+These rules keep a deployment predictable:
 
-## Guides
+- **The API never migrates the database.** Run `edgequake migrate` first (see [Upgrading](upgrading.md)).
+- **Use readiness probes, not sleeps.** `/live` means the process is up. `/ready` means it can take traffic.
+- **Fail closed.** An invalid or missing workspace context returns an error, not a guess.
+- **Pin the Rust toolchain.** Local builds and CI then give the same result.
+- **Keep heavy checks out of the fast loop.** Coverage and full E2E run separately from the quick gates.
 
-- **[Upgrading (database migrations)](/docs/operations/upgrading/)** — Plain-English upgrade from any published version (canonical).
-- **[Docker Quickstart](/docs/operations/docker-quickstart/)** — Full stack from GHCR images (no local build).
-- **[Deployment](/docs/operations/deployment/)** — Docker, Kubernetes, GCP Option A, and bare-metal.
-- **[Configuration](/docs/operations/configuration/)** — Environment variables and runtime settings.
-- **[Embedding registry audit & backfill](/docs/operations/embedding-registry-backfill/)** — List `embedding_models` and fix ANN name mismatches (no silent cross-model search).
-- **[Upgrade to v0.32.2](/docs/operations/upgrade-to-0.32.2/)** — PDF paint + SPEC-161 MCP (schema **168**).
-- **[Upgrade to v0.32.1](/docs/operations/upgrade-to-0.32.1/)** — Typed ANN keying + graph seed admit (schema **168**).
-- **[Decision extraction](/docs/concepts/decision-extraction/)** — Preview local KG mode, env vars, and migration 166 (SPEC-160).
-- **[Monitoring](/docs/operations/monitoring/)** — Health checks, metrics, and observability.
-- **[Langfuse 3.1.x](/docs/operations/langfuse-3.1/)** — Wire EdgeQuake to self-hosted Langfuse 3.1 (ingestion fallback).
-- **[Performance Tuning](/docs/operations/performance-tuning/)** — Optimize throughput and latency.
-- **[Metadata Debugging](/docs/operations/metadata-debugging/)** — Inspect and debug extracted metadata.
-- **[Runtime auth hardening](/docs/operations/runtime-auth-hardening/)** — Production auth and bootstrap.
-- **[Release & CD](/docs/operations/release-and-cd/)** — Tag, gates, and Docker publish cycle.
-- **[Ingestion cancel & fairness](/docs/ingestion-cancel-and-fairness/)** — Cancel, lease, fairness, multi-replica.
+## Find your page
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["What do you need to do?"] --> B{"First time?"}
+  B -->|Try it| C["Docker Quickstart"]
+  B -->|Production| D["Deployment"]
+  A --> E{"Already running?"}
+  E -->|Upgrade| F["Upgrading"]
+  E -->|Change settings| G["Configuration"]
+  E -->|Slow or failing| H["Monitoring and Performance"]
+  E -->|Cut a release| I["Release and CD"]
+```
+
+How to read it: pick the branch that matches your situation. Each leaf is a page in the table below.
+
+## Pages
+
+| I want to... | Page |
+|--------------|------|
+| Run the full stack in one command | [Docker Quickstart](docker-quickstart.md) |
+| Pick an image option (API only, prebuilt, source) | [Docker deployment options](docker-deployment-options.md) |
+| Deploy to bare metal, Compose, Kubernetes or GCP | [Deployment](deployment.md) |
+| Look up an environment variable | [Configuration](configuration.md) and the generated [env reference](env-reference.md) |
+| Choose and connect an LLM provider | [Providers](../providers/index.md) |
+| Turn on login | [Enable login](auth-quickstart.md) |
+| Harden authentication for production | [Runtime auth hardening](runtime-auth-hardening.md) |
+| Upgrade the database and images | [Upgrading](upgrading.md) |
+| Watch health, metrics and logs | [Monitoring](monitoring.md) |
+| Make ingestion and queries faster | [Performance tuning](performance-tuning.md) |
+| Fix stalled local extraction (Ollama, LM Studio) | [Local extract reliability](local-extract-reliability.md) |
+| Debug missing metadata or lineage | [Metadata debugging](metadata-debugging.md) |
+| Fix empty vector search after an embedding change | [Embedding registry backfill](embedding-registry-backfill.md) |
+| Repair the entity spine or edge index (SPEC-098) | [Entity spine ensure](spec098-entity-spine-ensure.md) |
+| Send traces to Langfuse 3.1.x | [Langfuse 3.1.x](langfuse-3.1.md) |
+| Cut a release | [Release and CD](release-and-cd.md) and the [pre-delivery checklist](pre-delivery-checklist.md) |
+| Read what changed in a release | [Upgrade to v0.33.0](upgrade-to-0.33.0.md), [v0.32.2](upgrade-to-0.32.2.md), [v0.32.1](upgrade-to-0.32.1.md) |
+| Use decision extraction (preview) | [Decision extraction](../concepts/decision-extraction.md) |
+| Understand cancel, lease and fairness | [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md) |

@@ -2758,6 +2758,32 @@ spec150-matrix-quick: ## SPEC-150: key epochs only on all PG majors
 	@chmod +x $(ROOT_DIR)/scripts/spec150_epoch_matrix.sh
 	@QUICK=1 PG=$(or $(PG),all) $(ROOT_DIR)/scripts/spec150_epoch_matrix.sh
 
+spec163-proof: ## SPEC-163: hermetic onboarding/provider proof
+	@chmod +x $(ROOT_DIR)/scripts/spec163/onboarding_e2e.sh
+	@$(ROOT_DIR)/scripts/spec163/onboarding_e2e.sh
+
+spec163-env-docs: ## SPEC-163: generate + check env reference
+	@python3 $(ROOT_DIR)/scripts/generate_env_reference.py
+	@python3 $(ROOT_DIR)/scripts/check_env_registry.py
+
+docs-check: ## Docs gate: links, frontmatter, Mermaid syntax + palette (offline)
+	@python3 $(ROOT_DIR)/scripts/check_docs_links.py docs
+	@node $(ROOT_DIR)/scripts/check_docs_mermaid.mjs docs
+	@node $(ROOT_DIR)/scripts/style_docs_mermaid.mjs --check docs
+
+docs-style: ## Apply the shared Mermaid palette to every diagram in docs/
+	@node $(ROOT_DIR)/scripts/style_docs_mermaid.mjs docs
+
+spec163-local-matrix: ## SPEC-163: opt-in probes of real local servers (not CI)
+	@echo "Probing loopback local servers (fail-open if down)"
+	@curl -sf --max-time 2 http://127.0.0.1:11434/api/version >/dev/null && echo "ollama: up" || echo "ollama: down"
+	@curl -sf --max-time 2 http://127.0.0.1:1234/v1/models >/dev/null && echo "lmstudio: up" || echo "lmstudio: down"
+	@curl -sf --max-time 2 http://127.0.0.1:9050/v1/models >/dev/null && echo "omlx: up" || echo "omlx: down"
+	@curl -sf --max-time 2 http://127.0.0.1:8083/v1/models >/dev/null && echo "mlx-lm: up" || echo "mlx-lm: down"
+
+onboard: ## Non-interactive quickstart (Ollama by default)
+	@$(ROOT_DIR)/quickstart.sh --yes --provider $${EDGEQUAKE_LLM_PROVIDER:-ollama}
+
 spec150-epoch-coverage: ## SPEC-150: every published vX.Y.Z maps to epochs.toml
 	@chmod +x $(ROOT_DIR)/scripts/check_epoch_coverage.sh
 	@$(ROOT_DIR)/scripts/check_epoch_coverage.sh

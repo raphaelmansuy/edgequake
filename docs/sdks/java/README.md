@@ -1,5 +1,6 @@
 ---
 title: "Java SDK"
+description: "Java SDK for EdgeQuake."
 ---
 
 # Java SDK

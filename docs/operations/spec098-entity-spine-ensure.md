@@ -1,5 +1,6 @@
 ---
 title: "SPEC-098 — Entity spine + EDGE arbiter (operator)"
+description: "SPEC-098 entity spine ensure behaviour."
 ---
 
 # SPEC-098 — Entity spine + EDGE arbiter (operator)

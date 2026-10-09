@@ -1,5 +1,6 @@
 ---
 title: "Release & CD Cycle"
+description: "Release and continuous-delivery runbook."
 ---
 
 # Release & CD Cycle

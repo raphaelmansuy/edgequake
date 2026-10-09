@@ -3,7 +3,7 @@ title: Decision Extraction
 description: Preview knowledge-graph extraction that answers closed questions on a local decision model.
 ---
 
-> **Product: v0.32.0** · Spec: [SPEC-160](../../specs/160-tev1/README.md) · Quality: [W8 report](../../specs/160-tev1/measurements/w8-report.md)
+> **Preview since v0.31.0** · Current release: v0.32.2 · Schema 166 or later · Spec: [SPEC-160](../../specs/160-tev1/README.md) · Quality: [W8 report](../../specs/160-tev1/measurements/w8-report.md)
 
 # Decision extraction
 
@@ -71,6 +71,25 @@ File, PDF, and batch uploads take the same `extraction_mode` field. An optional 
 Presets are not calibrated. The card shows **Uncalibrated** until a later measurement says otherwise.
 
 ## What enters the graph
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    A["Chunk"] --> B["Closed questions"]
+    B --> C["Decision model answers"]
+    C --> D{"Gate"}
+    D -->|accept| E["Graph"]
+    D -->|review| F["decision_review table"]
+    D -->|reject| G["Dropped and counted"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class C eqLlm
+class F eqStore
+```
+
+Read the chart from the left. The model only answers closed questions. The gate sorts each answer into one of three bands.
 
 | Band | Result |
 | ---- | ------ |

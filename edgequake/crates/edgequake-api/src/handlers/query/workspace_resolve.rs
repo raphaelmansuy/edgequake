@@ -103,7 +103,7 @@ pub async fn get_workspace_embedding_provider(
     // OODA-259: Delegate to resolver to eliminate code duplication
     // The resolver now provides `resolve_embedding_provider_optional` which returns
     // Ok(None) for fallback semantics (workspace has no embedding config)
-    let resolver = WorkspaceProviderResolver::new(state.workspace_service.clone());
+    let resolver = WorkspaceProviderResolver::from_app_state(state);
     let result = resolver
         .resolve_embedding_provider_optional(workspace_id)
         .await

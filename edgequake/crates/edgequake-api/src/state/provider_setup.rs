@@ -67,7 +67,17 @@ pub fn resolve_embedding_provider(
             let has_custom_api_key = embed_api_key.is_some();
             let is_openai_compatible = matches!(
                 provider_name.to_ascii_lowercase().as_str(),
-                "openai" | "openai-compatible" | "openai_compatible"
+                "openai"
+                    | "openai-compatible"
+                    | "openai_compatible"
+                    | "omlx"
+                    | "mlx-lm"
+                    | "mlx_lm"
+                    | "llamacpp"
+                    | "vllm-mlx"
+                    | "vllm_mlx"
+                    | "lmstudio"
+                    | "mtplx"
             );
 
             if is_openai_compatible && (has_custom_base_url || has_custom_api_key) {

@@ -1,5 +1,6 @@
 ---
 title: EdgeQuake Observability
+description: "How to run and read EdgeQuake observability (logs, metrics, traces)."
 ---
 
 # EdgeQuake Observability

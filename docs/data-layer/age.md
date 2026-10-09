@@ -1,1605 +1,252 @@
 ---
-title: "Apache AGE data-layer operations (`DATA-AGE-*`)"
+title: "Apache AGE: the knowledge graph"
+description: "How EdgeQuake stores its knowledge graph in Apache AGE: graph model, node and edge properties, native SQL versus Cypher, indexes, session setup, limits, tenant isolation, and the DATA-AGE operation catalog."
 ---
 
-# Apache AGE data-layer operations (`DATA-AGE-*`)
+# Apache AGE: the knowledge graph
 
+Apache AGE is a PostgreSQL extension that adds a graph database inside PostgreSQL. You query it with Cypher, a graph query language, wrapped in a SQL call. EdgeQuake stores entities (people, places, concepts) as nodes and the links between them as edges. This page explains the graph model and how the code reads and writes it. The overview is in [README.md](./README.md).
 
-> **IMP-031-01 (2026-07):** `get_nodes_by_ids` / `get_node` / `has_node` use native `UNNEST` + UNIQUE node_id — **O(K log N)** one RT. Cypher IN removed from request path.
+## Graph model
 
-Cypher + native SQL over AGE label tables. Sources: [AGE docs](https://age.apache.org/age-manual/master/index.html), AGE 1.8.0.
+There is one graph per namespace. The API uses a single namespace, `default`, so the graph is named `eq_eq_default_graph` (the function `age_graph_name_for_namespace` builds the name). Migrations do not create the graph. The graph and its two labels are created at run time when the storage adapter starts, using `create_graph`, `create_vlabel`, and `create_elabel`.
 
-## DATA-AGE-GRAPH-HAS-NODE-025
+The first diagram is the graph itself: every `Node` can point to any other `Node` through an `EDGE`. The second diagram lists the properties on each label and how they mirror the relational read models.
 
-<a id="data-age-graph-has-node-025"></a>
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    A["Node (entity)"] -->|"EDGE (relationship)"| B["Node (entity)"]
+    B -->|"EDGE (relationship)"| C["Node (entity)"]
+    A -->|"EDGE (relationship)"| C
+```
 
-| Field | Value |
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+erDiagram
+    AGE_Node ||--o{ AGE_EDGE : "out"
+    AGE_EDGE }o--|| AGE_Node : "in"
+    AGE_Node ||--o| entities : "mirrored as"
+    AGE_EDGE ||--o| relationships : "mirrored as"
+    chunks ||--o{ chunk_entity_links : "mentions"
+    entities ||--o{ chunk_entity_links : "found in"
+    chunks ||--o{ chunk_relation_links : "evidence"
+    relationships ||--o{ chunk_relation_links : "supported by"
+    AGE_Node {
+        text node_id PK
+        text entity_type
+        text description
+        uuid tenant_id
+        uuid workspace_id
+        text_array source_chunk_ids
+    }
+    AGE_EDGE {
+        text source_id FK
+        text target_id FK
+        text relation_type
+        float weight
+        uuid tenant_id
+        uuid workspace_id
+        text_array source_chunk_ids
+    }
+    entities {
+        uuid id PK
+        text name
+        uuid workspace_id FK
+    }
+    relationships {
+        uuid id PK
+        uuid source_id
+        uuid target_id
+        uuid workspace_id FK
+    }
+    chunks {
+        uuid id PK
+        uuid document_id
+    }
+    chunk_entity_links {
+        uuid chunk_id PK
+        text entity_name PK
+        uuid workspace_id PK
+    }
+    chunk_relation_links {
+        uuid chunk_id PK
+        text source_entity PK
+        text target_entity PK
+        uuid workspace_id PK
+    }
+```
+
+Read the second diagram left to right: the AGE labels are the live graph; `entities` / `relationships` are searchable copies; the link tables record which chunk produced which fact. Full relational E/R diagrams for these tables (and every other domain) are in [schema-er.md](./schema-er.md).
+
+### Node properties (label `Node`)
+
+| Property | Meaning |
 |---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-HAS-NODE-025` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | HAS-NODE |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:30` |
-| **Entry** | `GraphStorage::has_node` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_HAS_NODE_025` |
-| **Benchmark** | [benchmarks/025.md](./benchmarks/025.md) |
+| `node_id` | The entity name in upper case with underscores, for example `SARAH_CHEN`. Unique. |
+| `entity_type` | Type such as `PERSON` or `ORGANIZATION`. |
+| `description` | Merged description text. |
+| `importance`, `sources`, `label`, `display_name` | Ranking and display data. |
+| `tenant_id`, `workspace_id` | Who owns the node. |
+| `source_ids`, `source_chunk_ids` | Which chunks and documents produced it. |
+| `page_num`, `figure_index`, `asset_id`, `mm_subtype` | Set only for multimodal figure nodes. |
 
-**Limits**
+### Edge properties (label `EDGE`)
 
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-GET-NODE-026
-
-<a id="data-age-graph-get-node-026"></a>
-
-| Field | Value |
+| Property | Meaning |
 |---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-GET-NODE-026` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | GET-NODE |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:33` |
-| **Entry** | `GraphStorage::get_node` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_GET_NODE_026` |
-| **Benchmark** | [benchmarks/026.md](./benchmarks/026.md) |
+| `source_id`, `target_id` | `node_id` of each end. |
+| `relation_type` | Kind of link, for example `WORKS_AT`. |
+| `description`, `weight`, `keywords` | Content and strength. |
+| `source_chunk_ids`, `source_chunk_id` | Evidence chunks. |
+| `tenant_id`, `workspace_id` | Who owns the edge. |
 
-**Limits**
+AGE keeps each label in its own table, inside a schema named after the graph (`Node` and `EDGE` here). The extra columns `eq_node_id`, `eq_source_id`, `eq_target_id`, and `eq_rel_type` are copies of the properties above, kept up to date by triggers (`edgequake/migrations/support/092`) so that plain btree indexes can find rows fast. The function `eq_merge_graph_properties` (migration 090) merges property maps.
 
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
+The same entities and relationships also exist as plain rows in `entities` and `relationships`. See [postgres.md](./postgres.md). The graph is used for traversal; the tables are used for search and counts.
 
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
+## How the code talks to AGE
 
-## DATA-AGE-GRAPH-NODE-DEGREE-027
+Each connection that touches the graph first runs `LOAD 'age'` and sets `search_path = ag_catalog, "$user", public`. It also sets a `statement_timeout`. DDL sessions set `statement_timeout = 0` and use a `lock_timeout` instead.
 
-<a id="data-age-graph-node-degree-027"></a>
+There are two ways to write and read:
 
-| Field | Value |
+| Path | Used for | Notes |
+|---|---|---|
+| Native SQL | Batch node and edge upserts, deletes, BFS expansion, neighbor lists | Default. Plain `INSERT ... ON CONFLICT (eq_node_id)` with `unnest` batches. Fast and predictable. |
+| Cypher | Fallback writes, a few scoped deletes (`DETACH DELETE`), ad-hoc queries | Sent as `SELECT ... FROM cypher('graph', $tag$ ... $tag$, $1) AS (...)`. |
+
+Set `EDGEQUAKE_NATIVE_GRAPH_WRITES=0` (or `false`, `off`, `no`) to force the Cypher `MERGE` path. Leave it unset in normal use.
+
+The diagram shows the read path for a graph query. Read it top to bottom.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    Q["Graph query"] --> P{"Native path?"}
+    P -->|"yes"| N["SQL on AGE tables"]
+    P -->|"no"| C["Cypher via cypher()"]
+    N --> I["Btree and GIN indexes"]
+    C --> I
+    I --> R["Rows with agtype values"]
+    R --> T["Tenant and workspace filter"]
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class N eqStore
+```
+
+Practical limits that the code enforces:
+
+- Neighbor expansion depth is clamped to 3, and a single call returns at most 500 neighbors.
+- Full scans (`get_all_nodes`, `get_all_edges`) are forbidden on the request path. They exist for admin and tests.
+- AGE has no `=` operator for its `graphid` type, so the SQL casts with `graphid::text`.
+- The COPY bulk loader is used when a batch has at least `EDGEQUAKE_BULK_COPY_MIN_ROWS` rows (default 1000) and AGE is 1.7.0 or later.
+
+## Indexes
+
+The adapter creates these indexes if they are missing (`ensure_indexes` in `graph_lifecycle.rs`). Only one task builds them at a time. Because AGE does not add property indexes by itself, these are what keep lookups fast.
+
+| Label | Indexes |
 |---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-NODE-DEGREE-027` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | NODE-DEGREE |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:37` |
-| **Entry** | `GraphStorage::node_degree` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_NODE_DEGREE_027` |
-| **Benchmark** | [benchmarks/027.md](./benchmarks/027.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-NODE-DEGREES-BATCH-028
-
-<a id="data-age-graph-node-degrees-batch-028"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-NODE-DEGREES-BATCH-028` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | NODE-DEGREES-BATCH |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:41` |
-| **Entry** | `GraphStorage::node_degrees_batch` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_NODE_DEGREES_BATCH_028` |
-| **Benchmark** | [benchmarks/028.md](./benchmarks/028.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-GET-ALL-NODES-029
-
-<a id="data-age-graph-get-all-nodes-029"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-GET-ALL-NODES-029` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | GET-ALL-NODES |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:45` |
-| **Entry** | `GraphStorage::get_all_nodes` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Notes** | FORBIDDEN request path |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_GET_ALL_NODES_029` |
-| **Benchmark** | [benchmarks/029.md](./benchmarks/029.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-GET-NODES-BY-IDS-030
-
-<a id="data-age-graph-get-nodes-by-ids-030"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-GET-NODES-BY-IDS-030` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | GET-NODES-BY-IDS |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:49` |
-| **Entry** | `GraphStorage::get_nodes_by_ids` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_GET_NODES_BY_IDS_030` |
-| **Benchmark** | [benchmarks/030.md](./benchmarks/030.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-GET-NODES-BATCH-031
-
-<a id="data-age-graph-get-nodes-batch-031"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-GET-NODES-BATCH-031` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | GET-NODES-BATCH |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:53` |
-| **Entry** | `GraphStorage::get_nodes_batch` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Notes** | native SQL preferred |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_GET_NODES_BATCH_031` |
-| **Benchmark** | [benchmarks/031.md](./benchmarks/031.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-GET-EDGES-FOR-NODES-BATCH-032
-
-<a id="data-age-graph-get-edges-for-nodes-batch-032"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-GET-EDGES-FOR-NODES-BATCH-032` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | GET-EDGES-FOR-NODES-BATCH |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:57` |
-| **Entry** | `GraphStorage::get_edges_for_nodes_batch` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_GET_EDGES_FOR_NODES_BATCH_032` |
-| **Benchmark** | [benchmarks/032.md](./benchmarks/032.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-HAS-EDGE-033
-
-<a id="data-age-graph-has-edge-033"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-HAS-EDGE-033` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | HAS-EDGE |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:68` |
-| **Entry** | `GraphStorage::has_edge` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_HAS_EDGE_033` |
-| **Benchmark** | [benchmarks/033.md](./benchmarks/033.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-GET-EDGE-034
-
-<a id="data-age-graph-get-edge-034"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-GET-EDGE-034` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | GET-EDGE |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:72` |
-| **Entry** | `GraphStorage::get_edge` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_GET_EDGE_034` |
-| **Benchmark** | [benchmarks/034.md](./benchmarks/034.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-GET-NODE-EDGES-035
-
-<a id="data-age-graph-get-node-edges-035"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-GET-NODE-EDGES-035` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | GET-NODE-EDGES |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:76` |
-| **Entry** | `GraphStorage::get_node_edges` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_GET_NODE_EDGES_035` |
-| **Benchmark** | [benchmarks/035.md](./benchmarks/035.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-GET-INCIDENT-EDGES-BATCH-036
-
-<a id="data-age-graph-get-incident-edges-batch-036"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-GET-INCIDENT-EDGES-BATCH-036` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | GET-INCIDENT-EDGES-BATCH |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:80` |
-| **Entry** | `GraphStorage::get_incident_edges_batch` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_GET_INCIDENT_EDGES_BATCH_036` |
-| **Benchmark** | [benchmarks/036.md](./benchmarks/036.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-GET-ALL-EDGES-037
-
-<a id="data-age-graph-get-all-edges-037"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-GET-ALL-EDGES-037` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | GET-ALL-EDGES |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:92` |
-| **Entry** | `GraphStorage::get_all_edges` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Notes** | FORBIDDEN request path |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_GET_ALL_EDGES_037` |
-| **Benchmark** | [benchmarks/037.md](./benchmarks/037.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-GET-KNOWLEDGE-GRAPH-038
-
-<a id="data-age-graph-get-knowledge-graph-038"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-GET-KNOWLEDGE-GRAPH-038` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | GET-KNOWLEDGE-GRAPH |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:96` |
-| **Entry** | `GraphStorage::get_knowledge_graph` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Notes** | bounded expand |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_GET_KNOWLEDGE_GRAPH_038` |
-| **Benchmark** | [benchmarks/038.md](./benchmarks/038.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-GET-POPULAR-LABELS-039
-
-<a id="data-age-graph-get-popular-labels-039"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-GET-POPULAR-LABELS-039` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | GET-POPULAR-LABELS |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:108` |
-| **Entry** | `GraphStorage::get_popular_labels` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_GET_POPULAR_LABELS_039` |
-| **Benchmark** | [benchmarks/039.md](./benchmarks/039.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-SEARCH-LABELS-040
-
-<a id="data-age-graph-search-labels-040"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-SEARCH-LABELS-040` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | SEARCH-LABELS |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:118` |
-| **Entry** | `GraphStorage::search_labels` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_SEARCH_LABELS_040` |
-| **Benchmark** | [benchmarks/040.md](./benchmarks/040.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-SEARCH-NODES-041
-
-<a id="data-age-graph-search-nodes-041"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-SEARCH-NODES-041` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | SEARCH-NODES |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:129` |
-| **Entry** | `GraphStorage::search_nodes` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_SEARCH_NODES_041` |
-| **Benchmark** | [benchmarks/041.md](./benchmarks/041.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-GET-NEIGHBORS-042
-
-<a id="data-age-graph-get-neighbors-042"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-GET-NEIGHBORS-042` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | GET-NEIGHBORS |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:141` |
-| **Entry** | `GraphStorage::get_neighbors` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_GET_NEIGHBORS_042` |
-| **Benchmark** | [benchmarks/042.md](./benchmarks/042.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-GET-POPULAR-NODES-DEGREE-043
-
-<a id="data-age-graph-get-popular-nodes-degree-043"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-GET-POPULAR-NODES-DEGREE-043` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | GET-POPULAR-NODES-DEGREE |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:152` |
-| **Entry** | `GraphStorage::get_popular_nodes_with_degree` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_GET_POPULAR_NODES_DEGREE_043` |
-| **Benchmark** | [benchmarks/043.md](./benchmarks/043.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-GET-EDGES-FOR-NODE-SET-044
-
-<a id="data-age-graph-get-edges-for-node-set-044"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-GET-EDGES-FOR-NODE-SET-044` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | GET-EDGES-FOR-NODE-SET |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:170` |
-| **Entry** | `GraphStorage::get_edges_for_node_set` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_GET_EDGES_FOR_NODE_SET_044` |
-| **Benchmark** | [benchmarks/044.md](./benchmarks/044.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-UPSERT-NODE-045
-
-<a id="data-age-graph-upsert-node-045"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-UPSERT-NODE-045` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | UPSERT-NODE |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:184` |
-| **Entry** | `GraphStorage::upsert_node` |
-| **Type** | W |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_UPSERT_NODE_045` |
-| **Benchmark** | [benchmarks/045.md](./benchmarks/045.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-UPSERT-NODES-BATCH-046
-
-<a id="data-age-graph-upsert-nodes-batch-046"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-UPSERT-NODES-BATCH-046` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | UPSERT-NODES-BATCH |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:191` |
-| **Entry** | `GraphStorage::upsert_nodes_batch` |
-| **Type** | W |
-| **Transactional** | Y |
-| **Notes** | native ON CONFLICT |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_UPSERT_NODES_BATCH_046` |
-| **Benchmark** | [benchmarks/046.md](./benchmarks/046.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-DELETE-NODE-047
-
-<a id="data-age-graph-delete-node-047"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-DELETE-NODE-047` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | DELETE-NODE |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:198` |
-| **Entry** | `GraphStorage::delete_node` |
-| **Type** | W |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_DELETE_NODE_047` |
-| **Benchmark** | [benchmarks/047.md](./benchmarks/047.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-DELETE-NODES-BATCH-048
-
-<a id="data-age-graph-delete-nodes-batch-048"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-DELETE-NODES-BATCH-048` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | DELETE-NODES-BATCH |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:202` |
-| **Entry** | `GraphStorage::delete_nodes_batch` |
-| **Type** | W |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_DELETE_NODES_BATCH_048` |
-| **Benchmark** | [benchmarks/048.md](./benchmarks/048.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-DELETE-NODE-SCOPED-049
-
-<a id="data-age-graph-delete-node-scoped-049"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-DELETE-NODE-SCOPED-049` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | DELETE-NODE-SCOPED |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:206` |
-| **Entry** | `GraphStorage::delete_node_scoped` |
-| **Type** | W |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_DELETE_NODE_SCOPED_049` |
-| **Benchmark** | [benchmarks/049.md](./benchmarks/049.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-UPSERT-EDGE-050
-
-<a id="data-age-graph-upsert-edge-050"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-UPSERT-EDGE-050` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | UPSERT-EDGE |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:216` |
-| **Entry** | `GraphStorage::upsert_edge` |
-| **Type** | W |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_UPSERT_EDGE_050` |
-| **Benchmark** | [benchmarks/050.md](./benchmarks/050.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-UPSERT-EDGES-BATCH-051
-
-<a id="data-age-graph-upsert-edges-batch-051"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-UPSERT-EDGES-BATCH-051` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | UPSERT-EDGES-BATCH |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:225` |
-| **Entry** | `GraphStorage::upsert_edges_batch` |
-| **Type** | W |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_UPSERT_EDGES_BATCH_051` |
-| **Benchmark** | [benchmarks/051.md](./benchmarks/051.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-DELETE-EDGE-052
-
-<a id="data-age-graph-delete-edge-052"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-DELETE-EDGE-052` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | DELETE-EDGE |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:232` |
-| **Entry** | `GraphStorage::delete_edge` |
-| **Type** | W |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_DELETE_EDGE_052` |
-| **Benchmark** | [benchmarks/052.md](./benchmarks/052.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-DELETE-EDGES-BATCH-053
-
-<a id="data-age-graph-delete-edges-batch-053"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-DELETE-EDGES-BATCH-053` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | DELETE-EDGES-BATCH |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:236` |
-| **Entry** | `GraphStorage::delete_edges_batch` |
-| **Type** | W |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_DELETE_EDGES_BATCH_053` |
-| **Benchmark** | [benchmarks/053.md](./benchmarks/053.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-DELETE-EDGE-SCOPED-054
-
-<a id="data-age-graph-delete-edge-scoped-054"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-DELETE-EDGE-SCOPED-054` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | DELETE-EDGE-SCOPED |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:240` |
-| **Entry** | `GraphStorage::delete_edge_scoped` |
-| **Type** | W |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_DELETE_EDGE_SCOPED_054` |
-| **Benchmark** | [benchmarks/054.md](./benchmarks/054.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-CLEAR-055
-
-<a id="data-age-graph-clear-055"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-CLEAR-055` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | CLEAR |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:251` |
-| **Entry** | `GraphStorage::clear` |
-| **Type** | W |
-| **Transactional** | Y |
-| **Notes** | ADMIN |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_CLEAR_055` |
-| **Benchmark** | [benchmarks/055.md](./benchmarks/055.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-CLEAR-WORKSPACE-056
-
-<a id="data-age-graph-clear-workspace-056"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-CLEAR-WORKSPACE-056` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | CLEAR-WORKSPACE |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:255` |
-| **Entry** | `GraphStorage::clear_workspace` |
-| **Type** | W |
-| **Transactional** | Y |
-| **Notes** | ADMIN |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_CLEAR_WORKSPACE_056` |
-| **Benchmark** | [benchmarks/056.md](./benchmarks/056.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-NODE-COUNT-057
-
-<a id="data-age-graph-node-count-057"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-NODE-COUNT-057` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | NODE-COUNT |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:263` |
-| **Entry** | `GraphStorage::node_count` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Notes** | O(N) exact |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_NODE_COUNT_057` |
-| **Benchmark** | [benchmarks/057.md](./benchmarks/057.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-EDGE-COUNT-058
-
-<a id="data-age-graph-edge-count-058"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-EDGE-COUNT-058` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | EDGE-COUNT |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:266` |
-| **Entry** | `GraphStorage::edge_count` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_EDGE_COUNT_058` |
-| **Benchmark** | [benchmarks/058.md](./benchmarks/058.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-NODE-COUNT-FAST-059
-
-<a id="data-age-graph-node-count-fast-059"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-NODE-COUNT-FAST-059` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | NODE-COUNT-FAST |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:270` |
-| **Entry** | `GraphStorage::node_count_fast` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Notes** | reltuples |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_NODE_COUNT_FAST_059` |
-| **Benchmark** | [benchmarks/059.md](./benchmarks/059.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-EDGE-COUNT-FAST-060
-
-<a id="data-age-graph-edge-count-fast-060"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-EDGE-COUNT-FAST-060` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | EDGE-COUNT-FAST |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:274` |
-| **Entry** | `GraphStorage::edge_count_fast` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_EDGE_COUNT_FAST_060` |
-| **Benchmark** | [benchmarks/060.md](./benchmarks/060.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-NODE-COUNT-BY-WORKSPACE-061
-
-<a id="data-age-graph-node-count-by-workspace-061"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-NODE-COUNT-BY-WORKSPACE-061` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | NODE-COUNT-BY-WORKSPACE |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:278` |
-| **Entry** | `GraphStorage::node_count_by_workspace` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_NODE_COUNT_BY_WORKSPACE_061` |
-| **Benchmark** | [benchmarks/061.md](./benchmarks/061.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-EDGE-COUNT-BY-WORKSPACE-062
-
-<a id="data-age-graph-edge-count-by-workspace-062"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-EDGE-COUNT-BY-WORKSPACE-062` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | EDGE-COUNT-BY-WORKSPACE |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:286` |
-| **Entry** | `GraphStorage::edge_count_by_workspace` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_EDGE_COUNT_BY_WORKSPACE_062` |
-| **Benchmark** | [benchmarks/062.md](./benchmarks/062.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-DISTINCT-NODE-TYPE-COUNT-063
-
-<a id="data-age-graph-distinct-node-type-count-063"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-DISTINCT-NODE-TYPE-COUNT-063` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | DISTINCT-NODE-TYPE-COUNT |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:290` |
-| **Entry** | `GraphStorage::distinct_node_type_count_by_workspace` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_DISTINCT_NODE_TYPE_COUNT_063` |
-| **Benchmark** | [benchmarks/063.md](./benchmarks/063.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-NODE-COUNT-BY-SOURCE-PREFIX-064
-
-<a id="data-age-graph-node-count-by-source-prefix-064"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-NODE-COUNT-BY-SOURCE-PREFIX-064` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | NODE-COUNT-BY-SOURCE-PREFIX |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:298` |
-| **Entry** | `GraphStorage::node_count_by_source_prefix` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_NODE_COUNT_BY_SOURCE_PREFIX_064` |
-| **Benchmark** | [benchmarks/064.md](./benchmarks/064.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-NODE-COUNTS-BY-SOURCE-PREFIXES-065
-
-<a id="data-age-graph-node-counts-by-source-prefixes-065"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-NODE-COUNTS-BY-SOURCE-PREFIXES-065` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | NODE-COUNTS-BY-SOURCE-PREFIXES |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:302` |
-| **Entry** | `GraphStorage::node_counts_by_source_prefixes` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Notes** | batched list reconcile |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_NODE_COUNTS_BY_SOURCE_PREFIXES_065` |
-| **Benchmark** | [benchmarks/065.md](./benchmarks/065.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-LIST-NODES-FILTERED-066
-
-<a id="data-age-graph-list-nodes-filtered-066"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-LIST-NODES-FILTERED-066` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | LIST-NODES-FILTERED |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:313` |
-| **Entry** | `GraphStorage::list_nodes_filtered` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_LIST_NODES_FILTERED_066` |
-| **Benchmark** | [benchmarks/066.md](./benchmarks/066.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-LIST-EDGES-FILTERED-067
-
-<a id="data-age-graph-list-edges-filtered-067"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-LIST-EDGES-FILTERED-067` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | LIST-EDGES-FILTERED |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:321` |
-| **Entry** | `GraphStorage::list_edges_filtered` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_LIST_EDGES_FILTERED_067` |
-| **Benchmark** | [benchmarks/067.md](./benchmarks/067.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-FIND-NODES-BY-SOURCE-PREFIXES-068
-
-<a id="data-age-graph-find-nodes-by-source-prefixes-068"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-FIND-NODES-BY-SOURCE-PREFIXES-068` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | FIND-NODES-BY-SOURCE-PREFIXES |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:330` |
-| **Entry** | `GraphStorage::find_nodes_by_source_prefixes` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_FIND_NODES_BY_SOURCE_PREFIXES_068` |
-| **Benchmark** | [benchmarks/068.md](./benchmarks/068.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-FIND-EDGES-BY-SOURCE-PREFIXES-069
-
-<a id="data-age-graph-find-edges-by-source-prefixes-069"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-FIND-EDGES-BY-SOURCE-PREFIXES-069` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | FIND-EDGES-BY-SOURCE-PREFIXES |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:339` |
-| **Entry** | `GraphStorage::find_edges_by_source_prefixes` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_FIND_EDGES_BY_SOURCE_PREFIXES_069` |
-| **Benchmark** | [benchmarks/069.md](./benchmarks/069.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-FIND-EDGE-BY-RELATIONSHIP-ID-070
-
-<a id="data-age-graph-find-edge-by-relationship-id-070"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-FIND-EDGE-BY-RELATIONSHIP-ID-070` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | FIND-EDGE-BY-RELATIONSHIP-ID |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/graph_storage_impl.rs:348` |
-| **Entry** | `GraphStorage::find_edge_by_relationship_id` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_FIND_EDGE_BY_RELATIONSHIP_ID_070` |
-| **Benchmark** | [benchmarks/070.md](./benchmarks/070.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-CYPHER-EXEC-071
-
-<a id="data-age-graph-cypher-exec-071"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-CYPHER-EXEC-071` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | CYPHER-EXEC |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/helpers/cypher_exec.rs:1` |
-| **Entry** | `execute_cypher / cypher_query` |
-| **Type** | R/W |
-| **Transactional** | Y |
-| **Notes** | AGE session wrapper |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_CYPHER_EXEC_071` |
-| **Benchmark** | [benchmarks/071.md](./benchmarks/071.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-LIFECYCLE-ENSURE-INDEXES-072
-
-<a id="data-age-graph-lifecycle-ensure-indexes-072"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-LIFECYCLE-ENSURE-INDEXES-072` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | LIFECYCLE-ENSURE-INDEXES |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/helpers/graph_lifecycle.rs:1` |
-| **Entry** | `ensure_indexes` |
-| **Type** | DDL |
-| **Transactional** | N |
-| **Notes** | boot-time index reconcile |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_LIFECYCLE_ENSURE_INDEXES_072` |
-| **Benchmark** | [benchmarks/072.md](./benchmarks/072.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-COPY-LOAD-VERTICES-073
-
-<a id="data-age-graph-copy-load-vertices-073"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-COPY-LOAD-VERTICES-073` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | COPY-LOAD-VERTICES |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/age_csv_loader.rs:1` |
-| **Entry** | `load_vertices_from_csv` |
-| **Type** | W |
-| **Transactional** | Y |
-| **Notes** | COPY bulk |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_COPY_LOAD_VERTICES_073` |
-| **Benchmark** | [benchmarks/073.md](./benchmarks/073.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-GRAPH-SESSION-LOAD-AGE-074
-
-<a id="data-age-graph-session-load-age-074"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-GRAPH-SESSION-LOAD-AGE-074` |
-| **Engine** | AGE |
-| **Domain** | GRAPH |
-| **Operation** | SESSION-LOAD-AGE |
-| **File:Line** | `edgequake/crates/edgequake-storage/src/adapters/postgres/graph/helpers/session.rs:1` |
-| **Entry** | `set_age_session / search_path` |
-| **Type** | SESSION |
-| **Transactional** | Y |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_GRAPH_SESSION_LOAD_AGE_074` |
-| **Benchmark** | [benchmarks/074.md](./benchmarks/074.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
-
-## DATA-AGE-WORKSPACE-GET-STATS-157
-
-<a id="data-age-workspace-get-stats-157"></a>
-
-| Field | Value |
-|---|---|
-| **Ref ID** | `DATA-AGE-WORKSPACE-GET-STATS-157` |
-| **Engine** | AGE |
-| **Domain** | WORKSPACE |
-| **Operation** | GET-STATS |
-| **File:Line** | `edgequake/crates/edgequake-core/src/workspace_service_impl/workspace_ops.rs:421` |
-| **Entry** | `pg_get_workspace_stats` |
-| **Type** | R |
-| **Transactional** | Y |
-| **Notes** | secondary: PG |
-| **Variables** | N=nodes, E=edges, K=batch, depth=hops, branch=avg degree |
-| **Time** | O(K log N) batch ID; O(branch^depth) expand; O(N) full scan FORBIDDEN |
-| **Space** | O(K) or O(branch^depth) |
-| **I/O** | property index / edge ends |
-| **Failure mode** | cartesian expansion / timeout / OOM on unbounded MATCH |
-| **Tests** | `data_layer_*` containing `DATA_AGE_WORKSPACE_GET_STATS_157` |
-| **Benchmark** | [benchmarks/157.md](./benchmarks/157.md) |
-
-**Limits**
-
-- Native writes preferred (UNIQUE node_id)
-- Cypher MERGE debug-only
-- Traversal must be depth-bounded
-- No native graph index types — use PG btree/GIN on properties
-
-**Annotation (code)** — full `@dataop` block required above the operation; see Phase 1.
+| `Node` | `idx_node_props_gin`, `idx_node_id`, `idx_node_tenant_id`, `idx_node_workspace_id`, `idx_node_source_id_expr`, `idx_node_source_ids_gin`, `idx_node_source_chunk_ids_gin`, and the unique `idx_node_prop_node_id_unique` |
+| `EDGE` | `idx_edge_start_id`, `idx_edge_end_id`, `idx_edge_source_id`, `idx_edge_target_id`, `idx_edge_source_ids_gin`, `idx_edge_source_chunk_ids_gin`, `idx_edge_source_chunk_id`, `idx_edge_source_document_id`, `idx_edge_props_gin`, `idx_edge_tenant_id`, `idx_edge_workspace_id`, `idx_edge_start_id_text`, `idx_edge_end_id_text` |
+
+Operation-to-index mapping is on [indexes.md](./indexes.md).
+
+## Tenant isolation in the graph
+
+All tenants share one graph. Each node and edge carries `tenant_id` and `workspace_id`, and the code adds those filters to its queries. Row-Level Security on the AGE tables is optional. Turn it on with `EDGEQUAKE_AGE_RLS=true`. It needs AGE 1.7.0 or later, which means PostgreSQL 17 or 18 with the default images. The health endpoint reports whether it is active. The default is off.
+
+## Version notes
+
+| PostgreSQL | AGE | Notes |
+|---|---|---|
+| 16 | 1.6.0 | No AGE RLS and no COPY loader. |
+| 17 | 1.7.0 | RLS and COPY loader available. See [pg17-differential.md](./pg17-differential.md). |
+| 18 | 1.8.0 | Image default. See [pg18-adoption.md](./pg18-adoption.md). |
+
+## Operation catalog
+
+Rows with a linked Ref ID have a benchmark template in [benchmarks/](./benchmarks/README.md). Operation cost and failure notes are in [complexity-matrix.md](./complexity-matrix.md). Line numbers were removed because they drift; search by entry point name. Some entry points are descriptive, not exact function names.
+
+### Graph reads (34)
+
+Lookups, batches, search, traversal, and counts. Entries marked FORBIDDEN in the notes must not run on the request path.
+
+| Ref ID | Entry point | File | Type | Tx | Notes |
+|---|---|---|---|---|---|
+| `DATA-AGE-GRAPH-HAS-NODE-025` | `GraphStorage::has_node` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-GET-NODE-026` | `GraphStorage::get_node` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-NODE-DEGREE-027` | `GraphStorage::node_degree` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-NODE-DEGREES-BATCH-028` | `GraphStorage::node_degrees_batch` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-GET-ALL-NODES-029` | `GraphStorage::get_all_nodes` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes | FORBIDDEN request path |
+| `DATA-AGE-GRAPH-GET-NODES-BY-IDS-030` | `GraphStorage::get_nodes_by_ids` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| [`DATA-AGE-GRAPH-GET-NODES-BATCH-031`](./benchmarks/031.md) | `GraphStorage::get_nodes_batch` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes | native SQL preferred |
+| `DATA-AGE-GRAPH-GET-EDGES-FOR-NODES-BATCH-032` | `GraphStorage::get_edges_for_nodes_batch` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-HAS-EDGE-033` | `GraphStorage::has_edge` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-GET-EDGE-034` | `GraphStorage::get_edge` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-GET-NODE-EDGES-035` | `GraphStorage::get_node_edges` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-GET-INCIDENT-EDGES-BATCH-036` | `GraphStorage::get_incident_edges_batch` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-GET-ALL-EDGES-037` | `GraphStorage::get_all_edges` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes | FORBIDDEN request path |
+| `DATA-AGE-GRAPH-GET-KNOWLEDGE-GRAPH-038` | `GraphStorage::get_knowledge_graph` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes | bounded expand |
+| `DATA-AGE-GRAPH-GET-POPULAR-LABELS-039` | `GraphStorage::get_popular_labels` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-SEARCH-LABELS-040` | `GraphStorage::search_labels` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-SEARCH-NODES-041` | `GraphStorage::search_nodes` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-GET-NEIGHBORS-042` | `GraphStorage::get_neighbors` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-GET-POPULAR-NODES-DEGREE-043` | `GraphStorage::get_popular_nodes_with_degree` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-GET-EDGES-FOR-NODE-SET-044` | `GraphStorage::get_edges_for_node_set` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-NODE-COUNT-057` | `GraphStorage::node_count` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes | O(N) exact |
+| `DATA-AGE-GRAPH-EDGE-COUNT-058` | `GraphStorage::edge_count` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-NODE-COUNT-FAST-059` | `GraphStorage::node_count_fast` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes | reltuples |
+| `DATA-AGE-GRAPH-EDGE-COUNT-FAST-060` | `GraphStorage::edge_count_fast` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-NODE-COUNT-BY-WORKSPACE-061` | `GraphStorage::node_count_by_workspace` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-EDGE-COUNT-BY-WORKSPACE-062` | `GraphStorage::edge_count_by_workspace` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-DISTINCT-NODE-TYPE-COUNT-063` | `GraphStorage::distinct_node_type_count_by_workspace` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-NODE-COUNT-BY-SOURCE-PREFIX-064` | `GraphStorage::node_count_by_source_prefix` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-NODE-COUNTS-BY-SOURCE-PREFIXES-065` | `GraphStorage::node_counts_by_source_prefixes` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes | batched list reconcile |
+| `DATA-AGE-GRAPH-LIST-NODES-FILTERED-066` | `GraphStorage::list_nodes_filtered` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-LIST-EDGES-FILTERED-067` | `GraphStorage::list_edges_filtered` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-FIND-NODES-BY-SOURCE-PREFIXES-068` | `GraphStorage::find_nodes_by_source_prefixes` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-FIND-EDGES-BY-SOURCE-PREFIXES-069` | `GraphStorage::find_edges_by_source_prefixes` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+| `DATA-AGE-GRAPH-FIND-EDGE-BY-RELATIONSHIP-ID-070` | `GraphStorage::find_edge_by_relationship_id` | `storage/postgres/graph/graph_storage_impl.rs` | Read | Yes |  |
+
+### Graph writes (13)
+
+Upserts and deletes. Batch forms use native SQL by default.
+
+| Ref ID | Entry point | File | Type | Tx | Notes |
+|---|---|---|---|---|---|
+| `DATA-AGE-GRAPH-UPSERT-NODE-045` | `GraphStorage::upsert_node` | `storage/postgres/graph/graph_storage_impl.rs` | Write | Yes |  |
+| [`DATA-AGE-GRAPH-UPSERT-NODES-BATCH-046`](./benchmarks/046.md) | `GraphStorage::upsert_nodes_batch` | `storage/postgres/graph/graph_storage_impl.rs` | Write | Yes | native ON CONFLICT |
+| `DATA-AGE-GRAPH-DELETE-NODE-047` | `GraphStorage::delete_node` | `storage/postgres/graph/graph_storage_impl.rs` | Write | Yes |  |
+| `DATA-AGE-GRAPH-DELETE-NODES-BATCH-048` | `GraphStorage::delete_nodes_batch` | `storage/postgres/graph/graph_storage_impl.rs` | Write | Yes |  |
+| `DATA-AGE-GRAPH-DELETE-NODE-SCOPED-049` | `GraphStorage::delete_node_scoped` | `storage/postgres/graph/graph_storage_impl.rs` | Write | Yes |  |
+| `DATA-AGE-GRAPH-UPSERT-EDGE-050` | `GraphStorage::upsert_edge` | `storage/postgres/graph/graph_storage_impl.rs` | Write | Yes |  |
+| `DATA-AGE-GRAPH-UPSERT-EDGES-BATCH-051` | `GraphStorage::upsert_edges_batch` | `storage/postgres/graph/graph_storage_impl.rs` | Write | Yes |  |
+| `DATA-AGE-GRAPH-DELETE-EDGE-052` | `GraphStorage::delete_edge` | `storage/postgres/graph/graph_storage_impl.rs` | Write | Yes |  |
+| `DATA-AGE-GRAPH-DELETE-EDGES-BATCH-053` | `GraphStorage::delete_edges_batch` | `storage/postgres/graph/graph_storage_impl.rs` | Write | Yes |  |
+| `DATA-AGE-GRAPH-DELETE-EDGE-SCOPED-054` | `GraphStorage::delete_edge_scoped` | `storage/postgres/graph/graph_storage_impl.rs` | Write | Yes |  |
+| `DATA-AGE-GRAPH-CLEAR-055` | `GraphStorage::clear` | `storage/postgres/graph/graph_storage_impl.rs` | Write | Yes | ADMIN |
+| `DATA-AGE-GRAPH-CLEAR-WORKSPACE-056` | `GraphStorage::clear_workspace` | `storage/postgres/graph/graph_storage_impl.rs` | Write | Yes | ADMIN |
+| `DATA-AGE-GRAPH-COPY-LOAD-VERTICES-073` | `load_vertices_from_csv` | `storage/postgres/age_csv_loader.rs` | Write | Yes | COPY bulk |
+
+### Graph infrastructure (3)
+
+Cypher execution, index setup, the COPY loader, and session setup.
+
+| Ref ID | Entry point | File | Type | Tx | Notes |
+|---|---|---|---|---|---|
+| `DATA-AGE-GRAPH-CYPHER-EXEC-071` | `execute_cypher / cypher_query` | `storage/postgres/graph/helpers/cypher_exec.rs` | Read/Write | Yes | AGE session wrapper |
+| `DATA-AGE-GRAPH-LIFECYCLE-ENSURE-INDEXES-072` | `ensure_indexes` | `storage/postgres/graph/helpers/graph_lifecycle.rs` | DDL | No | boot-time index reconcile |
+| `DATA-AGE-GRAPH-SESSION-LOAD-AGE-074` | `set_age_session / search_path` | `storage/postgres/graph/helpers/session.rs` | Session | Yes |  |
+
+### Workspace statistics (1)
+
+Counts a workspace's graph size. Its main data lives in PostgreSQL tables.
+
+| Ref ID | Entry point | File | Type | Tx | Notes |
+|---|---|---|---|---|---|
+| `DATA-AGE-WORKSPACE-GET-STATS-157` | `pg_get_workspace_stats` | `edgequake-core/src/workspace_service_impl/workspace_ops.rs` | Read | Yes | secondary: PG |

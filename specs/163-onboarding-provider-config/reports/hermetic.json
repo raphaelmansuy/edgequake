@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "elapsed_secs": 108,
+  "suites": [
+    "edgequake-secrets",
+    "edgequake-fake-llm shapes",
+    "edgequake-api locality/ssrf/doctor/connection_factory",
+    "edgequake-core connection_id",
+    "spec163_probe",
+    "contract_spec150_train_head"
+  ]
+}

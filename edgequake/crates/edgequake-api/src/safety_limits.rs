@@ -826,10 +826,7 @@ pub const VISION_MAX_OUTER_TIMEOUT_SECS: u64 = 86_400;
 /// Local providers are memory-bound rather than network-bound, so they need
 /// longer per-page timeouts and lower concurrency.
 pub fn is_local_provider(provider_name: &str) -> bool {
-    matches!(
-        provider_name.to_ascii_lowercase().as_str(),
-        "ollama" | "lmstudio" | "lm-studio" | "lm_studio" | "mock"
-    )
+    crate::locality::is_local_provider(provider_name)
 }
 
 /// Default HTTP safety timeout for entity-extraction LLM calls on local providers.
@@ -965,10 +962,7 @@ pub const LOCAL_SYNC_PROCESSING_TIMEOUT_SECS: u64 = 600;
 
 /// Returns `true` for local inference servers that need longer sync upload windows.
 pub fn is_slow_local_provider(provider_name: &str) -> bool {
-    matches!(
-        provider_name.to_ascii_lowercase().as_str(),
-        "ollama" | "lmstudio" | "lm-studio" | "lm_studio"
-    )
+    crate::locality::is_slow_local_provider(provider_name)
 }
 
 /// HTTP-level timeout for synchronous document upload (`async_processing: false`).

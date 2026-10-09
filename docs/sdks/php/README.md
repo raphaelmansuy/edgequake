@@ -1,5 +1,6 @@
 ---
 title: "PHP SDK"
+description: "PHP SDK for EdgeQuake."
 ---
 
 # PHP SDK

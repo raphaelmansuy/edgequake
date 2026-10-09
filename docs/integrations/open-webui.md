@@ -1,5 +1,6 @@
 ---
 title: 'Integration: Open WebUI'
+description: "Connect Open WebUI to EdgeQuake."
 ---
 
 # Integration: Open WebUI

@@ -58,8 +58,8 @@ NNN_descriptive_name.sql
   descriptive_name: snake_case, describes what changed
 ```
 
-Current max: `168_identity_lockout_columns.sql` (product pin v0.32.2)  
-Next available: `169_*` (converge migrations only if epoch matrix finds schema drift)
+Current max: `169_spec163_provider_connections.sql` (SPEC-163 connections)  
+Next available: `170_*` (converge migrations only if epoch matrix finds schema drift)
 
 Operator guide: [`docs/operations/upgrading.md`](../../docs/operations/upgrading.md).
 

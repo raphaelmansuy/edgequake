@@ -1,5 +1,6 @@
 ---
 title: 'LinkedIn Post — EdgeQuake v0.4.0'
+description: "Historical LinkedIn post for the v0.4.0 release."
 ---
 
 # LinkedIn Post — EdgeQuake v0.4.0

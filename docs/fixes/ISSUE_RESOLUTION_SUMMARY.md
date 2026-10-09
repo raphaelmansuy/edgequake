@@ -1,3 +1,10 @@
+---
+title: "Issue Resolution Summary: Can't Import Documents"
+description: "Historical note: issue resolution summary."
+---
+
+> **Historical note.** This page may not match the current product. Prefer the guides under Getting started, Operations, and Providers.
+
 # Issue Resolution Summary: Can't Import Documents
 
 ## Problem Statement

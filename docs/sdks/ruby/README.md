@@ -1,5 +1,6 @@
 ---
 title: "Ruby SDK"
+description: "Ruby SDK for EdgeQuake."
 ---
 
 # Ruby SDK

@@ -1,5 +1,6 @@
 ---
 title: "TypeScript SDK — quickstart"
+description: "TypeScript SDK quickstart."
 ---
 
 # TypeScript SDK — quickstart

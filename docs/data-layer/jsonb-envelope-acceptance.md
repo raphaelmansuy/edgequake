@@ -1,44 +1,39 @@
 ---
-title: "JSONB envelope acceptance (GAP-091-05)"
+title: "JSONB envelope acceptance"
+description: "Decision record GAP-091-05: four typed tables keep a JSONB payload column on purpose. Lists which tables, why, what is typed elsewhere, and what operators should know."
 ---
 
 # JSONB envelope acceptance (GAP-091-05)
 
-> **Status:** Accepted by design — not a migration gap
-> **Spec:** SPEC-091 IW3 / [19-improvement-plan.md](../../specs/091-simplify-data-layer/19-improvement-plan.md)
+**Status:** Accepted by design. This is not a missing migration.
 
-## Summary
+**Spec:** SPEC-091 IW3, [19-improvement-plan.md](../../specs/091-simplify-data-layer/19-improvement-plan.md).
 
-Several typed relational tables intentionally keep **JSONB payload columns**
-rather than fully normalized scalar schemas. This is an explicit product/engine
-decision: envelope typing at the application layer, not a deferred schema debt.
+JSONB is a PostgreSQL column type that stores flexible JSON. A few typed tables keep one JSONB payload column instead of splitting it into many typed columns. The application defines the shape of that payload (an "envelope"). This was a deliberate choice, not unfinished work.
 
-## Accepted JSONB surfaces
+## Tables that keep a JSONB payload
 
-| Table | Column | Purpose | Why JSONB stays |
-| --- | --- | --- | --- |
-| `pipeline_checkpoints` | checkpoint payload | Resume tokens, extraction snapshots | Evolving pipeline stages; low query surface |
-| `document_artifacts` | artifact body | Lineage, multimodal manifests/chunks | Variable-shape artifacts; read by document id |
-| `llm_cache` | `value` | LLM/keyword/multimodal cache entries | Keyed by hash; opaque provider payloads |
-| `compensation_quarantine` | `payload` | Saga DLQ records | Same shape as legacy KV DLQ for operator parity |
+| Table | Column | What it holds | Why JSONB stays |
+|---|---|---|---|
+| `pipeline_checkpoints` | checkpoint payload | Resume tokens and extraction snapshots | Pipeline stages change often, and few queries read inside the payload. |
+| `document_artifacts` | artifact body | Lineage and multimodal manifests and chunks | The shape varies. Reads are always by document ID. |
+| `llm_cache` | `value` | Cached LLM, keyword, and multimodal answers | Keyed by hash. The provider payload is opaque. |
+| `compensation_quarantine` | `payload` | Dead-letter records from failed merges | Same shape as the old key-value dead-letter queue, so operators keep one format. |
 
-## Non-goals (already typed elsewhere)
+## Data that is already typed
 
-- Document **metadata shells** → `documents.metadata` JSONB with relational CAS
-  (`document_shell.rs`) — authoritative for list/detail; not part of this gap.
-- **Chunk text** → `chunks.content` text (SPEC-091 Wave D).
-- **Chunk embeddings** → `chunk_embeddings.embedding` typed vector (SPEC-091 W3).
+- Document metadata lives in `documents.metadata` (JSONB) with a relational compare-and-set (`document_shell.rs`). It is the source for list and detail views and is outside this decision.
+- Chunk text lives in `chunks.content` (text).
+- Chunk vectors live in `chunk_embeddings.embedding` (`halfvec`).
 
-## Operator implications
+## What operators should know
 
-- Console/advisor residue checks **exclude** transient JSONB families (checkpoints,
-  cache, quarantine) from migration-125 durable guards by design.
-- Drain worker (`compensation_drain.rs` + applier) interprets quarantine
-  `payload.kind` — do not expect SQL-level retract without the applier.
+- The console and advisor residue checks leave out checkpoints, caches, and quarantine on purpose when they check that migration 125 drained the old key-value data. Those families are transient.
+- The drain worker (`compensation_drain.rs`) reads the `payload.kind` of quarantine rows. You cannot retract a quarantined item with plain SQL. Use the applier.
 
-## Verification
+## Where it is verified
 
-- Typed sidecar stores write these tables directly (`relational_sidecar_store.rs`,
-  `llm_cache.rs`, `PgQuarantineSink`).
-- Contract tests: `contract_spec091_llm_cache_scope.rs`, compensation DLQ tests
-  in `compensation.rs`.
+- The typed stores write these tables directly: `relational_sidecar_store.rs` (in `edgequake-api`), `llm_cache.rs`, and `PgQuarantineSink`.
+- Tests: `contract_spec091_llm_cache_scope.rs` and the compensation tests in `compensation.rs`.
+
+See also: [llm-cache-scope.md](./llm-cache-scope.md) and the legacy key-value section in [postgres.md](./postgres.md#legacy-key-value-store).

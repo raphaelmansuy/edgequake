@@ -1,5 +1,6 @@
 ---
 title: "Python SDK"
+description: "Python SDK for EdgeQuake."
 ---
 
 # Python SDK

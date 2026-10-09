@@ -73,6 +73,21 @@ pub fn validate_startup_security(
         );
     }
 
+    if auth.allow_registration && auth.auth_enabled && !auth.dev_mode {
+        warnings.push(
+            "ALLOW_REGISTRATION is true with auth on — set ALLOW_REGISTRATION=false in production"
+                .to_string(),
+        );
+    }
+    if !security.rate_limit_enabled && !auth.dev_mode {
+        warnings.push("EDGEQUAKE_RATE_LIMIT_ENABLED is off".to_string());
+    }
+    if !edgequake_secrets::secrets_configured() && !auth.dev_mode {
+        warnings.push(
+            "EDGEQUAKE_SECRETS_KEY is unset — connection API keys cannot be stored".to_string(),
+        );
+    }
+
     if warnings.is_empty() {
         return StartupSecurityOutcome::Ok;
     }
@@ -92,11 +107,16 @@ pub fn validate_startup_security(
 }
 
 fn is_non_local_database(url: &str) -> bool {
-    let lower = url.to_ascii_lowercase();
-    !(lower.contains("localhost")
-        || lower.contains("127.0.0.1")
-        || lower.contains("@host.docker.internal")
-        || lower.contains("postgres://edgequake:edgequake@localhost"))
+    let Ok(parsed) = url::Url::parse(url) else {
+        let lower = url.to_ascii_lowercase();
+        return !(lower.contains("localhost")
+            || lower.contains("127.0.0.1")
+            || lower.contains("host.docker.internal"));
+    };
+    match parsed.host_str().unwrap_or("") {
+        "localhost" | "127.0.0.1" | "::1" | "host.docker.internal" => false,
+        _ => true,
+    }
 }
 
 /// Log outcome; exit process on fatal when strict startup is enabled.

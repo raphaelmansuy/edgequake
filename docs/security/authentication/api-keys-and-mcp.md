@@ -1,11 +1,26 @@
-# API keys and MCP
+---
+title: API keys and MCP
+description: How programmatic access works next to SSO: API keys, MCP OAuth, and what logout and membership changes revoke.
+---
 
-SSO governs interactive sessions only. Programmatic access uses **API keys** and the MCP OAuth
-flow (SPEC-154). An SSO user creates them through the normal endpoints with the session token, so
-the SPEC-154 scoping rules apply unchanged (tenant binding, scopes, `aud`).
+SSO covers people at a browser. Programs use API keys or the MCP OAuth flow (SPEC-154). An SSO user creates an API key with the normal endpoint and the session token, so the same rules apply: tenant binding, scopes and audience.
 
-- Back-channel logout revokes the SSO session (refresh family + federated session); it does **not**
-  revoke API keys already issued. Revoke keys explicitly, or deactivate the user.
-- Removing a membership or suspending a tenant blocks session refresh immediately
-  (`membership_revoked` / `tenant_suspended`).
-- MCP OAuth discovery endpoints stay public.
+```bash
+curl -X POST http://localhost:8080/api/v1/api-keys \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"ci","scopes":["edgequake:read","edgequake:query"],"expires_in_days":90}'
+```
+
+The response shows the key once. New keys get the scopes `edgequake:read` and `edgequake:query` unless you ask for `edgequake:write`. See the [security guide](../best-practices.md#credential-types) for all credential types.
+
+What revokes what:
+
+| Event | Effect |
+|-------|--------|
+| Back-channel logout from the IdP | Revokes the SSO session (refresh family and federated session). It does not revoke API keys that were already issued. |
+| Revoke a key (`DELETE /api/v1/api-keys/{key_id}`) | The key stops working. |
+| Deactivate the user | The user's JWTs and keys stop working, because the account is checked on each request. |
+| Remove a membership or suspend a tenant | Session refresh fails at once with `membership_revoked` or `tenant_suspended`. |
+
+MCP OAuth discovery endpoints stay public. The MCP endpoint (`POST /mcp`) does its own authentication.

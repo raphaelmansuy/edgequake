@@ -1,3 +1,10 @@
+---
+title: "Docker Deployment Verification"
+description: "Historical note: Docker verification checklist."
+---
+
+> **Historical note.** This page may not match the current product. Prefer the guides under Getting started, Operations, and Providers.
+
 # Docker Deployment Verification
 
 ## ✅ Fixes Applied

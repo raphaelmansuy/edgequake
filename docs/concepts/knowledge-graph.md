@@ -1,234 +1,114 @@
 ---
-title: 'Knowledge Graph'
+title: Knowledge Graph
+description: How EdgeQuake stores entities and relationships in PostgreSQL with Apache AGE and pgvector, and how tenants and workspaces are isolated.
 ---
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Released: v0.32.2** · Contract: [OpenAPI snapshot](../../edgequake_webui/openapi/openapi.snapshot.json) · Ops: [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md)
 
 # Knowledge Graph
 
-> **EdgeQuake's knowledge graph stores entities as nodes and relationships as edges,
-> enabling traversal-based retrieval across documents.**
+The knowledge graph is where EdgeQuake keeps what it learned from your documents: entities as nodes and relationships as edges. This page explains what is stored, where, and how tenants stay separate. It is for developers and operators.
 
----
+## What is in the graph
 
-## What is a Knowledge Graph?
+| Item | Meaning | Examples of fields |
+|------|---------|--------------------|
+| Node (entity) | A person, place, concept or other thing | `entity_name`, `entity_type`, `description`, `source_id`, `degree` |
+| Edge (relationship) | A link between two entities | `src_id`, `tgt_id`, `relation_type`, `keywords`, `weight`, `description` |
+| Properties | Extra data on nodes and edges | Descriptions, weights, source chunk IDs |
 
-A knowledge graph is a structured representation of knowledge using:
+Entity names are normalized to upper case with underscores, for example `SARAH_CHEN`. Each node tracks the chunks it came from, so answers can cite their sources. You can read the graph through `GET /api/v1/graph/entities` and `GET /api/v1/graph/relationships`; both return `items`.
 
-- **Nodes**: Entities (people, concepts, organizations)
-- **Edges**: Relationships between entities
-- **Properties**: Attributes on nodes and edges (descriptions, weights)
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    KNOWLEDGE GRAPH                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│     ┌─────────┐                         ┌─────────┐             │
-│     │  NODE   │────── EDGE ────────────▶│  NODE   │             │
-│     │ (Entity)│     (Relationship)      │ (Entity)│             │
-│     └─────────┘                         └─────────┘             │
-│         │                                    │                  │
-│         │                                    │                  │
-│         v                                    v                  │
-│   ┌───────────┐                      ┌───────────┐              │
-│   │ Properties│                      │ Properties│              │
-│   │ - name    │                      │ - name    │              │
-│   │ - type    │                      │ - type    │              │
-│   │ - desc    │                      │ - desc    │              │
-│   │ - embed   │                      │ - embed   │              │
-│   └───────────┘                      └───────────┘              │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    A["SARAH_CHEN, PERSON"] -->|works at| B["QUANTUM_LAB, ORGANIZATION"]
+    A -->|collaborates with| C["BOB_SMITH, PERSON"]
+    C -->|works at| B
 ```
 
----
+Read the chart as sentences. Each arrow is an edge with a relation label. The same pair of nodes can be reached by more than one path.
 
-## Nodes and Edges
+## Where the data lives
 
-### Entity Nodes
+Everything is in one PostgreSQL database. There is no separate graph server and no in-memory mode.
 
-Each entity extracted from documents becomes a node:
-
-```rust
-// Conceptual structure (from edgequake-storage)
-struct Entity {
-    name: String,           // "SARAH_CHEN"
-    entity_type: String,    // "PERSON"
-    description: String,    // "Lead researcher at Quantum Lab..."
-    embedding: Vec<f32>,    // [0.1, 0.2, ...] for vector search
-    source_chunks: Vec<String>,  // Chunk IDs for citations
-}
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    DB["PostgreSQL"] --> AGE["Apache AGE: nodes and edges"]
+    DB --> VEC["pgvector: embeddings"]
+    DB --> SQL["Tables: documents, chunks, tasks"]
+    AGE --> Q["Query engine"]
+    VEC --> Q
+    SQL --> Q
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class DB,AGE,SQL eqStore
+class VEC eqLlm
 ```
 
-### Relationship Edges
+Read the chart from the top. The query engine combines the three stores.
 
-Relationships connect entities with typed edges:
+| Store | Holds | Used for |
+|-------|-------|----------|
+| Apache AGE | Entity nodes and relationship edges | Graph traversal with Cypher |
+| pgvector | Embeddings for chunks, entities and relationships (`vector` or `halfvec`) | Similarity search with HNSW indexes |
+| Standard tables | Documents, chunk text, conversations, tasks | Filtering and metadata |
 
-```rust
-struct Relationship {
-    source: String,         // "SARAH_CHEN"
-    target: String,         // "QUANTUM_LAB"
-    relation_type: String,  // "WORKS_AT"
-    description: String,    // "Sarah works as lead researcher..."
-    weight: f32,            // 0.8 (strength/confidence)
-    keywords: Vec<String>,  // ["employment", "research"]
-}
+The vector size comes from the embedding model you choose, so there is no fixed width. See [Vector storage](../deep-dives/vector-storage.md) and [Graph storage](../deep-dives/graph-storage.md).
+
+## Vector plus graph
+
+A question usually uses all three stores:
+
+1. **Vector search** finds entities and chunks that look like the question.
+2. **Graph traversal** walks edges from those entities to find neighbors. The default walk is breadth-first (`bfs`). Personalized PageRank (`ppr`) is opt-in with `EDGEQUAKE_GRAPH_WALK=ppr`.
+3. **Fusion** merges both results into the prompt for the model.
+
+The [hybrid retrieval](hybrid-retrieval.md) page covers the modes in detail.
+
+## Tenants and workspaces
+
+EdgeQuake isolates data in two levels. A **tenant** is an organization. A **workspace** is a project inside a tenant. Documents, entities, relationships and vectors all belong to one workspace.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    T1["Tenant acme-corp"] --> W1["Workspace A"]
+    T1 --> W2["Workspace B"]
+    T2["Tenant globex"] --> W3["Workspace X"]
+    W1 --> D1["Documents, graph, vectors"]
 ```
 
----
+Read the chart from the tenant down. A workspace never sees data from another workspace or tenant.
 
-## Storage in EdgeQuake
+Send `X-Tenant-ID` and `X-Workspace-ID` headers to choose the scope. If you omit them, the default tenant and the default workspace apply. Since v0.32.0, PostgreSQL row-level security enforces the scope inside the database, in addition to the application checks.
 
-EdgeQuake uses a hybrid storage architecture:
+## Communities
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    STORAGE ARCHITECTURE                          │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │                    PostgreSQL Database                       ││
-│  │  ┌─────────────────────────────────────────────────────────┐││
-│  │  │                    Apache AGE                            │││
-│  │  │   • Graph storage (Cypher queries)                      │││
-│  │  │   • Entity nodes with properties                        │││
-│  │  │   • Relationship edges with properties                  │││
-│  │  └─────────────────────────────────────────────────────────┘││
-│  │  ┌─────────────────────────────────────────────────────────┐││
-│  │  │                    pgvector                              │││
-│  │  │   • Vector embeddings (1536 dims)                       │││
-│  │  │   • Similarity search (cosine, L2)                      │││
-│  │  │   • HNSW / halfvec ANN (see vector storage deep-dive)   │││
-│  │  └─────────────────────────────────────────────────────────┘││
-│  │  ┌─────────────────────────────────────────────────────────┐││
-│  │  │                    Standard Tables                       │││
-│  │  │   • Documents metadata                                  │││
-│  │  │   • Chunks with text content                            │││
-│  │  │   • Multi-tenant isolation                              │││
-│  │  └─────────────────────────────────────────────────────────┘││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
+EdgeQuake can group closely linked entities into communities with the Louvain algorithm. Detection is workspace-scoped, and it is skipped for graphs above 50,000 nodes. See [Community detection](../deep-dives/community-detection.md).
 
-### Development Mode
+## Limits to know
 
-> **Note:** In-memory storage was removed in v0.4.0. PostgreSQL is required
-> for all deployments, including development. See the
-> [installation guide](/docs/getting-started/installation/) for setup instructions.
+| Limit | Value |
+|-------|-------|
+| Nodes returned by one `GET /api/v1/graph` call | 500 |
+| Traversal depth for that call | 5 |
+| Page size on list endpoints | 100 |
 
----
+## Learn more
 
-## Vector + Graph Hybrid
+- [Entity extraction](entity-extraction.md): how entities are found.
+- [Hybrid retrieval](hybrid-retrieval.md): how queries use the graph.
+- [LightRAG algorithm](../deep-dives/lightrag-algorithm.md)
 
-The power of EdgeQuake comes from combining:
+## Source code
 
-| Storage Type          | Purpose             | Query Method      |
-| --------------------- | ------------------- | ----------------- |
-| **Graph (AGE)**       | Relationships       | Cypher traversal  |
-| **Vector (pgvector)** | Semantic similarity | Cosine similarity |
-| **Relational (SQL)**  | Metadata, filtering | SQL WHERE clauses |
-
-### Query Example
-
-```
-User: "How does Sarah's research relate to Bob's work?"
-
-1. Vector Search: Find entities matching "Sarah" and "Bob"
-   → SARAH_CHEN (score: 0.92)
-   → BOB_SMITH (score: 0.89)
-
-2. Graph Traversal: Find paths between them
-   → SARAH_CHEN --[works_at]--> QUANTUM_LAB
-   → BOB_SMITH --[works_at]--> QUANTUM_LAB
-   → SARAH_CHEN --[collaborates_with]--> BOB_SMITH
-
-3. Context Fusion: Combine vector + graph results
-   → "Sarah and Bob both work at Quantum Lab and collaborate..."
-```
-
----
-
-## Multi-Tenancy
-
-EdgeQuake supports data isolation across tenants:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    MULTI-TENANT ISOLATION                       │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Tenant: "acme-corp"          Tenant: "globex"                  │
-│  ┌─────────────────┐          ┌─────────────────┐               │
-│  │  Workspace A    │          │  Workspace X    │               │
-│  │  ├─ Documents   │          │  ├─ Documents   │               │
-│  │  ├─ Entities    │          │  ├─ Entities    │               │
-│  │  └─ Graph       │          │  └─ Graph       │               │
-│  ├─────────────────┤          └─────────────────┘               │
-│  │  Workspace B    │                                            │
-│  │  ├─ Documents   │          Each tenant has isolated          │
-│  │  └─ ...         │          data with no cross-access         │
-│  └─────────────────┘                                            │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-Queries are automatically scoped:
-
-```rust
-QueryRequest::new("What is our strategy?")
-    .with_tenant_id("acme-corp")
-    .with_workspace_id("strategy-team")
-```
-
----
-
-## Graph Operations
-
-### Creating Entities
-
-When documents are ingested, entities are upserted (insert or update):
-
-```sql
--- Apache AGE Cypher
-MERGE (e:Entity {name: 'SARAH_CHEN'})
-SET e.type = 'PERSON',
-    e.description = 'Lead researcher...',
-    e.updated_at = now()
-```
-
-### Creating Relationships
-
-```sql
-MATCH (source:Entity {name: 'SARAH_CHEN'})
-MATCH (target:Entity {name: 'QUANTUM_LAB'})
-MERGE (source)-[r:WORKS_AT]->(target)
-SET r.description = 'Sarah works at Quantum Lab',
-    r.weight = 0.8
-```
-
-### Traversing for Queries
-
-```sql
--- Find 2-hop neighbors of an entity
-MATCH (start:Entity {name: 'SARAH_CHEN'})-[*1..2]-(neighbor)
-RETURN neighbor.name, neighbor.description
-LIMIT 10
-```
-
----
-
-## Learn More
-
-- **How entities are extracted**: [Entity Extraction](/docs/concepts/entity-extraction/)
-- **How queries combine vector + graph**: [Hybrid Retrieval](/docs/concepts/hybrid-retrieval/)
-- **Underlying algorithm**: [LightRAG Algorithm](/docs/deep-dives/lightrag-algorithm/)
-
----
-
-## Source Code
-
-- **Graph storage trait**: [traits/graph.rs](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-storage/src/traits/graph.rs)
-- **Vector storage trait**: [traits/vector.rs](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-storage/src/traits/vector.rs)
-- **PostgreSQL implementation**: [adapters/postgres/](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-storage/src/adapters/postgres/)
+- [Graph storage trait](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-storage/src/traits/graph.rs)
+- [Vector storage trait](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-storage/src/traits/vector.rs)
+- [PostgreSQL adapters](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-storage/src/adapters/postgres)

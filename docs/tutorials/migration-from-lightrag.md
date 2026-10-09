@@ -1,589 +1,259 @@
 ---
-title: 'Migration Guide: LightRAG Python → EdgeQuake Rust'
+title: "Tutorial: Migrate from LightRAG"
+description: Move a LightRAG Python project to EdgeQuake. Map concepts, configuration and API calls, then re-ingest your documents and compare answers.
 ---
 
-> **Product: v0.23.0** · Contract: [`openapi.snapshot.json`](../../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+In this tutorial you move a project from [LightRAG](https://github.com/HKUDS/LightRAG) (Python) to EdgeQuake. EdgeQuake implements the same retrieval idea (entities, relationships and chunks in a knowledge graph) as a Rust server with a REST API and PostgreSQL storage.
 
-# Migration Guide: LightRAG Python → EdgeQuake Rust
+**Prerequisites:** your original source documents (or the LightRAG working directory), Docker or a Rust toolchain, and an LLM and embedding provider. You can reuse the same OpenAI key.
 
-> **Transitioning from LightRAG Python to EdgeQuake**
+## What changes
 
-This guide helps teams migrate from the [LightRAG Python](https://github.com/HKUDS/LightRAG) implementation to EdgeQuake Rust.
+LightRAG is a Python library that you call in-process and that stores files in a `working_dir`. EdgeQuake is a server that you call over HTTP and that stores everything in PostgreSQL.
 
----
-
-## Overview
-
-EdgeQuake is a **production-grade Rust implementation** of the LightRAG algorithm. It provides the same core functionality with significant improvements:
-
-| Aspect       | LightRAG Python   | EdgeQuake Rust       |
-| ------------ | ----------------- | -------------------- |
-| Performance  | Baseline          | 10-50x faster        |
-| Memory       | Higher (GC)       | Lower (no GC)        |
-| Multi-tenant | Not built-in      | Native support       |
-| Deployment   | Complex           | Single binary        |
-| Storage      | Multiple backends | PostgreSQL optimized |
-| API          | Class-based       | REST + WebSocket (`/ws/progress/{track_id}`) |
-
----
-
-## Architecture Comparison
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│               LIGHTRAG PYTHON ARCHITECTURE                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  lightrag = LightRAG(                                           │
-│      working_dir="./rag_storage",                               │
-│      llm_model=gpt_4o_mini_complete,                            │
-│      embedding_func=openai_embedding                            │
-│  )                                                              │
-│                                                                 │
-│  lightrag.insert(document_text)  # Blocking                     │
-│  result = lightrag.query(question, mode="hybrid")               │
-│                                                                 │
-│  Storage: JSON files in working_dir                             │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-
-                              ↓ Migration ↓
-
-┌─────────────────────────────────────────────────────────────────┐
-│               EDGEQUAKE RUST ARCHITECTURE                       │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  # Start server                                                 │
-│  DATABASE_URL="postgresql://..." \                              │
-│  OPENAI_API_KEY="sk-..." \                                      │
-│  edgequake                                                      │
-│                                                                 │
-│  # API calls                                                    │
-│  POST /api/v1/documents  # Async processing                     │
-│  POST /api/v1/query      # {"mode": "hybrid"}                   │
-│                                                                 │
-│  Storage: PostgreSQL with pgvector + Apache AGE                 │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  subgraph L["LightRAG"]
+    A["Your Python app"] --> B["LightRAG library"]
+    B --> C["working_dir files"]
+  end
+  subgraph E["EdgeQuake"]
+    D["Any client"] --> F["REST API"]
+    F --> G["PostgreSQL with pgvector and AGE"]
+  end
+%% eq-classes
+classDef eqActor fill:#FCE7F3,stroke:#EC4899,color:#500724
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class D eqActor
+class G eqStore
 ```
 
----
+Read each box group separately. On the left your code and the library share one process. On the right the client and the server are separate, so many clients can share one knowledge base.
 
-## Step-by-Step Migration
+| Topic | LightRAG | EdgeQuake |
+|-------|----------|-----------|
+| Interface | Python class | REST API under `/api/v1`, WebSocket, Web UI, SDKs |
+| Storage | JSON files, optional Neo4j and others | PostgreSQL (`DATABASE_URL` is required) |
+| Isolation | One `working_dir` per project | Tenants and workspaces |
+| Ingestion | `insert()` blocks | Upload returns at once; processing runs in the background |
+| Answers | A string | Answer, sources and timing stats |
+| Query modes | `naive`, `local`, `global`, `hybrid`, `mix`, `bypass` | The same names. The API default is `mix` |
 
-### Step 1: Set Up EdgeQuake
+This guide makes no speed or cost claim. Measure with your own data.
 
-**Install**:
+## Concept map
+
+| LightRAG | EdgeQuake |
+|----------|-----------|
+| `LightRAG(working_dir=...)` | A workspace: `POST /api/v1/tenants/{tenant_id}/workspaces` |
+| `rag.insert(text)` | `POST /api/v1/documents` |
+| Insert a file | `POST /api/v1/documents/upload` (PDFs: `/api/v1/documents/pdf`) |
+| `rag.query(q, param=QueryParam(mode=...))` | `POST /api/v1/query` with `"mode"` |
+| Graph backend (file, Neo4j, ...) | Apache AGE inside PostgreSQL |
+| Vector backend | pgvector inside PostgreSQL |
+| Return value (a string) | `answer`, plus `sources` and `stats` |
+
+Entity and relationship extraction follow the same approach, but prompts, types and merge rules are EdgeQuake's own. Expect similar, not identical, graphs. See [LightRAG algorithm](../deep-dives/lightrag-algorithm.md).
+
+## Migration plan
+
+There is no importer for LightRAG graph or vector files. You re-ingest the source documents and let EdgeQuake rebuild the graph and the vectors. This keeps entity names, types and embeddings consistent with one model.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["1. Start EdgeQuake"] --> B["2. Map configuration"]
+  B --> C["3. Create workspace"]
+  C --> D["4. Collect source documents"]
+  D --> E["5. Re-ingest"]
+  E --> F["6. Compare answers"]
+  F --> G["7. Switch your client"]
+%% eq-classes
+classDef eqActor fill:#FCE7F3,stroke:#EC4899,color:#500724
+class G eqActor
+```
+
+Read it top to bottom. Keep LightRAG running until step 6 shows that answers match your needs.
+
+## 1. Start EdgeQuake
+
+The fastest start is the Docker quickstart. It starts PostgreSQL, applies the schema, then starts the API and the Web UI.
 
 ```bash
-# Binary installation
-curl -sSL https://edgequake.dev/install.sh | sh
-
-# Or from source
-git clone https://github.com/edgequake/edgequake.git
-cd edgequake
-cargo build --release
+curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/quickstart.sh | sh
 ```
 
-**Start Server**:
+To use OpenAI without prompts, run `sh quickstart.sh --yes --provider openai` with `OPENAI_API_KEY` set. More options are in [Getting started](../getting-started/index.md) and [Configure LLM providers](../providers/index.md).
+
+From source, run `make dev`. It starts PostgreSQL, applies migrations and starts the backend and frontend.
+
+If you run the binary yourself, apply the schema first. The API never changes the schema on its own; `edgequake migrate` is the only command that does:
 
 ```bash
-# With PostgreSQL
 export DATABASE_URL="postgresql://user:pass@localhost:5432/edgequake"
-export OPENAI_API_KEY="sk-your-key"
-./target/release/edgequake
-
-# Or with Docker
-make dev
+edgequake migrate
+edgequake
 ```
 
-### Step 2: Create Workspace
-
-LightRAG uses `working_dir`. EdgeQuake uses workspaces:
-
-**LightRAG Python**:
-
-```python
-lightrag = LightRAG(working_dir="./my_project")
-```
-
-**EdgeQuake** (auth on by default — use `EDGEQUAKE_DEV_MODE=true` locally or pass `X-API-Key` / Bearer token):
+Check the server:
 
 ```bash
-# Create workspace (equivalent to working_dir)
-curl -X POST http://localhost:8080/api/v1/tenants/default/workspaces \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: $EDGEQUAKE_MASTER_API_KEY" \
-  -d '{
-    "name": "my-project",
-    "slug": "my-project",
-    "llm_provider": "openai",
-    "llm_model": "gpt-4.1-nano"
-  }'
-
-# Returns workspace_id to use in subsequent requests
+export EQ_API=http://localhost:8080      # make dev uses 8090 by default
+curl -s "$EQ_API/health" | jq '{status, version, llm_provider_name}'
 ```
 
-### Step 3: Migrate Documents
+## 2. Map configuration
 
-**LightRAG Python**:
-
-```python
-lightrag.insert("Your document text here...")
-lightrag.insert(Path("document.txt").read_text())
-```
-
-**EdgeQuake**:
+LightRAG passes functions to the constructor. EdgeQuake reads environment variables, and each workspace can override them.
 
 ```bash
-# Text content
-curl -X POST http://localhost:8080/api/v1/documents \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: your-workspace-id" \
-  -d '{
-    "content": "Your document text here...",
-    "title": "Document Title"
-  }'
-
-# File upload
-curl -X POST http://localhost:8080/api/v1/documents/upload \
-  -H "X-Workspace-ID: your-workspace-id" \
-  -F "file=@document.txt" \
-  -F "title=Document Title"
-
-# Batch upload — text/markdown/images only (PDFs → /documents/pdf/batch)
-curl -X POST http://localhost:8080/api/v1/documents/upload/batch \
-  -H "X-Workspace-ID: your-workspace-id" \
-  -F "files=@doc1.txt" \
-  -F "files=@doc2.md"
-
-# Multi-PDF batch
-curl -X POST http://localhost:8080/api/v1/documents/pdf/batch \
-  -H "X-Workspace-ID: your-workspace-id" \
-  -F "files=@doc1.pdf" \
-  -F "files=@doc2.pdf"
+export OPENAI_API_KEY="sk-..."
+export EDGEQUAKE_LLM_PROVIDER="openai"
+export EDGEQUAKE_LLM_MODEL="<your-chat-model>"
+export EDGEQUAKE_EMBEDDING_MODEL="<your-embedding-model>"
 ```
 
-### Step 4: Migrate Queries
+To reuse an existing LightRAG `.env`, these aliases also work: `MODEL_PROVIDER` or `CHAT_PROVIDER`, `CHAT_MODEL` or `LLM_MODEL`, and `EMBEDDING_MODEL`. If both an alias and the `EDGEQUAKE_*` name are set, the `EDGEQUAKE_*` value wins. The full list is in the [environment reference](../operations/env-reference.md). Available model names are in `edgequake/models.toml`.
 
-**LightRAG Python**:
+Two cautions:
 
-```python
-# Query modes
-result = lightrag.query("What is X?", mode="naive")
-result = lightrag.query("Tell me about Y", mode="local")
-result = lightrag.query("Summarize Z", mode="global")
-result = lightrag.query("How does A relate to B?", mode="hybrid")
-```
+- An embedding model fixes the vector size of a workspace. Choose it before you ingest. If you change it later you must rebuild the embeddings.
+- Chunk size differs. LightRAG's default is 1200 tokens with 100 overlap. EdgeQuake chooses a size from the document and the workspace policy. See [Chunking strategies](../deep-dives/chunking-strategies.md) to set a fixed size.
 
-**EdgeQuake**:
+## 3. Create a workspace
+
+A fresh server has a default tenant (ID `00000000-0000-0000-0000-000000000002`). Create one workspace per LightRAG `working_dir`. With auth on, add credentials as shown in [Auth quickstart](../operations/auth-quickstart.md).
 
 ```bash
-# Same modes, REST API
-curl -X POST http://localhost:8080/api/v1/query \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: your-workspace-id" \
-  -d '{"query": "What is X?", "mode": "naive"}'
+export TENANT_ID=00000000-0000-0000-0000-000000000002
 
-curl -X POST http://localhost:8080/api/v1/query \
+export WORKSPACE_ID=$(curl -s -X POST "$EQ_API/api/v1/tenants/$TENANT_ID/workspaces" \
   -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: your-workspace-id" \
-  -d '{"query": "Tell me about Y", "mode": "local"}'
-
-curl -X POST http://localhost:8080/api/v1/query \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: your-workspace-id" \
-  -d '{"query": "Summarize Z", "mode": "global"}'
-
-curl -X POST http://localhost:8080/api/v1/query \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: your-workspace-id" \
-  -d '{"query": "How does A relate to B?", "mode": "hybrid"}'
+  -d '{"name": "my-project", "description": "Migrated from LightRAG"}' | jq -r '.id')
+echo "$WORKSPACE_ID"
 ```
 
-### Step 5: Update Client Code
+For a SaaS with many customers, create one tenant per customer first. See [Multi-tenant deployment](multi-tenant.md).
 
-**LightRAG Python SDK**:
+## 4. Collect source documents
+
+Use your original files if you have them. This is the best option.
+
+If you only have the LightRAG working directory, the full document text is stored in its key-value files. In recent LightRAG versions the file is `kv_store_full_docs.json`. This guide did not verify the file layout of every LightRAG version, so open the file and check it. The sketch below assumes a JSON object that maps a document ID to an object with a `content` field.
 
 ```python
-from lightrag import LightRAG
+import json, pathlib
 
-rag = LightRAG(working_dir="./storage")
-rag.insert(document)
-result = rag.query("question", mode="hybrid")
-print(result)
+src = pathlib.Path("./rag_storage/kv_store_full_docs.json")   # check the name in your version
+out = pathlib.Path("./export"); out.mkdir(exist_ok=True)
+
+for doc_id, doc in json.loads(src.read_text()).items():
+    (out / f"{doc_id}.txt").write_text(doc["content"])
 ```
 
-**EdgeQuake Python Client**:
+## 5. Re-ingest
+
+Upload each file. Loop over the folder and keep the track IDs:
+
+```bash
+for f in export/*.txt; do
+  curl -s -X POST "$EQ_API/api/v1/documents/upload" \
+    -H "X-Workspace-ID: $WORKSPACE_ID" \
+    -F "file=@$f" | jq -r '"\(.filename) \(.status) \(.track_id)"'
+done
+```
+
+Upload many files in one call with `POST /api/v1/documents/upload/batch` (repeat the `files` field). Send PDFs to `/api/v1/documents/pdf` or `/api/v1/documents/pdf/batch`. See [PDF ingestion](pdf-ingestion.md).
+
+Wait until all documents are done, then compare totals:
+
+```bash
+curl -s "$EQ_API/api/v1/workspaces/$WORKSPACE_ID/stats" \
+  | jq '{document_count, chunk_count, entity_count, relationship_count}'
+```
+
+Ingestion calls your LLM once or more per chunk, so a large corpus costs money. Estimate first with `POST /api/v1/pipeline/costs/estimate` and read [Cost tracking](../deep-dives/cost-tracking.md).
+
+## 6. Compare answers
+
+Ask the same questions in both systems. In EdgeQuake the mode names are the same:
+
+```bash
+for MODE in naive local global hybrid mix; do
+  curl -s -X POST "$EQ_API/api/v1/query" \
+    -H "Content-Type: application/json" \
+    -H "X-Workspace-ID: $WORKSPACE_ID" \
+    -d "{\"query\": \"What is X?\", \"mode\": \"$MODE\"}" | jq -r --arg mode "$MODE" '"== " + $mode + "\n" + .answer'
+done
+```
+
+The response differs from LightRAG. LightRAG returns a string. EdgeQuake returns an object:
+
+```json
+{
+  "answer": "X is ...",
+  "mode": "mix",
+  "sources": [
+    { "source_type": "chunk", "id": "...", "document_id": "...", "score": 0.89, "snippet": "..." }
+  ],
+  "stats": { "total_time_ms": 2500, "retrieval_time_ms": 400, "generation_time_ms": 2000 }
+}
+```
+
+If answers differ, tune retrieval with [Query optimization](query-optimization.md). Differences in extraction are normal because the LLM is not deterministic.
+
+## 7. Switch your client
+
+Replace the LightRAG calls with HTTP calls. This small wrapper keeps the old shape:
 
 ```python
 import requests
 
-class EdgeQuakeClient:
-    def __init__(self, base_url: str, workspace_id: str, api_key: str = None):
-        self.base_url = base_url
-        self.workspace_id = workspace_id
+class EdgeQuake:
+    def __init__(self, base_url, workspace_id, api_key=None):
+        self.base = base_url.rstrip("/")
         self.headers = {"X-Workspace-ID": workspace_id}
         if api_key:
             self.headers["X-API-Key"] = api_key
 
-    def insert(self, content: str, title: str = None):
-        """Insert document (equivalent to LightRAG.insert)"""
-        response = requests.post(
-            f"{self.base_url}/api/v1/documents",
-            json={"content": content, "title": title or "Untitled"},
-            headers=self.headers
-        )
-        return response.json()
+    def insert(self, content, title="Untitled"):
+        r = requests.post(f"{self.base}/api/v1/documents", headers=self.headers,
+                          json={"title": title, "content": content})
+        r.raise_for_status()
+        return r.json()
 
-    def query(self, question: str, mode: str = "hybrid"):
-        """Query (equivalent to LightRAG.query)"""
-        response = requests.post(
-            f"{self.base_url}/api/v1/query",
-            json={"query": question, "mode": mode},
-            headers=self.headers
-        )
-        return response.json()["answer"]
-
-# Usage (drop-in replacement)
-rag = EdgeQuakeClient("http://localhost:8080", "workspace-uuid")
-rag.insert(document)
-result = rag.query("question", mode="hybrid")
-print(result)
+    def query(self, question, mode="mix"):
+        r = requests.post(f"{self.base}/api/v1/query", headers=self.headers,
+                          json={"query": question, "mode": mode})
+        r.raise_for_status()
+        return r.json()["answer"]
 ```
 
----
-
-## Configuration Mapping
-
-### LLM Configuration
-
-**LightRAG**:
-
-```python
-from lightrag.llm import gpt_4o_mini_complete, openai_embedding
-
-lightrag = LightRAG(
-    llm_model=gpt_4o_mini_complete,
-    embedding_func=openai_embedding,
-)
-```
-
-**EdgeQuake**:
-
-```bash
-# Environment variables
-export OPENAI_API_KEY="sk-..."
-export EDGEQUAKE_LLM_PROVIDER="openai"
-export EDGEQUAKE_LLM_MODEL="gpt-4.1-nano"
-export EDGEQUAKE_EMBEDDING_MODEL="text-embedding-3-small"
-
-# Or per-workspace via API
-curl -X PUT http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID \
-  -H "Content-Type: application/json" \
-  -d '{
-    "llm_provider": "openai",
-    "llm_model": "gpt-4.1-nano",
-    "embedding_model": "text-embedding-3-small"
-  }'
-```
-
-Compatibility aliases are also supported if you want to reuse an existing env file during migration:
-
-```bash
-export MODEL_PROVIDER="openai"
-export CHAT_MODEL="gpt-4.1-nano"
-export EMBEDDING_MODEL="text-embedding-3-small"
-```
-
-EdgeQuake normalizes those aliases to its canonical `EDGEQUAKE_*` variables at startup. If both are
-set, the canonical `EDGEQUAKE_*` values take precedence.
-
-### Storage Configuration
-
-**LightRAG**:
-
-```python
-# File-based storage
-lightrag = LightRAG(working_dir="./rag_storage")
-
-# Neo4j (optional)
-lightrag = LightRAG(
-    working_dir="./rag_storage",
-    graph_storage="neo4j",
-    neo4j_uri="bolt://localhost:7687"
-)
-```
-
-**EdgeQuake**:
-
-```bash
-# PostgreSQL (required since v0.4.0)
-export DATABASE_URL="postgresql://user:pass@localhost:5432/edgequake"
-edgequake
-```
-
-> **Note:** In-memory server mode was removed in v0.4.0. `DATABASE_URL` is required for all server deployments.
-
----
-
-## Feature Mapping
-
-| LightRAG Feature             | EdgeQuake Equivalent               |
-| ---------------------------- | ---------------------------------- |
-| `LightRAG()` constructor     | `/api/v1/workspaces` POST          |
-| `lightrag.insert(text)`      | `/api/v1/documents` POST           |
-| `lightrag.insert_file(path)` | `/api/v1/documents/upload` POST    |
-| `lightrag.query(q, mode)`    | `/api/v1/query` POST               |
-| `working_dir`                | Workspace (multi-tenant)           |
-| Entity extraction            | Same algorithm                     |
-| Relationship extraction      | Same algorithm                     |
-| Query modes                  | Same: naive, local, global, hybrid |
-| Neo4j storage                | Apache AGE (PostgreSQL)            |
-
----
-
-## Tenant and Workspace Planning
-
-For multi-business SaaS deployments, use **one tenant per business** and then create one or more
-workspaces inside that tenant for internal separation.
-
-Example for 1,000 businesses:
-
-- `1,000 tenants`
-- `N workspaces per tenant` for departments, environments, or use cases
-
-This keeps billing, permissions, quotas, and data isolation aligned with the business boundary.
-
----
-
-## Data Migration
-
-### Export from LightRAG
-
-```python
-import json
-import os
-
-def export_lightrag(working_dir: str, output_dir: str):
-    """Export LightRAG data for EdgeQuake import"""
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Export documents
-    docs_path = os.path.join(working_dir, "documents.json")
-    if os.path.exists(docs_path):
-        with open(docs_path) as f:
-            docs = json.load(f)
-        with open(os.path.join(output_dir, "documents.json"), "w") as f:
-            json.dump(docs, f)
-
-    # Export entities
-    entities_path = os.path.join(working_dir, "entities.json")
-    if os.path.exists(entities_path):
-        with open(entities_path) as f:
-            entities = json.load(f)
-        with open(os.path.join(output_dir, "entities.json"), "w") as f:
-            json.dump(entities, f)
-
-    # Export relationships
-    rels_path = os.path.join(working_dir, "relationships.json")
-    if os.path.exists(rels_path):
-        with open(rels_path) as f:
-            rels = json.load(f)
-        with open(os.path.join(output_dir, "relationships.json"), "w") as f:
-            json.dump(rels, f)
-
-export_lightrag("./rag_storage", "./export")
-```
-
-### Import to EdgeQuake
-
-```bash
-# Re-process documents (recommended for consistency)
-# The extracted entities may differ slightly due to LLM variance
-
-for doc in export/documents/*.txt; do
-  curl -X POST http://localhost:8080/api/v1/documents \
-    -H "X-Workspace-ID: $WORKSPACE_ID" \
-    -F "file=@$doc"
-done
-```
-
----
-
-## Query Response Differences
-
-**LightRAG Python**:
-
-```python
-result = lightrag.query("What is X?", mode="hybrid")
-# Returns: str (just the answer)
-```
-
-**EdgeQuake**:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/query \
-  -d '{"query": "What is X?", "mode": "hybrid"}'
-```
-
-```json
-{
-  "answer": "X is...",
-  "mode": "hybrid",
-  "sources": [
-    {
-      "source_type": "chunk",
-      "document_id": "doc-uuid",
-      "snippet": "...",
-      "score": 0.89
-    }
-  ],
-  "stats": {
-    "total_time_ms": 2500,
-    "tokens_used": 256
-  }
-}
-```
-
-**Benefit**: EdgeQuake provides sources and statistics for transparency.
-
----
-
-## New Capabilities in EdgeQuake
-
-Features available in EdgeQuake but not LightRAG Python:
-
-| Feature             | Description                    |
-| ------------------- | ------------------------------ |
-| Multi-tenancy       | Isolated workspaces per tenant |
-| REST API            | Standard HTTP interface        |
-| Streaming           | SSE for real-time responses    |
-| Chat history        | Conversation management        |
-| Graph visualization | Real-time graph UI             |
-| Cost tracking       | Token usage and costs          |
-| Batch upload        | Multiple files at once         |
-| Task queue          | Background processing (claim/lease SSOT, SPEC-057) |
-| PDF convert→ingest  | Separate convert + ingest tasks (SPEC-057)         |
-| Lineage             | Document-to-entity tracing     |
-| Reranking           | Cross-encoder reranking        |
-
----
-
-## Common Migration Issues
-
-### Issue 1: Different Entity Extraction
-
-LightRAG and EdgeQuake use the same algorithm, but LLM variance may cause different entities:
-
-```
-LightRAG:  JOHN_SMITH, SMITH_JOHN
-EdgeQuake: JOHN_SMITH (normalized)
-```
-
-**Solution**: Re-process documents in EdgeQuake for consistency.
-
-### Issue 2: Query Mode Differences
-
-Both support same modes, but EdgeQuake adds:
-
-- `mix` mode (adaptive blending)
-- `bypass` mode (direct LLM, no RAG)
-
-### Issue 3: Blocking vs Async
-
-**LightRAG**: Blocking calls
-
-```python
-lightrag.insert(large_document)  # Blocks until complete
-```
-
-**EdgeQuake**: Async by default
-
-```bash
-# Returns immediately with track_id (async)
-curl -X POST http://localhost:8080/api/v1/documents \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: your-workspace-id" \
-  -d '{"content": "large document...", "title": "Doc"}'
-# Response: {"document_id":"...","track_id":"...","status":"processing"}
-
-# Poll DocumentSummary until display_status=completed
-curl http://localhost:8080/api/v1/documents/doc-id \
-  -H "X-Workspace-ID: your-workspace-id" | jq '{display_status, ui_phase, current_stage, track_id}'
-
-# Or cancel in flight
-curl -X POST http://localhost:8080/api/v1/tasks/$TASK_ID/cancel \
-  -H "X-Workspace-ID: your-workspace-id"
-```
-
----
-
-## Rollback Plan
-
-If you need to keep LightRAG temporarily:
-
-```python
-class DualRAG:
-    """Use both LightRAG and EdgeQuake during migration"""
-
-    def __init__(self, lightrag, edgequake_client):
-        self.lightrag = lightrag
-        self.edgequake = edgequake_client
-        self.use_edgequake = False  # Feature flag
-
-    def query(self, question: str, mode: str = "hybrid"):
-        if self.use_edgequake:
-            return self.edgequake.query(question, mode)
-        else:
-            return self.lightrag.query(question, mode)
-```
-
----
-
-## Migration Checklist
-
-### Pre-Migration
-
-- [ ] EdgeQuake installed and running
-- [ ] PostgreSQL database configured
-- [ ] OpenAI API key set
-- [ ] Workspace created
-
-### Data Migration
-
-- [ ] Documents exported from LightRAG
-- [ ] Documents uploaded to EdgeQuake
-- [ ] Processing completed (check task status)
-- [ ] Entity counts compared
-
-### Client Migration
-
-- [ ] API calls updated to REST
-- [ ] Authentication added if needed
-- [ ] Error handling updated
-- [ ] Response parsing updated
-
-### Validation
-
-- [ ] Sample queries return similar results
-- [ ] Performance benchmarked
-- [ ] Monitoring configured
-- [ ] Rollback plan tested
-
----
-
-## Getting Help
-
-- **Documentation**: https://edgequake.dev/docs
-- **GitHub Issues**: https://github.com/edgequake/edgequake/issues
-- **Discord**: https://discord.gg/edgequake
-
----
-
-## See Also
-
-- [Installation Guide](/docs/getting-started/installation/)
-- [Quick Start](/docs/getting-started/quick-start/)
-- [API Reference](/docs/api-reference/rest-api/)
-- [LightRAG Algorithm](/docs/deep-dives/lightrag-algorithm/)
+Unlike LightRAG's `insert()`, `insert` here returns before processing ends. Poll `GET /api/v1/documents/{document_id}` until `ui_phase` is `terminal` (see [Document ingestion](document-ingestion.md#2-track-progress)). The official Python, TypeScript and Rust clients are listed in [SDKs](../sdks/README.md).
+
+## What you gain
+
+- Sources and timing on every answer, and lineage back to chunks: [Tracing entity sources](tracing-entity-sources.md).
+- Tenants, workspaces, API keys and optional SSO.
+- PDF conversion with vision models and page-aware chunking.
+- A Web UI for documents, graph and queries.
+- Hand-written knowledge: [Knowledge injection](knowledge-injection.md).
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Server exits at start with a schema message | The schema is not applied. | Run `edgequake migrate`, then start the server. See [Upgrading](../operations/upgrading.md). |
+| Server exits asking for `DATABASE_URL` | PostgreSQL is required. | Set `DATABASE_URL`, or use `make dev` or the Docker quickstart. |
+| Fewer entities than LightRAG | Different prompts, entity types or model. | Set `entity_types` on the workspace; try a larger model. See [Document ingestion](document-ingestion.md). |
+| Document `failed` | Provider unreachable or rate limited. | Run `edgequake doctor`, then reprocess. |
+| `401` or `403` | Auth is on. | Add credentials and `X-Tenant-ID`. See [Auth quickstart](../operations/auth-quickstart.md). |
+
+## Next steps
+
+- [First RAG app](first-rag-app.md)
+- [Document ingestion](document-ingestion.md)
+- [Upgrading EdgeQuake](../operations/upgrading.md)

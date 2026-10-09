@@ -197,6 +197,8 @@ impl From<edgequake_core::ModelResolutionSource> for ProviderSource {
 pub struct WorkspaceProviderResolver {
     workspace_service: Arc<dyn WorkspaceService>,
     models_config: Option<Arc<ModelsConfig>>,
+    #[cfg(feature = "postgres")]
+    pg_pool: Option<sqlx::PgPool>,
 }
 
 impl WorkspaceProviderResolver {
@@ -205,6 +207,8 @@ impl WorkspaceProviderResolver {
         Self {
             workspace_service,
             models_config: None,
+            #[cfg(feature = "postgres")]
+            pg_pool: None,
         }
     }
 
@@ -216,8 +220,22 @@ impl WorkspaceProviderResolver {
 
     /// Resolver wired from [`AppState`] (workspace service + models config).
     pub fn from_app_state(state: &crate::state::AppState) -> Self {
-        Self::new(state.workspace_service.clone())
-            .with_models_config(state.query.models_config.clone())
+        let resolver = Self::new(state.workspace_service.clone())
+            .with_models_config(state.query.models_config.clone());
+        #[cfg(feature = "postgres")]
+        {
+            return resolver.with_pg_pool(state.pg_pool.clone());
+        }
+        #[cfg(not(feature = "postgres"))]
+        {
+            resolver
+        }
+    }
+
+    #[cfg(feature = "postgres")]
+    pub fn with_pg_pool(mut self, pool: Option<sqlx::PgPool>) -> Self {
+        self.pg_pool = pool;
+        self
     }
 
     async fn get_tenant_for_workspace(
@@ -286,6 +304,12 @@ impl WorkspaceProviderResolver {
         // Case 2: Workspace / tenant / env via SPEC-123 SSOT (Query role after choice).
         if let Some(ws_id) = workspace_id {
             if let Some(workspace) = self.get_workspace(ws_id).await? {
+                if let Some(from_conn) = self
+                    .try_llm_from_workspace_connection(&workspace, edgequake_core::LlmRole::Query)
+                    .await?
+                {
+                    return Ok(Some(from_conn));
+                }
                 let tenant = self.get_tenant_for_workspace(&workspace).await;
                 let role =
                     edgequake_core::resolve_role_llm(&workspace, edgequake_core::LlmRole::Query);
@@ -412,7 +436,63 @@ impl WorkspaceProviderResolver {
             Some(ws) => self.get_tenant_for_workspace(ws).await,
             None => None,
         };
+        if let Some(ws) = workspace {
+            if let Some(from_conn) = self
+                .try_llm_from_workspace_connection(ws, edgequake_core::LlmRole::Query)
+                .await?
+            {
+                return Ok(Some(from_conn));
+            }
+        }
         self.resolve_llm_provider_with_workspace(workspace, tenant.as_ref(), request)
+    }
+
+    async fn try_llm_from_workspace_connection(
+        &self,
+        workspace: &Workspace,
+        role: edgequake_core::LlmRole,
+    ) -> Result<Option<ResolvedLlmProvider>, ProviderResolutionError> {
+        let Some(cfg) = edgequake_core::role_config_from_workspace(workspace, role) else {
+            return Ok(None);
+        };
+        let Some(raw_id) = cfg.connection_id.filter(|s| !s.is_empty()) else {
+            return Ok(None);
+        };
+        let Some(id) = crate::providers::connection_store::parse_connection_id(&raw_id) else {
+            return Ok(None);
+        };
+        #[cfg(feature = "postgres")]
+        {
+            let Some(pool) = self.pg_pool.as_ref() else {
+                return Ok(None);
+            };
+            let resolved = edgequake_core::resolve_role_llm(workspace, role);
+            match crate::providers::connection_store::load_connection_spec(
+                pool,
+                id,
+                &resolved.model,
+            )
+            .await
+            {
+                Ok(spec) => {
+                    match crate::providers::connection_factory::llm_from_connection(&spec) {
+                        Ok(provider) => Ok(Some(ResolvedLlmProvider {
+                            provider,
+                            provider_name: spec.shape,
+                            model_name: resolved.model,
+                            source: ProviderSource::Workspace,
+                        })),
+                        Err(_) => Ok(None),
+                    }
+                }
+                Err(_) => Ok(None),
+            }
+        }
+        #[cfg(not(feature = "postgres"))]
+        {
+            let _ = id;
+            Ok(None)
+        }
     }
 
     /// Try to build an LLM provider; returns `None` to fall through to server default.

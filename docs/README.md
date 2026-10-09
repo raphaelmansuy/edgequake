@@ -1,214 +1,212 @@
 ---
-title: 'EdgeQuake Documentation'
+title: EdgeQuake Documentation
+description: Map of the EdgeQuake documentation, with a stack overview, quick links, and one-line start commands.
 ---
+
+> **Released: v0.32.2** (schema 168) · **On main: v0.33.0 in progress** (schema 169) · Contract: [`openapi.snapshot.json`](../edgequake_webui/openapi/openapi.snapshot.json) · Ops: [Ingestion cancel and fairness](ingestion-cancel-and-fairness.md)
 
 # EdgeQuake Documentation
 
-> **Product: v0.32.2** · Contract: [`openapi.snapshot.json`](../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](ingestion-cancel-and-fairness.md)
+EdgeQuake is a Graph-RAG framework written in Rust. It reads your documents, builds a knowledge graph of the entities and relationships in them, and answers questions using both the graph and vector search. PostgreSQL with pgvector and Apache AGE is required; there is no in-memory mode. Auth is on by default unless `EDGEQUAKE_DEV_MODE=true`.
 
-High-performance Graph-Enhanced RAG in Rust. PostgreSQL (pgvector + Apache AGE) is required for all server modes. Auth is enabled by default unless `EDGEQUAKE_DEV_MODE=true` or `AUTH_ENABLED=false`.
+This page is the map. Start with [Getting Started](getting-started/index.md) if you are new.
 
+## How it fits together
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    A["Documents"] --> B["Ingest pipeline"]
+    B --> C["PostgreSQL"]
+    C --> D["Query engine"]
+    D --> E["Answer + sources"]
+    F["REST API, UI, SDKs"] --> B
+    F --> D
+    G["Model provider"] --> B
+    G --> D
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class C eqStore
+class G eqLlm
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│ EdgeQuake                                                        │
-│                                                                  │
-│  Document --> [Pipeline] --> Knowledge Graph --> Query           │
-│                   |                |                |            │
-│                   v                v                v            │
-│               Chunks+Embed     Entities+Rels    Hybrid           │
-│                                                                  │
-│  REST API :8080   WebUI :3000   SDKs   PostgreSQL+AGE            │
-└──────────────────────────────────────────────────────────────────┘
-```
 
----
+Read the chart from the left. The pipeline chunks and embeds your text and extracts entities with a model. PostgreSQL holds the vectors and the graph. The query engine reads both and returns an answer with its sources.
 
-## Documentation Index
+## Documentation index
 
-### Getting Started
+### Getting started
 
-| Guide                                              | Description                | Time   |
-| ----------------------------------------------------| ----------------------------| --------|
-| [Installation](getting-started/installation.md)    | Prerequisites and setup    | 5 min  |
-| [Quick Start](getting-started/quick-start.md)      | First ingestion and query  | 10 min |
-| [First Ingestion](tutorials/document-ingestion.md) | Understanding the pipeline | 15 min |
+| Guide | Description | Time |
+|-------|-------------|------|
+| [Installation](getting-started/installation.md) | Prerequisites and setup | 5 min |
+| [Quick Start](getting-started/quick-start.md) | First ingestion and query | 10 min |
+| [First ingestion](tutorials/document-ingestion.md) | How the pipeline works | 15 min |
+| [Providers](providers/index.md) | Connect a model provider | 5 min |
 
 ### Architecture
 
-| Document                                   | Description                           |
-| ------------------------------------------ | ------------------------------------- |
-| [Overview](architecture/overview.md)       | System design and components          |
-| [Data Flow](architecture/data-flow.md)     | Upload → convert → ingest → query     |
-| [Crate Reference](architecture/crates/)    | 11 Rust crates (incl. tasks, auth)    |
+| Document | Description |
+|----------|-------------|
+| [Overview](architecture/overview.md) | System design and components |
+| [Data flow](architecture/data-flow.md) | Upload, convert, ingest, query |
+| [Crate reference](architecture/crates/index.md) | The 15 workspace crates |
 
-### Core Concepts
+### Core concepts
 
-| Concept                                          | Description                       |
-| ------------------------------------------------ | --------------------------------- |
-| [Graph-RAG](concepts/graph-rag.md)               | Why knowledge graphs enhance RAG  |
-| [Entity Extraction](concepts/entity-extraction.md) | LLM-based entity recognition    |
-| [Knowledge Graph](concepts/knowledge-graph.md)   | Nodes, edges, and communities     |
-| [Hybrid Retrieval](concepts/hybrid-retrieval.md) | Combining vector and graph search |
+| Concept | Description |
+|---------|-------------|
+| [Graph-RAG](concepts/graph-rag.md) | Why a knowledge graph helps RAG |
+| [Entity extraction](concepts/entity-extraction.md) | How a model finds entities |
+| [Knowledge graph](concepts/knowledge-graph.md) | Nodes, edges, communities |
+| [Hybrid retrieval](concepts/hybrid-retrieval.md) | Vector and graph search together |
+| [Decision extraction](concepts/decision-extraction.md) | Preview: closed-question extraction |
 
-### Deep Dives
+### Deep dives
 
-| Article                                                  | Description                                  |
-| -------------------------------------------------------- | -------------------------------------------- |
-| [Data Layer](deep-dives/data-layer.md)                   | Postgres ER, KV, AGE, pgvector, FTS          |
-| [LightRAG Algorithm](deep-dives/lightrag-algorithm.md)   | Core algorithm: extraction, graph, retrieval |
-| [Query Modes](deep-dives/query-modes.md)                 | 6 modes with trade-offs                      |
-| [Pipeline Progress](deep-dives/pipeline-progress.md)     | WebSocket / SSE progress (SPEC-048/057)      |
-| [PDF Processing](deep-dives/pdf-processing.md)           | Vision and EdgeParse extraction              |
-| [Entity Normalization](deep-dives/entity-normalization.md) | Deduplication and merging                  |
-| [Gleaning](deep-dives/gleaning.md)                       | Multi-pass extraction                        |
-| [Entity Extraction](deep-dives/entity-extraction.md)     | LLM extraction pipeline                      |
-| [Community Detection](deep-dives/community-detection.md) | Louvain clustering                           |
-| [Chunking Strategies](deep-dives/chunking-strategies.md) | Token-based segmentation                     |
-| [Embedding Models](deep-dives/embedding-models.md)       | Model selection and dimensions               |
-| [Graph Storage](deep-dives/graph-storage.md)             | Apache AGE property graph                    |
-| [Vector Storage](deep-dives/vector-storage.md)           | pgvector HNSW / halfvec                      |
-| [Cost Tracking](deep-dives/cost-tracking.md)             | LLM cost monitoring                          |
+| Article | Description |
+|---------|-------------|
+| [Data layer](deep-dives/data-layer.md) | Postgres, KV, AGE, pgvector, full-text search |
+| [LightRAG algorithm](deep-dives/lightrag-algorithm.md) | Extraction, graph, retrieval |
+| [Query modes](deep-dives/query-modes.md) | The six modes and their trade-offs |
+| [Pipeline progress](deep-dives/pipeline-progress.md) | WebSocket and SSE progress |
+| [PDF processing](deep-dives/pdf-processing.md) | Vision and EdgeParse extraction |
+| [Entity normalization](deep-dives/entity-normalization.md) | Deduplication and merging |
+| [Gleaning](deep-dives/gleaning.md) | Multi-pass extraction |
+| [Entity extraction](deep-dives/entity-extraction.md) | The extraction pipeline |
+| [Community detection](deep-dives/community-detection.md) | Louvain clustering |
+| [Chunking strategies](deep-dives/chunking-strategies.md) | Token-based segmentation |
+| [Embedding models](deep-dives/embedding-models.md) | Model choice and dimensions |
+| [Graph storage](deep-dives/graph-storage.md) | Apache AGE property graph |
+| [Vector storage](deep-dives/vector-storage.md) | pgvector HNSW and halfvec |
+| [Cost tracking](deep-dives/cost-tracking.md) | Model cost monitoring |
 
 ### Comparisons
 
-| Comparison                                                  | Key Insights                       |
-| ----------------------------------------------------------- | ---------------------------------- |
-| [vs LightRAG (Python)](comparisons/vs-lightrag-python.md)   | Performance and design differences |
-| [vs GraphRAG](comparisons/vs-graphrag.md)                   | Microsoft's approach               |
-| [vs Traditional RAG](comparisons/vs-traditional-rag.md)     | Why graphs matter                  |
+| Comparison | Key insight |
+|------------|-------------|
+| [vs LightRAG (Python)](comparisons/vs-lightrag-python.md) | Performance and design differences |
+| [vs GraphRAG](comparisons/vs-graphrag.md) | Microsoft's approach |
+| [vs traditional RAG](comparisons/vs-traditional-rag.md) | Why graphs matter |
 
 ### Tutorials
 
-| Tutorial                                                      | Description                     |
-| ------------------------------------------------------------- | ------------------------------- |
-| [Building Your First RAG App](tutorials/first-rag-app.md)     | End-to-end tutorial             |
-| [PDF Ingestion](tutorials/pdf-ingestion.md)                   | PDF upload and configuration    |
-| [Multi-Tenant Setup](tutorials/multi-tenant.md)               | Workspace isolation             |
-| [Document Ingestion](tutorials/document-ingestion.md)         | Upload and processing workflows |
-| [Migration from LightRAG](tutorials/migration-from-lightrag.md) | Python to Rust migration      |
-| [Knowledge Injection](tutorials/knowledge-injection.md)       | Manual entity/relationship CRUD |
-| [Query Optimization](tutorials/query-optimization.md)         | Mode and filter tuning          |
-| [Tracing Entity Sources](tutorials/tracing-entity-sources.md) | Lineage and provenance          |
+| Tutorial | Description |
+|----------|-------------|
+| [Building your first RAG app](tutorials/first-rag-app.md) | End to end |
+| [PDF ingestion](tutorials/pdf-ingestion.md) | Upload and configuration |
+| [Multi-tenant setup](tutorials/multi-tenant.md) | Workspace isolation |
+| [Document ingestion](tutorials/document-ingestion.md) | Upload and processing |
+| [Migration from LightRAG](tutorials/migration-from-lightrag.md) | Python to Rust |
+| [Knowledge injection](tutorials/knowledge-injection.md) | Manual entity and relationship edits |
+| [Query optimization](tutorials/query-optimization.md) | Mode and filter tuning |
+| [Tracing entity sources](tutorials/tracing-entity-sources.md) | Lineage and provenance |
 
-### Integrations
-
-| Integration                                    | Description                          |
-| ---------------------------------------------- | ------------------------------------ |
-| [OpenWebUI](integrations/open-webui.md)        | Chat interface with Ollama emulation |
-| [LangChain](integrations/langchain.md)         | Retriever and agent integration      |
-| [Custom Clients](integrations/custom-clients.md) | Thin HTTP cookbook (prefer SDKs)   |
-
-### SDKs
+### Integrations and SDKs
 
 | Guide | Description |
-| ----- | ----------- |
+|-------|-------------|
+| [Open WebUI](integrations/open-webui.md) | Chat interface with Ollama emulation |
+| [LangChain](integrations/langchain.md) | Retriever and agent integration |
+| [Custom clients](integrations/custom-clients.md) | Plain HTTP |
 | [SDK index](sdks/README.md) | Python, TypeScript, Rust, Go, Java, Kotlin, Swift, C#, Ruby, PHP |
-| [Brutal SDK assessment](sdks/BRUTAL-ASSESSMENT.md) | Parity gaps and tiering (honest) |
+| [SDK assessment](sdks/BRUTAL-ASSESSMENT.md) | Parity gaps and tiers |
 
-SDK packages are independently versioned (typically **0.4.0**) and are **not** the same number as the product release (**0.23.0**).
+SDK packages carry their own version numbers. They do not match the product version.
 
-### API Reference
+### API reference
 
-| API                                                         | Description                         |
-| ----------------------------------------------------------- | ----------------------------------- |
-| [REST API](api-reference/rest-api.md)                       | Guided overlay + key endpoints      |
-| [Extended API](api-reference/extended-api.md)               | Tasks, progress, cancel, metrics    |
-| [Document upload quick reference](api-reference/document-upload-quick-reference.md) | Text vs PDF vs batch |
-| [Lineage endpoints](api-reference/lineage-endpoints.md)     | Provenance and source tracing       |
-| OpenAPI snapshot | [`edgequake_webui/openapi/openapi.snapshot.json`](../edgequake_webui/openapi/openapi.snapshot.json) |
+| API | Description |
+|-----|-------------|
+| [REST API](api-reference/rest-api.md) | Guided overlay and key endpoints |
+| [Extended API](api-reference/extended-api.md) | Tasks, progress, cancel, metrics |
+| [Document upload quick reference](api-reference/document-upload-quick-reference.md) | Text, PDF, batch |
+| [Lineage endpoints](api-reference/lineage-endpoints.md) | Provenance and source tracing |
+| OpenAPI snapshot | [`openapi.snapshot.json`](../edgequake_webui/openapi/openapi.snapshot.json) |
 
 ### Reference
 
-| Resource              | Description                        |
-| --------------------- | ---------------------------------- |
-| [Cookbook](cookbook.md) | Practical recipes                |
-| [FAQ](faq.md)         | Frequently asked questions         |
-| [Feature registry](features.md) | FEAT IDs grounded in code    |
-| [Changelog](../CHANGELOG.md) | Product release history       |
+| Resource | Description |
+|----------|-------------|
+| [Cookbook](cookbook.md) | Recipes |
+| [FAQ](faq.md) | Common questions |
+| [Product limits](product-limits.md) | Sizing and scale limits |
+| [Feature registry](features.md) | Feature IDs grounded in code |
+| [Environment variable reference](operations/env-reference.md) | Generated from the registry |
+| [Changelog](../CHANGELOG.md) | Release history |
 
 ### Operations
 
-| Guide                                                            | Description                              |
-| ---------------------------------------------------------------- | ---------------------------------------- |
-| [Docker quickstart](operations/docker-quickstart.md)             | GHCR images, one-command stack           |
-| [Deployment](operations/deployment.md)                           | Production deployment                    |
-| [Configuration](operations/configuration.md)                     | Env vars and model catalog               |
-| [Runtime auth hardening](operations/runtime-auth-hardening.md)   | Auth-on-by-default, bootstrap admin      |
-| [Ingestion cancel & fairness](ingestion-cancel-and-fairness.md)  | SPEC-057 claim/lease, cancel, replicas   |
-| [Migrate to v0.23.0](operations/migrate-to-0.23.md)              | Schema migrate: fresh install vs upgrade |
-| [Release and CD](operations/release-and-cd.md)                   | Tag, GHCR, quality gates                 |
-| [Monitoring](operations/monitoring.md)                           | Health, ready, metrics                   |
-| [Performance Tuning](operations/performance-tuning.md)           | Optimization guide                       |
-| [Metadata debugging](operations/metadata-debugging.md)           | Document status / mapper fields          |
-| [Operations Overview](operations/index.md)                       | Local and CI/CD operating model          |
-| [Observability](OBSERVABILITY.md)                                | OTEL / tracing                           |
-| [Langfuse 3.1.x](operations/langfuse-3.1.md)                     | Native ingestion fallback (no OTLP)      |
-| [SQLx offline mode](sqlx-offline-mode.md)                        | Offline query metadata                   |
-| [SPEC-083 improvements](../specs/083-improvements/README.md)              | First-principles defect pack + register  |
-| [Prod eq_* incident](../specs/083-improvements/INCIDENT-PROD-DIAGNOSIS.md) | Schema readiness / M092 maintenance     |
+| Guide | Description |
+|-------|-------------|
+| [Docker quickstart](operations/docker-quickstart.md) | GHCR images, one-command stack |
+| [Deployment](operations/deployment.md) | Production deployment |
+| [Configuration](operations/configuration.md) | Env vars and model catalog |
+| [Upgrading](operations/upgrading.md) | Schema train and `edgequake migrate` |
+| [Runtime auth hardening](operations/runtime-auth-hardening.md) | Auth on by default, bootstrap admin |
+| [Ingestion cancel and fairness](ingestion-cancel-and-fairness.md) | Claim and lease, cancel, replicas |
+| [Release and CD](operations/release-and-cd.md) | Tag, GHCR, quality gates |
+| [Monitoring](operations/monitoring.md) | Health, ready, metrics |
+| [Performance tuning](operations/performance-tuning.md) | Optimization guide |
+| [Metadata debugging](operations/metadata-debugging.md) | Document status fields |
+| [Operations overview](operations/index.md) | Local and CI operating model |
+| [Observability](OBSERVABILITY.md) | OpenTelemetry and tracing |
+| [Langfuse 3.1](operations/langfuse-3.1.md) | Native ingestion fallback (no OTLP) |
+| [SQLx offline mode](sqlx-offline-mode.md) | Offline query metadata |
+| [Migrate to v0.23](operations/migrate-to-0.23.md) | Historical fresh-install versus upgrade note |
+| [SPEC-083 improvements](../specs/083-improvements/README.md) | Defect register and roadmap |
+| [Production `eq_*` incident](../specs/083-improvements/INCIDENT-PROD-DIAGNOSIS.md) | Schema readiness and maintenance |
 
-### Security & Troubleshooting
+### Security and troubleshooting
 
-| Guide                                                   | Description         |
-| ------------------------------------------------------- | ------------------- |
-| [Security Best Practices](security/best-practices.md)   | Security guidelines |
-| [Common Issues](troubleshooting/common-issues.md)       | Debugging guide     |
+| Guide | Description |
+|-------|-------------|
+| [Security best practices](security/best-practices.md) | Guidelines |
+| [Common issues](troubleshooting/common-issues.md) | Debugging guide |
 
----
+## Quick links
 
-## Quick Links
+| Goal | Go to |
+|------|-------|
+| Get running in 5 minutes | [Quick Start](getting-started/quick-start.md) |
+| Pin Docker images to a version | [Docker quickstart](operations/docker-quickstart.md) |
+| Cancel, claim, lease behaviour | [Ingestion cancel and fairness](ingestion-cancel-and-fairness.md) |
+| See the API contract | [OpenAPI snapshot](../edgequake_webui/openapi/openapi.snapshot.json) |
+| Use an official SDK | [SDKs](sdks/README.md) |
+| Deploy to production | [Deployment](operations/deployment.md) |
 
-| Goal                          | Go To                                                      |
-| ----------------------------- | ---------------------------------------------------------- |
-| Get running in 5 minutes      | [Quick Start](getting-started/quick-start.md)              |
-| Pin Docker images to 0.23.0   | [Docker quickstart](operations/docker-quickstart.md)       |
-| Cancel / claim / lease ops    | [Ingestion cancel & fairness](ingestion-cancel-and-fairness.md) |
-| See API contract              | [OpenAPI snapshot](../edgequake_webui/openapi/openapi.snapshot.json) |
-| Use an official SDK           | [SDKs](sdks/README.md)                                     |
-| Deploy to production          | [Deployment](operations/deployment.md)                     |
+## Technology stack
 
----
+| Layer | Technology |
+|-------|-----------|
+| Backend | Rust 1.95, Axum, SQLx, Tokio (15 workspace crates) |
+| Frontend | Next.js 16, React 19 |
+| Storage | PostgreSQL 16, 17 or 18; pgvector 0.8.5; Apache AGE 1.6, 1.7 or 1.8 (matching the PostgreSQL major version) |
+| Images | `ghcr.io/raphaelmansuy/edgequake`, `edgequake-frontend`, `edgequake-postgres` |
 
-## Technology Stack
+## One-line start
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│ Technology stack                                            │
-│                                                             │
-│  Backend:  Rust 1.95 | Axum | SQLx | Tokio                  │
-│  Frontend: Next.js 16.2 | React 19 | Sigma                  │
-│  Storage:  PostgreSQL 16/17/18                              │
-│            pgvector 0.8.3 | Apache AGE 1.6/1.7              │
-│  Images:   ghcr.io/raphaelmansuy/edgequake*:0.23.0          │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## One-Liner Start
+Clone and run from source. This uses Ollama if no `OPENAI_API_KEY` is set:
 
 ```bash
-# Clone and run with Ollama (free, local LLM)
 git clone https://github.com/raphaelmansuy/edgequake.git && cd edgequake && make dev
 ```
 
 Or pull prebuilt images:
 
 ```bash
-EDGEQUAKE_VERSION=0.23.0 docker compose -f docker-compose.quickstart.yml up -d
+EDGEQUAKE_VERSION=0.32.2 docker compose -f docker-compose.quickstart.yml up -d
 ```
 
-- API: http://localhost:8080
-- WebUI: http://localhost:3000
+| Start method | API | Web UI |
+|--------------|-----|--------|
+| `make dev` | <http://localhost:8090> | <http://localhost:3010> |
+| Docker quickstart | <http://localhost:8080> | <http://localhost:3000> |
 
----
+## License and links
 
-## License
-
-Apache-2.0
-
-## Links
-
-- **GitHub**: [github.com/raphaelmansuy/edgequake](https://github.com/raphaelmansuy/edgequake)
-- **Releases**: [v0.23.0](https://github.com/raphaelmansuy/edgequake/releases/tag/v0.23.0)
-- **LightRAG Paper**: [arxiv.org/abs/2410.05779](https://arxiv.org/abs/2410.05779)
+- License: Apache-2.0
+- [GitHub](https://github.com/raphaelmansuy/edgequake)
+- [Releases](https://github.com/raphaelmansuy/edgequake/releases)
+- [LightRAG paper](https://arxiv.org/abs/2410.05779)

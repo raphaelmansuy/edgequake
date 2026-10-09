@@ -1,563 +1,218 @@
 ---
 title: 'Deep Dive: Entity Extraction'
+description: How EdgeQuake turns each text chunk into entities and relationships with an LLM - the extractors, prompts, parsing, entity types, caps, retries, and concurrency.
 ---
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Product: v0.32.2** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
 
 # Deep Dive: Entity Extraction
 
-> **How EdgeQuake Extracts Knowledge Entities from Documents**
+**What this page explains:** how one chunk of text becomes a set of entities and relationships.
+**Who it is for:** operators tuning ingestion cost and quality, and developers working on `edgequake-pipeline`.
+**Read first:** [Chunking Strategies](chunking-strategies.md) and the overview in [LightRAG Algorithm](lightrag-algorithm.md).
 
-Entity extraction is the foundation of EdgeQuake's Graph-RAG system. This document explains the algorithms, strategies, and design decisions behind entity extraction.
+An **entity** is a named thing in the text, such as a person, an organization, or a concept. A **relationship** is a link between two entities. Extraction is the step that builds the raw material of the knowledge graph. It is also the largest LLM cost in ingestion.
 
----
+Code lives in `edgequake/crates/edgequake-pipeline/src/` (`extractor/`, `prompts/`, `pipeline/`).
 
-## Overview
+## The big picture
 
-Entity extraction transforms unstructured text into structured knowledge graph nodes:
+Each chunk goes through the same steps. The flowchart shows one chunk from prompt to result.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 ENTITY EXTRACTION PIPELINE                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌────────────────────────────────────────────────────────┐     │
-│  │ Input: Text Chunk (1200 tokens)                        │     │
-│  │                                                        │     │
-│  │ "Dr. Sarah Chen at MIT developed a novel approach      │     │
-│  │  to neural network optimization using gradient         │     │
-│  │  descent with adaptive learning rates..."              │     │
-│  └────────────────────────────────────────────────────────┘     │
-│                             │                                   │
-│                             ▼                                   │
-│  ┌────────────────────────────────────────────────────────┐     │
-│  │ Entity Extractor (LLM-based)                           │     │
-│  │                                                        │     │
-│  │ • SOTAExtractor: Tuple-based parsing (production)      │     │
-│  │ • LLMExtractor: JSON-based parsing (simple)            │     │
-│  │ • GleaningExtractor: Multi-pass extraction             │     │
-│  └────────────────────────────────────────────────────────┘     │
-│                             │                                   │
-│                             ▼                                   │
-│  ┌────────────────────────────────────────────────────────┐     │
-│  │ Output: ExtractionResult                               │     │
-│  │                                                        │     │
-│  │ entities:                                              │     │
-│  │   - SARAH_CHEN (PERSON): "Researcher at MIT..."        │     │
-│  │   - MIT (ORGANIZATION): "Academic institution..."      │     │
-│  │   - NEURAL_NETWORK (CONCEPT): "Machine learning..."    │     │
-│  │   - GRADIENT_DESCENT (METHOD): "Optimization..."       │     │
-│  │                                                        │     │
-│  │ relationships:                                         │     │
-│  │   - SARAH_CHEN → works_at → MIT                        │     │
-│  │   - SARAH_CHEN → developed → NEURAL_NETWORK            │     │
-│  │   - NEURAL_NETWORK → uses → GRADIENT_DESCENT           │     │
-│  └────────────────────────────────────────────────────────┘     │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    A["Chunk text"] --> B["Build prompt: types, caps, language"]
+    B --> C["LLM call"]
+    C --> D{"Valid JSON?"}
+    D -- "no" --> E["One repair turn"]
+    E --> F["Parse response"]
+    D -- "yes" --> F
+    F --> G["Normalize names, enforce types, apply caps"]
+    G --> H["ExtractionResult"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class C eqLlm
 ```
 
----
+Read it top to bottom: a bad response gets exactly one repair turn before the chunk is treated as failed.
 
-## Why LLM-Based Extraction?
+## Which extractor runs
 
-Traditional Named Entity Recognition (NER) systems use trained models with fixed entity types. EdgeQuake uses LLMs for extraction because:
+All extractors implement the `EntityExtractor` trait (`extract`, `extract_batch`, `name`, `model_name`, `provider_name`).
 
-| Traditional NER                       | LLM-Based Extraction            |
-| ------------------------------------- | ------------------------------- |
-| Fixed entity types (PERSON, ORG, LOC) | Configurable entity types       |
-| Requires training data                | Zero-shot, no training          |
-| Labels only (no descriptions)         | Rich semantic descriptions      |
-| Explicit mentions only                | Infers implicit entities        |
-| Rule-based relationships              | Semantic relationship inference |
+| Extractor | Format | Status in the shipping pipeline |
+| --- | --- | --- |
+| `LLMExtractor` | JSON object | **Production default.** Built by `build_ingestion_pipeline` and the API bootstrap. |
+| `GleaningExtractor` | JSON | Wraps another extractor and runs extra passes. See [Gleaning](gleaning.md). |
+| `SOTAExtractor` | Delimited tuples | Ported from LightRAG. Exported and tested, but not wired into the production ingestion path. |
+| `SimpleExtractor` | Regex patterns | Tests and demos only. |
+| Decision extractor | Closed questions | Optional mode (SPEC-160). See below. |
 
-### The Trade-Off
+**Doc correction:** earlier versions of this page said `SOTAExtractor` was the production extractor. The code builds `LLMExtractor` (`ingestion_pipeline.rs`, `edgequake-api/src/state/query_bootstrap.rs`).
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 EXTRACTION APPROACH COMPARISON                  │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Traditional NER (SpaCy, BERT)        LLM Extraction (GPT-4o)   │
-│  ─────────────────────────────        ───────────────────────   │
-│  Speed: ~1000 docs/sec                Speed: ~10 docs/sec       │
-│  Cost: Free (local)                   Cost: $0.001/doc          │
-│  Quality: Fixed patterns              Quality: Semantic understanding
-│  Recall: 60-80%                       Recall: 85-95%            │
-│  Relationships: None                  Relationships: Inferred   │
-│                                                                 │
-│  USE WHEN:                            USE WHEN:                 │
-│  • High volume, low budget            • Quality matters most    │
-│  • Standard entity types              • Domain-specific entities│
-│  • Speed is critical                  • Need relationships      │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+### Extraction modes
 
-EdgeQuake chooses LLM extraction because **knowledge graph quality is paramount** for effective RAG.
+A document is extracted in exactly one mode (`extraction_mode.rs`):
 
----
+| Mode | Meaning |
+| --- | --- |
+| `llm` | Open extraction by a chat LLM. This is the default. |
+| `decision` | A small decision model answers closed yes/no and pick-one questions. Text stays on the decision backend. |
 
-## Multimodal entities (SPEC-047)
+The winning mode comes from, in order: the upload, the workspace default, the `EDGEQUAKE_EXTRACTION_MODE` environment variable, then `llm`. An unknown value is an error. It never silently falls back to `llm`, so private text cannot leak to a cloud model by mistake. The rest of this page describes `llm` mode.
 
-When a document has durable **mm-assets** (page/chart/figure PNGs from PDF vision), the pipeline injects multimodal entity nodes and association edges **after** the LLM tuple pass. These nodes link figure/table assets to text entities for viewer lineage — see [`edgequake-pipeline/src/multimodal/injection.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pipeline/src/multimodal/injection.rs).
+## The JSON prompt (production)
 
----
+`LLMExtractor` sends two messages (`prompts/json_prompts.rs`):
 
-## Cancel and cooperative abort (SPEC-057)
+- **System message** (stable, so providers can cache it): the allowed entity types, optional relation types, the quantity limits, the output language, naming rules, and the JSON format.
+- **User message** (changes per chunk): `## Text to Analyze` followed by the chunk text, with the section heading path added when the chunk has one.
 
-Entity extraction runs inside `TaskType::Insert`. Cancel via `POST /api/v1/tasks/{track_id}/cancel`:
-
-- Sets task row → `Cancelled` (terminal, no auto-retry)
-- Aborts in-flight LLM/embedding calls at `.await` boundaries (`CancellationToken`)
-- Doc KV → `cancelled` + `failure_class=cancelled`; UI shows `ui_phase=stopping` until terminal
-
-Convert-phase cancel also stops a pending Insert for the same PDF. See [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md).
-
----
-
-## Extraction Strategies
-
-EdgeQuake provides three extraction strategies:
-
-### 1. SOTAExtractor (Production)
-
-The state-of-the-art extractor uses tuple-based output format from LightRAG research:
-
-```rust
-pub struct SOTAExtractor<L>
-where
-    L: LLMProvider + ?Sized,
-{
-    llm_provider: Arc<L>,
-    entity_types: Vec<String>,
-    prompts: EntityExtractionPrompts,
-    parser: HybridExtractionParser,
-    language: String,
-}
-```
-
-**Key Features:**
-
-- Tuple-based output: `(ENTITY_NAME|ENTITY_TYPE|DESCRIPTION)`
-- More robust parsing than JSON
-- Adaptive max_tokens based on chunk complexity
-- Automatic retry with token increase on truncation
-
-**Example Output:**
-
-```
-("SARAH_CHEN"|"PERSON"|"Research scientist at MIT specializing in neural networks")
-("MIT"|"ORGANIZATION"|"Massachusetts Institute of Technology, leading research university")
-("SARAH_CHEN"|"MIT"|"works_at"|"Dr. Chen is a researcher at MIT's AI Lab")
-```
-
-### 2. LLMExtractor (Development)
-
-Simpler JSON-based extraction for development and testing:
-
-```rust
-pub struct LLMExtractor<L>
-where
-    L: LLMProvider + ?Sized,
-{
-    llm_provider: Arc<L>,
-    entity_types: Vec<String>,
-}
-```
-
-**JSON Format:**
+The response must look like this:
 
 ```json
 {
   "entities": [
-    { "name": "Sarah Chen", "type": "PERSON", "description": "..." }
+    { "name": "Entity Name", "type": "ENTITY_TYPE", "description": "Brief description" }
   ],
   "relationships": [
-    { "source": "Sarah Chen", "target": "MIT", "type": "works_at" }
+    { "source": "Source Entity", "target": "Target Entity", "type": "RELATIONSHIP_TYPE", "description": "Brief description" }
   ]
 }
 ```
 
-### 3. GleaningExtractor (High-Stakes)
+Naming rule in the prompt: use a readable, title-case name, and never use a UUID, hash, ARN, or other opaque ID as the name. An ID may appear in the description.
 
-Multi-pass extraction for thorough entity discovery:
+### Output budget and repair
 
-```rust
-pub struct GleaningExtractor {
-    llm_provider: Arc<dyn LLMProvider>,
-    base_extractor: Arc<dyn EntityExtractor>,
-    config: GleaningConfig,
-}
+- `max_tokens` for the extraction call is 16,384 (`extractor/llm.rs`).
+- The call gets provider-aware reasoning settings. Local providers such as Ollama and LM Studio run with reasoning off. If an endpoint rejects "reasoning off", the extractor lifts the effort and retries once.
+- If parsing fails, the extractor sends one repair turn that includes the validator error. If that also fails, the chunk fails with "Invalid JSON after repair".
+- Truncated JSON is recovered where possible (`recover_truncated: true`). A response with no JSON at all is an error, not an empty result.
 
-pub struct GleaningConfig {
-    pub max_gleaning: usize,    // Default: 1
-    pub always_glean: bool,     // Default: false
-}
+## The tuple prompt (`SOTAExtractor`)
+
+`SOTAExtractor` uses the LightRAG tuple format. It is kept for parity and tests. The system prompt asks for one record per line, with the delimiter `<|#|>` and the end marker `<|COMPLETE|>`:
+
+```text
+entity<|#|>Sarah Chen<|#|>PERSON<|#|>Lead researcher at Quantum Dynamics Lab.
+relation<|#|>Sarah Chen<|#|>Quantum Dynamics Lab<|#|>employment, research<|#|>Sarah Chen works there.
+<|COMPLETE|>
 ```
 
----
+An entity line has 4 fields. A relation line has 5 fields. `TupleParser` reads each line on its own, so a truncated answer still yields every complete line. `HybridExtractionParser` detects whether a response is tuple or JSON and falls back to the other format if the first returns nothing.
 
-## The EntityExtractor Trait
+The `SOTAExtractor` also has its own retry loop: three attempts, `max_tokens` starting at 4096 (chunks under 25 KB) and doubling up to 32,768 when the answer is cut off, with 100 ms, 200 ms, and 400 ms backoff. It rejects chunks above about 1500 estimated tokens up front.
 
-All extractors implement a common trait:
+## Entity types
 
-```rust
-#[async_trait]
-pub trait EntityExtractor: Send + Sync {
-    /// Extract entities and relationships from a text chunk.
-    async fn extract(&self, chunk: &TextChunk) -> Result<ExtractionResult>;
+Types come from a schema, `EntityExtractionSchema`. The built-in default (`default_entity_types()`) has 12 types:
 
-    /// Extract from multiple chunks in batch.
-    async fn extract_batch(&self, chunks: &[TextChunk]) -> Result<Vec<ExtractionResult>>;
+`PERSON`, `CREATURE`, `ORGANIZATION`, `LOCATION`, `EVENT`, `CONCEPT`, `METHOD`, `CONTENT`, `DATA`, `ARTIFACT`, `NATURALOBJECT`, `OTHER`.
 
-    /// Get extractor name for logging.
-    fn name(&self) -> &str;
+A workspace can override the list through its metadata keys `entity_types`, `entity_types_strict`, `relation_types`, `relation_types_strict`, and `relation_edges`.
 
-    /// Get the LLM model name.
-    fn model_name(&self) -> &str;
+In **strict** mode (the default), a type the LLM invents is mapped to the closest allowed type, or to `OTHER` when nothing fits. Parsing and gleaning both apply this rule, so gleaned entities cannot slip in a new type.
 
-    /// Get the LLM provider name.
-    fn provider_name(&self) -> &str;
-}
+## Names and quality rules
+
+Names are normalized right after parsing by `normalize_entity_name`. The single implementation is in `edgequake-storage/src/entity_id.rs`. See [Entity Normalization](entity-normalization.md) for the full rules. The result is `UPPERCASE_WITH_UNDERSCORES`, for example `Dr. Sarah Chen` becomes `DR._SARAH_CHEN` (titles are not stripped). The parser also applies these rules:
+
+| Rule | Behavior |
+| --- | --- |
+| Empty name | The entity is skipped. |
+| Opaque ID name (UUID, ULID, hash, ARN) | The entity is skipped. |
+| Tiny numbers (for example `7` or `3.5`) | The entity is skipped. |
+| BR0006 | A relationship whose source and target normalize to the same name is dropped. |
+| BR0004 | A relationship keeps at most 5 keywords. |
+| Empty endpoint | A relationship with an empty normalized endpoint is dropped. |
+
+## Per-response caps
+
+The prompt tells the LLM how many records to return. The parser then enforces the same limit (`prompts/extract_caps.rs`, SPEC-117).
+
+| Setting | Default | Env var |
+| --- | --- | --- |
+| Max entities per response | 40 | `EDGEQUAKE_MAX_EXTRACTION_ENTITIES` |
+| Max total rows (entities plus relationships) | 100 | `EDGEQUAKE_MAX_EXTRACTION_RECORDS` |
+| Selection when over the cap | `relation_aware` | `EDGEQUAKE_EXTRACT_CAPS_SELECTION` (`fifo` for LightRAG parity) |
+
+Caps can also be set per workspace and per upload (`extract_max_entities` and `extract_max_records`, always as a pair). The most specific layer wins: document, then workspace, then environment. Both values must satisfy `max_entities >= 1` and `max_records >= max_entities`.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    A["Parsed result"] --> B{"Entities over cap?"}
+    B -- "yes" --> C["Keep top entities"]
+    B -- "no" --> D["Keep all entities"]
+    C --> E["Drop relations with a removed endpoint"]
+    D --> E
+    E --> F{"Rows over total cap?"}
+    F -- "yes" --> G["Trim lowest weight relations"]
+    F -- "no" --> H["Done"]
+    G --> H
 ```
 
----
+Read it left to right: entities are cut first, then relationships are trimmed so the total fits.
 
-## Entity Types
+When the cap truncated a result, the gleaning prompt changes to ask for additional high-value items instead of "missed" ones.
 
-EdgeQuake supports configurable entity types:
+## Language
 
-```rust
-// Default entity types
-vec![
-    "PERSON",
-    "ORGANIZATION",
-    "LOCATION",
-    "EVENT",
-    "CONCEPT",
-    "TECHNOLOGY",
-    "PRODUCT",
-]
+The prompt asks for output in one natural language. The default is English. A workspace or document can override it. With a non-English language, the tuple prompt drops its English few-shot examples so the model does not copy them. See `prompts/language.rs` and `EDGEQUAKE_EXTRACTION_LANGUAGE`.
+
+## Resilience: timeouts, retries, concurrency
+
+The pipeline extracts many chunks at once and isolates failures (`pipeline/extraction.rs`). One failed chunk does not discard the others.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    A["Chunk"] --> B["Wait for a free slot"]
+    B --> C["LLM call with timeout"]
+    C --> D{"Success?"}
+    D -- "yes" --> E["Keep result"]
+    D -- "no" --> F{"Retries left?"}
+    F -- "yes" --> G["Back off, then retry"]
+    G --> C
+    F -- "no" --> H["Record chunk failure"]
+%% eq-classes
+classDef eqBad fill:#FEE2E2,stroke:#EF4444,color:#7F1D1D
+class C,H eqBad
 ```
 
-### Domain-Specific Types
+Read it top to bottom: slots limit concurrency, and each chunk gets its own timeout and retry budget.
 
-Customize for your domain:
+| Setting | Cloud default | Local default (Ollama, LM Studio, and similar) | Env var |
+| --- | --- | --- | --- |
+| Per-chunk timeout | 180 s | 600 s | `EDGEQUAKE_CHUNK_TIMEOUT_SECS` (minimum 10) |
+| Concurrent extractions | 16 | 1 | `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` (hard cap 32) |
+| Max retries per chunk | 3 | 3 | `EDGEQUAKE_CHUNK_MAX_RETRIES` (1 to 20) |
+| First retry delay | 1000 ms | 5000 ms minimum on overload | `EDGEQUAKE_CHUNK_RETRY_DELAY_MS` |
 
-```rust
-// Biomedical domain
-let extractor = SOTAExtractor::new(llm)
-    .with_entity_types(vec![
-        "PROTEIN".into(),
-        "GENE".into(),
-        "DISEASE".into(),
-        "DRUG".into(),
-        "ORGANISM".into(),
-    ]);
+The delay doubles on each attempt and is capped at 60 seconds. A local provider stays at concurrency 1 unless you set `EDGEQUAKE_ALLOW_LOCAL_HIGH_CONCURRENCY=1`.
 
-// Legal domain
-let extractor = SOTAExtractor::new(llm)
-    .with_entity_types(vec![
-        "PARTY".into(),
-        "COURT".into(),
-        "STATUTE".into(),
-        "CASE".into(),
-        "JURISDICTION".into(),
-    ]);
-```
+## Multimodal entities
 
----
+When a PDF has stored figure or table images (mm-assets), the pipeline adds multimodal entity nodes and association edges after the LLM pass (`multimodal/injection.rs`, SPEC-047). They link figures and tables to text entities for the document viewer.
 
-## Entity Normalization
+## Cancel
 
-Entities are normalized for consistent graph structure:
+Extraction runs inside an `Insert` task. `POST /api/v1/tasks/{track_id}/cancel` marks the task cancelled and aborts in-flight LLM and embedding calls at their next `.await`. A cancelled task is terminal and is not retried. See [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md).
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 ENTITY NORMALIZATION                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Raw Text              Normalized Entity                        │
-│  ────────              ─────────────────                        │
-│  "Dr. Sarah Chen"   →  SARAH_CHEN                               │
-│  "Sarah Chen, PhD"  →  SARAH_CHEN                               │
-│  "Chen, Sarah"      →  SARAH_CHEN                               │
-│                                                                 │
-│  "MIT"              →  MIT                                      │
-│  "M.I.T."           →  MIT                                      │
-│  "Massachusetts     →  MIT                                      │
-│   Institute of                                                  │
-│   Technology"                                                   │
-│                                                                 │
-│  Normalization Rules (BR0008):                                  │
-│  1. UPPERCASE all characters                                    │
-│  2. Replace spaces with underscores                             │
-│  3. Remove special characters                                   │
-│  4. Merge common variants                                       │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+## What comes out
 
-**Business Rule BR0008**: Entity names must be normalized to UPPERCASE_UNDERSCORE format.
+`ExtractionResult` holds the entities, the relationships, the `source_chunk_id`, token counts (`input_tokens`, `output_tokens`), `extraction_time_ms`, and a metadata map. Metadata records the extractor name, language, model, and parse attempts. These token counts feed [Cost Tracking](cost-tracking.md).
 
----
+Each entity has a name, type, description, and an `importance` between 0 and 1 (default 0.5). Each relationship has a source, target, type, keywords, description, and a `weight` between 0 and 1 (default 0.5). Next, the [merger](entity-normalization.md) combines results from all chunks into graph nodes.
 
-## Relationship Extraction
+## See also
 
-Relationships connect entities in the knowledge graph:
-
-```rust
-pub struct ExtractedRelationship {
-    /// Source entity name (normalized)
-    pub source: String,
-
-    /// Target entity name (normalized)
-    pub target: String,
-
-    /// Relationship type (e.g., "works_at", "developed")
-    pub relation_type: String,
-
-    /// Detailed description
-    pub description: String,
-
-    /// Weight/strength (0.0 to 1.0)
-    pub weight: f32,
-
-    /// Keywords for search (max 5 per BR0004)
-    pub keywords: Vec<String>,
-
-    /// Embedding for similarity search
-    pub embedding: Option<Vec<f32>>,
-}
-```
-
-### Relationship Business Rules
-
-| Rule   | Description                                         |
-| ------ | --------------------------------------------------- |
-| BR0004 | Max 5 keywords per relationship                     |
-| BR0006 | No self-referential relationships (source ≠ target) |
-
----
-
-## Gleaning: Multi-Pass Extraction
-
-Single-pass extraction often misses entities. Gleaning performs multiple extraction passes:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                   GLEANING PROCESS                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Pass 1 (Base Extraction)                                       │
-│  ─────────────────────────                                      │
-│  Input: "Dr. Sarah Chen at MIT developed..."                    │
-│                                                                 │
-│  Found: SARAH_CHEN, MIT, NEURAL_NETWORK                         │
-│                                                                 │
-│                           │                                     │
-│                           ▼                                     │
-│                                                                 │
-│  Pass 2 (Gleaning Iteration 1)                                  │
-│  ─────────────────────────────                                  │
-│  Prompt: "What entities did you miss? Already found:            │
-│           SARAH_CHEN, MIT, NEURAL_NETWORK"                      │
-│                                                                 │
-│  Found: GRADIENT_DESCENT, LEARNING_RATE, OPTIMIZATION           │
-│                                                                 │
-│                           │                                     │
-│                           ▼                                     │
-│                                                                 │
-│  Pass 3 (Gleaning Iteration 2) - Optional                       │
-│  ─────────────────────────────                                  │
-│  Found: AI_LAB, BACKPROPAGATION                                 │
-│                                                                 │
-│                           │                                     │
-│                           ▼                                     │
-│                                                                 │
-│  Final Result: 8 entities merged (vs 3 without gleaning)        │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Gleaning Effectiveness
-
-| Iterations | Recall | Cost Multiplier   |
-| ---------- | ------ | ----------------- |
-| 0 (none)   | ~65%   | 1x                |
-| 1          | ~80%   | 2x                |
-| 2          | ~90%   | 3x                |
-| 3+         | ~92%   | 4x+ (diminishing) |
-
-**Recommendation**: Use 1-2 gleaning iterations for best cost/recall balance.
-
----
-
-## Adaptive Token Management
-
-The SOTA extractor adapts to chunk complexity:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 ADAPTIVE TOKEN MANAGEMENT                       │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Chunk Size              Base max_tokens         Strategy       │
-│  ──────────              ─────────────           ────────       │
-│  <25KB (~6K tokens)      4,096                   Small doc      │
-│  25-75KB                 8,192                   Medium doc     │
-│  75-125KB                12,288                  Large doc      │
-│  >125KB                  16,384                  Very large     │
-│                                                                 │
-│  Retry Strategy (on truncation):                                │
-│  ─────────────────────────────────                              │
-│  Attempt 1: base_max_tokens (e.g., 8,192)                       │
-│  Attempt 2: 2x tokens (16,384) + 100ms backoff                  │
-│  Attempt 3: 4x tokens (32,768 max) + 200ms backoff              │
-│                                                                 │
-│  Truncation Detection:                                          │
-│  • finish_reason="length" → Hit token limit                     │
-│  • JSON parse errors ("EOF", "unclosed") → Response cut off     │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## The Extraction Prompt
-
-SOTA extractor uses a carefully designed prompt:
-
-```rust
-fn build_prompt(&self, text: &str) -> String {
-    let entity_types_str = self.entity_types.join(", ");
-
-    format!(r#"
--Goal-
-Given a text document, identify all entities and their relationships.
-
--Entity Types-
-{entity_types_str}
-
--Output Format-
-Use tuple format for each entity:
-("entity_name"|"entity_type"|"entity_description")
-
-Use tuple format for each relationship:
-("source_entity"|"target_entity"|"relationship_type"|"relationship_description")
-
--Text-
-{text}
-    "#)
-}
-```
-
-### Why Tuples Over JSON?
-
-| JSON                         | Tuples                      |
-| ---------------------------- | --------------------------- |
-| LLM can produce invalid JSON | Tuples are simpler to parse |
-| Nested structure errors      | Flat structure              |
-| Quote escaping issues        | Delimiter-based             |
-| Higher token count           | More compact                |
-
----
-
-## Extraction Result Structure
-
-```rust
-pub struct ExtractionResult {
-    /// Extracted entities
-    pub entities: Vec<ExtractedEntity>,
-
-    /// Extracted relationships
-    pub relationships: Vec<ExtractedRelationship>,
-
-    /// Source chunk ID for lineage
-    pub source_chunk_id: String,
-
-    /// Processing metadata
-    pub metadata: HashMap<String, Value>,
-
-    /// Token usage for cost tracking
-    pub input_tokens: usize,
-    pub output_tokens: usize,
-
-    /// Timing information
-    pub extraction_time_ms: u64,
-}
-```
-
----
-
-## Cost Analysis
-
-Entity extraction is the primary LLM cost driver:
-
-| Model          | Cost per 1K tokens             | Typical doc cost |
-| -------------- | ------------------------------ | ---------------- |
-| GPT-4o-mini    | $0.00015 input, $0.0006 output | $0.001           |
-| GPT-4o         | $0.005 input, $0.015 output    | $0.02            |
-| Ollama (local) | Free                           | Free             |
-
-### Cost Optimization Strategies
-
-1. **Use GPT-4o-mini** - 10x cheaper than GPT-4o
-2. **Optimize chunk size** - 1200 tokens is the sweet spot
-3. **Limit gleaning** - 1 iteration is usually sufficient
-4. **Cache results** - Don't re-extract unchanged documents
-5. **Use local models** - Ollama for development
-
----
-
-## Error Handling
-
-The extractor handles common failure modes:
-
-```rust
-// Chunk too large
-if estimated_tokens > MAX_CHUNK_TOKENS {
-    return Err(PipelineError::Validation(format!(
-        "Chunk too large for LLM processing. \
-         Suggestions: Use chunk_size={} for this document size",
-        recommended_chunk_size
-    )));
-}
-
-// LLM timeout
-if is_timeout {
-    // Provide actionable error with recommendations
-    return Err(PipelineError::ExtractionError(format!(
-        "LLM timeout after 120s. \
-         Suggestions: 1) Reduce chunk_size 2) Use Ollama (300s timeout)"
-    )));
-}
-
-// JSON parse error
-if is_json_truncation {
-    // Retry with higher max_tokens
-    current_max_tokens = (current_max_tokens * 2).min(32768);
-    continue;
-}
-```
-
----
-
-## Best Practices
-
-1. **Chunk Size**: Use 1200 tokens (default) for optimal extraction
-2. **Entity Types**: Customize for your domain
-3. **Gleaning**: Enable 1 iteration for important documents
-4. **Model Selection**: GPT-4o-mini for cost, GPT-4o for quality
-5. **Monitoring**: Track extraction time and token usage
-6. **Caching**: Use extraction cache to avoid re-processing
-
----
-
-## See Also
-
-- [Chunking Strategies](/docs/deep-dives/chunking-strategies/) - Document chunking deep dive
-- [Entity Deduplication](/docs/deep-dives/entity-normalization/) - Merging duplicate entities
-- [Graph Storage](/docs/deep-dives/graph-storage/) - Storing extracted entities
-- [Document Ingestion Tutorial](/docs/tutorials/document-ingestion/) - End-to-end guide
+- [Gleaning](gleaning.md): the optional second pass.
+- [Entity Normalization](entity-normalization.md): naming, merging, and deduplication.
+- [Graph Storage](graph-storage.md): where the results are stored.
+- [Cost Tracking](cost-tracking.md): token and cost accounting.

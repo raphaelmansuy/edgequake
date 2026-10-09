@@ -1,0 +1,87 @@
+# SPEC-163 single source of truth for operator-facing env vars.
+# Generate docs with: python3 scripts/generate_env_reference.py
+
+[[var]]
+name = "EDGEQUAKE_LLM_PROVIDER"
+docs = ["docs/providers/index.md", "docs/operations/configuration.md"]
+purpose = "Process default LLM provider id"
+
+[[var]]
+name = "EDGEQUAKE_DEFAULT_LLM_PROVIDER"
+docs = ["docs/operations/configuration.md"]
+purpose = "Alias for EDGEQUAKE_LLM_PROVIDER"
+
+[[var]]
+name = "EDGEQUAKE_LLM_MODEL"
+docs = ["docs/providers/index.md"]
+purpose = "Process default chat model"
+
+[[var]]
+name = "EDGEQUAKE_EMBEDDING_PROVIDER"
+docs = ["docs/providers/roles.md"]
+purpose = "Embedding provider (may differ from LLM)"
+
+[[var]]
+name = "EDGEQUAKE_EMBEDDING_MODEL"
+docs = ["docs/providers/roles.md"]
+purpose = "Embedding model id"
+
+[[var]]
+name = "EDGEQUAKE_EMBEDDING_DIMENSION"
+docs = ["docs/providers/omlx.md"]
+purpose = "Vector size when the catalog has no card"
+
+[[var]]
+name = "OLLAMA_HOST"
+docs = ["docs/providers/ollama.md"]
+purpose = "Ollama base URL"
+
+[[var]]
+name = "LMSTUDIO_HOST"
+docs = ["docs/providers/lmstudio.md"]
+purpose = "LM Studio base URL (not LM_STUDIO_BASE_URL)"
+
+[[var]]
+name = "OMLX_HOST"
+docs = ["docs/providers/omlx.md"]
+purpose = "oMLX base URL"
+
+[[var]]
+name = "OPENAI_API_KEY"
+docs = ["docs/providers/openai.md"]
+purpose = "OpenAI API key"
+
+[[var]]
+name = "ANTHROPIC_API_KEY"
+docs = ["docs/providers/anthropic.md"]
+purpose = "Anthropic API key"
+
+[[var]]
+name = "ANTHROPIC_BASE_URL"
+docs = ["docs/providers/anthropic.md"]
+purpose = "Anthropic or Anthropic-shaped base URL"
+
+[[var]]
+name = "OPENAI_COMPATIBLE_BASE_URL"
+docs = ["docs/providers/openai-compatible.md"]
+purpose = "Generic OpenAI-shaped server"
+
+[[var]]
+name = "EDGEQUAKE_SECRETS_KEY"
+docs = ["docs/providers/security.md"]
+purpose = "32-byte envelope key for stored connection secrets"
+
+[[var]]
+name = "EDGEQUAKE_SETUP_TOKEN"
+docs = ["docs/providers/security.md"]
+purpose = "Required header for POST /setup/initialize when set"
+
+[[var]]
+name = "EDGEQUAKE_AUTH_ENABLED"
+docs = ["docs/providers/security.md"]
+purpose = "Explicit auth on/off; wins over DEV_MODE"
+
+[[var]]
+name = "JWT_SECRET"
+docs = ["docs/providers/security.md"]
+purpose = "JWT HMAC secret (≥32 bytes)"

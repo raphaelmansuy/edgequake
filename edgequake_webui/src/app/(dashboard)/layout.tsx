@@ -8,6 +8,7 @@ import { TenantGuard } from '@/components/layout/tenant-guard';
 import { FirstRunWizard } from '@/components/onboarding/first-run-wizard';
 import { ApiErrorBoundary } from '@/components/shared/api-error-boundary';
 import { BackendStatusBanner } from '@/components/shared/backend-status-banner';
+import { ProviderDownBanner } from '@/components/shared/provider-down-banner';
 import { SkipLink } from '@/components/shared/skip-link';
 import { useWorkspaceUrl } from '@/hooks/use-workspace-url';
 import { Suspense } from 'react';
@@ -46,6 +47,7 @@ export default function DashboardLayout({
           <Header />
           {/* Backend-not-ready banner: fixed overlay, no layout shift (ES-01) */}
           <BackendStatusBanner />
+          <ProviderDownBanner />
           {/* Breadcrumb: null at depth ≤ 1 (no empty band); bar at depth ≥ 2 */}
           <DynamicBreadcrumb />
           {/* Main content area - each page controls its own scrolling.

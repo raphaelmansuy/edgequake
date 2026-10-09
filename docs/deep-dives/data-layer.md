@@ -1,5 +1,6 @@
 ---
 title: 'Deep Dive: Data Layer (Postgres / AGE / pgvector / FTS)'
+description: "Deep dive into PostgreSQL, pgvector, and Apache AGE storage."
 ---
 
 # Data Layer — PostgreSQL, AGE, pgvector, and Text Search
@@ -35,6 +36,8 @@ Where EdgeQuake stores information, how it is indexed, and how each query mode r
 Conflating these units causes integrity and capacity bugs. Detail: [SPEC-073 first principles](../../specs/073-relational-rag-layout/001-first-principles.md).
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
 flowchart TB
   tenant[Tenant]
   ws[Workspace]
@@ -51,6 +54,9 @@ flowchart TB
   emb --> ann
   ann -->|"partial_HNSW_or_dedicated"| okPlan[Planner_uses_ANN]
   ann -->|"wrong_filter_shape"| cliff[Exact_scan_or_recall_cliff]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class emb eqLlm
 ```
 
 ```text
@@ -65,6 +71,8 @@ Tenant
 ### 1.2 Physical stores (one Postgres, four surfaces)
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
 flowchart LR
   subgraph writePath [Ingest_write_saga]
     WKV[KV_chunk_text]
@@ -83,6 +91,9 @@ flowchart LR
   WVEC --> RANN
   WAGE --> REXP
   WREL --> ROPS
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class WVEC eqLlm
 ```
 
 ```text
@@ -108,6 +119,8 @@ flowchart LR
 ### 1.3 Ideal relational spine vs EdgeQuake dual-SSOT
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
 flowchart TB
   subgraph ideal [Ideal_co_located_RAG]
     Iws[workspaces] --> Idoc[documents]
@@ -123,6 +136,11 @@ flowchart TB
     Ekv -.->|"content_ref / FTS join"| Evec
     Eage -.->|"source_chunk_ids"| Ekv
   end
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class Iemb eqLlm
+class Eage eqStore
 ```
 
 **Dual-SSOT warning:** Do not treat `public.documents` / `public.chunks` alone as the RAG corpus. Pipeline ingest writes **KV + AGE + vectors**. Relational `documents`/`chunks` support PDF linkage, lineage columns, and CQRS; `entities`/`relationships` are a **CQRS read model** (M039) optionally dual-written via `entity_sync_mode`. Mapping table: [SPEC-073 §002](../../specs/073-relational-rag-layout/002-edgequake-mapping.md). Admin/debug presence helpers: `eq_serving_chunk_presence` / `eq_serving_vector_presence` ([SPEC-081](../../specs/081-serving-view-dual-ssot/000-index.md)) — **not** the ANN query path.
@@ -149,16 +167,21 @@ EdgeQuake keeps vectors and the property graph in **one PostgreSQL instance** (l
 From [`PostgresConfig::table_prefix`](../../edgequake/crates/edgequake-storage/src/adapters/postgres/config.rs):
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
 flowchart TB
   ns["namespace = default"]
   prefix["table_prefix = eq_default"]
   kv["public.eq_eq_default_kv"]
   vec["public.eq_eq_default_vectors"]
-  graph["AGE schema eq_eq_default_graph"]
+  ageGraph["AGE schema eq_eq_default_graph"]
   ns --> prefix
   prefix --> kv
   prefix --> vec
-  prefix --> graph
+  prefix --> ageGraph
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class prefix,ageGraph eqStore
 ```
 
 ```text
@@ -184,6 +207,8 @@ API boot typically uses `.with_namespace("default")`.
 [`WorkspaceVectorConfig`](../../edgequake/crates/edgequake-storage/src/traits/workspace_vector.rs) builds a workspace namespace `default_ws_{first8-of-uuid}`, then `PgVectorStorage` qualifies it:
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
 flowchart LR
   wsId["workspace_id UUID"]
   short["first8 hex"]
@@ -212,6 +237,8 @@ chunk text KV (FTS join):     public.eq_eq_default_kv   (shared default KV)
 ## 3. PostgreSQL ER schema (relational)
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
 erDiagram
   TENANTS ||--o{ WORKSPACES : has
   WORKSPACES ||--o{ MEMBERSHIPS : has
@@ -347,6 +374,8 @@ AGE stores a labeled property graph inside PostgreSQL ([AGE graphs overview](htt
 ### Graph and labels
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
 flowchart LR
   subgraph ageSchema ["AGE schema eq_eq_default_graph"]
     Node["label Node"]
@@ -358,6 +387,9 @@ flowchart LR
   chunkIds -->|"lineage"| kvText["KV chunk text"]
   Node -->|"workspace_id tenant_id"| iso[Isolation_filters]
   EDGE -->|"workspace_id tenant_id"| iso
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class kvText eqStore
 ```
 
 ```text
@@ -377,6 +409,8 @@ created via: create_graph / create_vlabel / create_elabel
 Communities are **not** separate AGE labels; `community_id` is written onto Node properties.
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
 flowchart TB
   nA["Node A"]
   nB["Node B"]
@@ -426,6 +460,8 @@ Fallback tables `graph_nodes` / `graph_edges` (M013) exist if AGE is missing —
 From [`vector/ddl.rs`](../../edgequake/crates/edgequake-storage/src/adapters/postgres/vector/ddl.rs):
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
 flowchart TB
   row["eq_*_vectors row"]
   row --> id["id PK"]
@@ -435,6 +471,11 @@ flowchart TB
   row --> tsv["content_tsv writable FTS"]
   denorm -->|"Wave-2 columns-only"| partial["partial HNSW WHERE workspace_id"]
   emb --> hnsw["HNSW or DiskANN opt-in"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class emb eqLlm
+class tsv,hnsw eqStore
 ```
 
 ```sql
@@ -539,6 +580,8 @@ Code: `modes/{naive,local,global,hybrid,mix}.rs`, `chunk_retrieval.rs`, `chunk_h
 ### Local / Mix bridge
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
 flowchart TB
   qEmb[Query_embedding]
   ann["pgvector ANN entity_or_rel"]
@@ -548,6 +591,11 @@ flowchart TB
   hydrate["KV hydrate chunk text"]
   ctx["Context to LLM"]
   qEmb --> ann --> expand --> ids --> rescore --> hydrate --> ctx
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class qEmb,ctx eqLlm
+class ann,expand,rescore,hydrate eqStore
 ```
 
 ```text
@@ -573,6 +621,8 @@ flowchart TB
 ### Naive / Hybrid store touchpoints
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
 flowchart TB
   query[User_query]
   query --> naive["Naive: chunk ANN + optional FTS RRF"]
@@ -582,6 +632,9 @@ flowchart TB
   local --> fuse
   global --> fuse
   fuse --> out[Retrieved_chunks]
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class local,global eqStore
 ```
 
 ---
@@ -589,6 +642,8 @@ flowchart TB
 ## 9. Write path summary (ingest)
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
 flowchart TB
   admit["HTTP admit"]
   task["tasks Pending claim_lease"]
@@ -606,6 +661,9 @@ flowchart TB
   persist --> evec --> ageN
   persist --> rvec --> ageE
   persist -.-> fail
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class kv,ageN,ageE eqStore
 ```
 
 ```text

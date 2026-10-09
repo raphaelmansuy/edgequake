@@ -1,99 +1,155 @@
 ---
-title: "SPEC-088 — Data-Layer Operation Inventory & Hardening"
+title: "Data layer overview"
+description: "How EdgeQuake stores documents, vectors, and the knowledge graph in one PostgreSQL database: core tables, write and read paths, isolation, and where the detailed pages live."
 ---
 
----
-title: "SPEC-088 — Data-Layer Operation Inventory & Hardening"
----
+# Data layer overview
 
-# SPEC-088 — Data-Layer Operation Inventory & Hardening
+EdgeQuake keeps all of its data in one PostgreSQL database. Plain tables hold documents, chunks, tasks, and users. The pgvector extension holds embeddings. The Apache AGE extension holds the knowledge graph. This page is the map; the other pages go deep.
 
-Mission SSOT: [00-mission.md](../../specs/088-data-layer/00-mission.md)
+## Stack
 
-## How to read these docs
-
-| File | Purpose |
-|---|---|
-| [00-inventory.md](./00-inventory.md) | Master table of every Ref ID |
-| [postgres.md](./postgres.md) | All `DATA-PG-*` operations |
-| [pgvector.md](./pgvector.md) | All `DATA-PGVEC-*` operations |
-| [age.md](./age.md) | All `DATA-AGE-*` operations |
-| [complexity-matrix.md](./complexity-matrix.md) | Complexity × limits × failure modes |
-| [version-matrix.md](./version-matrix.md) | PG16 / PG17 / PG18 results |
-| [indexes.md](./indexes.md) | Index catalog → consuming Ref IDs |
-| [benchmarks/](./benchmarks/) | Per-op EXPLAIN + scaling notes |
-| [improvements.md](./improvements.md) | Phase 5–6 **done & proved** SSOT (IMP catalog, evidence table, regression snapshot) |
-
-Canonical copies also live under `docs/data-layer/` (Definition of Done path).
-
-## Proven performance (Phase 6 summary)
-
-Request-path data access is optimized for **index-backed** work and **RT collapse**
-(O(K log N) / O(1) RT batches), not O(N) scans or O(K) network hops.
-
-| Domain | Win | How proven |
+| Component | Value | Source of truth |
 |---|---|---|
-| Graph | Native batch/BFS/delete/clear; Cypher opt-out only | `e2e_spec088` IMP-031*, `e2e_spec060` index plan |
-| Vectors | Filtered ANN iterative_scan + partial HNSW auto | IMP-001/002*, contract 075, return-K e2e |
-| Tasks | Fair claim UNION + SKIP LOCKED + claim index | IMP-140*, `postgres_claim_lease` 8/8 |
-| KV/API | Dual-key + multi-key `get_by_ids_ordered` SSOT | IMP-075* source contracts + unit/e2e |
+| PostgreSQL | 16, 17, or 18 (image default: 18) | `edgequake/docker/extension-pins.sh` |
+| pgvector (vector search) | 0.8.5 on all three majors. Anything below 0.8.2 is flagged as unsafe. | `extension-pins.sh`; checked at runtime by `edgequake-storage/src/adapters/postgres/capabilities.rs` |
+| Apache AGE (graph) | 1.6.0 on PG16, 1.7.0 on PG17, 1.8.0 on PG18 | `extension-pins.sh` |
+| Other extensions | `pg_trgm`, `btree_gin`, `uuid-ossp` | `edgequake/docker/init-extensions.sql` |
+| Driver | `sqlx` 0.8, raw SQL, no ORM | `edgequake/Cargo.toml` |
+| Schema writer | `edgequake migrate` only. The API never changes the schema. | [Upgrading](../operations/upgrading.md) |
 
-Full before/after table: **[improvements.md § Proven performance](./improvements.md#proven-performance-improvements-evidence-based)**.
+`DATABASE_URL` is required. There is no in-memory mode. By default one database serves all three roles (relational, graph, vector). The code also has optional providers for other backends (SQLite, Neo4j, Qdrant, standalone pgvector). This section covers the default setup only.
 
-## Ref ID scheme
+## Where each kind of data lives
 
+| Data | Where | Page |
+|---|---|---|
+| Tenants, workspaces, users, API keys | Plain tables | [postgres.md](./postgres.md) |
+| Documents and their chunk text | `documents`, `chunks` | [postgres.md](./postgres.md) |
+| Embeddings | `chunk_embeddings`, `entity_embeddings`, `relationship_embeddings`, `report_embeddings` | [pgvector.md](./pgvector.md) |
+| Knowledge graph | One AGE graph, labels `Node` and `EDGE` | [age.md](./age.md) |
+| Keyword search over chunks | `chunks.content_tsv` with a GIN index | [pgvector.md](./pgvector.md) |
+| Background jobs | `tasks` (partitioned by month) | [postgres.md](./postgres.md) |
+| LLM response cache | `llm_cache` | [llm-cache-scope.md](./llm-cache-scope.md) |
+| Encrypted provider connections (SPEC-163) | `provider_connections` | [postgres.md](./postgres.md) |
+
+The old per-workspace `eq_*_kv` and `eq_*_vectors` tables were dropped by migrations 125, 126, and 131. Current databases do not have them.
+
+## Core tables
+
+This diagram shows the main tables and how they link. Dashed lines are links by ID with no foreign key constraint. Read it from top to bottom: a tenant owns workspaces, a workspace owns documents, and documents split into chunks that carry embeddings.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+erDiagram
+    tenants ||--o{ workspaces : owns
+    workspaces ||..o{ documents : "scopes"
+    documents ||..o{ chunks : "split into"
+    chunks ||--o{ chunk_embeddings : "has vector"
+    embedding_models ||--o{ chunk_embeddings : "produced by"
+    chunks ||--o| chunk_serving_state : "visibility"
+    workspaces ||..o{ entities : "scopes"
+    workspaces ||..o{ relationships : "scopes"
+    entities ||--o{ entity_embeddings : "has vector"
 ```
-DATA-<ENGINE>-<DOMAIN>-<OPERATION>-<NNN>
-ENGINE ∈ PG | PGVEC | AGE
+
+## How a document becomes data
+
+A document goes through one write path. The pipeline commits chunks and embedding records in one transaction. It then merges entities and relationships into the graph. Last, it marks the chunks `ready` so queries can see them. This sentence introduces the diagram; read it left to right.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    A["Upload"] --> B["Task row in tasks"]
+    B --> C["Worker claims task"]
+    C --> D["Chunk and extract"]
+    D --> E["One transaction: chunks and embeddings"]
+    E --> F["Merge into AGE graph"]
+    F --> G["Mark chunks ready"]
+    G --> H["Visible to queries"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class E eqLlm
+class F eqStore
 ```
 
-- **Immutable**: never renumber, reuse, or delete. Deprecate with `@status deprecated`.
-- **Code**: `edgequake_storage::dataop` constants + `@dataop` annotation blocks.
-- **SQL**: `/* DATA-… */` comment prefix via `dataop::sql_comment` (visible in `pg_stat_statements`).
-- **Metrics**: `TimedStorageOp::start_dataop(REF)`.
+Key points:
 
-## Stack (verified)
+- The worker claims tasks with `FOR UPDATE SKIP LOCKED` and a lease, so two workers never take the same task.
+- The transaction in step E also writes an idempotency record (`mutation_requests`), so a retry does not double-write.
+- Step G sets `chunk_serving_state.state = 'ready'`. The serving fence (on by default) hides chunks that are not `ready`. See [serving-fence-decision.md](./serving-fence-decision.md).
 
-| Component | Pin |
+## How queries read data
+
+Each storage type has its own read path. All of them are scoped by tenant and workspace. The diagram shows the three paths side by side; start at "Query" and follow each branch.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    Q["Query"] --> V["Vector path"]
+    Q --> K["Keyword path"]
+    Q --> G["Graph path"]
+    V --> V1["chunk_embeddings, HNSW index"]
+    K --> K1["chunks.content_tsv, GIN index"]
+    G --> G1["AGE Node and EDGE tables"]
+    V1 --> F["Fence check: state is ready"]
+    K1 --> F
+    G1 --> R["Context for the answer"]
+    F --> R
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class V1 eqLlm
+class G1 eqStore
+```
+
+## Tenant and workspace isolation
+
+- Every scoped table carries `tenant_id` and/or `workspace_id`.
+- Scoped data-access transactions set the tenant context and switch to the `edgequake_tenant_access` role. That role cannot bypass Row-Level Security (RLS, rules that filter rows per session). The application layer also filters by scope, because not every query uses a scoped transaction.
+- The AGE graph is shared. Isolation there comes from `tenant_id` and `workspace_id` properties on nodes and edges, plus application filters.
+
+Details and the history of this decision: [rls-superuser-acceptance.md](./rls-superuser-acceptance.md).
+
+## Page map
+
+| Page | What it covers |
 |---|---|
-| PostgreSQL | 16 / 17 / **18** (default) |
-| pgvector | **0.8.5** (≥0.8.2 CVE floor) |
-| Apache AGE | **1.8.0** (PG18) |
-| Driver | sqlx 0.8 |
-| Migrations | sqlx migrate + checksum lock + every-boot reconcile |
+| [schema-er.md](./schema-er.md) | Full Mermaid E/R diagrams of every domain (tenancy, documents, PDF, graph read models, embeddings, tasks, durable writes, SSO, caches) |
+| [postgres.md](./postgres.md) | Tables, tenancy, connection pools, timeouts, migrations, plain-SQL operation catalog |
+| [pgvector.md](./pgvector.md) | Embedding tables, HNSW indexes, search tuning, vector operation catalog |
+| [age.md](./age.md) | Graph model, Cypher and native SQL, graph operation catalog |
+| [indexes.md](./indexes.md) | Which operations use which index |
+| [complexity-matrix.md](./complexity-matrix.md) | Expected cost and failure modes per operation class |
+| [00-inventory.md](./00-inventory.md) | What Ref IDs are and how many exist |
+| [version-matrix.md](./version-matrix.md) | PG16, PG17, PG18 differences and test status |
+| [version-matrix-results.md](./version-matrix-results.md) | One captured run of the test suites |
+| [pg17-differential.md](./pg17-differential.md), [pg18-adoption.md](./pg18-adoption.md) | Decisions about version-specific features |
+| [serving-fence-decision.md](./serving-fence-decision.md), [llm-cache-scope.md](./llm-cache-scope.md), [jsonb-envelope-acceptance.md](./jsonb-envelope-acceptance.md), [rls-superuser-acceptance.md](./rls-superuser-acceptance.md) | Design decisions |
+| [improvements.md](./improvements.md) | Historical record of the SPEC-088 performance work |
+| [benchmarks/](./benchmarks/README.md) | Plan templates per hot operation |
 
-## Lint
+## Ref IDs and tests
+
+Every operation in the original SPEC-088 inventory has a Ref ID such as `DATA-AGE-GRAPH-UPSERT-NODES-BATCH-046`. IDs never change. They appear as `/* DATA-... */` comment prefixes on SQL, so you can find them in `pg_stat_statements`. Metrics use the same ID (`TimedStorageOp::start_dataop`). See [00-inventory.md](./00-inventory.md).
 
 ```bash
+# Unit tests, no database needed
+cargo test -p edgequake-storage --lib dataop
+
+# Operation matrix and contract tests (need DATABASE_URL)
+export DATABASE_URL=postgres://edgequake:edgequake_secret@localhost:5432/edgequake
+cargo test -p edgequake-storage --features postgres --test data_layer_ops_matrix -- --test-threads=4
+cargo test -p edgequake-storage --features postgres --test e2e_spec088_improvements
+cargo test -p edgequake-storage --features postgres --test e2e_spec060_age_expand_perf
+cargo test -p edgequake-tasks --features postgres --test postgres_claim_lease -- --test-threads=1
+
+# Check that the inventory, code constants, and spec docs agree
 python3 specs/088-data-layer/scripts/lint_dataop_xref.py
 ```
 
-## Tests
-
-```bash
-# Unit (no DB): registry integrity
-cargo test -p edgequake-storage --lib dataop
-
-# Phase 6 IMP e2e + source contracts (requires DATABASE_URL for DB-backed cases)
-export DATABASE_URL=postgres://edgequake:edgequake_secret@localhost:5432/edgequake
-cargo test -p edgequake-storage --features postgres --test e2e_spec088_improvements
-
-# Ops matrix (235+ Ref IDs)
-cargo test -p edgequake-storage --features postgres --test data_layer_ops_matrix -- --test-threads=4
-
-# Data-layer contract tests (optional DB)
-cargo test -p edgequake-storage --test data_layer_registry -- --nocapture
-cargo test -p edgequake-storage --test data_layer_limits -- --nocapture
-
-# Expand plan smoke (Bitmap Index Scan)
-cargo test -p edgequake-storage --features postgres --test e2e_spec060_age_expand_perf
-
-# Fair claim lease e2e
-cargo test -p edgequake-tasks --features postgres --test postgres_claim_lease -- --test-threads=1
-```
-
-Filter by Ref ID:
-
-```bash
-cargo test -p edgequake-storage --test data_layer_limits DATA_PGVEC_VECTORS_ANN_QUERY_001
-```
+Mission statement and original spec: [specs/088-data-layer/00-mission.md](../../specs/088-data-layer/00-mission.md).

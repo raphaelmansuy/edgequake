@@ -1,12 +1,15 @@
-# Production hardening
+---
+title: Production hardening
+description: The startup gates enforced when SSO is active and a checklist for a safe production SSO deployment.
+---
 
-## Startup gates (enforced when SSO is active)
+## Startup gates
 
-The server **refuses to start** outside `EDGEQUAKE_DEV_MODE` unless: `EDGEQUAKE_AUTH_ENABLED=true`,
-`EDGEQUAKE_STRICT_TENANT_BIND` is on (forced), and every OIDC redirect URI is `https://`
-(`http://localhost` is tolerated). In dev mode violations become warnings.
+When SSO is active, the server refuses to start outside `EDGEQUAKE_DEV_MODE` unless all of these hold: auth is enabled (`EDGEQUAKE_AUTH_ENABLED=true`), strict tenant binding is on (EdgeQuake turns it on for you), and every OIDC redirect URI uses `https://` (`http://localhost` and `http://127.0.0.1` are tolerated). In dev mode each violation becomes a warning. These gates are in addition to the general [startup checks](../best-practices.md#startup-posture-checks).
 
 ## Checklist
+
+Treat the items below as the minimum for a production SSO deployment.
 
 - Keycloak >= 26.8.0 (fixes CVE-2026-4633, organization enumeration); pin the image digest.
 - TLS everywhere; `sslRequired=external` in the realm (the dev overlay sets `none` via

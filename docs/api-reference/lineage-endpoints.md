@@ -1,5 +1,6 @@
 ---
 title: 'Lineage API Reference'
+description: "REST endpoints for document lineage, chunk provenance, and entity traceability."
 ---
 
 # Lineage API Reference

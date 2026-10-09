@@ -1,5 +1,6 @@
 ---
 title: "Go SDK"
+description: "Go SDK for EdgeQuake."
 ---
 
 # Go SDK

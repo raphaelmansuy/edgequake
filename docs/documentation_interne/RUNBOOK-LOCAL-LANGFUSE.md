@@ -1,5 +1,6 @@
 ---
 title: "EdgeQuake v0.26.4 — Démarrage local avec Langfuse"
+description: "Historical runbook for a local Langfuse stack."
 ---
 
 # EdgeQuake v0.26.4 — Démarrage local avec Langfuse

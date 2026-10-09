@@ -1,5 +1,6 @@
 ---
 title: "SDK version policy (SPEC-083 X-33)"
+description: "How EdgeQuake SDK versions track the server."
 ---
 
 # SDK version policy (SPEC-083 X-33)

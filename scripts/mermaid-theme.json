@@ -1,0 +1,73 @@
+{
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, system-ui, -apple-system, Segoe UI, sans-serif",
+    "fontSize": "15px",
+    "primaryColor": "#E0E7FF",
+    "primaryBorderColor": "#6366F1",
+    "primaryTextColor": "#1E1B4B",
+    "secondaryColor": "#D1FAE5",
+    "secondaryBorderColor": "#10B981",
+    "secondaryTextColor": "#064E3B",
+    "tertiaryColor": "#FEF3C7",
+    "tertiaryBorderColor": "#F59E0B",
+    "tertiaryTextColor": "#6B7A90",
+    "lineColor": "#7A889C",
+    "textColor": "#6B7A90",
+    "clusterBkg": "rgba(99,102,241,0.07)",
+    "clusterBorder": "#A5B4FC",
+    "edgeLabelBackground": "#F1F5F9",
+    "noteBkgColor": "#FEF9C3",
+    "noteBorderColor": "#EAB308",
+    "noteTextColor": "#422006",
+    "actorBkg": "#E0E7FF",
+    "actorBorder": "#6366F1",
+    "actorTextColor": "#1E1B4B",
+    "actorLineColor": "#94A3B8",
+    "signalColor": "#7A889C",
+    "signalTextColor": "#6B7A90",
+    "activationBkgColor": "#C7D2FE",
+    "activationBorderColor": "#6366F1",
+    "labelBoxBkgColor": "#E0E7FF",
+    "labelBoxBorderColor": "#6366F1",
+    "labelTextColor": "#1E1B4B",
+    "loopTextColor": "#6B7A90",
+    "sequenceNumberColor": "#FFFFFF",
+    "errorBkgColor": "#FEE2E2",
+    "errorTextColor": "#7F1D1D",
+    "git0": "#6366F1",
+    "git1": "#10B981",
+    "git2": "#F59E0B",
+    "git3": "#EC4899",
+    "titleColor": "#6B7A90"
+  },
+  "flowchart": {
+    "curve": "basis",
+    "htmlLabels": true,
+    "padding": 12
+  },
+  "classes": {
+    "eqStore": "fill:#D1FAE5,stroke:#10B981,color:#064E3B",
+    "eqLlm": "fill:#FEF3C7,stroke:#F59E0B,color:#451A03",
+    "eqActor": "fill:#FCE7F3,stroke:#EC4899,color:#500724",
+    "eqBad": "fill:#FEE2E2,stroke:#EF4444,color:#7F1D1D"
+  },
+  "roles": [
+    [
+      "eqBad",
+      "error|fail|reject|denied|unauthori[sz]ed|forbidden|abort|blocked|invalid|refus|exit 7|timeout|\\b40[0-9]\\b|\\b50[0-9]\\b"
+    ],
+    [
+      "eqActor",
+      "\\buser\\b|client|browser|web ?ui|\\bcli\\b|\\bsdk\\b|operator|developer|\\bmcp\\b|caller|admin"
+    ],
+    [
+      "eqLlm",
+      "\\bllm\\b|openai|anthropic|ollama|\\bmodels?\\b|embedding|provider|gemini|mistral|vision|omlx|\\bmlx|llama|lm studio|connection"
+    ],
+    [
+      "eqStore",
+      "postgres|database|\\bdb\\b|storage|pgvector|\\bage\\b|vector (store|db|index)|cache|\\bkv\\b|table|queue|disk|redis|migration"
+    ]
+  ]
+}

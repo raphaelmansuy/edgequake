@@ -1,5 +1,6 @@
 ---
 title: 'Deep Dive: Graph Storage'
+description: "How the knowledge graph is stored and queried."
 ---
 
 > **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)

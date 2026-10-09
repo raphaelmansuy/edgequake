@@ -1,274 +1,123 @@
 ---
-title: 'Hybrid Retrieval'
+title: Hybrid Retrieval
+description: How EdgeQuake answers a question by combining vector search with knowledge graph traversal, and how to choose one of the six query modes.
 ---
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Released: v0.32.2** · Contract: [OpenAPI snapshot](../../edgequake_webui/openapi/openapi.snapshot.json) · Ops: [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md)
 
 # Hybrid Retrieval
 
-> **Hybrid retrieval combines vector similarity search with knowledge graph
-> traversal to provide comprehensive context for LLM responses.**
+Hybrid retrieval answers a question by using vector search and the knowledge graph together. This page explains the six query modes and how to pick one. It is for developers who call the query API or tune answers.
 
----
+## The idea
 
-## What is Hybrid Retrieval?
+Vector search finds text that sounds like the question. Graph traversal follows links between entities. Each misses things the other finds, so EdgeQuake can use both.
 
-Hybrid retrieval uses **both** approaches together:
-
-1. **Vector Search**: Find semantically similar content
-2. **Graph Traversal**: Follow entity relationships
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    HYBRID RETRIEVAL                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│                       USER QUERY                                  │
-│                           │                                       │
-│              ┌────────────┴────────────┐                         │
-│              │                         │                          │
-│              v                         v                          │
-│     ┌─────────────────┐       ┌─────────────────┐                │
-│     │  VECTOR SEARCH  │       │ GRAPH TRAVERSAL │                │
-│     │                 │       │                 │                │
-│     │ • Embeddings    │       │ • Entity match  │                │
-│     │ • Cosine sim    │       │ • 1-hop neighbors│               │
-│     │ • Top-K chunks  │       │ • Relationship  │                │
-│     └────────┬────────┘       └────────┬────────┘                │
-│              │                         │                          │
-│              └────────────┬────────────┘                         │
-│                           │                                       │
-│                           v                                       │
-│              ┌─────────────────────────┐                         │
-│              │    CONTEXT FUSION       │                         │
-│              │  • Deduplicate          │                         │
-│              │  • Rank by relevance    │                         │
-│              │  • Truncate to limit    │                         │
-│              └────────────┬────────────┘                         │
-│                           │                                       │
-│                           v                                       │
-│              ┌─────────────────────────┐                         │
-│              │     LLM GENERATION      │                         │
-│              └─────────────────────────┘                         │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    Q["Question"] --> V["Vector search"]
+    Q --> G["Graph traversal"]
+    V --> F["Fuse and deduplicate"]
+    G --> F
+    F --> T["Truncate to token budget"]
+    T --> L["Model writes answer"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class L eqLlm
 ```
 
----
+Read the chart from the top. The two searches run side by side. Their results are merged, trimmed to fit the model's context, and sent to the model.
 
-## Vector Search vs Graph Traversal
+| Aspect | Vector search | Graph traversal |
+|--------|---------------|-----------------|
+| Best for | Similar meaning | Links between entities |
+| Finds | Similar text chunks | Connected entities and relations |
+| Misses | Indirect connections | Nuance that is not in an edge |
 
-Each approach has strengths:
+Example question: "What did Sarah Chen work on?" Vector search returns chunks that mention Sarah Chen. The graph adds the edge `SARAH_CHEN` researches `NEURAL_NETWORKS`. Together they give a fuller context.
 
-| Aspect       | Vector Search        | Graph Traversal       |
-| ------------ | -------------------- | --------------------- |
-| **Best for** | Semantic similarity  | Entity relationships  |
-| **Finds**    | Similar text chunks  | Connected entities    |
-| **Misses**   | Indirect connections | Semantic nuance       |
-| **Speed**    | Fast (HNSW index)    | Medium (path queries) |
+## Two levels, as in LightRAG
 
-**Example:**
+EdgeQuake follows the LightRAG idea of two retrieval levels:
 
-Query: _"What did Sarah Chen work on?"_
+- **Low level.** Start from entities named in the question and read their direct neighbors. This fits "Who is Sarah Chen?"
+- **High level.** Search relationship descriptions for broad themes. This fits "What are the main AI research themes?"
 
-- **Vector search** finds: Chunks mentioning "Sarah Chen"
-- **Graph traversal** finds: `SARAH_CHEN --[researches]--> NEURAL_NETWORKS`
+## The six query modes
 
-**Combined**: More complete context than either alone.
+Set `mode` in the request. If you leave it out, EdgeQuake uses `mix`.
 
----
+| Mode | What it searches | Best for |
+|------|------------------|----------|
+| `naive` | Chunk vectors only | Simple facts |
+| `local` | Entity vectors, then each entity's neighborhood | "Who or what is X?" |
+| `global` | Relationship vectors plus graph context | "What are the themes?" |
+| `hybrid` | Local, global and naive, interleaved round-robin | Multi-part questions |
+| `mix` | Local, global and naive, blended by weights or rank fusion | General use (default) |
+| `bypass` | Nothing; the model answers alone | Testing and debugging |
 
-## Dual-Level Approach
+Two points differ from upstream LightRAG. EdgeQuake `hybrid` also includes the naive chunk arm. EdgeQuake `mix` blends the arms by weighted score, not round-robin. Always set `mode` explicitly when you compare systems.
 
-EdgeQuake implements LightRAG's dual-level retrieval:
+### Choose a mode
 
-### Low-Level Retrieval
-
-Focuses on **specific entities** and their immediate neighbors:
-
-```
-Query: "Who is Sarah Chen?"
-
-Low-Level Results:
-┌─────────────────────────────────────────────┐
-│  SARAH_CHEN (direct match)                  │
-│  ├── Description: "Lead researcher at..."  │
-│  │                                           │
-│  ├── QUANTUM_LAB (1-hop neighbor)           │
-│  │   └── via: WORKS_AT                      │
-│  │                                           │
-│  ├── NEURAL_NETWORKS (1-hop neighbor)       │
-│  │   └── via: RESEARCHES                    │
-│  │                                           │
-│  └── BOB_SMITH (1-hop neighbor)             │
-│      └── via: COLLABORATES_WITH             │
-└─────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    A["Start"] --> B{"Testing without retrieval?"}
+    B -->|yes| BY["bypass"]
+    B -->|no| C{"About one entity?"}
+    C -->|yes| LO["local"]
+    C -->|no| D{"About broad themes?"}
+    D -->|yes| GL["global"]
+    D -->|no| E{"Simple fact?"}
+    E -->|yes| NA["naive"]
+    E -->|no| MX["mix or hybrid"]
 ```
 
-### High-Level Retrieval
+Read the chart from the top and take the first branch that fits. When unsure, use `mix`.
 
-Focuses on **broad topics** and theme summaries:
+## Fusion and truncation
 
-```
-Query: "What are the main AI research themes?"
+After retrieval, EdgeQuake collects chunks, entities and relationships, removes duplicates, ranks them, and trims them to a token budget.
 
-High-Level Results:
-┌─────────────────────────────────────────────┐
-│  Topic Cluster: "AI RESEARCH"               │
-│  ├── Key themes:                            │
-│  │   • Neural network architectures        │
-│  │   • Deep learning optimization          │
-│  │   • Computer vision applications        │
-│  │                                           │
-│  └── Related entities: 45                   │
-└─────────────────────────────────────────────┘
-```
+| Budget | Default |
+|--------|---------|
+| Entity descriptions | 6,000 tokens |
+| Relationship descriptions | 8,000 tokens |
+| Total context | 30,000 tokens |
+| Reserved buffer | 200 tokens |
+| Minimum share for chunks | 40% of the budget after the buffer |
 
----
+The chunk floor stops entities and relationships from crowding out the source text. Set `EDGEQUAKE_MIN_CHUNK_BUDGET_RATIO` to change it (range 0.0 to 0.9). For `mix`, you can pass `mix_weights` in the request to change how much each arm counts.
 
-## Query Modes
-
-EdgeQuake offers 6 query modes for different use cases:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    QUERY MODE SPECTRUM                           │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Speed ────────────────────────────────────────▶ Comprehensiveness│
-│                                                                   │
-│  ┌───────┐  ┌───────┐  ┌───────┐  ┌───────┐  ┌───────┐         │
-│  │ Naive │  │ Local │  │ Global│  │ Hybrid│  │  Mix  │         │
-│  │       │  │       │  │       │  │       │  │       │         │
-│  │ Vector│  │Entity │  │Topics │  │ Both  │  │Weighted│        │
-│  │ only  │  │+1-hop │  │only   │  │       │  │ blend │         │
-│  └───────┘  └───────┘  └───────┘  └───────┘  └───────┘         │
-│                                                                   │
-│  FASTEST ◄─────────────────────────────────► MOST COMPLETE      │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-| Mode       | Vector   | Graph       | Best For                        |
-| ---------- | -------- | ----------- | ------------------------------- |
-| **Naive**  | ✅       | ❌          | Simple factual queries          |
-| **Local**  | ✅       | ✅ Entities | "Who/What is X?"                |
-| **Global** | ❌       | ✅ Topics   | "What are the themes?"          |
-| **Hybrid** | ✅       | ✅ Both     | Complex multi-faceted           |
-| **Mix**    | Weighted | Weighted    | Custom blend (**API default**)  |
-| **Bypass** | ❌       | ❌          | Testing/debugging               |
-
----
-
-## Context Fusion
-
-After retrieval, results are fused into a coherent context:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    CONTEXT FUSION                                │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Step 1: COLLECT                                                 │
-│  ├── Chunks from vector search (10)                             │
-│  ├── Entities from graph (20)                                   │
-│  └── Relationships from graph (15)                              │
-│                                                                   │
-│  Step 2: DEDUPLICATE                                             │
-│  └── Remove overlapping content                                  │
-│                                                                   │
-│  Step 3: RANK                                                    │
-│  └── Score by relevance to query                                 │
-│                                                                   │
-│  Step 4: TRUNCATE                                                │
-│  └── Fit within context window (30000 tokens default)           │
-│                                                                   │
-│  Step 5: FORMAT                                                  │
-│  └── Structure for LLM consumption                               │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Balanced Truncation
-
-EdgeQuake uses intelligent truncation to preserve diversity:
-
-```rust
-// From truncation.rs (LightRAG constants, LR_*)
-pub struct TruncationConfig {
-    pub max_entity_tokens: usize,       // 6000
-    pub max_relation_tokens: usize,     // 8000
-    pub max_total_tokens: usize,        // 30000
-    pub buffer_tokens: usize,           // 200
-    pub min_chunk_budget_ratio: f32,    // 0.40 (EDGEQUAKE_MIN_CHUNK_BUDGET_RATIO, clamp [0.0, 0.9])
-}
-```
-
-Rather than just taking "top N" of each, it balances across categories: the chunk budget is `max_total_tokens − entity_tokens − relation_tokens − buffer`, with a floor that reserves at least 40% of the budget for document chunks.
-
----
-
-## Choosing a Mode
-
-**Decision guide:**
-
-```
-Is this a test/debug? ───▶ Use BYPASS
-                │
-                No
-                │
-                v
-Is it about specific entities? ───▶ Use LOCAL
-("Who is X?", "What is Y?")
-                │
-                No
-                │
-                v
-Is it about broad themes? ───▶ Use GLOBAL
-("What are the main topics?")
-                │
-                No
-                │
-                v
-Is it complex/multi-faceted? ───▶ Use HYBRID
-("How does X relate to Y?")
-                │
-                │
-                v
-Need weighted control? ───▶ Use MIX (production default, RRF fusion)
-```
-
----
-
-## API Usage
+## API example
 
 ```bash
-# Query with specific mode
-curl -X POST http://localhost:8080/api/v1/query \
+# Explicit mode
+curl -s -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
-  -d '{
-    "query": "Who is Sarah Chen?",
-    "mode": "local"
-  }'
+  -d '{"query": "Who is Sarah Chen?", "mode": "local"}' | jq -r .answer
 
-# Query with default mode (mix when mode is unset)
-curl -X POST http://localhost:8080/api/v1/query \
-  -d '{"query": "Tell me about the research"}'
+# Default mode (mix)
+curl -s -X POST http://localhost:8080/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Tell me about the research"}' | jq -r .answer
 ```
 
----
+Use port 8090 with `make dev`. The reply has `answer`, `mode`, `sources`, `stats`, and more. Other request fields include `include_references`, `include_subgraph`, `max_results`, `enable_rerank`, `conversation_history` and `document_filter`. See [Query modes](../deep-dives/query-modes.md) and the [REST API](../api-reference/rest-api.md).
 
-## Learn More
+## Learn more
 
-- **Foundation concept**: [Graph-RAG](/docs/concepts/graph-rag/)
-- **How entities are extracted**: [Entity Extraction](/docs/concepts/entity-extraction/)
-- **Storage details**: [Knowledge Graph](/docs/concepts/knowledge-graph/)
-- **Deep dive**: [LightRAG Algorithm](/docs/deep-dives/lightrag-algorithm/)
+- [Graph-RAG](graph-rag.md): the foundation.
+- [Entity extraction](entity-extraction.md): how entities are found.
+- [Knowledge graph](knowledge-graph.md): how data is stored.
+- [LightRAG algorithm](../deep-dives/lightrag-algorithm.md)
 
----
+## Source code
 
-## Source Code
-
-- **Query engine**: [`edgequake-query/src/engine_impl/`](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-query/src/engine_impl/)
-- **Query modes**: [`modes.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-query/src/modes.rs)
-- **Context building**: [`context.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-query/src/context.rs)
+- [Query engine](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-query/src/engine_impl)
+- [Query modes](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-query/src/modes.rs)
+- [Context building](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-query/src/context.rs)

@@ -2,7 +2,11 @@
 //!
 //! Public endpoints used by the First-Run Wizard before any login-capable user exists.
 
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{
+    extract::State,
+    http::{HeaderMap, StatusCode},
+    Json,
+};
 use edgequake_core::{CreateWorkspaceRequest, Tenant, TenantPlan, UpdateWorkspaceRequest};
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -411,8 +415,21 @@ pub async fn setup_status(
 )]
 pub async fn setup_initialize(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(request): Json<SetupInitializeRequest>,
 ) -> Result<(StatusCode, Json<SetupInitializeResponse>), ApiError> {
+    if let Ok(expected) = std::env::var("EDGEQUAKE_SETUP_TOKEN") {
+        let expected = expected.trim().to_string();
+        if !expected.is_empty() {
+            let got = headers
+                .get("x-edgequake-setup-token")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("");
+            if got != expected {
+                return Err(ApiError::Unauthorized(None));
+            }
+        }
+    }
     let status = collect_setup_status(&state).await?;
     if !status.needs_setup {
         return Err(ApiError::Conflict(

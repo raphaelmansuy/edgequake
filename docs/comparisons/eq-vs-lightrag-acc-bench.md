@@ -3,13 +3,39 @@ title: 'EQ vs LightRAG — Acc Bench (SPEC-001)'
 description: Measured GraphRAG-Bench Acc, fair cold latency, and labeled warm cache latency for EdgeQuake vs LightRAG.
 ---
 
-# EdgeQuake vs LightRAG — Acc Bench (SPEC-001)
+# EdgeQuake vs LightRAG: Acc Bench (SPEC-001)
 
-> **Publish Acc SSOT** · GraphRAG-Bench medical-mid · `make bench` · 2026-08-16 (full-scale refresh)
+This page reports the measured head-to-head between EdgeQuake and LightRAG on answer accuracy and query latency. It is the single source of truth (SSOT) for these numbers, for anyone who needs to quote them. Do not change a measured value here without a new benchmark run.
 
-Fair dual-SUT head-to-head: same corpus, questions, Mix mode, Mistral Small + `mistral-embed`, official `generation_eval`. **Not** UltraDomain win-rates · **not** paper Table-2 (GPT-4o-mini + BGE).
+**In one line:** on accuracy the two systems are a statistical tie. LightRAG retrieves slightly better evidence. Cold latency is about equal. With a warm cache, EdgeQuake answers faster.
 
-Protocol: [SPEC-001 index](../../specs/001-benchmark/000-index.md) · Business brief: [019](../../specs/001-benchmark/019-business-eq-vs-lightrag-and-rag.md)
+Terms used below:
+
+- **Acc** is answer accuracy as scored by the benchmark's official `generation_eval`.
+- **p50** is the median time for a query.
+- **CI** is a 95% confidence interval. If the CI for the difference includes 0, the result is a tie.
+- **Cold** means no LLM cache. **Warm** means the LLM and embedding caches are on for both systems.
+
+> Publish Acc SSOT. GraphRAG-Bench medical-mid. Run with `make bench`. Last full-scale refresh: 2026-08-16.
+
+The test is fair and dual-system: same corpus, same questions, Mix mode, Mistral Small plus `mistral-embed`, and the official `generation_eval`. It is **not** the UltraDomain win-rate test, and it is **not** the paper's Table 2 (GPT-4o-mini plus BGE).
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    corpus["Same corpus and questions"] --> eq["EdgeQuake, Mix mode"]
+    corpus --> lr["LightRAG, Mix mode"]
+    eq --> eval["Official generation_eval"]
+    lr --> eval
+    eval --> acc["Acc and evidence scores"]
+    eq --> lat["Latency timing"]
+    lr --> lat
+```
+
+Read it left to right. Both systems get the same inputs and the same scorer, so differences come from the systems.
+
+Protocol: [SPEC-001 index](../../specs/001-benchmark/000-index.md). Business brief: [019](../../specs/001-benchmark/019-business-eq-vs-lightrag-and-rag.md).
 
 ---
 
@@ -20,7 +46,7 @@ Protocol: [SPEC-001 index](../../specs/001-benchmark/000-index.md) · Business b
 | **Acc** (n=200)   | **0.792** | **0.786** | Statistical tie (Δ CI includes 0); **not Acc Beat**                   |
 | **Acc** (n=2062)  | **0.786** | **0.786** | Point tie on Acc-law full (peer `ACC_E2OCC_086_MEDICAL_FULL_v1`); **not Beat** |
 | Evidence recall   | 0.932     | 0.949     | LightRAG                                                              |
-| Context relevancy | 0.471     | 0.510     | LightRAG (`ctx_rel` still &lt; 0.50 promote gate)                      |
+| Context relevancy | 0.471     | 0.510     | LightRAG (`ctx_rel` still below the 0.50 promote gate)                      |
 | Cold query p50    | 4447 ms   | 4359 ms   | **≈ tied (1.02×)** (peer `C1COLD_v1`, unchanged)                      |
 | Warm cache p50    | **82 ms** | 993 ms    | **EQ 0.083×** — labeled peer `EQ_LLM_CACHE_WARM_v1` (LLM+embed cache) |
 
@@ -40,7 +66,7 @@ Best known Acc pack (E2-occ 086, chunk 1200/100, GWC off, pool=mix, query-only o
 | Archive | [`medical-full-20260816T012004Z`](../../specs/001-benchmark/e2e/artifacts/history/medical-full-20260816T012004Z/) |
 | Ingest pin | chunk **1200/100** (LR CHUNK_SIZE parity) |
 | Acc | EQ **0.786** · LR **0.786** (point tie; bootstrap paired n=16 underpowered) |
-| ctx_rel | EQ 0.427 · LR 0.485 — still **&lt; 0.50** |
+| ctx_rel | EQ 0.427 · LR 0.485 — still **below 0.50** |
 | overall ER / Fact ER | 0.927 / **0.914** vs LR 0.947 / 0.945 |
 | vs P0 full (Jul 22) | Acc 0.724 → **0.786** (closed 6pp scale gap) |
 | `can_claim_beats_lightrag` | `false` |

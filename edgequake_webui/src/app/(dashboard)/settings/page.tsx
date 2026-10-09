@@ -5,7 +5,10 @@ import { AppAttributionSettingsCard } from '@/components/settings/app-attributio
 import { AdminQuotaSection } from '@/components/settings/admin-quota-section';
 import { ConfigExplainabilityPanel } from '@/components/settings/config-explainability-panel';
 import { PdfParserSettingsCard } from '@/components/settings/pdf-parser-settings-card';
+import { ConnectionsCard } from '@/components/settings/connections-card';
 import { ProviderStatusCard } from '@/components/settings/provider-status-card';
+import { ProviderStatusHub } from '@/components/settings/provider-status-hub';
+import { RoleMatrixCard } from '@/components/settings/role-matrix-card';
 import { LangfuseObservabilityCard } from '@/components/settings/langfuse-observability-card';
 import { IdentityProvidersCard } from '@/components/settings/identity-providers-card';
 import { UserManagementCard } from '@/components/settings/user-management-card';
@@ -45,6 +48,23 @@ import { useTheme } from 'next-themes';
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
+import { fetchProvidersHealth } from '@/lib/api/models';
+
+function SettingsProviderHub() {
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['provider-health'],
+    queryFn: fetchProvidersHealth,
+    staleTime: 15_000,
+  });
+  return (
+    <ProviderStatusHub
+      providers={data}
+      isLoading={isLoading}
+      onRefresh={() => void refetch()}
+    />
+  );
+}
 
 export default function SettingsPage() {
   const { t } = useTranslation();
@@ -231,7 +251,12 @@ export default function SettingsPage() {
       {/* Server LLM defaults + priority mode (SPEC-043) */}
       <ServerLlmConfigCard />
 
+      <ConnectionsCard />
+
+      <RoleMatrixCard />
+
       {/* Provider Status */}
+      <SettingsProviderHub />
       <ProviderStatusCard />
 
       {/* Langfuse Observability (SPEC-124) */}

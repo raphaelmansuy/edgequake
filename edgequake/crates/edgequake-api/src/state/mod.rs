@@ -391,6 +391,8 @@ impl AppState {
             Arc::clone(&self.query.pipeline),
         )
         .with_decision(Some(self.decision.clone()));
+        #[cfg(feature = "postgres")]
+        let factory = factory.with_pg_pool(self.pg_pool.clone());
         factory
             .resolve(
                 workspace_id,

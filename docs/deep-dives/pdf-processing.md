@@ -1,5 +1,6 @@
 ---
 title: 'PDF Processing Deep Dive'
+description: "PDF convert and vision pipeline internals."
 ---
 
 > **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)

@@ -1,5 +1,6 @@
 ---
 title: 'Deep Dive: Embedding Models'
+description: "How EdgeQuake selects and runs embedding models."
 ---
 
 > **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)

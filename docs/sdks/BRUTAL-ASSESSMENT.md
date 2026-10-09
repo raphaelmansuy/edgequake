@@ -1,5 +1,6 @@
 ---
 title: "Brutal honest SDK assessment"
+description: "Historical assessment of the SDK surface."
 ---
 
 # Brutal honest SDK assessment

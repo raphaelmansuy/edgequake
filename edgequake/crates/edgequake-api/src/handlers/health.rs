@@ -38,7 +38,7 @@ pub use crate::handlers::health_types::{
     IngestionHealthSnapshot, LlmProviderHealth, MigrationHealthSnapshot,
     ObservabilityHealthSnapshot, OperationalHealth, PoolRoleHealth, PostgresCapabilityHealth,
     ProvidersHealth, QueryEngineHealthSnapshot, ReadModelHealthSnapshot, SchemaHealth,
-    SourceIdsIndexHealth, StorageHealthSnapshot, TaskQueueHealthSnapshot,
+    SecurityPosture, SourceIdsIndexHealth, StorageHealthSnapshot, TaskQueueHealthSnapshot,
 };
 
 /// Deep health check with component status.
@@ -109,7 +109,10 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
         vector_storage: vector_ok,
         graph_storage: graph_ok,
         graph_available,
-        llm_provider: true, // Assume available, actual check would require API call
+        llm_provider: crate::providers::probe::probe_named_provider_reachable(
+            state.query.llm_provider.name(),
+        )
+        .await,
         eq_id_schema,
     };
 
@@ -133,6 +136,8 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
         || storage_degraded
         || queue_overloaded
         || !eq_id_ok
+        || (!components.llm_provider
+            && crate::locality::is_slow_local_provider(state.query.llm_provider.name()))
     {
         "degraded"
     } else {
@@ -217,6 +222,15 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
             byte_admission_process_local: Some(true),
         }),
         attribution: Some(crate::attribution::health_attribution_summary()),
+        security_posture: Some(SecurityPosture {
+            auth_enabled: state.auth.config.auth_enabled,
+            dev_mode: state.auth.config.dev_mode,
+            secrets_key_configured: edgequake_secrets::secrets_configured(),
+            jwt_secret_is_default: state.auth.config.jwt_secret
+                == edgequake_auth::DEFAULT_INSECURE_JWT_SECRET,
+            rate_limit_enabled: state.security.rate_limit_enabled,
+            swagger_enabled: true,
+        }),
     };
 
     Ok(Json(response))

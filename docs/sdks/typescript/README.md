@@ -1,5 +1,6 @@
 ---
 title: "TypeScript / Node SDK"
+description: "TypeScript SDK for EdgeQuake."
 ---
 
 # TypeScript / Node SDK

@@ -1,3 +1,10 @@
+---
+title: "✅ DOCKER DEPLOYMENT - COMPLETE"
+description: "Historical note: Docker deployment summary."
+---
+
+> **Historical note.** This page may not match the current product. Prefer the guides under Getting started, Operations, and Providers.
+
 # ✅ DOCKER DEPLOYMENT - COMPLETE
 
 ## Mission Status: SUCCESSFUL ✨

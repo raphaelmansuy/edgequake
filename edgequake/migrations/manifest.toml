@@ -4,7 +4,7 @@
 
 schema_version = 1
 compat_serve_min = 149
-compat_serve_max = 168
+compat_serve_max = 169
 irreversible_drop = [125, 126, 131]
 legacy_cutover_assert = 142
 
@@ -1220,6 +1220,13 @@ lock_class = "ddl_access_exclusive"
 [[migration]]
 version = 168
 file = "168_identity_lockout_columns.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 169
+file = "169_spec163_provider_connections.sql"
 phase = "expand"
 no_transaction = false
 lock_class = "ddl_access_exclusive"

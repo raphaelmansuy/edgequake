@@ -1,443 +1,174 @@
 ---
-title: 'Lineage Tracking Architecture'
+title: 'Lineage Tracking'
+description: How EdgeQuake records where each chunk, entity, and relationship came from, so you can trace any answer back to a source document, page, and line.
 ---
 
-# Lineage Tracking Architecture
+# Lineage Tracking
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+Lineage is the record of where each piece of knowledge came from. This page explains what is recorded, where it is stored, and how to read it. It is for developers who build on the lineage API, and for users who need to audit an answer.
 
-> Complete traceability from source documents to extracted entities
-
----
-
-## Overview
-
-EdgeQuake implements a comprehensive lineage tracking system that records the full provenance chain for every piece of knowledge in the graph. This enables:
-
-- **Reproducibility**: Know exactly which models and parameters produced each entity
-- **Auditability**: Trace any entity back to its source document and line number
-- **Quality assurance**: Compare extraction results across different models
-- **Debugging**: Identify pipeline failures at any stage
+For endpoint details and response examples, see the [Lineage API reference](../api-reference/lineage-endpoints.md).
 
 ---
 
-## Data Model
+## What lineage gives you
 
-### Lineage Chain
+- **Audit.** Trace an entity back to the chunks, document, and line range that produced it.
+- **Reproducibility.** See which extraction model, embedding model, and settings were used.
+- **Debugging.** Find which stage of ingestion failed or produced poor output.
+- **Quality checks.** Compare extraction results across models.
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                     LINEAGE INTEGRITY CHAIN                         │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  PDF Upload (file, sha256, size)                                    │
-│    │                                                                │
-│    ▼                                                                │
-│  PdfDocument (pdf_id, task_id, markdown_content after convert)      │
-│    │  optional mm-assets: assets/page-NNNN.png                      │
-│    ▼                                                                │
-│  Document (document_id, pdf_id, document_type, llm_model,          │
-│            embedding_model, modality metadata)                      │
-│    │                                                                │
-│    ▼                                                                │
-│  Chunk (chunk_id, full_doc_id, chunk_order_index,                   │
-│         start_line, end_line, start_offset, end_offset,             │
-│         llm_model, embedding_model, embedding_dimension)            │
-│    │                                                                │
-│    ▼                                                                │
-│  Entity (entity_id, chunk_ids[], source_documents[])                │
-│                                                                     │
-│  INVARIANTS:                                                        │
-│  - Every chunk MUST have a valid parent document_id (full_doc_id)   │
-│  - Every entity MUST reference at least one source chunk            │
-│  - Every PDF-sourced document MUST link back to pdf_id              │
-│  - All timestamps are UTC ISO-8601                                  │
-│  - All IDs are immutable once created                               │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+---
+
+## The lineage chain
+
+Each level points to its parent, so any item can be traced upward.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    pdf["PDF file (optional)"] --> doc["Document"]
+    doc --> chunk["Chunk"]
+    chunk --> ent["Entity"]
+    chunk --> rel["Relationship"]
+    pdf -.-> assets["Page and chart images"]
 ```
 
-### Level-by-Level Metadata
+Read it top to bottom. A PDF produces one document, a document splits into chunks, and chunks produce entities and relationships. The dashed line shows images saved from a PDF.
 
-| Level        | Fields                                                                              |
-| ------------ | ------------------------------------------------------------------------------------ |
-| **PDF**      | pdf_id, document_id, filename, file_size_bytes, sha256_checksum, page_count, markdown after convert |
-| **mm-asset** | document_id, asset_id (path stem), relative path under `assets/`, served via REST |
-| **Document** | document_id, file_path, file_size, document_type, sha256_checksum, pdf_id,           |
-|              | llm_model, embedding_model, processed_at, created_at, updated_at                    |
-| **Chunk**    | chunk_id, full_doc_id, chunk_order_index, start_line, end_line,                      |
-|              | start_offset, end_offset, llm_model, embedding_model, embedding_dimension, tokens    |
-| **Lineage**  | extraction_provider, extraction_model, embedding_provider, embedding_model, dims     |
-| **Entity**   | entity_id, chunk_ids[], source_documents[], extraction_metadata                      |
+What each level records:
+
+| Level | Main fields |
+| ----- | ----------- |
+| PDF | `pdf_id`, filename, size, SHA-256 checksum, page count, Markdown after conversion |
+| Document | `document_id`, source path, type, `pdf_id` link, models used, timestamps |
+| Chunk | `chunk_id`, parent document, index, start and end line, start and end offset, page range, token count |
+| Entity | `entity_id`, name, source chunk ids, source spans, extraction count, description history |
+| Relationship | source and target entities, type, source chunk ids, description history |
+| Extraction metadata (per chunk) | LLM model, gleaning passes, time, input and output tokens, cache hit |
+
+Rules the pipeline keeps:
+
+- Every chunk has a parent document.
+- Every entity and relationship names at least one source chunk.
+- A document made from a PDF links back to its `pdf_id`.
+- Ids do not change once created. Document ids look like `doc-` followed by a hash of the content.
+
+Entity names are stored as `UPPERCASE_WITH_UNDERSCORES`. When two chunks describe the same entity, the entity gains another source, and its **description history** records each version with its origin: extraction, merge, or summary.
 
 ---
 
 ## Modality and mm-assets
 
-Vision PDF convert (SPEC-047 / modality-aware ingestion) can persist page and chart-crop PNGs alongside markdown:
+A vision PDF conversion can save page images and chart crops next to the Markdown. These are called mm-assets (multimodal assets).
 
-```
-PDF bytes
-   │
-   ▼
-edgequake-pdf (vision convert)
-   ├─ markdown_content → pdf_documents (markdown barrier for Insert)
-   ├─ figure links → ![caption](assets/page-0001.png)
-   └─ PNG bytes → document_mm_assets (Postgres) + filesystem cache
-         │
-         ▼
-REST: GET /documents/{document_id}/assets/{asset_id}
-      GET /documents/{document_id}/mm-assets/{*asset_path}
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    bytes["PDF bytes"] --> conv["edgequake-pdf conversion"]
+    conv --> md["Markdown in pdf_documents"]
+    conv --> png["Page and chart PNGs"]
+    png --> db["document_mm_assets table"]
+    db --> rest["REST asset routes"]
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class db eqStore
 ```
 
-**Identity rules:**
+Read it top to bottom. The Markdown and the images are saved by the same conversion step. The Markdown links to images with paths such as `assets/page-0001.png`.
+
+Identity rules:
 
 | Concept | Rule |
 | ------- | ---- |
-| `asset_id` | Stable stem from relative path (`page-0001` from `assets/page-0001.png`) |
-| `document_id` | Scope for asset URLs — set when PDF links to document after convert |
-| Lineage | Chunks may reference `assets/…`; trace to PDF page via `pdf_id` + asset path |
+| `asset_id` | The file name without extension, for example `page-0001` for `assets/page-0001.png` |
+| `document_id` | Scopes asset URLs. It is set when the PDF links to its document after conversion. |
+| Storage | One row per `document_id` and asset path in `document_mm_assets` |
+| Chunk link | A chunk may mention `assets/...`. Trace it to the PDF page through `pdf_id` and the asset path. |
 
-**Convert vs ingest:** Lineage fields on chunks/entities are stamped during **Insert**, not during PdfProcessing. A PDF row can be `Completed` while the document is still `converting`/`extracting` — convert artifact only. See [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md#convert-then-ingest-spec-057-p2).
+Assets are served by `GET /api/v1/documents/{document_id}/assets/{asset_id}` and `GET /api/v1/documents/{document_id}/mm-assets/{*asset_path}`. See [mm-assets in the API reference](../api-reference/lineage-endpoints.md#multimodal-assets-mm-assets).
 
-API reference: [Lineage endpoints — mm-assets](/docs/api-reference/lineage-endpoints/#multimodal-assets-mm-assets).
-
----
-
-## Core Types
-
-### Document (`edgequake-core/src/types/document.rs`)
-
-```rust
-pub struct Document {
-    pub id: String,                          // MD5 of content
-    pub file_path: Option<String>,           // Source file path
-    pub content: String,                     // Document text
-    pub content_length: usize,               // Text length
-    pub status: DocumentStatus,              // Pending/Processing/Completed/Failed
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-    pub chunk_ids: Option<Vec<String>>,      // Linked chunk IDs
-
-    // Lineage fields (added OODA-03)
-    pub document_type: Option<String>,       // "pdf", "markdown", "text"
-    pub file_size: Option<u64>,              // Original file size in bytes
-    pub sha256_checksum: Option<String>,     // File integrity hash
-    pub pdf_id: Option<String>,              // Link to source PdfDocument
-    pub llm_model: Option<String>,           // Extraction model used
-    pub embedding_model: Option<String>,     // Vectorization model used
-    pub processed_at: Option<DateTime<Utc>>, // Processing completion time
-}
-```
-
-### Chunk (`edgequake-core/src/types/chunk.rs`)
-
-```rust
-pub struct Chunk {
-    pub id: String,                          // MD5 of content
-    pub content: String,                     // Chunk text
-    pub tokens: u32,                         // Token count
-    pub chunk_order_index: u32,              // Position in document (0-indexed)
-    pub full_doc_id: String,                 // Parent document ID
-    pub file_path: Option<String>,           // Source file path
-
-    // Position metadata (added OODA-01)
-    pub start_line: Option<usize>,           // Start line (1-indexed)
-    pub end_line: Option<usize>,             // End line (1-indexed)
-    pub start_offset: Option<usize>,         // Start character offset
-    pub end_offset: Option<usize>,           // End character offset
-
-    // Model metadata (added OODA-02)
-    pub llm_model: Option<String>,           // LLM used for extraction
-    pub embedding_model: Option<String>,     // Embedding model used
-    pub embedding_dimension: Option<usize>,  // Vector dimension
-}
-```
-
-### DocumentLineage (`edgequake-pipeline/src/lineage.rs`)
-
-```rust
-pub struct DocumentLineage {
-    pub document_id: String,
-    pub document_name: String,
-    pub job_id: String,
-    pub chunks: Vec<ChunkLineage>,
-    pub entities: HashMap<String, EntityLineage>,
-    pub relationships: HashMap<String, RelationshipLineage>,
-    pub total_chunks: usize,
-    pub total_entities: usize,
-    pub total_relationships: usize,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-
-    // SPEC-032: Provider tracking
-    pub extraction_provider: Option<String>,
-    pub extraction_model: Option<String>,
-    pub embedding_provider: Option<String>,
-    pub embedding_model: Option<String>,
-    pub embedding_dimension: Option<usize>,
-}
-```
+**Convert versus ingest.** Chunk and entity lineage is written during the Insert task, not during PDF conversion. A PDF row can be `Completed` while its document is still extracting. See [Convert then ingest](../ingestion-cancel-and-fairness.md#convert-then-ingest-spec-057-p2).
 
 ---
 
-## Storage Architecture
+## When lineage is written
 
-### KV Storage Keys
-
-Lineage data is persisted in KV storage alongside documents and chunks:
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│  KV Storage Layout                                            │
-├────────────────────────────┬─────────────────────────────────┤
-│  Key Pattern               │  Value                           │
-├────────────────────────────┼─────────────────────────────────┤
-│  {document_id}             │  Document JSON                   │
-│  {document_id}-metadata    │  Metadata JSON blob              │
-│  {document_id}-lineage     │  DocumentLineage JSON            │
-│  {document_id}-chunk-{N}   │  Chunk JSON (with position data) │
-├────────────────────────────┼─────────────────────────────────┤
-│  Vector Storage             │                                 │
-├────────────────────────────┼─────────────────────────────────┤
-│  {chunk_id}                │  Embedding + Chunk metadata      │
-└────────────────────────────┴─────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+sequenceDiagram
+    participant PDF as PDF task
+    participant INS as Insert task
+    participant KV as KV store
+    participant REL as Relational tables
+    PDF->>PDF: Convert, save Markdown and assets
+    PDF->>INS: Enqueue Insert
+    INS->>INS: Chunk with line and offset tracking
+    INS->>INS: Extract, record model per chunk
+    INS->>REL: Write chunk and entity link rows
+    INS->>KV: Save DocumentLineage JSON
+    INS->>INS: Mark document completed
 ```
 
-### Metadata Propagation Flow
-
-```
-PDF Upload
-  │
-  ▼
-TaskType::PdfProcessing (convert) ─── edgequake-pdf
-  │
-  ├─ 1. Vision / EdgeParse → markdown + optional mm-assets
-  ├─ 2. Persist pdf_documents.markdown_content (barrier)
-  ├─ 3. PDF status → Completed
-  │
-  ▼
-TaskType::Insert (ingest) ─── edgequake-pipeline
-  │
-  ├─ 4. Chunk with position tracking (start_line, end_line)
-  ├─ 5. Entity extraction — llm_model on chunks
-  ├─ 6. Embed + merge + store (KV, pgvector, AGE)
-  ├─ 7. Persist lineage: KV `{doc_id}-lineage`
-  │
-  └─ 8. Document status → completed
-```
+Read it top to bottom. Lineage is built while the Insert task runs and saved at the end. Setting `enable_lineage_tracking` in the pipeline config turns it on or off. It is on by default.
 
 ---
 
-## API Endpoints
+## Where lineage is stored
 
-### Document Lineage
+| Store | What | Key or table |
+| ----- | ---- | ------------ |
+| KV | The full `DocumentLineage` JSON | `{document_id}-lineage` |
+| KV | Document metadata blob | `{document_id}-metadata` |
+| Relational | Which chunk produced which entity | `chunk_entity_links` |
+| Relational | Which chunk produced which relationship | `chunk_relation_links` |
+| Relational | Entity description versions | `entities.description_history` |
+| Graph and vectors | Entities and relationships keep their source chunk ids | Apache AGE, pgvector |
 
-```
-GET /api/v1/documents/{document_id}/lineage
-```
+Chunk text itself lives in the relational `chunks` table by default. See [Storage model](./storage-model.md).
 
-Returns complete lineage tree: document metadata + all chunks + all entities.
-
-**Response** (`DocumentFullLineageResponse`):
-```json
-{
-  "document_id": "abc123",
-  "chunks": [
-    {
-      "chunk_id": "chunk-...",
-      "chunk_index": 0,
-      "content_preview": "First 200 chars...",
-      "tokens": 150,
-      "start_line": 1,
-      "end_line": 25,
-      "entity_count": 5
-    }
-  ],
-  "entities": [
-    {
-      "entity_id": "entity-...",
-      "entity_name": "SARAH_CHEN",
-      "entity_type": "PERSON",
-      "chunk_ids": ["chunk-..."]
-    }
-  ]
-}
-```
-
-### Document Metadata
-
-```
-GET /api/v1/documents/{document_id}/metadata
-```
-
-Returns merged metadata from KV storage (`{doc_id}-metadata` key).
-
-**Response**: Flat JSON object with all stored metadata fields.
-
-### Chunk Lineage
-
-```
-GET /api/v1/chunks/{chunk_id}/lineage
-```
-
-Returns chunk with parent document references and position info.
-
-**Response** (`ChunkLineageResponse`):
-```json
-{
-  "chunk_id": "chunk-...",
-  "document_id": "abc123",
-  "chunk_index": 0,
-  "content_preview": "...",
-  "tokens": 150,
-  "start_line": 1,
-  "end_line": 25,
-  "start_offset": 0,
-  "end_offset": 1024,
-  "llm_model": "gpt-4.1-nano",
-  "embedding_model": "text-embedding-3-small",
-  "embedding_dimension": 1536,
-  "file_path": "/uploads/paper.pdf",
-  "document_type": "pdf",
-  "document_name": "paper.pdf",
-  "created_at": "2025-01-15T10:30:00Z",
-  "entity_count": 5
-}
-```
-
-### Entity Provenance
-
-```
-GET /api/v1/entities/{entity_id}/provenance
-```
-
-Returns source chunks and documents for an entity.
+`DocumentLineage` holds the document id and name, the job id, a list of chunk lineages, maps of entity and relationship lineages, totals, and the providers and models used for extraction and embedding. Providers can differ, for example a cloud LLM with local embeddings.
 
 ---
 
-## SDK Integration
+## API endpoints
 
-All three SDKs expose identical lineage methods:
+| Endpoint | Returns |
+| -------- | ------- |
+| `GET /api/v1/documents/{id}/lineage` | The whole lineage tree for a document in one call |
+| `GET /api/v1/documents/{id}/metadata` | The merged metadata blob |
+| `GET /api/v1/documents/{id}/lineage/export` | Lineage as a file, `format=json` (default) or `format=csv` |
+| `GET /api/v1/chunks/{id}/lineage` | One chunk with its parent and position |
+| `GET /api/v1/entities/{id}/provenance` | Source chunks and documents for an entity |
+| `GET /api/v1/lineage/entities/{name}` | Lineage for an entity by name |
+| `GET /api/v1/lineage/documents/{id}` | A document's contribution to the graph |
 
-### Rust SDK
+All lineage routes respect tenant and workspace isolation. See the [API reference](../api-reference/lineage-endpoints.md) for response shapes.
 
-```rust
-let lineage = client.documents().get_lineage(&doc_id).await?;
-let metadata = client.documents().get_metadata(&doc_id).await?;
-let chunk_lineage = client.chunks().get_lineage(&chunk_id).await?;
-```
+The Rust, TypeScript, and Python SDKs wrap these routes. For example, the Python SDK has `client.documents.get_lineage(document_id)`.
 
-### TypeScript SDK
+## In the WebUI
 
-```typescript
-const lineage = await client.documents.getLineage(docId);
-const metadata = await client.documents.getMetadata(docId);
-const chunkLineage = await client.chunks.getLineage(chunkId);
-```
-
-### Python SDK
-
-```python
-# Sync
-lineage = client.documents.get_lineage(doc_id)
-metadata = client.documents.get_metadata(doc_id)
-chunk_lineage = client.chunks.get_lineage(chunk_id)
-
-# Async
-lineage = await client.documents.get_lineage(doc_id)
-metadata = await client.documents.get_metadata(doc_id)
-chunk_lineage = await client.chunks.get_lineage(chunk_id)
-```
+The document page has a metadata sidebar (`metadata-sidebar.tsx`). It shows extended metadata, a tree of document, chunks, and entities (`document-hierarchy-tree.tsx`), and a source grid (`source-info-grid.tsx`).
 
 ---
 
-## WebUI Components
+## Older documents
 
-### MetadataSidebar
+Lineage fields are optional. Documents ingested before a field existed return it as missing. No migration is needed. Re-ingest or reanalyze a document to fill the new fields.
 
-The metadata sidebar (`metadata-sidebar.tsx`) displays lineage information in three sections:
+## Related specs
 
-1. **Extended Metadata** (`enhanced-metadata.tsx`) — Fetches `/documents/:id/metadata` and displays KV fields not shown in the standard view
-2. **Data Hierarchy** (`document-hierarchy-tree.tsx`) — Visual tree: Document → Chunks → Entities with collapsible nodes
-3. **Source Info Grid** (`source-info-grid.tsx`) — Shows document_type, page_count, sha256_checksum, file_size_bytes
+- SPEC-032: per-workspace LLM and embedding providers
+- SPEC-033: hybrid provider mode
+- SPEC-047: modality-aware vision conversion and mm-assets
+- SPEC-057: convert then ingest, and cancel semantics
 
-### React Query Hooks
+## See also
 
-```typescript
-// Fetch full lineage tree
-const { data } = useDocumentFullLineage(documentId);
-
-// Fetch flat metadata
-const { data } = useDocumentMetadata(documentId);
-
-// Existing lineage explorer hook
-const { data } = useDocumentLineage(documentId);
-```
-
----
-
-## Pipeline Integration
-
-### Lineage Tracking Configuration
-
-```rust
-// Pipeline configuration (pipeline.rs)
-pub struct PipelineConfig {
-    pub enable_lineage_tracking: bool, // default: true (OODA-06)
-    // ...
-}
-```
-
-When `enable_lineage_tracking` is `true` (default), the pipeline:
-1. Assigns position metadata (start_line, end_line) to each chunk
-2. Records LLM/embedding model info on each chunk
-3. Builds `DocumentLineage` with entity/relationship provenance
-4. Persists lineage to KV storage
-
-### SPEC-032: Provider Lineage
-
-The lineage system tracks which LLM/embedding providers were used:
-
-```
-extraction_provider: "openai"       # e.g., openai, ollama
-extraction_model: "gpt-4.1-nano"      # specific model version
-embedding_provider: "openai"        # may differ from extraction
-embedding_model: "text-embed-3-sm"  # embedding-specific model
-embedding_dimension: 1536           # vector dimensions
-```
-
-This supports hybrid mode (SPEC-033) where extraction and embedding use different providers.
-
----
-
-## Backward Compatibility
-
-All lineage fields are `Option<T>` with `#[serde(default)]`:
-- Documents created before lineage enhancement will have `None` for new fields
-- API responses omit `null` fields via `skip_serializing_if = "Option::is_none"`
-- SDKs use optional types in all languages
-- No migration required — new fields are populated on next ingestion
-
----
-
-## Performance Considerations
-
-- **Single-call lineage**: `/documents/:id/lineage` returns complete tree (no N+1 queries)
-- **KV storage**: Metadata stored alongside documents for O(1) lookup
-- **Denormalized chunks**: Position metadata embedded in chunk, not separate table
-- **Target latency**: P95 < 200ms for lineage queries on typical documents
-
----
-
-## Related Specifications
-
-- **SPEC-057**: Task delivery, convert → ingest, cancel semantics
-- **SPEC-047**: Modality-aware vision / mm-assets
-- **SPEC-007**: PDF Upload Support with Vision LLM
-- **SPEC-032**: Workspace-specific LLM/embedding providers
-- **SPEC-033**: Hybrid provider mode
-- **FEAT0011**: Document-Chunk-Entity Lineage tracking
-- **FEAT0019**: Source span tracking with line numbers
-- **BR0019**: Source spans must include line numbers
-- **BR0701**: Lineage preserved for all entities
+- [Data flow](./data-flow.md)
+- [Storage model](./storage-model.md)
+- [Lineage API reference](../api-reference/lineage-endpoints.md)

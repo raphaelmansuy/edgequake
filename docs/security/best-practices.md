@@ -1,648 +1,286 @@
 ---
-title: 'Security Best Practices'
+title: Security guide
+description: How EdgeQuake authenticates and authorizes requests, isolates tenants, protects secrets, blocks SSRF, limits rates and logs events, plus a production checklist.
 ---
 
-# Security Best Practices
+This guide describes the security controls in the code, in the order a request meets them. Each section gives the setting that controls it and what happens when it is off. For a short overview see the [security index](index.md).
 
-> **Product: v0.32.0** · See also: [Runtime auth hardening](/docs/operations/runtime-auth-hardening/)
+> Product release: v0.32.2. Sections on provider Connections, SSRF checks and `edgequake doctor` describe v0.33.0 (SPEC-163).
 
-> **Securing Your EdgeQuake Deployment**
+## Authentication modes
 
-This guide covers security considerations for production EdgeQuake deployments.
+EdgeQuake has three modes. Dev mode is for local use only.
 
----
+| Mode | How to select | Callers need |
+|------|---------------|--------------|
+| Open (dev) | `EDGEQUAKE_DEV_MODE=true`, or `EDGEQUAKE_AUTH_ENABLED=false` | Nothing. Requests are accepted without a credential, and admin routes are open. |
+| Authenticated | `EDGEQUAKE_AUTH_ENABLED=true`, or neither variable set | A JWT, an API key, or an SSO session |
+| Bootstrap | Auth on, no users yet | `EDGEQUAKE_MASTER_API_KEY` or the `EDGEQUAKE_BOOTSTRAP_ADMIN_*` variables |
 
-## Overview
+Auth is on by default when no variable is set. The Docker quickstart and `make dev` turn dev mode on for convenience; turn it off before you expose the port. See [Runtime auth hardening](../operations/runtime-auth-hardening.md) for the steps.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    SECURITY LAYERS                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ NETWORK LAYER                                            │   │
-│  │ • TLS termination (reverse proxy)                        │   │
-│  │ • IP allowlisting                                        │   │
-│  │ • DDoS protection                                        │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                            ↓                                    │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ APPLICATION LAYER                                        │   │
-│  │ • API key authentication                                 │   │
-│  │ • JWT token validation                                   │   │
-│  │ • Rate limiting                                          │   │
-│  │ • Request validation                                     │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                            ↓                                    │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ DATA LAYER                                               │   │
-│  │ • Tenant isolation                                       │   │
-│  │ • Workspace boundaries                                   │   │
-│  │ • Database encryption                                    │   │
-│  │ • Secret management                                      │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+### Credential types
 
----
+| Credential | Header | Role and scope | Notes |
+|------------|--------|----------------|-------|
+| Access JWT (HS256) | `Authorization: Bearer <jwt>` | Role in the token: `admin`, `user` or `readonly` | Lifetime 900 s by default (`JWT_EXPIRY_SECONDS`). `JWT_ISSUER` and `JWT_AUDIENCE` are checked when set. |
+| Refresh token | HttpOnly cookie `eq_refresh` (path `/api/v1/auth`) or request body | Renews the access JWT | 30 days by default (`REFRESH_TOKEN_EXPIRY_DAYS`). It is rotated on use. |
+| Stored API key | `X-API-Key: eq_...` or `Authorization: Bearer eq_...` | Scopes `edgequake:read`, `edgequake:query`, `edgequake:write` | Created with `POST /api/v1/api-keys`. Stored as an Argon2 hash. The default scopes are read and query. |
+| Static API keys | Same headers | Read and query only; role `readonly` | From `EDGEQUAKE_API_KEYS` (comma-separated). |
+| Master key | Same headers | Full admin; skips tenant membership checks | From `EDGEQUAKE_MASTER_API_KEY`. Every membership bypass is logged. Use it only to bootstrap or recover. |
 
-## Network Security
+Other facts:
 
-### TLS Configuration
+- Passwords and API keys are hashed with Argon2 (64 MiB memory, 3 passes, 4 lanes by default).
+- Five failed logins lock the account for 15 minutes and return HTTP 423 (`MAX_LOGIN_ATTEMPTS`, `LOCKOUT_DURATION_MINUTES`).
+- WebSockets take the JWT in `Authorization: Bearer` or in `Sec-WebSocket-Protocol: edgequake.bearer, <jwt>`. A `?token=` query parameter is rejected.
+- Public paths need no credential: `/health`, `/live`, `/ready`, `/auth/login`, `/auth/refresh`, the OIDC and SSO endpoints, `/setup/status`, `/setup/initialize`, the Swagger pages, `/mcp` (it does its own auth) and, when `ALLOW_REGISTRATION` is true, `POST /users`.
+- `POST /setup/initialize` checks the `X-EdgeQuake-Setup-Token` header when `EDGEQUAKE_SETUP_TOKEN` is set.
+- Single sign-on is covered in [Authentication and SSO](authentication/index.md).
 
-**Always use HTTPS in production.** EdgeQuake doesn't handle TLS directly; use a reverse proxy.
+## How a request is authorized
 
-**Caddy (Recommended)**:
+The chain below runs for every `/api/v1` and `/api/v2` call when auth is on. Authentication runs first; the rate limiter keys on the identity it finds.
 
-```caddyfile
-edgequake.example.com {
-    reverse_proxy localhost:8080
-    # Automatic TLS via Let's Encrypt
-}
-```
-
-**nginx**:
-
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name edgequake.example.com;
-
-    ssl_certificate /etc/letsencrypt/live/edgequake.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/edgequake.example.com/privkey.pem;
-
-    # Modern TLS settings
-    ssl_protocols TLSv1.3 TLSv1.2;
-    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;
-    ssl_prefer_server_ciphers on;
-
-    # Security headers
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header X-Content-Type-Options nosniff;
-    add_header X-Frame-Options DENY;
-
-    location / {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+sequenceDiagram
+  participant C as "Client"
+  participant A as "Auth check"
+  participant B as "Scope binding"
+  participant R as "Rate limiter"
+  participant H as "Handler"
+  participant D as "PostgreSQL"
+  C->>A: "Request with token"
+  A->>A: "Master key, static key, stored key, then JWT"
+  A-->>C: "401 if no valid credential"
+  A->>B: "User and role"
+  B->>B: "Merge tenant and workspace headers with token claims"
+  B-->>C: "403 if scope or membership fails"
+  B->>R: "Scoped request"
+  R-->>C: "429 if over the limit"
+  R->>H: "Allowed"
+  H->>D: "Query inside a row-level security transaction"
+  D-->>C: "Rows for this tenant only"
 ```
 
-### IP Allowlisting
+Read it top to bottom: a request can stop early with 401, 403 or 429, and only a request that passes every step reaches the database. Headers choose a scope; they never grant one.
 
-Restrict access to trusted networks:
+What each step checks:
 
-```nginx
-# nginx: Allow only trusted IPs
-location / {
-    allow 10.0.0.0/8;      # Internal network
-    allow 192.168.0.0/16;  # VPN range
-    deny all;
-
-    proxy_pass http://127.0.0.1:8080;
-}
-```
-
-### Firewall Rules
-
-```bash
-# iptables: Only allow HTTP/HTTPS from load balancer
-iptables -A INPUT -p tcp --dport 8080 -s 10.0.1.10 -j ACCEPT  # LB IP
-iptables -A INPUT -p tcp --dport 8080 -j DROP
-
-# PostgreSQL: Only from app servers
-iptables -A INPUT -p tcp --dport 5432 -s 10.0.0.0/24 -j ACCEPT
-iptables -A INPUT -p tcp --dport 5432 -j DROP
-```
-
----
-
-## Authentication
-
-EdgeQuake uses a **fail-closed** auth model when enabled. Local dev (`make dev`, Docker quickstart) may set `EDGEQUAKE_DEV_MODE=true` for an open API — **never use that in production**.
-
-| Mode | When | What callers need |
-| ---- | ---- | ----------------- |
-| Dev / demo | `EDGEQUAKE_DEV_MODE=true` | No credentials (local only) |
-| Production | `EDGEQUAKE_AUTH_ENABLED=true` | Valid **JWT** (WebUI login) or **API key** |
-| Bootstrap | First admin, no users yet | `EDGEQUAKE_MASTER_API_KEY` or bootstrap env vars |
-
-**SPEC-154 (security hardening)**:
-
-- Access JWT default TTL is **900s (15 minutes)**.
-- Web refresh tokens use HttpOnly cookie `eq_refresh` (Path=`/api/v1/auth`); SPA login/refresh omits `refresh_token` from JSON when `Sec-Fetch-*` or `X-Edgequake-Client: webui` is present.
-- `EDGEQUAKE_MASTER_API_KEY` is break-glass (full MCP scopes + membership bind bypass, compliance-audited). `EDGEQUAKE_API_KEYS` are **read+query only** — not write break-glass.
-- WebSocket: pass JWT via `Authorization: Bearer` or `Sec-WebSocket-Protocol: edgequake.bearer, <jwt>`. Query `?token=` is **rejected**.
-- Auth disabled + non-local `DATABASE_URL` without `EDGEQUAKE_DEV_MODE` is a **Fatal** startup error.
-
-Full setup: [Runtime auth hardening](/docs/operations/runtime-auth-hardening/). Spec pack: [`specs/154-sec-hardening/`](../../specs/154-sec-hardening/).
-
-### JWT (interactive users)
-
-WebUI sessions use short-lived JWTs after login. SDKs and scripts should use the access token as a Bearer credential:
-
-```bash
-curl -H "Authorization: Bearer eyJ..." \
-     -H "X-Tenant-ID: tenant-uuid" \
-     -H "X-User-ID: user-uuid" \
-     -H "X-Workspace-ID: workspace-uuid" \
-     http://localhost:8080/api/v1/documents
-```
-
-Refresh tokens rotate via `/api/v1/auth/refresh` (cookie or body). Keep access tokens in memory — not in `localStorage`, URLs, or logs. Residual: Next middleware may mirror access token in a non-HttpOnly cookie for SSR; prefer not to expose JWT to `document.cookie` long-term.
-
-### API key authentication
-
-Programmatic access uses API keys (created via `/api/v1/api-keys` or bootstrap master key):
-
-```bash
-# Via X-API-Key header
-curl -H "X-API-Key: your-secret-key" \
-     -H "X-Workspace-ID: workspace-uuid" \
-     http://localhost:8080/api/v1/documents
-
-# Via Authorization Bearer (same key material)
-curl -H "Authorization: Bearer your-secret-key" \
-     http://localhost:8080/api/v1/documents
-```
-
-**API Key Best Practices**:
-
-| Practice     | Recommendation                         |
-| ------------ | -------------------------------------- |
-| Key length   | Minimum 32 characters                  |
-| Key rotation | Every 90 days                          |
-| Scope        | Per-tenant or per-workspace            |
-| Storage      | Environment variable or secret manager |
-| Logging      | Never log full keys                    |
-
-### Workspace and tenant headers
-
-Most `/api/v1/*` routes require explicit tenancy context:
-
-- `X-Tenant-ID` — organization boundary
-- `X-User-ID` — acting user (JWT flows)
-- `X-Workspace-ID` — data isolation scope (documents, graph, embeddings)
-
-Missing or invalid workspace context returns **403/404**, not silent cross-tenant reads. Configure headers once on your SDK client.
-
-### PostgreSQL row-level security (RLS)
-
-Data isolation is enforced at two layers:
-
-1. **Application layer** — Axum handlers validate tenant/workspace headers and filter queries.
-2. **Database layer** — PostgreSQL RLS policies filter rows by session variables (`tenant_id`, `workspace_id`) set per connection checkout.
-
-Do not bypass RLS with a superuser connection for application traffic. Use the `DATABASE_URL` role EdgeQuake expects. Pool checkout sets RLS context on each connection (SPEC-027 SEC-014); sharing connections across tenants without the guard is unsafe.
-
-### LLM provider identity (Vertex AI / SPEC-043)
-
-**Gemini Developer API** uses a static API key (`GOOGLE_API_KEY`).
-
-**Google Vertex AI** (enterprise `vertexai` provider) uses **OAuth2 identity** — short-lived bearer tokens from GCP Application Default Credentials or a service account — **not** a static API key. Leave `api_key_env` empty in `models.toml` for Vertex profiles.
-
-```bash
-export GOOGLE_CLOUD_PROJECT="your-project"
-export GOOGLE_APPLICATION_CREDENTIALS="/path/to/sa.json"  # or use gcloud ADC
-```
-
-The Settings → Provider Status Hub shows **Identity (ADC)** for Vertex. Treat service-account JSON like any other secret (Vault, K8s Secret, not Git).
-
-### Enterprise SSO (Keycloak / OIDC)
-
-Preferred: the built-in OIDC SSO with the shipped Keycloak image (`make dev-sso`). Tenants come from
-Keycloak Organizations, roles from realm roles, and tokens never appear in URLs. Start at
-[Authentication & SSO](/docs/security/authentication/) and follow the
-[production hardening checklist](/docs/security/authentication/production-hardening/).
-
-### External authentication proxy (alternative)
-
-If you cannot use the built-in SSO, put an authentication proxy in front of the WebUI:
-
-**OAuth2 Proxy (for SSO)**:
-
-```yaml
-# docker-compose.yml
-oauth2-proxy:
-  image: quay.io/oauth2-proxy/oauth2-proxy
-  environment:
-    OAUTH2_PROXY_PROVIDER: oidc
-    OAUTH2_PROXY_OIDC_ISSUER_URL: https://auth.example.com
-    OAUTH2_PROXY_CLIENT_ID: edgequake
-    OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH_SECRET}
-    OAUTH2_PROXY_COOKIE_SECRET: ${COOKIE_SECRET}
-    OAUTH2_PROXY_UPSTREAMS: http://edgequake:8080
-  ports:
-    - "4180:4180"
-```
-
----
-
-## Authorization
-
-### Multi-Tenant Isolation
-
-EdgeQuake enforces strict tenant boundaries:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    TENANT ISOLATION                             │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌───────────────────┐       ┌───────────────────┐              │
-│  │    Tenant A       │       │    Tenant B       │              │
-│  │ ┌───────────────┐ │       │ ┌───────────────┐ │              │
-│  │ │ Workspace 1   │ │       │ │ Workspace 3   │ │              │
-│  │ │ - Documents   │ │       │ │ - Documents   │ │              │
-│  │ │ - Entities    │ │       │ │ - Entities    │ │              │
-│  │ │ - Embeddings  │ │       │ │ - Embeddings  │ │              │
-│  │ └───────────────┘ │       │ └───────────────┘ │              │
-│  │ ┌───────────────┐ │       │ ┌───────────────┐ │              │
-│  │ │ Workspace 2   │ │       │ │ Workspace 4   │ │              │
-│  │ │ - Documents   │ │       │ │ - Documents   │ │              │
-│  │ │ - Entities    │ │       │ │ - Entities    │ │              │
-│  │ │ - Embeddings  │ │       │ │ - Embeddings  │ │              │
-│  │ └───────────────┘ │       │ └───────────────┘ │              │
-│  └───────────────────┘       └───────────────────┘              │
-│           ╲                           ╱                         │
-│            ╲   NO DATA SHARING       ╱                          │
-│             ╲─────────────────────────                          │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Enforcement**:
-
-- All queries include `workspace_id` filter
-- All data includes `tenant_id` column
-- Cross-tenant access denied at database level
+1. **Auth check.** The token is tried as master key, static key, stored `eq_` key, then JWT. A JWT must not be on the revocation list, must carry a web-session audience (MCP tokens are refused on REST), and its user must still exist and be active.
+2. **Scope binding.** `X-Tenant-ID` and `X-Workspace-ID` are merged with the token's claims. A mismatch returns 403. With auth on, `X-User-ID` is replaced by the authenticated user. Unless the path is a global resource (users, API keys, tenants, admin, settings, models, config, setup), the user needs an active membership in that tenant and workspace. Binding is on whenever auth is on and dev mode is off, or when `EDGEQUAKE_STRICT_TENANT_BIND=true`.
+3. **Permission.** Paths under `/api/v1/admin/` need the admin role. Read-only users cannot write. Query endpoints (`/api/v1/query`, `/query/stream`, `/api/chat` and a few others) count as reads. Scoped keys need the matching scope. Changing workspaces needs an `owner` or `admin` membership.
+4. **Rate limit.** See [Rate limiting](#rate-limiting).
 
 ### Roles
 
-User records carry a `role` field (`admin`, `editor`, `viewer`, etc.). Sensitive admin routes (user management, API keys, workspace creation) require elevated roles. Prefer least-privilege API keys scoped to a single workspace where possible.
+| Level | Values | Meaning |
+|-------|--------|---------|
+| Account role (JWT) | `admin`, `user`, `readonly` | Platform-wide ability |
+| Membership role (per tenant) | `owner`, `admin`, `member`, `readonly` | Ability inside one tenant. A `readonly` membership downgrades the request to read-only. |
 
----
+## Tenant isolation
 
-## Data Security
+Data is separated at three layers. A bug in one layer should not expose data, because the next layer still filters.
 
-### Data at Rest
+| Layer | Mechanism | Setting |
+|-------|-----------|---------|
+| Application | Handlers filter by tenant and workspace; KV keys are workspace-prefixed | Always on |
+| Auth binding | Token claims and active membership must match the requested scope | `EDGEQUAKE_STRICT_TENANT_BIND`, or auth on and dev mode off |
+| Database | PostgreSQL row-level security (RLS) with forced, fail-closed policies; session variables `app.current_*` are set inside each transaction | `EDGEQUAKE_PG_RLS_ENABLED` (default on) |
 
-**PostgreSQL Encryption**:
+Do not connect the application with a superuser role: superusers bypass RLS. When you run several replicas, give each the same `DATABASE_URL` and the same auth variables.
 
-```sql
--- Enable TDE (Transparent Data Encryption)
--- Requires PostgreSQL Enterprise or managed service
+## Secrets at rest
 
--- For community PostgreSQL, use filesystem encryption:
--- Linux: LUKS, dm-crypt
--- AWS: Encrypted EBS volumes
--- GCP: Default encryption enabled
+Saved provider Connections hold API keys. They are encrypted before they reach the database and are never returned by the API.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["Admin sends api_key"] --> B{"EDGEQUAKE_SECRETS_KEY set?"}
+  B -- "No" --> C["Reject: key cannot be stored"]
+  B -- "Yes" --> D["Encrypt with AES-256-GCM and a random nonce"]
+  D --> E["Store ciphertext, nonce, key id, fingerprint"]
+  E --> F["API returns fingerprint and key_configured only"]
+  E --> G["Runtime decrypts in memory to call the model"]
+%% eq-classes
+classDef eqActor fill:#FCE7F3,stroke:#EC4899,color:#500724
+classDef eqBad fill:#FEE2E2,stroke:#EF4444,color:#7F1D1D
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class A eqActor
+class C eqBad
+class G eqLlm
 ```
 
-**Environment Variables**:
+Read it from the top: the key is encrypted once on write and decrypted only inside the server process when a model call needs it.
 
-```bash
-# Use encrypted secrets
-export OPENAI_API_KEY="$(vault read -field=key secret/openai)"
-export DATABASE_URL="$(vault read -field=url secret/database)"
+- `EDGEQUAKE_SECRETS_KEY` is 32 bytes, as 32 raw characters, base64, or 64 hex characters. Generate one with `openssl rand -base64 32`.
+- The fingerprint is a short non-secret label (`eqk_` plus 16 hex digits) so you can tell keys apart. It is not a cryptographic hash.
+- The code decrypts with the single key in the environment. `EDGEQUAKE_SECRETS_KEY_ID` only labels rows, so key rotation is not supported yet: changing the key makes old rows unreadable and they are treated as having no key.
+- Other secrets (`JWT_SECRET`, `DATABASE_URL`, `OPENAI_API_KEY`) live in your environment or secret manager. Do not commit them to Git.
+- Encrypt the database disk (LUKS, encrypted cloud volumes) for the rest of your data, and use `sslmode=require` or stronger in `DATABASE_URL` for remote databases.
+
+## SSRF defense for provider URLs
+
+A Connection holds a URL that the server will call. The check stops a URL from reaching cloud metadata services or, unless you allow it, your private network. It runs when you save a Connection and when you test one.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["Provider URL"] --> B{"http or https?"}
+  B -- "No" --> X["Reject"]
+  B -- "Yes" --> C{"Blocked host name?"}
+  C -- "Yes" --> X
+  C -- "No" --> D{"Literal IP address?"}
+  D -- "No" --> OK["Allow"]
+  D -- "Yes" --> E{"Link-local or metadata?"}
+  E -- "Yes" --> X
+  E -- "No" --> F{"Private or loopback?"}
+  F -- "No" --> OK
+  F -- "Yes" --> G{"allow_private_network?"}
+  G -- "Yes" --> OK
+  G -- "No" --> X
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+classDef eqBad fill:#FEE2E2,stroke:#EF4444,color:#7F1D1D
+class A eqLlm
+class X,C eqBad
 ```
 
-### Data in Transit
+Read it from the top: every "Reject" is final; "Allow" means the URL passes the text-level checks.
 
-| Connection             | Encryption        |
-| ---------------------- | ----------------- |
-| Client → EdgeQuake     | HTTPS (via proxy) |
-| EdgeQuake → PostgreSQL | SSL/TLS           |
-| EdgeQuake → OpenAI     | HTTPS             |
-| EdgeQuake → Ollama     | HTTP (local only) |
+| Rule | Detail |
+|------|--------|
+| Blocked names | `metadata.google.internal`, `kubernetes.default`, `kubernetes.default.svc`, `instance-data`, `metadata`, anything ending in `.internal`, anything starting with `169.254.` |
+| Always blocked IPs | `169.254.0.0/16`, `fe80::/10`, and IPv4-mapped forms of those |
+| Private IPs | `127.0.0.0/8`, `10/8`, `172.16/12`, `192.168/16`, `0.0.0.0`, `::1`, unique-local IPv6. Blocked unless `allow_private_network` is true. |
+| Probe hardening | The test endpoint uses an 8-second timeout and does not follow redirects. |
+| Defaults | `allow_private_network` is true for `local` connections, false for `cloud` ones. |
 
-**PostgreSQL SSL**:
+Limits you should know:
 
-```bash
-# Connection string with SSL
-DATABASE_URL="postgresql://user:pass@host:5432/db?sslmode=require"
+- The check looks at the URL text and literal IP addresses. A public host name that resolves to a private address is not caught, because the DNS re-check function (`validate_resolved_ip`) exists but is not called by any request path yet. Treat Connection creation as an admin-only action (it is) and restrict outbound traffic at the network level.
+- Only provider URLs go through this check. It does not cover other outbound calls.
 
-# With certificate verification
-DATABASE_URL="postgresql://user:pass@host:5432/db?sslmode=verify-full&sslrootcert=/path/to/ca.crt"
-```
+## Rate limiting
 
-### Secret Management
+The limiter is a token bucket per authenticated identity (`tenant:<id>:user:<id>`), not per IP. It is off by default.
 
-**Never commit secrets to Git.**
+| Item | Value |
+|------|-------|
+| Switch | `EDGEQUAKE_RATE_LIMIT_ENABLED=true` |
+| Default budget | 100 requests per 60 seconds, plus a burst of 20 |
+| Scope | `/api/v1`, `/api/v2` and `/mcp` |
+| When exceeded | HTTP 429, body error `rate_limit_exceeded`, header `Retry-After` |
+| Headers on success | `X-RateLimit-Limit`, `X-RateLimit-Remaining` |
 
-| Secret           | Storage Recommendation     |
-| ---------------- | -------------------------- |
-| `OPENAI_API_KEY` | Vault, AWS Secrets Manager |
-| `DATABASE_URL`   | Vault, Kubernetes Secret   |
-| API keys         | Database (hashed)          |
-| JWT signing key  | Vault, environment         |
-
-**HashiCorp Vault Example**:
-
-```bash
-# Store secrets
-vault kv put secret/edgequake \
-  openai_key="sk-..." \
-  database_url="postgresql://..."
-
-# Retrieve in application
-export OPENAI_API_KEY="$(vault kv get -field=openai_key secret/edgequake)"
-```
-
-**Kubernetes Secrets**:
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: edgequake-secrets
-type: Opaque
-stringData:
-  OPENAI_API_KEY: sk-your-key-here
-  DATABASE_URL: postgresql://...
----
-apiVersion: apps/v1
-kind: Deployment
-spec:
-  template:
-    spec:
-      containers:
-        - name: edgequake
-          envFrom:
-            - secretRef:
-                name: edgequake-secrets
-```
-
----
-
-## Input Validation
-
-### Request Validation
-
-EdgeQuake validates all inputs:
-
-| Field          | Validation                              |
-| -------------- | --------------------------------------- |
-| `workspace_id` | UUID format, exists                     |
-| `document_id`  | UUID format, exists, owned by workspace |
-| `query`        | Non-empty, max 10,000 chars             |
-| `file`         | Size limit, MIME type check             |
-
-### File Upload Security
-
-```rust
-// Implemented in EdgeQuake
-const MAX_FILE_SIZE: usize = 50 * 1024 * 1024;  // 50 MB
-const ALLOWED_TYPES: &[&str] = &["application/pdf", "text/plain", "text/markdown"];
-```
-
-**Additional Protections**:
-
-- Content-type sniffing (actual vs declared)
-- Filename sanitization
-- Path traversal prevention
-- Virus scanning (integrate ClamAV)
-
----
-
-## Rate Limiting
-
-EdgeQuake includes built-in rate limiting:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    RATE LIMITING                                │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Request → [Per-IP Limiter] → [Per-Key Limiter] → Handler       │
-│                  │                    │                         │
-│              429 if                429 if                       │
-│              exceeded              exceeded                     │
-│                                                                 │
-│  Default Limits:                                                │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │ Endpoint Category  │ Requests │ Window │ Burst          │    │
-│  ├─────────────────────────────────────────────────────────┤    │
-│  │ Document upload    │ 10       │ 1 min  │ 3              │    │
-│  │ Query              │ 60       │ 1 min  │ 10             │    │
-│  │ Graph traversal    │ 100      │ 1 min  │ 20             │    │
-│  │ Health checks      │ No limit │ -      │ -              │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Custom Limits** (nginx):
+The budget is fixed in code today; only the on/off switch is configurable. For per-IP or per-endpoint limits, add them in your reverse proxy:
 
 ```nginx
-# Additional rate limiting at proxy
 limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
-limit_req_zone $http_x_api_key zone=apikey:10m rate=100r/s;
-
 location /api/ {
     limit_req zone=api burst=20 nodelay;
-    limit_req zone=apikey burst=50 nodelay;
     proxy_pass http://127.0.0.1:8080;
 }
 ```
 
----
+## Audit log
 
-## Logging & Auditing
+With PostgreSQL, EdgeQuake writes security events to the `audit_logs` table in the background. There is no REST endpoint for it yet; query the table with SQL.
 
-### Security Logging
+| Event type | Recorded actions |
+|------------|------------------|
+| `Authentication` | Login success and failure, logout, SSO login outcomes |
+| `DocumentUpload` | File and PDF uploads |
+| `DocumentQuery` | Query execution (`execute_query`) |
+| `WorkspaceAccess` | Workspace create, update and delete |
+| `Authorization` | Document delete (`delete_document`) and master key membership bypass |
 
-EdgeQuake logs security events:
+Each row holds the time, tenant, user, action, result (`Success`, `Failure`, `Blocked`, `Warning`), severity, request id and extra JSON. Login events are filed under tenant `default`. Ship server logs to a central system as well; rate-limit hits and auth failures are logged at warning level.
 
-| Event         | Log Level | Example                              |
-| ------------- | --------- | ------------------------------------ |
-| Auth success  | INFO      | `user=X authenticated`               |
-| Auth failure  | WARN      | `invalid_api_key from IP`            |
-| Rate limited  | WARN      | `rate_limit_exceeded user=X`         |
-| Access denied | WARN      | `access_denied tenant=X workspace=Y` |
-| Admin action  | INFO      | `workspace_deleted by user=X`        |
-
-### Log Aggregation
-
-```yaml
-# Ship logs to centralized system
-docker-compose.yml:
-  edgequake:
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "100m"
-        max-file: "5"
+```sql
+SELECT timestamp, event_type, event_action, result, user_id
+FROM audit_logs ORDER BY timestamp DESC LIMIT 50;
 ```
 
-**Recommended Stack**:
+## Startup posture checks
 
-- Loki + Grafana (lightweight)
-- ELK Stack (feature-rich)
-- Datadog/Splunk (managed)
+At boot the server checks its own configuration. A fatal result logs the reason and exits with code 1. Warnings are logged; with `EDGEQUAKE_STRICT_STARTUP=1` every warning becomes fatal.
 
----
+| Condition | Result outside dev mode | In dev mode |
+|-----------|-------------------------|-------------|
+| `JWT_SECRET` is the public default or shorter than 32 bytes | Fatal | Warning |
+| Auth off, and `DATABASE_URL` is not local | Fatal | Allowed |
+| `DATABASE_URL` is not local and `EDGEQUAKE_CORS_ORIGINS` is empty | Fatal | Allowed |
+| SSO configured but auth off, strict tenant binding off, or a non-`https` redirect URI | Fatal | Warning |
+| Auth on but no `EDGEQUAKE_API_KEYS` or master key | Warning | Warning |
+| `ALLOW_REGISTRATION` is true with auth on | Warning | none |
+| `EDGEQUAKE_RATE_LIMIT_ENABLED` is off | Warning | none |
+| `EDGEQUAKE_SECRETS_KEY` is unset | Warning | none |
 
-## LLM Security
+"Local" means the database host is `localhost`, `127.0.0.1`, `::1` or `host.docker.internal`. SSO sets strict tenant binding for you outside dev mode.
 
-### API Key Protection
+Two tools show the result:
 
-```bash
-# Don't pass keys in URLs
-# BAD: curl "http://api.openai.com?api_key=sk-..."
-# GOOD: curl -H "Authorization: Bearer sk-..." http://api.openai.com
+- `edgequake doctor` (add `--json` for machine output) checks `DATABASE_URL`, `EDGEQUAKE_SECRETS_KEY`, `JWT_SECRET` and the listen host. It exits 0, 1 (no `DATABASE_URL`) or 2 (another check failed).
+- `GET /health` includes `security_posture`: `auth_enabled`, `dev_mode`, `secrets_key_configured`, `jwt_secret_is_default`, `rate_limit_enabled`, `swagger_enabled`.
 
-# Rotate keys if compromised
-# 1. Generate new key in OpenAI dashboard
-# 2. Update environment variable
-# 3. Revoke old key
+## Network and web hardening
+
+- **TLS.** EdgeQuake does not terminate TLS. Put Caddy, nginx or a cloud load balancer in front.
+- **Bind address.** The server listens on `HOST` and `PORT` (defaults `0.0.0.0` and `8080`). Bind to `127.0.0.1` when a proxy on the same machine fronts it. The quickstart compose file publishes ports on `127.0.0.1` only.
+- **CORS.** `EDGEQUAKE_CORS_ORIGINS` is a comma-separated allow-list. Outside dev mode, an empty list denies all cross-origin requests; in dev mode any origin is allowed.
+- **Bulk delete.** Set `EDGEQUAKE_REQUIRE_DELETE_ALL_CONFIRM=true` to require the header `X-EdgeQuake-Confirm: delete-all-documents` for delete-all.
+- **Ollama shim.** The Ollama-compatible `/api/*` routes are on by default; set `EDGEQUAKE_OLLAMA_COMPAT_ENABLED=false` to turn them off.
+- **Input limits.** Default document size 50 MiB, query length 10,000 characters. Text uploads accept `txt`, `md`, `json`, `csv`, `html`, `htm`, `xml`, `yaml`, `yml`; images accept `png`, `jpg`, `jpeg`, `gif`, `webp`; PDFs use the PDF upload path. EdgeQuake does not scan files for malware.
+
+A minimal Caddy front end:
+
+```caddyfile
+edgequake.example.com {
+    reverse_proxy 127.0.0.1:8080
+}
 ```
 
-### Prompt Injection Prevention
+## Model provider data flow
 
-EdgeQuake mitigates prompt injection:
+Document text and queries go to the model provider you choose. EdgeQuake does not strip personal data first. If data must stay inside your network, use a local provider (see [Providers](../providers/index.md)). Vertex AI uses Google credentials (service account or application default credentials) instead of a static key; keep the service-account file in a secret manager.
 
-| Mitigation        | Implementation                      |
-| ----------------- | ----------------------------------- |
-| System prompt     | Separate from user input            |
-| Context isolation | Retrieved docs in structured format |
-| Output validation | Response format checking            |
+## Multi-replica and container notes
 
-**Example System Prompt**:
+- With `EDGEQUAKE_REPLICAS` above 1, set `EDGEQUAKE_TASK_DELIVERY=bridged` or `notify_only`. The server refuses to start otherwise.
+- The API image is distroless: no shell and no `curl`. Use `edgequake healthcheck` for Docker health checks, `/live` and `/ready` for Kubernetes probes, and `edgequake pre-stop <seconds>` for the preStop hook.
+- `DATABASE_URL` is required in every mode.
 
-```
-You are a helpful assistant answering questions about the provided documents.
-Answer based ONLY on the context provided. If the answer is not in the context,
-say "I don't have enough information to answer that question."
+## Production checklist
 
-<context>
-{retrieved_documents}
-</context>
+Before you go live:
 
-User question: {user_query}
-```
+- [ ] TLS terminates at a proxy; the API port is not public.
+- [ ] `EDGEQUAKE_AUTH_ENABLED=true` and `EDGEQUAKE_DEV_MODE` is unset or false.
+- [ ] `JWT_SECRET` is a random value of 32 bytes or more.
+- [ ] `EDGEQUAKE_SECRETS_KEY` is set and backed up.
+- [ ] `EDGEQUAKE_CORS_ORIGINS` lists your web origins.
+- [ ] `ALLOW_REGISTRATION=false` unless you want self-service sign-up.
+- [ ] `EDGEQUAKE_RATE_LIMIT_ENABLED=true`.
+- [ ] `EDGEQUAKE_STRICT_STARTUP=1`.
+- [ ] A first admin exists (`EDGEQUAKE_BOOTSTRAP_ADMIN_*`), and the master key is not in a compose file.
+- [ ] `edgequake doctor` and `GET /health` show the posture you expect.
 
-### Data Leakage Prevention
+Regular work: rotate API keys, apply dependency updates, review `audit_logs`, and test your backups.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 DATA FLOW TO LLM                                │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Document Upload → Chunking → [PII Detection] → LLM             │
-│                                      │                          │
-│                               Redact if                         │
-│                               configured                        │
-│                                                                 │
-│  Sensitive Data Handling:                                       │
-│  • Never send passwords to LLM                                  │
-│  • Optionally redact PII before processing                      │
-│  • Use local LLM (Ollama) for sensitive data                    │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+## Report a problem
 
----
+Follow the [security policy](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/SECURITY.md): report privately through GitHub Security Advisories and do not disclose before a patch exists.
 
-## Multi-replica operations (SPEC-057)
+## See also
 
-When `EDGEQUAKE_REPLICAS>1`, task delivery must be `bridged` or `notify_only` — boot **fails** with `local` delivery.
-
-| Risk | Mitigation |
-| ---- | ---------- |
-| Duplicate task processing | Correctness is always `claim_next` + lease — never process from a channel payload without claim |
-| Stale cancel/progress UI | Use `track_id` SSOT; poll or WebSocket `/ws/progress/{track_id}` |
-| Cross-replica auth drift | Same `DATABASE_URL`, same auth env on every replica |
-| RLS context leaks | One connection per request scope; do not share pooled connections across tenants |
-
-See [Deployment § Multi-replica](/docs/operations/deployment/#multi-replica-task-delivery) and [Ingestion cancel & fairness](/docs/ingestion-cancel-and-fairness.md).
-
----
-
-## Storage requirements
-
-`DATABASE_URL` is **required** for all server modes. In-memory storage has been removed — running without PostgreSQL exits with code 1.
-
-Supported PostgreSQL images: **16, 17, 18** (`ghcr.io/raphaelmansuy/edgequake-postgres:0.23.0-pg16|pg17|pg18`). Use TLS for remote databases (`sslmode=require` or stronger).
-
----
-
-## Container image
-
-The GHCR API image (`ghcr.io/raphaelmansuy/edgequake`) is **distroless** (`gcr.io/distroless/cc-debian12:nonroot`). It has no shell and no `curl`/`wget`.
-
-| Probe | How |
-| ----- | --- |
-| Docker / Compose HEALTHCHECK | `edgequake healthcheck` (GET `/live` on `127.0.0.1:${EDGEQUAKE_PORT:-8080}`) |
-| Kubernetes liveness | HTTP GET `/live` |
-| Kubernetes readiness | HTTP GET `/ready` |
-| Kubernetes preStop | `edgequake pre-stop <seconds>` (no `sh`) |
-
-Do **not** `docker exec … /bin/sh` into the API container — there is no shell. Debug with pod logs, a sidecar, or the distroless `:debug-nonroot` variant if you rebuild with that base. Host-side `curl http://localhost:8080/live` is fine.
-
-Trivy HIGH/CRITICAL on the API image is a release gate. The only documented ignore is `CVE-2026-14456` (OpenSSL QUIC server, 3.5+ only; the image ships OpenSSL 3.0.x).
-
----
-
-## Production Hardening Checklist
-
-### Pre-Deployment
-
-- [ ] TLS enabled (HTTPS)
-- [ ] Reverse proxy configured (nginx/Caddy)
-- [ ] `EDGEQUAKE_AUTH_ENABLED=true`, `EDGEQUAKE_DEV_MODE` unset
-- [ ] API keys rotated from defaults; master key not in compose files
-- [ ] `DATABASE_URL` set; PostgreSQL 16–18 with pgvector + AGE
-- [ ] Vertex/service-account secrets in secret manager (not env files in Git)
-- [ ] If `EDGEQUAKE_REPLICAS>1`: `EDGEQUAKE_TASK_DELIVERY=bridged` or `notify_only`
-- [ ] Rate limiting configured
-- [ ] Firewall rules applied
-- [ ] Logging to centralized system
-
-### Runtime
-
-- [ ] Container probes use `/live` (liveness) and `/ready` (readiness), not deep `/health`
-- [ ] Health checks monitored
-- [ ] Error rates alerting configured
-- [ ] Rate limit violations tracked
-- [ ] Auth failure monitoring
-- [ ] Database backups verified
-- [ ] Log retention policy set
-
-### Periodic
-
-- [ ] API key rotation (90 days)
-- [ ] Dependency updates (monthly)
-- [ ] Security audit (quarterly)
-- [ ] Penetration testing (annually)
-- [ ] Incident response plan tested
-
----
-
-## Security Incidents
-
-### Response Procedure
-
-1. **Detect**: Monitor for anomalies
-2. **Contain**: Disable compromised credentials
-3. **Investigate**: Review logs
-4. **Remediate**: Patch vulnerabilities
-5. **Communicate**: Notify affected parties
-6. **Document**: Post-incident review
-
-### Contact
-
-For security vulnerabilities, contact: security@edgequake.dev
-
----
-
-## See Also
-
-- [Runtime auth hardening](/docs/operations/runtime-auth-hardening/) — JWT, API keys, bootstrap
-- [Deployment Guide](/docs/operations/deployment/) — Production setup, GHCR images, multi-replica
-- [Configuration Reference](/docs/operations/configuration/) — Vertex OAuth2, `EDGEQUAKE_REPLICAS`
-- [Monitoring Guide](/docs/operations/monitoring/) — Observability
+- [Runtime auth hardening](../operations/runtime-auth-hardening.md)
+- [Deployment](../operations/deployment.md)
+- [Configuration](../operations/configuration.md)
+- [Monitoring](../operations/monitoring.md)

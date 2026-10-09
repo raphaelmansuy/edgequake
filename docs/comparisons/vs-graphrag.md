@@ -1,415 +1,185 @@
 ---
 title: 'EdgeQuake vs Microsoft GraphRAG'
+description: How EdgeQuake and Microsoft GraphRAG differ in indexing, query modes, community handling, storage, and deployment, without unsourced cost or speed claims.
 ---
 
 # EdgeQuake vs Microsoft GraphRAG
 
-> **Product: v0.23.0**
+This page compares EdgeQuake with Microsoft GraphRAG. It is for teams who know they want a knowledge graph behind their RAG system and need to choose between the two designs.
 
-> **Two Approaches to Graph-Enhanced RAG**
+Both build a graph of entities and relationships from your documents with an LLM. They differ in what they build on top of that graph, and in how they run.
 
-Both EdgeQuake and Microsoft GraphRAG use knowledge graphs to enhance retrieval quality. They share similar goals but differ significantly in implementation, architecture, and operational characteristics.
-
----
-
-## Quick Comparison
-
-| Aspect                  | Microsoft GraphRAG                   | EdgeQuake                                     |
-| ----------------------- | ------------------------------------ | --------------------------------------------- |
-| **Language**            | Python                               | Rust                                          |
-| **GitHub Stars**        | 30.6k+                               | ~1k                                           |
-| **License**             | MIT                                  | Apache-2.0                                    |
-| **Algorithm Origin**    | Original research (arxiv:2404.16130) | LightRAG paper (arxiv:2410.05779)             |
-| **Community Detection** | Leiden (hierarchical)                | Louvain (flat)                                |
-| **Query Modes**         | 4 (Global, Local, DRIFT, Basic)      | 6 (naive, local, global, hybrid, mix, bypass) |
-| **Multi-tenant**        | ❌                                   | ✅ Built-in + PG RLS                          |
-| **PDF vision**          | ❌                                   | ✅ Vision LLM pipeline                        |
-| **Ingestion cancel**    | N/A                                  | ✅ SPEC-057 cooperative cancel                |
-| **Multi-replica**       | N/A                                  | ✅ `EDGEQUAKE_REPLICAS` + claim/lease           |
-| **Async Runtime**       | asyncio                              | Tokio                                         |
-| **Indexing Cost**       | Very high ($$$)                      | Moderate ($$)                                 |
+We have not benchmarked EdgeQuake against GraphRAG, so this page makes no claims about cost, speed, or accuracy. It compares design and features only.
 
 ---
 
-## Architectural Philosophy
+## The core difference
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                   GRAPHRAG ARCHITECTURE                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────┐                                                │
-│  │   Python    │  Pandas DataFrames, asyncio                    │
-│  │ Data Pipes  │  Pipeline-based data transformation            │
-│  └──────┬──────┘                                                │
-│         │                                                       │
-│         ▼                                                       │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐          │
-│  │   Parquet   │    │  LanceDB    │    │   CosmosDB  │          │
-│  │   Files     │    │  (Vector)   │    │  (Optional) │          │
-│  └─────────────┘    └─────────────┘    └─────────────┘          │
-│                                                                 │
-│  Focus: Research, Analysis, Batch Processing                    │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+GraphRAG groups the graph into **communities** (clusters of related entities) at several levels, and asks an LLM to write a **report** for each one. Broad questions are answered from those reports.
 
-┌─────────────────────────────────────────────────────────────────┐
-│                   EDGEQUAKE ARCHITECTURE                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────┐                                                │
-│  │    Rust     │  Tokio async, zero-copy, 11 crates             │
-│  │   Engine    │  Multi-tenant, streaming-first                 │
-│  └──────┬──────┘                                                │
-│         │                                                       │
-│         ▼                                                       │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │              PostgreSQL (Unified Backend)                  │ │
-│  │  ┌─────────┐  ┌─────────┐  ┌─────────────────────────────┐ │ │
-│  │  │pgvector │  │ Apache  │  │   Standard Tables           │ │ │
-│  │  │(vectors)│  │  AGE    │  │   (docs, workspaces)        │ │ │
-│  │  │         │  │ (graph) │  │                             │ │ │
-│  │  └─────────┘  └─────────┘  └─────────────────────────────┘ │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                                                                 │
-│  Focus: Production Services, Multi-tenant SaaS                  │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+EdgeQuake follows the LightRAG design. It does not write community reports by default. Broad questions are answered by searching **relationship descriptions**.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    subgraph GR["GraphRAG"]
+        g1["Extract entities and relations"] --> g2["Detect communities (Leiden, hierarchical)"]
+        g2 --> g3["LLM writes community reports"]
+        g3 --> g4["Global search reads reports"]
+    end
+    subgraph EQ["EdgeQuake"]
+        e1["Extract entities and relations"] --> e2["Embed entities and relations"]
+        e2 --> e3["Global search reads relationships"]
+    end
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class g3 eqLlm
 ```
+
+Read each box top to bottom. GraphRAG adds a reporting step; EdgeQuake does not. That extra step is also where GraphRAG spends additional LLM calls at indexing time.
 
 ---
 
-## Algorithm Comparison
+## Quick comparison
 
-### Community Detection
-
-| Aspect       | GraphRAG              | EdgeQuake              |
-| ------------ | --------------------- | ---------------------- |
-| Algorithm    | Leiden                | Louvain                |
-| Hierarchy    | ✅ Multi-level        | ⚠️ Flat (single level) |
-| Summaries    | Per-level reports     | Community summaries    |
-| Use at Query | Level-based selection | All communities        |
-
-**GraphRAG's Hierarchical Approach:**
-
-```
-                    Level 0
-                 ┌────────────┐
-                 │ High-level │
-                 │  Summary   │
-                 └─────┬──────┘
-                       │
-          ┌────────────┼────────────┐
-          ▼            ▼            ▼
-    ┌──────────┐ ┌──────────┐ ┌──────────┐   Level 1
-    │ Cluster  │ │ Cluster  │ │ Cluster  │
-    │ Summary  │ │ Summary  │ │ Summary  │
-    └────┬─────┘ └────┬─────┘ └────┬─────┘
-         │            │            │
-    ┌────┴────┐  ┌────┴────┐  ┌────┴────┐   Level 2
-    │ Nodes   │  │ Nodes   │  │ Nodes   │
-    └─────────┘  └─────────┘  └─────────┘
-```
-
-GraphRAG generates summaries at each hierarchical level, allowing queries to target the appropriate level of detail.
-
-**EdgeQuake's Flat Approach:**
-
-```
-    ┌──────────┐ ┌──────────┐ ┌──────────┐
-    │ Community│ │ Community│ │ Community│
-    │    1     │ │    2     │ │    3     │
-    │ Summary  │ │ Summary  │ │ Summary  │
-    └────┬─────┘ └────┬─────┘ └────┬─────┘
-         │            │            │
-    ┌────┴────┐  ┌────┴────┐  ┌────┴────┐
-    │ Entities│  │ Entities│  │ Entities│
-    └─────────┘  └─────────┘  └─────────┘
-```
-
-EdgeQuake uses flat communities, trading hierarchical flexibility for simpler implementation and faster indexing.
+| Aspect | Microsoft GraphRAG | EdgeQuake |
+| ------ | ------------------ | --------- |
+| Language | Python | Rust |
+| License | MIT | Apache-2.0 |
+| Origin | [GraphRAG paper](https://arxiv.org/abs/2404.16130) | [LightRAG paper](https://arxiv.org/abs/2410.05779) |
+| Communities | Leiden, hierarchical | Louvain by default, flat. Label propagation and connected components are also available. |
+| Community reports | LLM-written, per level | Not by default. Optional extractive reports with `EDGEQUAKE_COMMUNITY_REPORTS`. |
+| Claims extraction | Yes (optional) | No |
+| Query modes | Local, Global, DRIFT, Basic | `naive`, `local`, `global`, `hybrid`, `mix`, `bypass` |
+| Storage | Parquet files and a vector store such as LanceDB by default | PostgreSQL with pgvector and Apache AGE |
+| Server and API | Library and CLI | REST API, WebSocket progress, MCP endpoint |
+| Multi-tenancy | Not part of the project | Tenants, workspaces, row-level security |
+| PDF input | Not part of the core pipeline | Built-in vision and text-based conversion |
 
 ---
 
-### Query Modes Mapping
+## Query modes
 
-| GraphRAG Mode | EdgeQuake Equivalent | Description                                |
-| ------------- | -------------------- | ------------------------------------------ |
-| Global Search | `global`             | Community summaries for holistic questions |
-| Local Search  | `local`              | Entity-centered graph traversal            |
-| DRIFT Search  | N/A                  | Local + community context                  |
-| Basic Search  | `naive`              | Standard vector similarity                 |
-| N/A           | `hybrid`             | Local + Global + Naive (round-robin)   |
-| N/A           | `mix`                | Weighted blend, RRF fusion (**default**)|
-| N/A           | `bypass`             | Direct LLM, no retrieval                   |
+| GraphRAG | EdgeQuake closest match | Notes |
+| -------- | ----------------------- | ----- |
+| Local search | `local` | Both start from entities and follow the graph |
+| Global search | `global` (different method) | GraphRAG does map-reduce over community reports. EdgeQuake searches relationship vectors. |
+| DRIFT search | None | Combines local search with community context |
+| Basic search | `naive` | Plain vector search over text |
+| None | `hybrid`, `mix`, `bypass` | Combined retrieval and a no-retrieval mode |
 
-**Key Difference:** GraphRAG's DRIFT (Dynamic Reasoning Including Facts and Themes) mode combines local entity search with community context. EdgeQuake's `hybrid` mode combines local, global, **and** the naive chunk arm via round-robin interleave (SPEC-046 P0.5 — broader than LightRAG's local+global hybrid); `mix` is the production default with RRF fusion.
+`global` has the same name but works differently. A question like "what are the main themes?" is answered from community reports in GraphRAG, and from relationship descriptions in EdgeQuake. The trade-off is that EdgeQuake skips the cost of writing reports, and GraphRAG gets an answer built from a summary of the whole corpus structure. For EdgeQuake's flow, see [Query flow](../architecture/query-flow.md).
 
 ---
 
-## Indexing Pipeline
+## Indexing
 
-### GraphRAG Pipeline
-
-```
-┌────────────┐    ┌────────────┐    ┌────────────┐
-│   Load     │ ─▶ │   Chunk    │ ─▶ │  Extract   │
-│ Documents  │    │ Documents  │    │   Graph    │
-└────────────┘    └────────────┘    └─────┬──────┘
-                                          │
-                                          ▼
-┌────────────┐    ┌────────────┐    ┌────────────┐
-│   Embed    │ ◀─ │  Generate  │ ◀─ │  Detect    │
-│  Reports   │    │  Reports   │    │Communities │
-└─────┬──────┘    └────────────┘    └────────────┘
-      │
-      ▼
-┌────────────┐    ┌────────────┐    ┌────────────┐
-│   Embed    │ ─▶ │   Embed    │ ─▶ │  Extract   │
-│  Chunks    │    │  Entities  │    │   Claims   │
-└────────────┘    └────────────┘    └────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    subgraph GR["GraphRAG indexing"]
+        a1["Chunk"] --> a2["Extract graph"]
+        a2 --> a3["Communities"]
+        a3 --> a4["Reports"]
+        a4 --> a5["Embed"]
+    end
+    subgraph EQ["EdgeQuake indexing"]
+        b1["Chunk"] --> b2["Extract graph"]
+        b2 --> b3["Merge entities"]
+        b3 --> b4["Store graph and vectors"]
+    end
 ```
 
-**GraphRAG extras:**
+Read each row left to right. The main extra stages in GraphRAG are community reports and, when enabled, claims.
 
-- Claims extraction (fact-like statements)
-- Multi-level community reports
-- Entity covariates (additional attributes)
+What EdgeQuake adds around extraction:
 
-### EdgeQuake Pipeline
-
-```
-┌────────────┐    ┌────────────┐    ┌────────────┐
-│   Load     │ ─▶ │   Chunk    │ ─▶ │  Extract   │
-│ Documents  │    │ Documents  │    │ Entities + │
-└────────────┘    └────────────┘    │ Relations  │
-                                    └─────┬──────┘
-                                          │
-                                          ▼
-┌────────────┐    ┌────────────┐    ┌────────────┐
-│   Store    │ ◀─ │  Community │ ◀─ │  Normalize │
-│   Graph    │    │ Detection  │    │  & Merge   │
-└────────────┘    └────────────┘    └────────────┘
-```
-
-**EdgeQuake optimizations:**
-
-- Entity normalization (deduplication)
-- Gleaning (multi-pass extraction)
-- Source lineage tracking
-- Concurrent chunk processing
+- Entity names are normalized, and entities are merged. Descriptions are combined, and rewritten by an LLM when they grow long.
+- Optional gleaning: extra passes to catch missed entities.
+- Lineage from every entity back to its chunks, documents, and lines. See [Lineage tracking](../architecture/lineage-tracking.md).
+- A task queue with cancel, retry, and progress. See [Data flow](../architecture/data-flow.md).
 
 ---
 
-## Performance Characteristics
+## Feature check
 
-### Indexing Cost
+| Feature | GraphRAG | EdgeQuake |
+| ------- | :------: | :-------: |
+| Entity and relationship extraction | Yes | Yes |
+| Hierarchical communities | Yes | No |
+| LLM community reports | Yes | No (optional extractive reports) |
+| Claims extraction | Yes | No |
+| DRIFT search | Yes | No |
+| Prompt tuning command | Yes | No |
+| Gleaning | Not verified | Yes |
+| LLM caching | Yes | Yes (keyword, answer, and extraction caches) |
+| Streaming answers | Not verified | Yes |
+| Multi-tenant isolation | Not part of the project | Yes |
+| REST API and WebUI | Not part of the core package | Yes |
+| OpenAI-style chat endpoint | Not part of the core package | Yes (`/api/v1/chat/completions`) |
 
-| Document Type  | GraphRAG   | EdgeQuake   | Notes            |
-| -------------- | ---------- | ----------- | ---------------- |
-| 10-page report | ~$5-15     | ~$0.50-2.00 | Per document     |
-| 100-page book  | ~$50-150   | ~$5-20      | Highly variable  |
-| 1000 documents | ~$500-5000 | ~$50-500    | Batch processing |
-
-**Why GraphRAG costs more:**
-
-1. Hierarchical community summaries at multiple levels
-2. Claims extraction (additional LLM calls)
-3. Entity covariates extraction
-4. Coarser chunking requiring more context
-
-**Why EdgeQuake costs less:**
-
-1. Flat community structure
-2. Optimized prompts from LightRAG research
-3. Entity deduplication reduces redundancy
-4. Smaller default chunk sizes
-
-### Query Latency
-
-| Query Type        | GraphRAG           | EdgeQuake   |
-| ----------------- | ------------------ | ----------- |
-| Simple lookup     | ~300-800ms         | ~200-500ms  |
-| Global (themes)   | ~2-5s (map-reduce) | ~500ms-2s   |
-| Complex reasoning | ~1-3s              | ~500ms-1.5s |
-
-**GraphRAG's map-reduce:**
-Global search uses map-reduce over community reports, which is thorough but slow. Each "map" step generates intermediate responses, then "reduce" aggregates them.
-
-**EdgeQuake's parallel approach:**
-Uses Tokio's concurrent task execution for parallel context retrieval, generally faster for production workloads.
+"Not verified" means we did not check it, so we make no claim.
 
 ---
 
-## Feature Matrix
+## Running them
 
-| Feature                 |    GraphRAG    |  EdgeQuake  |
-| ----------------------- | :------------: | :---------: |
-| Entity extraction       |       ✅       |     ✅      |
-| Relationship extraction |       ✅       |     ✅      |
-| Community detection     | ✅ Multi-level |   ✅ Flat   |
-| Community summaries     |       ✅       |     ✅      |
-| Claims extraction       |       ✅       |     ❌      |
-| Entity covariates       |       ✅       |     ❌      |
-| Gleaning (multi-pass)   |       ❌       |     ✅      |
-| Entity normalization    |    ⚠️ Basic    | ✅ Advanced |
-| Source lineage          |    ⚠️ Basic    |   ✅ Full   |
-| PDF vision ingestion    |       ❌       |     ✅      |
-| Ingestion cancel        |       ❌       |     ✅      |
-| Multi-replica workers   |       ❌       |     ✅      |
-| Multi-tenant            |       ❌       |     ✅      |
-| REST API                |       ❌       |     ✅      |
-| Streaming responses     |       ⚠️       |   ✅ SSE    |
-| OpenAI-compatible API   |       ❌       |     ✅      |
-| Prompt tuning CLI       |       ✅       |     ❌      |
-| DRIFT search            |       ✅       |     ❌      |
-| LLM caching             |       ✅       |  ⚠️ Basic   |
+GraphRAG usually runs as a CLI or notebook job. You index in batch, write files, and query from them.
 
----
+EdgeQuake is a long-running service. You start PostgreSQL and the server, then send documents and questions over HTTP.
 
-## Storage Backends
-
-### GraphRAG Options
-
-| Backend         | Vector | Graph | Status    |
-| --------------- | ------ | ----- | --------- |
-| Parquet/Files   | ❌     | ✅    | Default   |
-| LanceDB         | ✅     | ❌    | Default   |
-| Azure AI Search | ✅     | ❌    | Supported |
-| CosmosDB        | ✅     | ✅    | Supported |
-| Neo4j           | ❌     | ✅    | Community |
-
-### EdgeQuake Options
-
-| Backend                     | Vector | Graph | Status   |
-| --------------------------- | ------ | ----- | -------- |
-| PostgreSQL 16–18 + pgvector + AGE | ✅     | ✅    | Required |
-| In-memory                   | —      | —     | Removed (tests use mocks) |
-
-**EdgeQuake's unified PostgreSQL:**
-
-- `DATABASE_URL` required — no production in-memory fallback
-- Official images: `ghcr.io/raphaelmansuy/edgequake-postgres:0.23.0-pg16|pg17|pg18`
-- Transactional consistency + RLS tenant isolation
-- Simpler deployment than split Parquet + LanceDB stacks
-
----
-
-## Deployment Complexity
-
-### GraphRAG
-
-```yaml
-# Typical GraphRAG deployment needs:
-dependencies:
-  - Python 3.10+
-  - LLM API (OpenAI/Azure)
-  - File storage (Parquet)
-  - Vector store (LanceDB/Azure AI Search)
-  - Optional: CosmosDB, Neo4j
-
-deployment_model: CLI/Notebook-driven
-production_ready: Limited (research focus)
-multi_tenant: Manual implementation required
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    subgraph GR["GraphRAG"]
+        gr1["Input files"] --> gr2["Index job"] --> gr3["Parquet and vector files"] --> gr4["Query CLI or code"]
+    end
+    subgraph EQ["EdgeQuake"]
+        eq1["HTTP upload"] --> eq2["Task queue"] --> eq3["PostgreSQL"] --> eq4["HTTP query"]
+    end
+%% eq-classes
+classDef eqActor fill:#FCE7F3,stroke:#EC4899,color:#500724
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class gr4 eqActor
+class eq2,eq3 eqStore
 ```
 
-### EdgeQuake
-
-```yaml
-# EdgeQuake deployment needs:
-dependencies:
-  - Rust runtime (compiled binary or GHCR image)
-  - PostgreSQL 16–18 with pgvector + AGE (required)
-  - LLM API (OpenAI/Ollama/Vertex OAuth2)
-
-deployment_model: Docker/Container (ghcr.io/raphaelmansuy/edgequake)
-production_ready: Yes
-multi_tenant: Built-in via workspaces + RLS
-multi_replica: EDGEQUAKE_REPLICAS>1 requires bridged/notify_only delivery
-```
+Read each row left to right. GraphRAG is file based and batch oriented. EdgeQuake is service based and incremental: you can add one document at a time.
 
 ---
 
-## Use Case Recommendations
+## When to choose each
 
-### Choose GraphRAG When:
+Choose **GraphRAG** when:
 
-- ✅ Deep research and analysis is the goal
-- ✅ Hierarchical document understanding is critical
-- ✅ You need claims/facts extraction
-- ✅ You're working in a Python-centric environment
-- ✅ Indexing cost is not a concern
-- ✅ Batch processing is acceptable
+- You need hierarchical, report-style answers about the whole corpus.
+- You want claims extraction or DRIFT search.
+- Your workflow is batch analysis in Python.
 
-### Choose EdgeQuake When:
+Choose **EdgeQuake** when:
 
-- ✅ Building a production service
-- ✅ Multi-tenant SaaS is required
-- ✅ Real-time query latency matters
-- ✅ Indexing cost optimization is important
-- ✅ PostgreSQL is your preferred database
-- ✅ REST API is needed
-- ✅ Streaming responses are required
+- You want a service with an API, tenants, and a UI.
+- You want incremental ingestion with progress and cancel.
+- You want one PostgreSQL database instead of separate file and vector stores.
 
 ---
 
-## Migration Considerations
+## Moving between them
 
-### GraphRAG → EdgeQuake
-
-1. **Data Export:** Export entities and relationships from GraphRAG's Parquet files
-2. **Schema Mapping:** Map to EdgeQuake's PostgreSQL schema
-3. **Community Re-detection:** EdgeQuake uses flat communities, re-run detection
-4. **Query Mode Adjustment:** Map GraphRAG modes to EdgeQuake equivalents
-
-### EdgeQuake → GraphRAG
-
-1. **Data Export:** Query PostgreSQL for entities/relationships
-2. **Format Conversion:** Convert to GraphRAG's expected input format
-3. **Re-indexing:** Full re-index required for hierarchical communities
-4. **API Replacement:** Replace REST API calls with GraphRAG library calls
-
----
-
-## Summary
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    DECISION MATRIX                               
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Requirement                 │ GraphRAG  │ EdgeQuake            │
-│  ─────────────────────────────────────────────────────────────  │
-│  Research/Analysis           │    ⭐⭐⭐⭐       ⭐⭐⭐               
-│  Production Service          │    ⭐⭐         ⭐⭐⭐⭐              
-│  Multi-tenant SaaS           │    ⭐          ⭐⭐⭐⭐              
-│  Indexing Cost Efficiency    │    ⭐⭐         ⭐⭐⭐⭐             
-│  Query Latency               │    ⭐⭐         ⭐⭐⭐⭐              
-│  Hierarchical Understanding  │    ⭐⭐⭐⭐       ⭐⭐⭐               
-│  Python Ecosystem            │    ⭐⭐⭐⭐       ⭐⭐                
-│  Claims Extraction           │    ⭐⭐⭐⭐       ❌                 
-│  REST API                    │    ⭐          ⭐⭐⭐⭐              
-│                                                                 
-│  GraphRAG: Best for research, analysis, deep document study     │
-│  EdgeQuake: Best for production services, SaaS, real-time apps  │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
+There is no automatic converter in either direction. The graphs use different schemas and communities are built differently. To switch, ingest the original documents into the new system and compare answers on your own questions.
 
 ## References
 
-- [Microsoft GraphRAG Paper](https://arxiv.org/pdf/2404.16130) (arxiv:2404.16130)
-- [LightRAG Paper](https://arxiv.org/abs/2410.05779) (arxiv:2410.05779)
-- [GraphRAG Documentation](https://microsoft.github.io/graphrag/)
-- [EdgeQuake Quick Start](/docs/getting-started/quick-start/)
+- [GraphRAG paper](https://arxiv.org/abs/2404.16130)
+- [GraphRAG documentation](https://microsoft.github.io/graphrag/)
+- [LightRAG paper](https://arxiv.org/abs/2410.05779)
 
----
+## See also
 
-## See Also
-
-- [vs LightRAG Python](/docs/comparisons/vs-lightrag-python/) - Comparison with the Python reference implementation
-- [vs Traditional RAG](/docs/comparisons/vs-traditional-rag/) - Why graphs matter
-- [Query Modes](/docs/deep-dives/query-modes/) - EdgeQuake's 6 query strategies
-- [LightRAG Algorithm](/docs/deep-dives/lightrag-algorithm/) - Algorithm deep-dive
+- [vs LightRAG (Python)](./vs-lightrag-python.md)
+- [vs traditional RAG](./vs-traditional-rag.md)
+- [Community detection](../deep-dives/community-detection.md)
+- [Query modes](../deep-dives/query-modes.md)

@@ -1,482 +1,170 @@
 ---
-title: 'Tutorial: Query Optimization'
+title: "Tutorial: Query optimization"
+description: Choose the right EdgeQuake query mode for each question, tune retrieval with request fields and server settings, and compare modes side by side.
 ---
 
-> **Product: v0.23.0** · Contract: [`openapi.snapshot.json`](../../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+In this tutorial you learn the six query modes, pick one for each kind of question, and tune retrieval when answers are thin or noisy.
 
-# Tutorial: Query Optimization
+**Prerequisites:** a workspace with at least one completed document (see [First RAG app](first-rag-app.md)) and the variables `EQ_API` and `WORKSPACE_ID`.
 
-> **Choosing and Tuning Query Modes for Best Results**
+## How a query runs
 
-This tutorial teaches you how to select the right query mode for different question types and optimize retrieval quality.
+Every query follows the same outer steps. Only the retrieval step depends on the mode.
 
-**Time**: ~20 minutes  
-**Level**: Intermediate  
-**Prerequisites**: Completed [First RAG App](/docs/tutorials/first-rag-app/)
-
-All query examples return **`QueryResponse`**: top-level `answer` + `sources` + `stats` (not `chunks` / `entities_used`). Use `X-Workspace-ID` for scoping.
-
-> **Request fields that exist** (from `QueryRequest`): `query`, `mode`, `max_results`, `context_only`, `prompt_only`, `enable_rerank`, `rerank_top_k`, `rerank_model`, `document_filter`, `mix_weights`, `llm_provider`, `llm_model`, `system_prompt`, `include_references`, `include_subgraph`, `conversation_history`. Fields like `max_chunks`, `similarity_threshold`, `max_hops`, `max_communities`, or `temperature` are **not** per-query API fields — see [Tuning parameters](#tuning-parameters) for what to use instead.
-
----
-
-## Query Mode Overview
-
-EdgeQuake provides 6 query modes. **The production default is `mix`** — when `mode` is omitted the API falls back to `QueryMode::Mix` (weighted fusion of all three arms):
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                   QUERY MODE DECISION TREE                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  "What are the main themes?"  ──────────▶  GLOBAL               │
-│  (overview; relationship-vector search)                        │
-│                                                                 │
-│  "Who is Sarah Chen?"  ─────────────────▶  LOCAL                │
-│  (specific entity)                                              │
-│                                                                 │
-│  "How does X work?"  ───────────────────▶  HYBRID               │
-│  (general questions; local+global+naive interleave)             │
-│                                                                 │
-│  "Find documents about..."  ────────────▶  NAIVE                │
-│  (keyword/semantic search only)                                │
-│                                                                 │
-│  "Complex multi-part question"  ────────▶  MIX  (DEFAULT)       │
-│  (weighted blend of all arms)                                   │
-│                                                                 │
-│  "Just chat, no retrieval"  ────────────▶  BYPASS               │
-│  (direct LLM)                                                   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  A["Question"] --> B["Extract keywords and embed"]
+  B --> C["Retrieve by mode"]
+  C --> D["Filter and rerank"]
+  D --> E["Trim to token budget"]
+  E --> F["LLM writes the answer"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class F eqLlm
 ```
 
----
+Read it left to right. The mode you choose changes only the third box. The full pipeline is in [Query modes](../deep-dives/query-modes.md).
 
-## Mode 1: Naive (Vector Only)
+## The six modes
 
-**Best for**: Simple keyword lookups, document similarity
+Set the mode with the `mode` field of `POST /api/v1/query`. Names are case-insensitive.
 
-### How It Works
+| Mode | Looks at | Best for |
+|------|----------|----------|
+| `naive` | Text chunks only, by vector similarity. | Simple fact lookups. |
+| `local` | Entities that match the question, their neighbours and linked chunks. | Questions about one named thing. |
+| `global` | Relationships that match the question, with related entities and chunks. | Themes and overviews. |
+| `hybrid` | `local`, `global` and `naive` together, chunks interleaved. | Questions with several parts. |
+| `mix` | The same three searches as `hybrid`, with per-search weights. | General use. **Default.** |
+| `bypass` | Nothing. The LLM answers alone. | Chat and "no documents" checks. |
 
+If you send no `mode`, the REST API uses `mix`.
+
+## Choose a mode
+
+Use the chart as a starting point, then test on your own questions (next section).
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A{"Need your documents?"} -- "No" --> B["bypass"]
+  A -- "Yes" --> C{"Simple fact?"}
+  C -- "Yes" --> D["naive"]
+  C -- "No" --> E{"About one named thing?"}
+  E -- "Yes" --> F["local"]
+  E -- "No" --> G{"Broad themes?"}
+  G -- "Yes" --> H["global"]
+  G -- "Not sure" --> I["mix"]
 ```
-Query ──▶ [Embed] ──▶ [Vector Search] ──▶ Top-K Chunks ──▶ LLM ──▶ Answer
-```
 
-### Example
+Read it from the top and stop at the first answer that fits. When in doubt, keep `mix`.
+
+## Compare modes on one question
+
+Run the same question through each mode and compare the answers and sources. This is the most reliable way to choose.
 
 ```bash
-curl -X POST "http://localhost:8080/api/v1/query" \
+QUESTION="How are the key people in the documents connected?"
+
+for MODE in naive local global hybrid mix; do
+  echo "== $MODE"
+  curl -s -X POST "$EQ_API/api/v1/query" \
+    -H "Content-Type: application/json" \
+    -H "X-Workspace-ID: $WORKSPACE_ID" \
+    -d "{\"query\": \"$QUESTION\", \"mode\": \"$MODE\"}" \
+    | jq '{sources: (.sources | length), total_ms: .stats.total_time_ms, answer: (.answer | .[0:160])}'
+done
+```
+
+Expected output: one block per mode with the number of sources, the total time and the start of the answer. The numbers depend on your documents and models. Do not rely on published latency tables; measure your own.
+
+To see only the retrieved evidence, without calling the LLM for an answer, set `"context_only": true`. To see the final prompt, set `"prompt_only": true`.
+
+## Request fields that tune retrieval
+
+All fields below are optional parts of the `POST /api/v1/query` body.
+
+| Field | Default | What it does |
+|-------|---------|--------------|
+| `mode` | `mix` | One of the six modes. |
+| `max_results` | engine default (20 chunks) | Caps the number of chunks used. Raise for broad questions, lower for focused ones. |
+| `enable_rerank` | `true` | Re-score chunks after retrieval. |
+| `rerank_top_k` | `20` | Chunks kept after reranking. |
+| `include_references` | `false` | Adds file path and line information to sources. |
+| `include_subgraph` | `true` | Returns the entity subgraph used for the answer. |
+| `document_filter` | none | Limit to `document_ids`, a `document_pattern` on titles, or a `date_from` and `date_to` range. |
+| `mix_weights` | engine default | Per-request weights `{local, global, naive}` for `mix`. |
+| `conversation_history` | none | Earlier turns for multi-turn chat. |
+| `llm_provider`, `llm_model` | workspace setting | Use another model for this answer. |
+| `system_prompt` | none | Extra instructions added to the base prompt. |
+
+Example: a focused question limited to one document, with references.
+
+```bash
+curl -s -X POST "$EQ_API/api/v1/query" \
   -H "Content-Type: application/json" \
   -H "X-Workspace-ID: $WORKSPACE_ID" \
   -d '{
-    "query": "funding announcement",
-    "mode": "naive"
-  }'
+    "query": "What did the report conclude?",
+    "mode": "local",
+    "max_results": 10,
+    "include_references": true,
+    "document_filter": {"document_ids": ["'"$DOC_ID"'"]}
+  }' | jq '.sources[] | {document_id, file_path, start_line, end_line, score}'
 ```
 
-### When to Use
+## Tune `mix`
 
-| ✅ Good For           | ❌ Avoid For            |
-| --------------------- | ---------------------- |
-| Keyword search        | Multi-hop reasoning    |
-| Finding similar docs  | Relationship questions |
-| Simple factual lookup | Overview questions     |
-| Fast responses        | Complex analysis       |
+`mix` runs the local, global and naive searches, then merges their chunks. The merge method is a server setting.
 
----
+| `EDGEQUAKE_MIX_FUSION` | Behaviour |
+|------------------------|-----------|
+| `round_robin` (default) | Takes chunks from each search in turn. |
+| `rrf` | Reciprocal rank fusion across the three ranked lists. |
+| `max_after_minmax` | Scales each search to 0-1, applies weights, then keeps each chunk's best score. The old name `weighted` still works. |
 
-## Mode 2: Local (Entity-Focused)
-
-**Best for**: Questions about specific entities and their relationships
-
-### How It Works
-
-```
-Query ──▶ [Extract Entities] ──▶ [Graph Traversal] ──▶ Related Context ──▶ LLM ──▶ Answer
-                                        │
-                                        ▼
-                              Entity descriptions
-                              Related entities
-                              Relationships
-                              Source chunks
-```
-
-### Example
+Weights come from `mix_weights` on the request or `EDGEQUAKE_MIX_LOCAL_WEIGHT`, `EDGEQUAKE_MIX_GLOBAL_WEIGHT` and `EDGEQUAKE_MIX_NAIVE_WEIGHT` on the server. All default to `1.0`. A weight of `0` turns that search off. Weights change the ranking when you use `rrf` or `max_after_minmax`; with plain round robin they do not reorder results.
 
 ```bash
-curl -X POST "http://localhost:8080/api/v1/query" \
+curl -s -X POST "$EQ_API/api/v1/query" \
   -H "Content-Type: application/json" \
   -H "X-Workspace-ID: $WORKSPACE_ID" \
-  -d '{
-    "query": "What is Sarah Chen'\''s background and role?",
-    "mode": "local"
-  }'
+  -d '{"query": "What is the relationship between A and B?", "mode": "mix",
+       "mix_weights": {"local": 1.0, "global": 0.5, "naive": 0.5}}' | jq '.answer'
 ```
 
-### When to Use
+## Server settings
 
-| ✅ Good For          | ❌ Avoid For         |
-| -------------------- | ------------------- |
-| "Who is X?"          | Overview questions  |
-| "What does X do?"    | Theme analysis      |
-| Entity relationships | When entity unknown |
-| Biography questions  | General how-tos     |
+These variables apply to the whole server. The full list is in the [environment reference](../operations/env-reference.md).
 
----
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `EDGEQUAKE_MIN_ENTITY_SCORE` | `0.1` | Drops entities below this similarity. Set `0` to find rare entities named in short queries. |
+| `EDGEQUAKE_MIN_RERANK_SCORE` | `0.1` | Drops chunks below this rerank score. |
+| `EDGEQUAKE_RERANKER` | BM25 | Set `cross_encoder` for a neural reranker. |
+| `EDGEQUAKE_LLM_MAX_TOKENS` | `16384` | Upper bound for the answer length. |
+| `EDGEQUAKE_MIX_FUSION` | `round_robin` | Merge method for `mix`. |
+| `EDGEQUAKE_LLM_CACHE` | on | Caches keyword extraction and answers. Set `0` when you benchmark. |
 
-## Mode 3: Global (Relationship-Centric)
+The engine defaults are 60 entities, 60 relationships, 20 chunks and a 30000 token context budget. They are not per-request settings.
 
-**Best for**: Overview questions, theme analysis, corpus-wide insights
+## Fix common problems
 
-> **Not** Microsoft GraphRAG community-report search. EdgeQuake `global` runs a **high-level query embedding against relationship vectors**, then batch-fetches connected entities and their source chunks; when no relationship vectors match it falls back to **high-degree nodes** in the graph.
+| Symptom | Likely cause | Try |
+|---------|--------------|-----|
+| Answer says there is not enough information | Too little context retrieved. | Raise `max_results`; try `mix` or `hybrid`; set `EDGEQUAKE_MIN_ENTITY_SCORE=0`. |
+| Answer drifts off topic | Too much weak context. | Use `local` or `naive`; lower `max_results`; add a `document_filter`. |
+| Slow answers | Large model or large context. | Lower `max_results`; use a smaller or local model; check the `stats` timings. |
+| Named entity not found | Entity score below the threshold, or the name is spelled differently. | Lower `EDGEQUAKE_MIN_ENTITY_SCORE`; search `GET /api/v1/graph/entities?search=<name>`. |
+| Same wrong answer after changes | Answer cache. | Set `EDGEQUAKE_LLM_CACHE=0` while testing. |
 
-### How It Works
+The `stats` object in every response shows where time went: `embedding_time_ms`, `keyword_time_ms`, `retrieval_time_ms`, `generation_time_ms` and `total_time_ms`. [Query modes](../deep-dives/query-modes.md) explains how to read the debug trail.
 
-```
-Query ──▶ [High-level keyword embedding] ──▶ [Vector ANN on relationship rows]
-                                                      │
-                                     ┌────────────────┴────────────────┐
-                                     │ hits                            │ empty
-                                     ▼                                 ▼
-                             src/tgt entities               popular nodes by degree
-                             + relationship text           (graph fallback)
-                                     │                                 │
-                                     └────────────┬────────────────────┘
-                                                  ▼
-                                    Batch node + degree fetch (no N+1)
-                                                  │
-                                                  ▼
-                                    Collect linked chunk IDs → chunk re-rank
-                                                  │
-                                                  ▼
-                                               LLM ──▶ Answer
-```
+## Next steps
 
-### Example
-
-```bash
-curl -X POST "http://localhost:8080/api/v1/query" \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: $WORKSPACE_ID" \
-  -d '{
-    "query": "What are the main themes and topics across all documents?",
-    "mode": "global"
-  }'
-```
-
-### When to Use
-
-| ✅ Good For      | ❌ Avoid For          |
-| ---------------- | --------------------- |
-| "Main themes?"   | Specific entity facts |
-| "Overview of..." | Detailed how-tos      |
-| "Key topics?"    | Finding specific docs |
-| Summary requests | Precise citations     |
-
----
-
-## Mode 4: Hybrid (Local + Global + Naive)
-
-**Best for**: General questions, balanced context needs
-
-> Hybrid **interleaves** the Local, Global, **and** Naive arms round-robin. It is **not** the default — `mix` is. Use `hybrid` when you want a deterministic three-arm interleave without weight tuning.
-
-### How It Works
-
-```
-                              ┌──▶ [Local arm] ──────┐
-Query ──▶ [Interleave] ───────┼──▶ [Global arm] ─────┼──▶ [Combine] ──▶ LLM ──▶ Answer
-                              └──▶ [Naive arm] ──────┘
-```
-
-### Example
-
-```bash
-curl -X POST "http://localhost:8080/api/v1/query" \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: $WORKSPACE_ID" \
-  -d '{
-    "query": "How has TechCorp evolved since its founding?",
-    "mode": "hybrid"
-  }'
-```
-
-### When to Use
-
-| ✅ Good For         | ❌ Avoid For           |
-| ------------------- | ---------------------- |
-| General questions   | When speed is critical |
-| Unsure of best mode | Simple keyword search  |
-| Deterministic 3-arm interleave | When you want weight tuning (`mix`) |
-| Complex questions   |                        |
-
----
-
-## Mode 5: Mix (Weighted Blend — DEFAULT)
-
-**Best for**: Fine-tuned blending of retrieval strategies; this is the production default when `mode` is omitted
-
-### How It Works
-
-Mix runs the **Local**, **Global**, and **Naive** arms in parallel and blends their results by *weighted score* (min-max normalized per arm, then weighted sum). Weights are set **per request** via `mix_weights` and need not sum to 1.
-
-```
-                              ┌──▶ [Local] ──▶ local × wL ─┐
-Query ──▶ [Parallel] ─────────┤                            ├──▶ [Rank] ──▶ LLM
-                              ├──▶ [Global] ─▶ global × wG ─┤
-                              └──▶ [Naive] ──▶ naive × wN ──┘
-```
-
-### Example
-
-```bash
-curl -X POST "http://localhost:8080/api/v1/query" \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: $WORKSPACE_ID" \
-  -d '{
-    "query": "NeuralSearch capabilities and key people",
-    "mode": "mix",
-    "mix_weights": { "local": 1.0, "global": 0.5, "naive": 1.0 }
-  }'
-```
-
-### Weight Presets (via `mix_weights`)
-
-| Use Case       | local | global | naive |
-| -------------- | ----- | ------ | ----- |
-| Factual lookup | 0.5   | 0.0    | 1.0   |
-| Relationship Q | 1.0   | 0.5    | 0.5   |
-| Overview Q     | 0.5   | 1.0    | 0.5   |
-| Balanced       | 1.0   | 1.0    | 1.0   |
-
-Fleet defaults: `EDGEQUAKE_MIX_LOCAL_WEIGHT`, `EDGEQUAKE_MIX_GLOBAL_WEIGHT`, `EDGEQUAKE_MIX_NAIVE_WEIGHT`. Fusion is round-robin by default; `EDGEQUAKE_MIX_FUSION=rrf` is an ablation option.
-
----
-
-## Mode 6: Bypass (Direct LLM)
-
-**Best for**: When retrieval isn't needed
-
-### How It Works
-
-```
-Query ──▶ [Direct LLM Call] ──▶ Answer
-           (no retrieval)
-```
-
-### Example
-
-```bash
-curl -X POST "http://localhost:8080/api/v1/query" \
-  -H "Content-Type: application/json" \
-  -H "X-Workspace-ID: $WORKSPACE_ID" \
-  -d '{
-    "query": "What is the capital of France?",
-    "mode": "bypass"
-  }'
-```
-
-### When to Use
-
-| ✅ Good For       | ❌ Avoid For       |
-| ----------------- | ------------------ |
-| General knowledge | Document questions |
-| Code generation   | Anything in corpus |
-| Format conversion | Fact-checking      |
-| Math/logic        | Citations needed   |
-
----
-
-## Choosing the Right Mode
-
-### Decision Flowchart
-
-```
-                           Question Type?
-                               │
-          ┌────────────────────┼────────────────────┐
-          │                    │                    │
-    About specific        General/mixed       Overview/themes
-       entity?               question?            wanted?
-          │                    │                    │
-          ▼                    ▼                    ▼
-        LOCAL               MIX (default)        GLOBAL
-          │                    │                    │
-          │                    │                    │
-     Need tuning?         Need interleave?     Need more?
-          │                    │                    │
-          ▼                    ▼                    ▼
-         MIX                 HYBRID                MIX
-```
-
-### Quick Reference
-
-| Question Pattern         | Best Mode     |
-| ------------------------ | ------------- |
-| "Who is X?"              | local         |
-| "What is X?"             | hybrid        |
-| "How does X work?"       | hybrid        |
-| "Main themes?"           | global        |
-| "Overview of..."         | global        |
-| "Find docs about..."     | naive         |
-| "Compare X and Y"        | mix           |
-| "X's relationship to Y?" | local         |
-| Omit `mode` entirely     | mix (default) |
-
----
-
-## Performance Comparison
-
-### Latency by Mode
-
-| Mode   | Avg Latency | Notes                |
-| ------ | ----------- | -------------------- |
-| naive  | ~200ms      | Fastest, vector only |
-| local  | ~300ms      | Graph traversal      |
-| global | ~400ms      | Relationship vectors |
-| hybrid | ~500ms      | 3-arm interleave     |
-| mix    | ~500ms      | Weighted blend       |
-| bypass | ~100ms      | No retrieval         |
-
-### Quality by Question Type
-
-| Question Type | Naive    | Local    | Global   | Hybrid   |
-| ------------- | -------- | -------- | -------- | -------- |
-| Entity facts  | ⭐⭐     | ⭐⭐⭐⭐ | ⭐⭐     | ⭐⭐⭐   |
-| Relationships | ⭐       | ⭐⭐⭐⭐ | ⭐⭐     | ⭐⭐⭐   |
-| Overview      | ⭐       | ⭐⭐     | ⭐⭐⭐⭐ | ⭐⭐⭐   |
-| Similarity    | ⭐⭐⭐⭐ | ⭐⭐     | ⭐       | ⭐⭐⭐   |
-| Complex       | ⭐       | ⭐⭐⭐   | ⭐⭐⭐   | ⭐⭐⭐⭐ |
-
----
-
-## Tuning Parameters
-
-Only these are per-request query fields:
-
-| Field | Default | Effect |
-| ----- | ------- | ------ |
-| `max_results` | 20 (engine `max_chunks`) | Max chunks retrieved (the per-query knob) |
-| `enable_rerank` | `true` | Apply reranking to improve relevance |
-| `rerank_top_k` | `null` (model default) | Number of top chunks after reranking |
-| `rerank_model` | provider default | Rerank model id (e.g. `cohere-rerank-v3`) |
-| `document_filter` | `null` | Restrict RAG context by date / id / pattern |
-| `mix_weights` | engine/env defaults | `{local, global, naive}` arm weights for `mix` |
-| `context_only` | `false` | Return retrieved context only, no LLM answer |
-| `prompt_only` | `false` | Return the formatted prompt for debugging |
-| `include_subgraph` | `true` | Include matched graph (entities + relationships) |
-| `include_references` | `false` | Add detailed reference metadata to sources |
-
-Example — cap chunks and scope to a date range:
-
-```json
-{
-  "query": "Detailed analysis of TechCorp",
-  "mode": "hybrid",
-  "max_results": 10,
-  "document_filter": { "date_from": "2024-01-01", "date_to": "2024-12-31" }
-}
-```
-
-### Engine-level knobs (not per-query)
-
-- `EDGEQUAKE_MIN_ENTITY_SCORE` — entity similarity floor (default `0.1`); lower for rare entities.
-- `EDGEQUAKE_LLM_MAX_TOKENS` — HTTP safety-layer response cap (default `16384`).
-- `EDGEQUAKE_MIX_{LOCAL,GLOBAL,NAIVE}_WEIGHT`, `EDGEQUAKE_MIX_FUSION` — fleet mix defaults.
-- **Temperature is chat-only** (default `0.7` on `/api/v1/chat/completions`); query requests have no temperature field.
-
----
-
-## A/B Testing Modes
-
-Compare modes programmatically:
-
-```python
-import requests
-
-WORKSPACE_ID = "ws_abc123"
-QUERY = "What are TechCorp's main products and leadership?"
-
-modes = ["naive", "local", "global", "hybrid", "mix"]
-results = {}
-
-for mode in modes:
-    resp = requests.post(
-        "http://localhost:8080/api/v1/query",
-        headers={"X-Workspace-ID": WORKSPACE_ID},
-        json={"query": QUERY, "mode": mode}
-    )
-    body = resp.json()
-    results[mode] = {
-        "answer_len": len(body.get("answer", "")),
-        "sources": len(body.get("sources", [])),
-        "total_ms": body.get("stats", {}).get("total_time_ms"),
-    }
-
-for mode, data in results.items():
-    print(f"\n=== {mode.upper()} ===")
-    print(f"Sources: {data['sources']}, total_ms: {data['total_ms']}")
-```
-
----
-
-## Common Issues
-
-### Too Few Results
-
-**Symptoms**: Empty or very short answers.
-
-**Solutions**:
-
-1. Increase `max_results` (per-query chunk cap; default 20)
-2. Lower `EDGEQUAKE_MIN_ENTITY_SCORE` for rare entities
-3. Try `hybrid` or `mix` instead of `naive`
-
-### Irrelevant Results
-
-**Symptoms**: Answer doesn't match question.
-
-**Solutions**:
-
-1. Enable/raise reranking (`enable_rerank: true`, tune `rerank_top_k`)
-2. Use a more specific mode (`local` for entity questions)
-3. Check if documents cover the topic
-
-### Slow Queries
-
-**Symptoms**: Latency > 2 seconds.
-
-**Solutions**:
-
-1. Reduce `max_results` (fewer chunks = faster)
-2. Use `naive` mode for simple questions
-3. Check LLM provider latency (`stats.retrieval_time_ms` vs `generation_time_ms`)
-
----
-
-## What You Learned
-
-✅ All 6 query modes and their strengths  
-✅ `mix` is the production default; `hybrid` is the 3-arm interleave  
-✅ `global` is relationship-vector search (not community reports)  
-✅ Real per-query tuning fields (`max_results`, `mix_weights`, rerank, filters)  
-✅ A/B testing approaches  
-✅ Common issues and solutions
-
----
-
-## Next Steps
-
-| Tutorial                                  | Description                 |
-| ----------------------------------------- | --------------------------- |
-| [Multi-Tenant Setup](/docs/tutorials/multi-tenant/)     | Building a SaaS application |
-| [Custom Entity Types](/docs/concepts/entity-extraction/) | Domain-specific extraction  |
-| [API Integration](/docs/integrations/custom-clients/)     | Building on EdgeQuake       |
-
----
-
-## See Also
-
-- [Query Modes Deep-Dive](/docs/deep-dives/query-modes/) - Detailed algorithm explanation
-- [REST API](/docs/api-reference/rest-api/) - Query endpoint reference
-- [Hybrid Retrieval](/docs/concepts/hybrid-retrieval/) - Conceptual overview
+- [Query modes](../deep-dives/query-modes.md): every step and setting in detail.
+- [Hybrid retrieval](../concepts/hybrid-retrieval.md)
+- [Tracing entity sources](tracing-entity-sources.md): follow a source back to its document.

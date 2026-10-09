@@ -1,5 +1,6 @@
 ---
 title: 'Integration: LangChain'
+description: "Use EdgeQuake from LangChain."
 ---
 
 # Integration: LangChain

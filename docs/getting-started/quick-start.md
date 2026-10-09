@@ -1,329 +1,269 @@
 ---
-title: 'Quick Start Guide'
+title: Quick Start
+description: Upload one document, wait for it to be indexed, explore the graph, and ask questions with the REST API.
 ---
 
-> **Product: v0.23.0** · Contract: [OpenAPI snapshot](../../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Released: v0.32.2** · Contract: [OpenAPI snapshot](../../edgequake_webui/openapi/openapi.snapshot.json) · Ops: [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md)
 
-# Quick Start Guide
+# Quick Start
 
-> From zero to your first knowledge graph query in 10 minutes
+This guide takes you from a running EdgeQuake to your first answer in about 10 minutes. It is for developers who want to see the REST API work end to end. You need a running stack first; see [Installation](installation.md).
 
----
+## What you will do
 
-## What You'll Build
+1. Upload a short text document.
+2. Wait until the server finishes indexing it.
+3. Look at the entities and relationships it found.
+4. Ask questions in three query modes.
 
-By the end of this guide, you will have:
-
-1. ✅ Ingested a document into EdgeQuake (async pipeline)
-2. ✅ Polled until entity extraction completes
-3. ✅ Queried the graph using natural language
-4. ✅ Visualized the knowledge graph in the WebUI
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Your First Flow                        │
-│                                                             │
-│   Document ───▶ POST /documents (202) ───▶ track_id         │
-│                      │                         │            │
-│                      │    poll / WS / SSE      ▼            │
-│                      └──────────────▶ Knowledge Graph       │
-│                                                             │
-│   Query ───────────────────────────▶ Natural language answer│
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    A["POST /documents"] --> B["202 + track_id"]
+    B --> C["Poll task status"]
+    C --> D["Status: indexed"]
+    D --> E["Browse graph"]
+    D --> F["POST /query"]
+    F --> G["Answer + sources"]
 ```
 
----
+Read the chart left to right. Upload returns at once with a `track_id`. Query only works well after the task reaches `indexed`.
 
-## Prerequisites
+## Before you start
 
-Ensure EdgeQuake is running:
+Set the API address. Use `8080` for the Docker quickstart and `8090` for `make dev`:
 
 ```bash
-curl http://localhost:8080/health
-# Expected: JSON containing "status":"healthy"
+export API=http://localhost:8080   # make dev: http://localhost:8090
+curl -s "$API/health" | jq '{status, llm_provider_name}'
 ```
 
-- **API:** port **8080**
-- **WebUI:** port **3000** (`make dev`)
+Expected output:
 
-If not running, see [Installation Guide](/docs/getting-started/installation/).
+```json
+{
+  "status": "healthy",
+  "llm_provider_name": "ollama"
+}
+```
+
+If `status` is `degraded`, read `components` in the full `/health` output. It tells you which part is down. The most common cause is a model provider that is not running.
 
 ### Authentication headers
 
-`make dev` sets `EDGEQUAKE_DEV_MODE=true` (open API — no auth headers needed).
+The Docker quickstart and `make dev` both turn on dev mode (`EDGEQUAKE_DEV_MODE=true`). The API is open and you need no headers. Do not use dev mode in production.
 
-For deployments **without** `EDGEQUAKE_DEV_MODE`, obtain a token or API key first:
+If auth is on, log in and keep the token in a header variable:
 
 ```bash
-# Login (when bootstrap admin is configured)
-TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+TOKEN=$(curl -s -X POST "$API/api/v1/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"ChangeMe123!"}' | jq -r .access_token)
-
-AUTH_HEADER="Authorization: Bearer $TOKEN"
-# Or: AUTH_HEADER="X-API-Key: $EDGEQUAKE_MASTER_API_KEY"
+  -d '{"username":"admin","password":"YOUR_PASSWORD"}' | jq -r .access_token)
+AUTH="Authorization: Bearer $TOKEN"
+# Or use an API key:  AUTH="X-API-Key: $EDGEQUAKE_MASTER_API_KEY"
 ```
 
-Use `$AUTH_HEADER` on all examples below when auth is enabled. See [Runtime auth hardening](../operations/runtime-auth-hardening.md).
+When dev mode is on, set `AUTH="Accept: application/json"` so the commands below still work. See [Runtime auth hardening](../operations/runtime-auth-hardening.md).
 
----
+## Step 1: Upload a document
 
-## Step 1: Ingest Your First Document
-
-Uploads are **asynchronous**: the API returns **HTTP 202 Accepted** with a `document_id` and `track_id`. Entity counts are **not** returned synchronously.
-
-### Option A: Via REST API
+An upload is asynchronous. The server stores the text, queues a task, and returns HTTP 202 with a `document_id` and a `track_id`. It does not return entity counts at this point.
 
 ```bash
-RESPONSE=$(curl -s -X POST http://localhost:8080/api/v1/documents \
-  -H "Content-Type: application/json" \
-  -H "$AUTH_HEADER" \
+RESPONSE=$(curl -s -X POST "$API/api/v1/documents" \
+  -H "Content-Type: application/json" -H "$AUTH" \
   -d '{
-    "content": "Marie Curie was a Polish-French physicist and chemist who conducted pioneering research on radioactivity. She was the first woman to win a Nobel Prize, and the only person to win Nobel Prizes in two different sciences (Physics in 1903, Chemistry in 1911). Curie discovered two elements: polonium (named after Poland) and radium. She worked at the University of Paris with her husband Pierre Curie. Their daughter, Irène Joliot-Curie, also won a Nobel Prize in Chemistry in 1935.",
-    "title": "Marie Curie Biography"
+    "title": "Marie Curie Biography",
+    "content": "Marie Curie was a Polish-French physicist and chemist who conducted pioneering research on radioactivity. She was the first woman to win a Nobel Prize, and the only person to win Nobel Prizes in two different sciences (Physics in 1903, Chemistry in 1911). Curie discovered two elements: polonium and radium. She worked at the University of Paris with her husband Pierre Curie. Their daughter, Irene Joliot-Curie, also won a Nobel Prize in Chemistry in 1935."
   }')
-
 echo "$RESPONSE" | jq
 TRACK_ID=$(echo "$RESPONSE" | jq -r .track_id)
 DOC_ID=$(echo "$RESPONSE" | jq -r .document_id)
 ```
 
-**Expected Response** (202):
+Expected output (IDs differ, and `queue_position` and `eta_seconds` may also appear):
 
 ```json
 {
-  "document_id": "doc_abc123",
-  "track_id": "f6fa9cad-bbff-4892-a855-3bd7d70da044",
-  "status": "processing"
+  "document_id": "7c1e0e5a-0000-0000-0000-000000000000",
+  "status": "pending",
+  "task_id": "...",
+  "track_id": "f6fa9cad-bbff-4892-a855-3bd7d70da044"
 }
 ```
 
-> There is no `entities_extracted` field on async admit. Poll for completion (Step 1b).
+If you upload identical content twice, the second call returns HTTP 200 with `"status": "duplicate_processing"` and a `duplicate_of` field. No new task starts.
 
-### Option B: Via WebUI
+You can also upload in the web UI. Open the UI (port 3000 for Docker, 3010 for `make dev`), go to **Documents**, and use the upload button. The page shows live progress.
 
-1. Open <http://localhost:3000>
-2. Navigate to **Documents** → **Upload**
-3. Paste the text above or upload a file
-4. Watch progress in the UI (WebSocket/SSE)
+## Step 2: Wait for indexing
 
----
+A task moves through these states:
 
-## Step 1b: Wait for Processing
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+stateDiagram-v2
+    [*] --> pending
+    pending --> processing: worker claims task
+    processing --> indexed: success
+    processing --> failed: error
+    pending --> cancelled: cancel
+    processing --> cancelled: cancel
+    failed --> pending: retry
+```
 
-Poll task status until terminal:
+Read the diagram from `pending`. Three states end the run: `indexed` (success), `failed` and `cancelled`. A retry puts a failed task back in the queue.
+
+Poll until the status is no longer `pending` or `processing`:
 
 ```bash
-# Poll until completed or failed
-until STATUS=$(curl -s -H "$AUTH_HEADER" \
-  "http://localhost:8080/api/v1/tasks/$TRACK_ID" | jq -r .status) && \
-  [ "$STATUS" = "completed" ] || [ "$STATUS" = "failed" ] || [ "$STATUS" = "cancelled" ]; do
-  echo "Status: $STATUS — waiting..."
+while true; do
+  STATUS=$(curl -s -H "$AUTH" "$API/api/v1/tasks/$TRACK_ID" | jq -r .status)
+  echo "task status: $STATUS"
+  case "$STATUS" in indexed|failed|cancelled) break ;; esac
   sleep 3
 done
-echo "Final status: $STATUS"
 ```
 
-Alternative progress endpoints:
+Expected output:
+
+```text
+task status: pending
+task status: processing
+task status: indexed
+```
+
+If the final status is `failed`, read the reason:
+
+```bash
+curl -s -H "$AUTH" "$API/api/v1/tasks/$TRACK_ID" | jq '{status, error_message, retry_count}'
+```
+
+Other ways to follow progress:
 
 | Method | Endpoint |
-| ------ | -------- |
-| Poll   | `GET /api/v1/ingestion/{track_id}/progress` |
-| Poll   | `GET /api/v1/documents/{document_id}` (check `display_status`) |
-| SSE    | `GET /api/v1/documents/pdf/progress/stream/{track_id}` (PDF) |
-| WebSocket | `ws://localhost:8080/ws/progress/{track_id}` |
+|--------|----------|
+| Poll | `GET /api/v1/ingestion/{track_id}/progress` |
+| Poll | `GET /api/v1/documents/{document_id}`; the document shows `display_status` (`completed` when done) |
+| WebSocket | `ws://HOST:PORT/ws/progress/{track_id}` |
+| Server-sent events (PDF only) | `GET /api/v1/documents/pdf/progress/stream/{track_id}` |
 
-To cancel: `POST /api/v1/tasks/{track_id}/cancel` — see [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md).
+To stop a task, call `POST /api/v1/tasks/{track_id}/cancel`. See [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md).
 
----
+## Step 3: Look at the graph
 
-## Step 2: Explore the Knowledge Graph
-
-Graph entities and relationships live under the **`/api/v1/graph/`** namespace (not `/api/v1/entities`).
-
-### View Extracted Entities
+The graph lives under `/api/v1/graph`. Entity names are stored in upper case with underscores.
 
 ```bash
-curl -s -H "$AUTH_HEADER" \
-  "http://localhost:8080/api/v1/graph/entities" | jq '.entities[:5]'
+curl -s -H "$AUTH" "$API/api/v1/graph/entities" \
+  | jq '.items[:5] | map({entity_name, entity_type, degree})'
 ```
 
-**Expected entities** (names normalized to UPPERCASE_WITH_UNDERSCORES):
-
-```
-MARIE_CURIE, PIERRE_CURIE, RADIUM, POLONIUM, NOBEL_PRIZE, …
-```
-
-### View Relationships
-
-```bash
-curl -s -H "$AUTH_HEADER" \
-  "http://localhost:8080/api/v1/graph/relationships" | jq '.relationships[:5]'
-```
-
-**Sample relationship**:
+Example output (the exact entities and values depend on your model):
 
 ```json
-{
-  "source": "MARIE_CURIE",
-  "target": "RADIUM",
-  "keywords": ["discovered"],
-  "description": "Marie Curie discovered radium"
-}
+[
+  { "entity_name": "MARIE_CURIE", "entity_type": "PERSON", "degree": 5 },
+  { "entity_name": "RADIUM", "entity_type": "CONCEPT", "degree": 1 }
+]
 ```
 
-### Graph statistics
+List relationships:
 
 ```bash
-curl -s -H "$AUTH_HEADER" http://localhost:8080/api/v1/graph/stats | jq
+curl -s -H "$AUTH" "$API/api/v1/graph/relationships" \
+  | jq '.items[:3] | map({src_id, tgt_id, keywords, description})'
 ```
 
----
-
-## Step 3: Query the Knowledge Graph
-
-### Simple Query
+Count what the workspace holds. The default workspace has a fixed ID:
 
 ```bash
-curl -s -X POST http://localhost:8080/api/v1/query \
-  -H "Content-Type: application/json" \
-  -H "$AUTH_HEADER" \
-  -d '{
-    "query": "Who discovered radium and when?",
-    "mode": "hybrid"
-  }' | jq
+curl -s -H "$AUTH" \
+  "$API/api/v1/workspaces/00000000-0000-0000-0000-000000000003/stats" \
+  | jq '{document_count, entity_count, relationship_count, chunk_count}'
 ```
 
-The response includes a natural-language answer and source references (entities/chunks used).
+## Step 4: Ask a question
 
-### Try Different Query Modes
+The default mode is `mix`. Set `mode` to choose another one. The reply holds the text in `answer` and the evidence in `sources`.
 
 ```bash
-# Local: entity-focused
-curl -s -X POST http://localhost:8080/api/v1/query \
-  -H "Content-Type: application/json" -H "$AUTH_HEADER" \
-  -d '{"query": "What is radium?", "mode": "local"}' | jq .response
-
-# Global: overview
-curl -s -X POST http://localhost:8080/api/v1/query \
-  -H "Content-Type: application/json" -H "$AUTH_HEADER" \
-  -d '{"query": "Summarize the Curie family achievements", "mode": "global"}' | jq .response
-
-# Naive: vector search only
-curl -s -X POST http://localhost:8080/api/v1/query \
-  -H "Content-Type: application/json" -H "$AUTH_HEADER" \
-  -d '{"query": "Who won Nobel Prizes?", "mode": "naive"}' | jq .response
+curl -s -X POST "$API/api/v1/query" \
+  -H "Content-Type: application/json" -H "$AUTH" \
+  -d '{"query": "Who discovered radium and when did she win Nobel Prizes?"}' \
+  | jq '{mode, answer, sources: (.sources | length)}'
 ```
 
----
+Try the other modes on the same data:
 
-## Step 4: Visualize in WebUI
-
-1. Open <http://localhost:3000>
-2. Navigate to **Graph** (left sidebar)
-3. Explore nodes and edges interactively
-
-**WebUI features**: zoom/pan, click nodes for details, filter by entity type, search.
-
----
-
-## Step 5: Add More Documents
-
-Each upload is async — save the new `track_id` and poll again:
+| Mode | Question style | Example `query` |
+|------|----------------|-----------------|
+| `local` | About one entity | "What is radium?" |
+| `global` | Broad themes | "Summarize the Curie family achievements" |
+| `naive` | Plain text search, no graph | "Who won Nobel Prizes?" |
 
 ```bash
-RESPONSE=$(curl -s -X POST http://localhost:8080/api/v1/documents \
-  -H "Content-Type: application/json" -H "$AUTH_HEADER" \
-  -d '{
-    "content": "Albert Einstein developed the theory of relativity while working at the Swiss Patent Office in Bern. He won the Nobel Prize in Physics in 1921 for his explanation of the photoelectric effect. Einstein corresponded with Marie Curie and they became friends. Both attended the famous Solvay Conference in 1911.",
-    "title": "Albert Einstein"
-  }')
-echo "$RESPONSE" | jq .track_id
+curl -s -X POST "$API/api/v1/query" \
+  -H "Content-Type: application/json" -H "$AUTH" \
+  -d '{"query": "What is radium?", "mode": "local"}' | jq -r .answer
 ```
 
-Query across both documents:
+For the other modes (`hybrid`, `mix`, `bypass`) and how to choose, see [Hybrid retrieval](../concepts/hybrid-retrieval.md). To stream tokens as they arrive, call `POST /api/v1/query/stream`.
 
-```bash
-curl -s -X POST http://localhost:8080/api/v1/query \
-  -H "Content-Type: application/json" -H "$AUTH_HEADER" \
-  -d '{"query": "What connections existed between Einstein and Curie?", "mode": "hybrid"}' | jq .response
+## Step 5: See it in the UI
+
+1. Open the UI.
+2. Choose **Knowledge Graph** in the left sidebar.
+3. Zoom, drag, and click a node to read its details.
+
+Use **Query** in the sidebar to chat with the same data.
+
+## What happened behind the scenes
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    A["Admit 202 + track_id"] --> B["Chunk text"]
+    B --> C["Extract entities and relations"]
+    C --> D["Embed chunks, entities, relations"]
+    D --> E["Merge duplicates and write graph"]
+    E --> F["Task: indexed"]
 ```
 
----
+A worker claims the task, splits the text into chunks, and asks the model to list entities and relationships. EdgeQuake then embeds the results, merges near-duplicate entities, and writes everything to PostgreSQL. PDFs run in two tasks: convert to Markdown first, then ingest. Chunk size adapts to document length; see [Entity extraction](../concepts/entity-extraction.md).
 
-## Understanding What Happened
+## Quick reference
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Processing Pipeline (async)                │
-│                                                             │
-│  1. ADMIT          POST /documents → 202 + track_id         │
-│  2. CHUNKING       Worker splits into ~1200-token chunks    │
-│  3. EXTRACTION     LLM identifies entities & relationships  │
-│  4. EMBEDDING      Vectors for chunks, entities, relations  │
-│  5. GRAPH WRITE    Nodes + edges → PostgreSQL (AGE)         │
-│  6. DEDUP          Similar entities merged                  │
-│                                                             │
-│  PDFs: convert (vision) → ingest (Insert task) — two phases │
-└─────────────────────────────────────────────────────────────┘
-```
-
-Workers claim tasks via Postgres `claim_next` + lease. See [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md) for cancel, fairness, and multi-replica semantics.
-
----
-
-## Quick Reference: API Endpoints
-
-| Endpoint                              | Method | Purpose                    |
-| ------------------------------------- | ------ | -------------------------- |
-| `/health`                             | GET    | Check server status (no auth) |
-| `/api/v1/documents`                   | POST   | Ingest document (202 async) |
-| `/api/v1/documents`                   | GET    | List documents             |
-| `/api/v1/tasks/{track_id}`            | GET    | Task status                |
-| `/api/v1/tasks/{track_id}/cancel`     | POST   | Cancel task                |
-| `/api/v1/ingestion/{track_id}/progress` | GET  | Ingestion progress         |
-| `/api/v1/query`                       | POST   | Query knowledge graph      |
-| `/api/v1/graph/entities`              | GET    | List entities              |
-| `/api/v1/graph/relationships`       | GET    | List relationships         |
-| `/api/v1/graph/stats`                 | GET    | Graph statistics           |
-
-Contract: [OpenAPI snapshot](../../edgequake_webui/openapi/openapi.snapshot.json).
-
----
-
-## Next Steps
-
-1. **[Document Ingestion Deep Dive](/docs/tutorials/document-ingestion/)** — Pipeline details
-2. **[Architecture Overview](/docs/architecture/overview/)** — System design
-3. **[Query Modes](/docs/deep-dives/query-modes/)** — Choosing the right mode
-4. **[Runtime auth hardening](../operations/runtime-auth-hardening.md)** — Production auth
-
----
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/health` | GET | Server and provider status |
+| `/api/v1/documents` | POST | Upload text (returns 202) |
+| `/api/v1/documents` | GET | List documents |
+| `/api/v1/documents/{id}` | GET | One document and its `display_status` |
+| `/api/v1/tasks/{track_id}` | GET | Task status |
+| `/api/v1/tasks/{track_id}/cancel` | POST | Cancel a task |
+| `/api/v1/ingestion/{track_id}/progress` | GET | Stage-level progress |
+| `/api/v1/query` | POST | Ask a question |
+| `/api/v1/graph/entities` | GET | List entities |
+| `/api/v1/graph/relationships` | GET | List relationships |
+| `/api/v1/workspaces/{id}/stats` | GET | Counts for one workspace |
 
 ## Troubleshooting
 
-### No entities after upload
+| Symptom | What to do |
+|---------|------------|
+| Task stays `failed` or the graph is empty | Check `error_message` on the task. Check the model provider with `curl -s $API/api/v1/config/effective \| jq .llm`. For Ollama, run `ollama list`. |
+| `401 Unauthorized` | Auth is on. Log in and send `Authorization: Bearer ...` or `X-API-Key`. |
+| Uploads feel slow | Local providers run one ingest task per tenant by default. See the [FAQ](../faq.md#why-do-bulk-uploads-feel-excessively-slow-spec-122--361--365) and `GET /api/v1/pipeline/queue-metrics`. |
+| Empty query results | Confirm the task is `indexed`. Then check `GET /api/v1/documents` and the workspace stats above. |
 
-```bash
-# Check task finished
-curl -s -H "$AUTH_HEADER" "http://localhost:8080/api/v1/tasks/$TRACK_ID" | jq
+## Next steps
 
-# Check LLM config
-curl -s http://localhost:8080/api/v1/config/effective | jq '.llm'
-ollama list   # if using Ollama
-```
-
-### 401 Unauthorized
-
-Auth is on by default outside `EDGEQUAKE_DEV_MODE`. Login or set `X-API-Key` (see [Authentication headers](#authentication-headers)).
-
-### Slow processing / bulk upload
-
-Local Ollama is limited to **1 concurrent ingest task per tenant** by default (`MAX_TASKS_PER_TENANT=1`) — bulk completion is intentionally near-serial. Docker defaults are wider (tenant **6**); cloud/`make` with API keys wider still — but wall clock remains LLM + (for PDF) vision bound. **Upload finished ≠ searchable.** See FAQ [Why do bulk uploads feel excessively slow?](../faq.md#why-do-bulk-uploads-feel-excessively-slow-spec-122--361--365) and SPEC-122. Check `GET /api/v1/pipeline/queue-metrics`.
-
-### Empty query results
-
-```bash
-curl -s -H "$AUTH_HEADER" http://localhost:8080/api/v1/documents | jq '.documents | length'
-curl -s -H "$AUTH_HEADER" http://localhost:8080/api/v1/graph/stats | jq
-```
+1. [Document ingestion tutorial](../tutorials/document-ingestion.md)
+2. [Architecture overview](../architecture/overview.md)
+3. [Query modes](../deep-dives/query-modes.md)
+4. [Cookbook](../cookbook.md)
+5. [Runtime auth hardening](../operations/runtime-auth-hardening.md)

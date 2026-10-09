@@ -236,7 +236,10 @@ export interface Workspace {
   /** SPEC-109: workspace default reasoning effort. */
   default_reasoning_effort?: string | null;
   /** SPEC-109: per-role LLM overrides including reasoning_effort. */
-  llm_roles?: Record<string, { provider?: string; model?: string; reasoning_effort?: string }>;
+  llm_roles?: Record<
+    string,
+    { provider?: string; model?: string; reasoning_effort?: string; connection_id?: string }
+  >;
   /** Creation timestamp. */
   created_at: string;
   /** Last update timestamp. */

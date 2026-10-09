@@ -1,8 +1,20 @@
 ---
-title: "SPEC-088 Phase 5–6 — Improvements: done & proved"
+title: "SPEC-088 Phase 5-6: improvements, done and proved"
+description: "Historical record of the SPEC-088 performance work (2026-07-25): incident root causes, the improvement catalog, measured before and after figures, and the tests that prove them. Some parts predate the typed-table cutover."
 ---
 
-# SPEC-088 Phase 5–6 — Improvements: done & proved
+# SPEC-088 Phase 5-6: improvements, done and proved
+
+> **Historical record.** This log covers the SPEC-088 Phase 5-6 work dated **2026-07-25 and 2026-07-26**. The measured figures and test counts below are kept exactly as recorded. The code has changed since then, so treat them as a snapshot and not as current results.
+>
+> Parts that are now out of date:
+>
+> | Topic in this log | What is true now |
+> |---|---|
+> | Key-value keys such as `wsdoc:` and `{id}-metadata`, staging and final KV, the IMP-075 round-trip work | The `eq_*_kv` tables were drained and dropped by migration 125. Typed tables replaced them. See [postgres.md](./postgres.md#legacy-key-value-store). The IMP-075 entries describe code paths that now run on relational tables. |
+> | Partial HNSW by workspace (IMP-001-01), `eq_*_vectors` | These belong to the older per-workspace vector adapter. Typed embedding tables use fixed per-dimension partial indexes. See [pgvector.md](./pgvector.md). |
+> | Claim index `idx_tasks_claim_workspace_created` (migration 098) | A database built from all migrations does not have an index with this name. The test creates it itself. Current task indexes are in [indexes.md](./indexes.md#task-indexes). |
+> | Migration rules and counts ("97 files", "next free version 099", `EDGEQUAKE_DEV_MODE`) | See [Migration and checksum safety](#migration-and-checksum-safety) below. |
 
 **Status:** Phase 6 **complete** for recommended request-path work (2026-07-25).  
 **Follow-on:** [SPEC-090 performance](../../specs/090-performance/README.md) — counter serialization, claim_next O(N), PDF list TOAST, pool GUC leak, halfvec default (Waves 0–4 landed 2026-07-26; RCA cross-ref `specs/090-performance/00-why.md`).  
@@ -84,6 +96,8 @@ GH-331 had already fixed JOIN locality (`"Node"` + GIN). GH-336 is **query shape
 
 ## Incident RCA — ghost documents after multi-delete (2026-07-25)
 
+> The list merged key-value metadata with SQL rows. The key-value part no longer exists (migration 125). The lesson still holds: one function must clean every list surface, and cleanup must fail closed.
+
 ### Symptom
 
 UI multi-delete of completed MD docs returns success; after refresh the same
@@ -152,6 +166,22 @@ session `statement_timeout` default **15s** (`EDGEQUAKE_GRAPH_QUERY_TIMEOUT_SECS
 | 4 | Plan: **Bitmap tenant → Nested Loop · Join Filter `@>`** (not Index Cond) |
 | 5 | ~1M join rechecks · **~4s** idle; under load / contention → **>15s timeout** |
 | 6 | Fail-closed: KV wipe aborted (correct reliability policy) |
+
+The next diagram compares the two plans. Read each row from left to right.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    subgraph Before
+        B1["Tenant bitmap, about 30k rows"] --> B2["Nested loop with join filter"]
+        B2 --> B3["About 1e6 rechecks, about 4 s"]
+    end
+    subgraph After
+        A1["257 probe IDs"] --> A2["GIN index condition"]
+        A2 --> A3["Few hits, about 0.1 s"]
+    end
+```
 
 ### What each related data op does (lens)
 
@@ -249,38 +279,30 @@ Wall-clock varies by corpus; complexity and RT collapse do not.
 
 ---
 
-## Migration / checksum safety (sqlx — not Flyway)
+## Migration and checksum safety
 
-EdgeQuake schema evolution uses **sqlx embedded migrations** (`edgequake/migrations/`),
-with the same immutability contract operators often associate with Flyway:
+This section was rewritten to match the current migration system (SPEC-150). The original text described the sqlx-only rules of mid-2026.
 
-| Mechanism | Role |
+Rules that still hold:
+
+- Never edit a shipped `NNN_*.sql` file. `edgequake/migrations/checksums.lock` pins every file, and `./scripts/check_migration_checksums.sh` fails if one changes.
+- Query-plan fixes that need no DDL ship as application code. The cascade GIN fix did this: it changed `scan_ops.rs` and helpers, not a migration.
+- Support scripts under `edgequake/migrations/support/` are not scanned by sqlx. Some of them (083, 086, 092) run on every boot to restore indexes and columns.
+
+What is different now:
+
+| Then (this log) | Now |
 |---|---|
-| `_sqlx_migrations` | Applied version + **content checksum** per version |
-| `checksums.lock` | Repo-side immutability lock (CI / pre-commit) |
-| `./scripts/check_migration_checksums.sh` | Fails if any locked `NNN_*.sql` is edited |
+| 97 migration files | 167 files, versions 001 to 169 |
+| New migrations start at `099` | The next version is 170. Add the file, then run `./scripts/update_migration_checksums.sh`. |
+| The API applies migrations on start | Only `edgequake migrate` writes the schema. The API checks the schema gate and exits with 78 or waits (`EDGEQUAKE_SCHEMA_GATE`). |
+| A checksum mismatch refuses startup; repair needed `EDGEQUAKE_DEV_MODE=true` | Known historical hash variants ("fossils") are listed in `manifest.toml` and accepted automatically. An unknown checksum exits with 65. |
 
-### Phase 6 / cascade fix impact
+The log recorded `check_migration_checksums.sh` as passing on 97 files with none modified or missing. That count is from 2026-07-25.
 
-| Change class | Migration impact |
-|---|---|
-| Native graph SQL, GIN probe-first CTEs, KV batching, e2e | **Runtime Rust only** — no new / edited migration files |
-| IMP-031-08 cascade timeout fix | Query rewrite in `scan_ops.rs` / helpers — **not** DDL |
-| Git `edgequake/migrations/` | **Unchanged** this workstream |
+A log line such as `documents M041 stat columns missing` means the database has not applied migration 041. Run `edgequake migrate`. Do not edit `041_*.sql`.
 
-**Verified:** `check_migration_checksums.sh` → **PASS** (97 files, 0 modified, 0 missing).
-
-### Rules for operators (no checksum regression)
-
-1. **Never edit** an already-shipped `NNN_*.sql` — sqlx will refuse startup with checksum mismatch against `_sqlx_migrations`.
-2. **New schema only via** next free version (`099_*` and up) + append to `checksums.lock` (`./scripts/update_migration_checksums.sh`).
-3. **Index/plan fixes** that do not require DDL ship as app code (this cascade GIN fix).
-4. **Every-boot reconcile** scripts under `migrations/support/*` are **not** checksum-locked; they may re-assert indexes (e.g. 086 BFS) without rewriting historical sqlx rows.
-5. Known M071/M078 checksum repair paths run only with `EDGEQUAKE_DEV_MODE=true`; production fails loud (see `migrations/README.md`).
-
-### Unrelated ops note (M041)
-
-Runtime log `documents M041 stat columns missing` means the **DB has not applied migration 041** (or is missing those columns), not that 041 was rewritten. Fix: ensure bootstrap applied through max version (`SELECT max(version) FROM _sqlx_migrations;`). Do **not** patch `041_*.sql` in place.
+Read next: [Upgrading](../operations/upgrading.md), [edgequake/docs/migrations.md](../../edgequake/docs/migrations.md), and [postgres.md](./postgres.md#schema-and-migrations).
 
 ---
 
@@ -432,10 +454,12 @@ cargo test -p edgequake-storage --features postgres --test contract_spec075_iter
 
 ## Env knobs (ops)
 
+Checked against the code on the date of the page rewrite. For the full list with the typed-table settings, see [pgvector.md](./pgvector.md#how-a-vector-search-runs).
+
 | Env | Default | Meaning |
 |---|---|---|
 | `EDGEQUAKE_HNSW_ITERATIVE_SCAN` | `relaxed_order` | filtered ANN iterative mode |
 | `EDGEQUAKE_HNSW_MAX_SCAN_TUPLES` | `20000` | iterative scan ceiling |
-| `EDGEQUAKE_HNSW_PARTIAL_BY_WORKSPACE` | **on (auto)** | partial HNSW for hot WS; `0` disables |
+| `EDGEQUAKE_HNSW_PARTIAL_BY_WORKSPACE` | **on (auto)** | partial HNSW for hot workspaces (older adapter); `0` disables |
 | `EDGEQUAKE_HNSW_PARTIAL_MIN_ROWS` | `1000` | threshold before CREATE partial |
 | `EDGEQUAKE_NATIVE_GRAPH_WRITES` | **on** | native ON CONFLICT; `0` forces Cypher fallback |

@@ -1,517 +1,341 @@
 ---
-title: "Configuration Reference"
+title: "Configuration reference"
+description: "Environment variables and models.toml for EdgeQuake: server, database pools, providers, ingestion limits, caches, security, logging, with verified defaults."
 ---
 
-> **Product: v0.26.5** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+# Configuration reference
 
-# Configuration Reference
+This page is for operators who tune an EdgeQuake deployment. EdgeQuake reads environment variables, an optional `models.toml` catalog, and per-workspace settings. Defaults here come from the code at v0.32.2 and HEAD (v0.33.0). Provider setup has its own section of the docs: start at [Providers](../providers/index.md). A generated list of the SPEC-163 onboarding variables is in the [env reference](env-reference.md).
 
-> **Complete EdgeQuake Configuration Options**
+## How settings combine
 
-EdgeQuake is configured through environment variables and a `models.toml` file. This reference covers all available options.
-
----
-
-## Configuration Sources
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                   CONFIGURATION PRIORITY                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  1. Environment Variables (highest priority)                    │
-│     │                                                           │
-│  2. models.toml (for LLM/embedding configuration)               │
-│     │   - EDGEQUAKE_MODELS_CONFIG env var path                  │
-│     │   - ./models.toml (current directory)                     │
-│     │   - ~/.edgequake/models.toml                              │
-│     │   - Built-in defaults                                     │
-│     │                                                           │
-│  3. Compile-time defaults (lowest priority)                     │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["API request"] --> B{"Request names a provider?"}
+  B -->|Yes| R["Use the request"]
+  B -->|No| C{"Workspace has its own?"}
+  C -->|Yes| W["Use the workspace setting"]
+  C -->|No| D{"Env var set?"}
+  D -->|Yes| E["Use the env var"]
+  D -->|No| F["Use models.toml defaults"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class B,F eqLlm
 ```
 
----
+How to read it: the most specific setting wins. A request beats a workspace, a workspace beats the server environment, and the environment beats the catalog defaults. Saved Connections (see [Providers](../providers/index.md)) change where the credentials come from, not this order.
 
-## Environment Variables
+`models.toml` is searched in this order: `EDGEQUAKE_MODELS_CONFIG`, `./models.toml`, `~/.edgequake/models.toml`, then the copy built into the binary.
 
-### Core Settings
-
-| Variable         | Type    | Default           | Description             |
-| ---------------- | ------- | ----------------- | ----------------------- |
-| `HOST`           | String  | `0.0.0.0`         | Server bind address     |
-| `PORT`           | Integer | `8080`            | Server port             |
-| `RUST_LOG`       | String  | `edgequake=debug` | Log level filter        |
-| `WORKER_THREADS` | Integer | CPU count         | Background task workers |
-
-### Database
-
-| Variable       | Type   | Default | Description                  |
-| -------------- | ------ | ------- | ---------------------------- |
-| `DATABASE_URL` | String | None    | PostgreSQL connection string |
-
-**Connection String Format:**
-
-```
-postgresql://user:password@host:port/database?sslmode=require
-```
-
-**Examples:**
-
-```bash
-# Local development
-DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake"
-
-# Production with SSL
-DATABASE_URL="postgresql://edgequake:pass@db.example.com:5432/edgequake?sslmode=require"
-
-# With connection pooling
-DATABASE_URL="postgresql://edgequake:pass@pgbouncer:6432/edgequake"
-```
-
-#### Connection pool (SPEC-112)
-
-Serving uses a four-role `PgPoolBundle` (query / ingest / queue / admin). Idle backends are **held capacity** on shared PostgreSQL — size for co-tenants. See [`specs/112-connection-pool/07-ops-runbook.md`](../../specs/112-connection-pool/07-ops-runbook.md).
+## Server
 
 | Variable | Default | Description |
-| -------- | ------- | ----------- |
-| `EDGEQUAKE_DB_POOL_SIZE_QUERY` | `16` | Query pool max (clamp 1–128) |
-| `EDGEQUAKE_DB_POOL_SIZE_INGEST` | `12` | Ingest pool max |
-| `EDGEQUAKE_DB_POOL_SIZE_QUEUE` | `4` | Queue pool max (boot floors to resolved `WORKER_THREADS` so `claim_next` cannot stampede) |
-| `EDGEQUAKE_DB_POOL_SIZE_ADMIN` | `2` | Admin/migrate pool max |
-| `EDGEQUAKE_DB_POOL_INSTANCE_COUNT` | `1` | Replica count for startup budget math (use peak overlap during rollouts) |
-| `EDGEQUAKE_DB_POOL_BUDGET_MODE` | `warn` | `warn` or `fail` when `instances × pool_sum` exceeds `max_connections − reserve − 10` |
-| `EDGEQUAKE_DB_POOL_IDLE_TIMEOUT_SECS` | `600` | sqlx idle reap |
-| `EDGEQUAKE_DB_POOL_MAX_LIFETIME_SECS` | `1800` | sqlx max connection lifetime |
-| `EDGEQUAKE_DB_IDLE_IN_XACT_TIMEOUT_SECS` | `60` | Session `idle_in_transaction_session_timeout` |
-| `DATABASE_READ_URL` | unset | Optional read replica URL for the query pool |
-| `DATABASE_POOL_SIZE` | `32` | Sizes the interactive read-path bulkhead only: concurrent permits = `max(2, DATABASE_POOL_SIZE / 8)`. Role pools above are separate |
+|----------|---------|-------------|
+| `HOST` | `0.0.0.0` | API bind address. |
+| `PORT` | `8080` | API port. |
+| `RUST_LOG` | `edgequake=info,edgequake_api=info,edgequake_query=info,edgequake_pipeline=info,edgequake_storage=warn,tower_http=warn,sqlx=warn` | Log filter. |
+| `EDGEQUAKE_LOG_FORMAT` | `plain` | Set `json` for structured logs. |
+| `EDGEQUAKE_LOG_SPAN_EVENTS` | unset | Log span open and close events. |
+| `WORKER_THREADS` | 4 times CPU count, at least 4 | Background task workers. |
+| `EDGEQUAKE_PORT`, `EDGEQUAKE_HOST` | n/a | Compose and Helm set these, and `edgequake doctor` reads `EDGEQUAKE_HOST`. The server bind uses `HOST` and `PORT`. In Compose `EDGEQUAKE_PORT` also sets the host-side published port. |
 
-Interactive catalog reads (documents list/detail/search, tenants, workspace list) share one deadline. On expiry they return HTTP 503 `read_path_busy` and Postgres cancels the statement 250ms earlier. See [Read path busy](/docs/troubleshooting/common-issues/#10-documents-page-read-path-busy).
+Log levels, from quiet to loud: `error`, `warn`, `info`, `debug`, `trace`. Example: `RUST_LOG="edgequake=info,tower_http=info"`. Observability and metrics are in [Monitoring](monitoring.md).
 
-| Variable | Default | Clamp | Description |
-| -------- | ------- | ----- | ----------- |
-| `EDGEQUAKE_DOCUMENTS_READ_TIMEOUT_MS` | `2500` | 500–30000 | Wall clock for those interactive reads, including permit wait |
-| `EDGEQUAKE_COMMUNITY_STATEMENT_TIMEOUT_MS` | `30000` | 1000–300000 | Per-page Postgres budget for community snapshot scans (#404). Applied value is 250ms under this |
-| `EDGEQUAKE_COMMUNITY_BACKFILL_MAX_NODES` | `50000` | — | Skip automatic community refresh when the node count is above this, or when the count query fails |
-| `EDGEQUAKE_COMMUNITY_MAX_NODES` | `50000` | 100–5000000 | Nodes loaded for detection. Past the cap, cluster a sample; do not scan every edge |
+## Database
 
-Backends set `application_name=edgequake:<role>` for `pg_stat_activity` attribution. Graceful shutdown closes all role pools after HTTP drain.
-
-**Queue vs workers:** `claim_next` uses the queue pool only. At boot, queue max becomes `max(EDGEQUAKE_DB_POOL_SIZE_QUEUE, resolved_worker_count)`. If logs show `pool timed out` on `claim_next` followed by `SSLRequest: 0x00`, Postgres likely restarted — wait until PG is healthy, then restart the API so pools re-form.
-
-**Shared-DB starting point (co-tenant with QL):**
+`DATABASE_URL` is required. There is no in-memory mode.
 
 ```bash
-export EDGEQUAKE_DB_POOL_SIZE_QUERY=8
-export EDGEQUAKE_DB_POOL_SIZE_INGEST=6
-export EDGEQUAKE_DB_POOL_SIZE_QUEUE=2
-export EDGEQUAKE_DB_POOL_SIZE_ADMIN=1
-# sum = 17 per process
+DATABASE_URL="postgresql://edgequake:pass@db.example.com:5432/edgequake?sslmode=require"
 ```
 
-### LLM Providers
+The server uses four connection pools so one workload cannot starve another. Idle connections still count against PostgreSQL `max_connections`, so size them for every process that shares the database. Full runbook: [`specs/112-connection-pool/07-ops-runbook.md`](../../specs/112-connection-pool/07-ops-runbook.md).
 
-#### OpenAI
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `EDGEQUAKE_DB_POOL_SIZE_QUERY` | `16` | Query pool maximum (1 to 128). |
+| `EDGEQUAKE_DB_POOL_SIZE_INGEST` | `12` | Ingest pool maximum. |
+| `EDGEQUAKE_DB_POOL_SIZE_QUEUE` | `4` | Task queue pool. At boot it is raised to at least `WORKER_THREADS`. |
+| `EDGEQUAKE_DB_POOL_SIZE_ADMIN` | `2` | Admin and migrate pool. |
+| `EDGEQUAKE_DB_POOL_INSTANCE_COUNT` | `1` | Replica count for the startup budget check. Use the peak during rollouts. |
+| `EDGEQUAKE_DB_POOL_BUDGET_MODE` | `warn` | `warn` or `fail` when `instances x pool sum` exceeds `max_connections - reserve - 10`. |
+| `EDGEQUAKE_DB_POOL_IDLE_TIMEOUT_SECS` | `600` | Idle connection reap. |
+| `EDGEQUAKE_DB_POOL_MAX_LIFETIME_SECS` | `1800` | Maximum connection age. |
+| `EDGEQUAKE_DB_IDLE_IN_XACT_TIMEOUT_SECS` | `60` | `idle_in_transaction_session_timeout`. |
+| `DATABASE_READ_URL` | unset | Optional read replica for the query pool. |
+| `DATABASE_POOL_SIZE` | `32` | Sizes only the interactive read-path limiter: permits are `max(2, DATABASE_POOL_SIZE / 8)`. |
 
-| Variable          | Type   | Default                     | Description                          |
-| ----------------- | ------ | --------------------------- | ------------------------------------ |
-| `OPENAI_API_KEY`  | String | None                        | OpenAI API key (required for OpenAI) |
-| `OPENAI_BASE_URL` | String | `https://api.openai.com/v1` | API endpoint                         |
-| `OPENAI_ORG_ID`   | String | None                        | Organization ID (optional)           |
+Backends set `application_name=edgequake:<role>`, so you can tell the pools apart in `pg_stat_activity`. A shared database might use `QUERY=8 INGEST=6 QUEUE=2 ADMIN=1` (17 connections per process).
 
-#### Ollama
+If logs show `pool timed out` on `claim_next` followed by `SSLRequest: 0x00`, PostgreSQL probably restarted. Wait until it is healthy, then restart the API so the pools re-form.
 
-| Variable                 | Type   | Default                  | Description                                                                                                      |
-| ------------------------ | ------ | ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| `OLLAMA_HOST`            | String | `http://localhost:11434` | Ollama server URL (LLM and embeddings)                                                                           |
-| `OLLAMA_MODEL`           | String | `gemma4:latest`          | Default LLM model (`make dev` sets this when using Ollama)                                                       |
-| `OLLAMA_EMBEDDING_MODEL` | String | `embeddinggemma:latest`  | Default embedding model (`make dev` sets this when using Ollama)                                                 |
-| `OLLAMA_EMBEDDING_HOST`  | String | value of `OLLAMA_HOST`   | Dedicated Ollama host for embeddings only (closes [#140](https://github.com/raphaelmansuy/edgequake/issues/140)) |
-| `EDGEQUAKE_OLLAMA_THINK_CAPABILITY` | String | `auto` | SPEC-113: Ollama `think` gate — `auto` (probe `/api/show` capabilities), `force_off`, `force_on` (debug), `legacy_name` (old substring heuristic) |
-| `EDGEQUAKE_OLLAMA_CAPABILITY_TTL_SECS` | Integer | `300` | SPEC-113: TTL for cached Ollama thinking capability answers |
-| `EDGEQUAKE_OLLAMA_CAPABILITY_TIMEOUT_MS` | Integer | `2000` | SPEC-113: timeout for `/api/show` capability probe; on failure Auto **omits** `think` |
+### Interactive read limits
 
-> **SPEC-113:** EdgeQuake does **not** assume every `qwen3*` name supports thinking. Truth is Ollama `capabilities` (`thinking`). When capability is unknown or absent, the client omits the `think` parameter so non-thinking VL variants (e.g. many `qwen3-vl-*`) keep working.
+Catalog reads (document list, detail, search, tenants, workspaces) share one deadline. When it expires they return HTTP 503 `read_path_busy`, and PostgreSQL cancels the statement 250 ms earlier. See [common issues](../troubleshooting/common-issues.md).
 
-#### LM Studio
+| Variable | Default | Range | Description |
+|----------|---------|-------|-------------|
+| `EDGEQUAKE_DOCUMENTS_READ_TIMEOUT_MS` | `2500` | 500 to 30000 | Wall clock for these reads, including the wait for a permit. |
+| `EDGEQUAKE_COMMUNITY_STATEMENT_TIMEOUT_MS` | `30000` | 1000 to 300000 | Per-page budget for community scans. The applied value is 250 ms lower. |
+| `EDGEQUAKE_COMMUNITY_BACKFILL_MAX_NODES` | `50000` | none | Skip automatic community refresh above this node count. |
+| `EDGEQUAKE_COMMUNITY_MAX_NODES` | `50000` | 100 to 5000000 | Nodes loaded for detection. Larger graphs are sampled. |
 
-| Variable             | Type   | Default                 | Description          |
-| -------------------- | ------ | ----------------------- | -------------------- |
-| `LM_STUDIO_BASE_URL` | String | `http://localhost:1234` | LM Studio server URL |
+## LLM providers and models
 
-#### Anthropic
+Provider guides, the role matrix and saved Connections are in [Providers](../providers/index.md). This table lists only what the server reads from the environment.
 
-| Variable             | Type   | Default                     | Description                  |
-| -------------------- | ------ | --------------------------- | ---------------------------- |
-| `ANTHROPIC_API_KEY`  | String | None                        | Anthropic API key (required) |
-| `ANTHROPIC_BASE_URL` | String | `https://api.anthropic.com` | API endpoint                 |
+| Provider | Variables |
+|----------|-----------|
+| OpenAI | `OPENAI_API_KEY`, `OPENAI_BASE_URL` (default `https://api.openai.com/v1`) |
+| OpenAI-compatible | `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_API_KEY` |
+| Ollama | `OLLAMA_HOST` (default `http://localhost:11434`), `OLLAMA_MODEL`, `OLLAMA_EMBEDDING_MODEL`, `OLLAMA_EMBEDDING_HOST` (default: `OLLAMA_HOST`) |
+| LM Studio | `LMSTUDIO_HOST` (default `http://localhost:1234`) |
+| oMLX | `OMLX_HOST`, `OMLX_BASE_URL` |
+| Anthropic | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL` (default `https://api.anthropic.com`) |
+| Gemini (API key) | `GEMINI_API_KEY` or `GOOGLE_API_KEY` |
+| Vertex AI | `GOOGLE_CLOUD_PROJECT` (required), `GOOGLE_CLOUD_REGION` (default `us-central1`), `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_ACCESS_TOKEN` |
+| Mistral | `MISTRAL_API_KEY` |
+| xAI | `XAI_API_KEY`, `XAI_BASE_URL` (default `https://api.x.ai/v1`) |
+| OpenRouter | `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL` |
+| MiniMax | `MINIMAX_API_KEY` |
+| Azure OpenAI | `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_VERSION` |
 
-#### Google Gemini (Developer API)
+Inside a container, `localhost` is the container. Use `host.docker.internal` to reach Ollama or LM Studio on the host.
 
-| Variable          | Type   | Default                                     | Description       |
-| ----------------- | ------ | ------------------------------------------- | ----------------- |
-| `GEMINI_API_KEY`  | String | None                                        | Google AI API key |
-| `GOOGLE_API_KEY`  | String | None                                        | Alias for Gemini  |
-| `GEMINI_BASE_URL` | String | `https://generativelanguage.googleapis.com` | API endpoint      |
+### Google Vertex AI (Enterprise)
 
-> **Not Vertex AI.** Gemini Developer API uses a static API key. Enterprise Vertex AI uses OAuth2 identity — see below.
-
-#### Google Vertex AI (Enterprise)
-
-Vertex AI (`vertexai` provider) authenticates with **short-lived OAuth2 bearer tokens** minted from GCP identity — not a static API key. The Settings → Provider Status Hub shows **Identity (ADC)** and structured requirements.
-
-| Variable                         | Type   | Default        | Description                                                                 |
-| -------------------------------- | ------ | -------------- | --------------------------------------------------------------------------- |
-| `GOOGLE_CLOUD_PROJECT`           | String | None           | **Required.** GCP project ID                                                |
-| `GOOGLE_CLOUD_REGION`            | String | `us-central1`  | Regional endpoint (`{region}-aiplatform.googleapis.com`)                    |
-| `GOOGLE_CLOUD_LOCATION`          | String | —              | Alias for region (some Google SDKs)                                         |
-| `GOOGLE_ACCESS_TOKEN`            | String | None           | Explicit bearer token (~1 h TTL; CI/debug only)                             |
-| `GOOGLE_APPLICATION_CREDENTIALS` | String | None           | Path to service account JSON or WIF config                                  |
-
-**Auth resolution ladder** (first match wins at runtime):
-
-1. `GOOGLE_ACCESS_TOKEN` — use as-is
-2. GCE/GKE/Cloud Run metadata server (attached service account; auto-refresh)
-3. ADC file (`~/.config/gcloud/application_default_credentials.json`)
-4. Service account key via `GOOGLE_APPLICATION_CREDENTIALS`
-5. `gcloud auth application-default print-access-token` (local dev)
-
-**Local development:**
+`vertexai` authenticates with short-lived OAuth2 tokens from GCP identity, not a static key. Credentials are tried in this order: `GOOGLE_ACCESS_TOKEN`, the GCE, GKE or Cloud Run metadata server, the ADC file (`~/.config/gcloud/application_default_credentials.json`), the service account in `GOOGLE_APPLICATION_CREDENTIALS`, then `gcloud auth application-default print-access-token`.
 
 ```bash
-# Correct ADC login (common mistake: swapping the last two words)
-gcloud auth application-default login
-
+gcloud auth application-default login      # not: gcloud auth login application-default
 export GOOGLE_CLOUD_PROJECT=your-gcp-project
-export GOOGLE_CLOUD_REGION=europe-west1   # optional
-
+export GOOGLE_CLOUD_REGION=europe-west1     # optional
 # If ~/.edgequake/models.toml lacks vertexai, use the bundled catalog:
 export EDGEQUAKE_MODELS_CONFIG=/path/to/edgequake/edgequake/models.toml
-
-make dev
 ```
 
-**Production:** Prefer an attached workload service account (GCE/GKE/Cloud Run) with `roles/aiplatform.user`. Avoid long-lived SA key files when metadata-based auth is available.
+In production prefer an attached workload service account with `roles/aiplatform.user`. An expired ADC file can look satisfied while health stays offline: log in again.
 
-**Stale ADC:** An expired token file may show requirements as satisfied while health remains offline — re-run `gcloud auth application-default login`.
+### Provider and model selection
 
-Design reference: [SPEC-043 §011 — Vertex AI Authentication](../specs/043-update-edgequake-llm/011-vertexai-authentication.md).
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `EDGEQUAKE_DEFAULT_LLM_PROVIDER` | none | Wins over `EDGEQUAKE_LLM_PROVIDER` when both are set. `make dev` sets it. |
+| `EDGEQUAKE_DEFAULT_LLM_MODEL` | none | Wins over `EDGEQUAKE_LLM_MODEL`. |
+| `EDGEQUAKE_LLM_PROVIDER` | `openai` | LLM provider. |
+| `EDGEQUAKE_LLM_MODEL` | `gpt-4.1-mini` (Ollama: `gemma4:latest`) | LLM model. |
+| `EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER` / `EDGEQUAKE_EMBEDDING_PROVIDER` | `openai` | Embedding provider. `DEFAULT` wins. |
+| `EDGEQUAKE_DEFAULT_EMBEDDING_MODEL` / `EDGEQUAKE_EMBEDDING_MODEL` | `text-embedding-3-small` (Ollama: `embeddinggemma:latest`) | Embedding model. |
+| `EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION` / `EDGEQUAKE_EMBEDDING_DIMENSION` | `1536` (detected from the model name) | Vector size. It must match the stored vectors. |
+| `EDGEQUAKE_MODELS_CONFIG` | none | Path to a `models.toml`. |
 
-#### xAI (Grok)
+LightRAG-style aliases are accepted: `MODEL_PROVIDER` or `CHAT_PROVIDER`, `CHAT_MODEL` or `LLM_MODEL`, `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`, `EMBEDDING_DIMENSION`. Canonical `EDGEQUAKE_*` names win.
 
-| Variable       | Type   | Default               | Description  |
-| -------------- | ------ | --------------------- | ------------ |
-| `XAI_API_KEY`  | String | None                  | xAI API key  |
-| `XAI_BASE_URL` | String | `https://api.x.ai/v1` | API endpoint |
+The same default can differ by how you start the server:
 
-#### OpenRouter
+| Start method | LLM | Embedding |
+|--------------|-----|-----------|
+| Bundled catalog, `cargo run`, no env | `openai` / `gpt-4.1-mini` | `text-embedding-3-small` / 1536 |
+| `.env.example` production pins | `openai` / `gpt-5-mini` | `text-embedding-3-small` / 1536 |
+| `make dev`, no `OPENAI_API_KEY` | `ollama` / `gemma4:latest` | `embeddinggemma:latest` / 768 |
+| `make dev`, with `OPENAI_API_KEY` | `openai` / `gpt-5-nano` | `text-embedding-3-small` / 1536 |
 
-| Variable              | Type   | Default                     | Description                   |
-| --------------------- | ------ | --------------------------- | ----------------------------- |
-| `OPENROUTER_API_KEY`  | String | None                        | OpenRouter API key (required) |
-| `OPENROUTER_BASE_URL` | String | `https://openrouter.ai/api` | API endpoint                  |
+### Vision (PDF to Markdown)
 
-#### MiniMax
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `EDGEQUAKE_VISION_PROVIDER` | first set of `EDGEQUAKE_VISION_LLM_PROVIDER`, `EDGEQUAKE_DEFAULT_LLM_PROVIDER`, `EDGEQUAKE_LLM_PROVIDER`, else `ollama` | Vision provider. |
+| `EDGEQUAKE_VISION_MODEL` | first set of `EDGEQUAKE_VISION_LLM_MODEL`, `EDGEQUAKE_DEFAULT_LLM_MODEL`, `EDGEQUAKE_LLM_MODEL`, else the provider default (`gemma4:latest`, `gpt-4.1-nano`, `mistral-small-latest`) | Vision model. |
+| `EDGEQUAKE_VISION_TIMEOUT_SECS` | `600` in the Compose files | Per-call timeout. |
 
-| Variable           | Type   | Default                     | Description                                                |
-| ------------------ | ------ | --------------------------- | ---------------------------------------------------------- |
-| `MINIMAX_API_KEY`  | String | None                        | MiniMax API key (required)                                 |
-| `MINIMAX_BASE_URL` | String | `https://api.minimax.io/v1` | API endpoint (use `https://api.minimaxi.com/v1` for China) |
+With no vision or LLM variables set, the server uses Ollama with `gemma4:latest`, not the OpenAI pins in `models.toml`.
 
-#### Azure OpenAI
+### Ollama thinking mode (SPEC-113)
 
-| Variable                   | Type   | Default              | Description                 |
-| -------------------------- | ------ | -------------------- | --------------------------- |
-| `AZURE_OPENAI_API_KEY`     | String | None                 | Azure OpenAI key (required) |
-| `AZURE_OPENAI_ENDPOINT`    | String | None                 | Azure resource endpoint     |
-| `AZURE_OPENAI_API_VERSION` | String | `2024-02-15-preview` | API version                 |
+EdgeQuake asks Ollama which models support `think` instead of guessing from names.
 
-### Models Configuration
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `EDGEQUAKE_OLLAMA_THINK_CAPABILITY` | `auto` | `auto`, `force_off`, `force_on` (debug) or `legacy_name`. |
+| `EDGEQUAKE_OLLAMA_CAPABILITY_TTL_SECS` | `300` | Cache lifetime of the capability answer. |
+| `EDGEQUAKE_OLLAMA_CAPABILITY_TIMEOUT_MS` | `2000` | Probe timeout. On failure `think` is omitted. |
 
-> **Three layers of defaults** — docs and operators often conflate these:
->
-> | Layer | When it applies | LLM provider / model | Embedding / dim |
-> | ----- | --------------- | -------------------- | --------------- |
-> | **Bundled catalog** (`models.toml` `[defaults]`, compiled constants) | No env overrides, direct `cargo run` | `openai` / `gpt-4.1-mini` | `text-embedding-3-small` / `1536` |
-> | **`.env.example`** (copy to `.env`) | Explicit operator pins for production / CI | `openai` / `gpt-5-mini` | `text-embedding-3-small` / `1536` |
-> | **`make dev`** (no `OPENAI_API_KEY`) | Local stack via Makefile | `ollama` / `gemma4:latest` | `embeddinggemma:latest` / `768` |
-> | **`make dev`** (with `OPENAI_API_KEY`) | Local stack via Makefile | `openai` / `gpt-5-nano` | `text-embedding-3-small` / `1536` |
->
-> **Makefile vs `.env.example`:** The Makefile pins models at launch time for local dev (`gpt-5-nano` when `OPENAI_API_KEY` is set, otherwise `gemma4:latest`). `.env.example` documents production-style pins (`gpt-5-mini`) — copy and edit for deployments; do not assume `make dev` reads your `.env` model pins unless exported before `make dev`.
+### Hybrid mode: separate embedding provider
 
-**Primary variables** (recommended — `make dev` sets these):
-
-| Variable                              | Type    | Default (bundled) | Description                         |
-| ------------------------------------- | ------- | ----------------- | ----------------------------------- |
-| `EDGEQUAKE_DEFAULT_LLM_PROVIDER`      | String  | `openai`          | Default LLM provider (priority 1)   |
-| `EDGEQUAKE_DEFAULT_LLM_MODEL`         | String  | `gpt-4.1-mini`    | Default LLM model (priority 1)      |
-| `EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER`| String  | `openai`          | Default embedding provider          |
-| `EDGEQUAKE_DEFAULT_EMBEDDING_MODEL`   | String  | `text-embedding-3-small` | Default embedding model      |
-| `EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION` | Integer | `1536`          | Default embedding vector dimension  |
-
-**Secondary / deployment variables** (single-env aliases, lower priority than `EDGEQUAKE_DEFAULT_*`):
-
-| Variable                        | Type    | Default (bundled) | Description                                    |
-| ------------------------------- | ------- | ----------------- | ---------------------------------------------- |
-| `EDGEQUAKE_MODELS_CONFIG`       | String  | None              | Path to custom models.toml                     |
-| `EDGEQUAKE_LLM_PROVIDER`        | String  | (see above)       | LLM provider alias                             |
-| `EDGEQUAKE_LLM_MODEL`           | String  | None              | LLM model alias                                |
-| `EDGEQUAKE_EMBEDDING_PROVIDER`  | String  | (see above)       | Embedding provider alias (hybrid mode)         |
-| `EDGEQUAKE_EMBEDDING_MODEL`     | String  | None              | Embedding model alias                          |
-| `EDGEQUAKE_EMBEDDING_DIMENSION` | Integer | `1536`            | Embedding vector dimension alias               |
-
-**Vision / PDF extraction** (resolution chain in `vision_env.rs`):
-
-| Variable                   | Type   | Default (when unset) | Description                          |
-| -------------------------- | ------ | -------------------- | ------------------------------------ |
-| `EDGEQUAKE_VISION_PROVIDER`| String | `EDGEQUAKE_VISION_PROVIDER` → `EDGEQUAKE_DEFAULT_LLM_PROVIDER` → `EDGEQUAKE_LLM_PROVIDER` → **`ollama`** | Vision LLM provider for PDF→Markdown |
-| `EDGEQUAKE_VISION_MODEL`   | String | First compatible env model in chain, else provider default: **`gemma4:latest`** (ollama), `gpt-4.1-nano` (openai), `mistral-small-latest` (mistral) | Vision LLM model for PDF→Markdown    |
-
-> **Unset vision env:** With no vision or LLM env vars, the server defaults to **`ollama` / `gemma4:latest`** — not the bundled `models.toml` openai pins. `make dev` sets vision to match the resolved `EDGEQUAKE_DEFAULT_*` pair. `.env.example` shows cloud pins (`openai` / `gpt-4.1-nano`) as commented production examples.
-
-### Application Attribution (SPEC-043)
-
-Identifies EdgeQuake to upstream LLM providers (OpenRouter HTTP referer, OpenAI client request ID, Anthropic application ID, Google `x-goog-api-client`, etc.). Built once per request via `ApplicationContext` and passed to `create_llm_provider_with_context`.
-
-| Variable | Type | Default | Description |
-| -------- | ---- | ------- | ----------- |
-| `EDGEQUAKE_APP_ID` | String | None | Stable application identifier sent upstream |
-| `EDGEQUAKE_APP_NAME` | String | None | Human-readable application name (OpenRouter title) |
-| `EDGEQUAKE_APP_URL` | String | None | Application URL (OpenRouter HTTP-Referer) |
-| `EDGEQUAKE_TENANT_ID` | String | None | Optional tenant identifier for multi-tenant attribution |
-
-**Per-request overrides** (merged into `ApplicationContext` when present):
-
-| Header | Maps to |
-| ------ | ------- |
-| `x-edgequake-app-id` | `app_id` |
-| `x-edgequake-app-name` | `app_name` |
-| `x-edgequake-app-url` | `app_url` |
-| `x-edgequake-tenant-id` | `tenant_id` |
-| `x-edgequake-request-id` | `request_id` |
-
-**Example — identify EdgeQuake to OpenRouter:**
+Use one provider for the LLM and another, or another Ollama host, for embeddings.
 
 ```bash
-export EDGEQUAKE_APP_ID=edgequake
-export EDGEQUAKE_APP_NAME="EdgeQuake"
-export EDGEQUAKE_APP_URL=https://edgequake.example.com
-```
-
-**Resolution order for attribution fields:** `server_config.app_attribution` → overridden by env vars (`EDGEQUAKE_APP_*`) → overridden per-request by ingress headers.
-
-**WebUI persistence:** Settings → Application Attribution → PATCH `/api/v1/settings/app-attribution` (admin, PostgreSQL). Applied immediately without restart. See [REST API — Application Attribution](/docs/api-reference/rest-api#application-attribution).
-
-**Discovery:** `GET /api/v1/settings/attribution` returns the effective context plus per-provider header catalog. `/health` includes a compact `attribution` block (`app_id`, `app_name`, `active`).
-
-### Compatibility aliases
-
-EdgeQuake also accepts the following migration aliases. They are normalized at startup so the rest
-of the application continues to use the canonical `EDGEQUAKE_*` names:
-
-| Alias                 | Canonical variable              |
-| --------------------- | ------------------------------- |
-| `MODEL_PROVIDER`      | `EDGEQUAKE_LLM_PROVIDER`        |
-| `CHAT_MODEL`          | `EDGEQUAKE_LLM_MODEL`           |
-| `EMBEDDING_PROVIDER`  | `EDGEQUAKE_EMBEDDING_PROVIDER`  |
-| `EMBEDDING_MODEL`     | `EDGEQUAKE_EMBEDDING_MODEL`     |
-| `EMBEDDING_DIMENSION` | `EDGEQUAKE_EMBEDDING_DIMENSION` |
-
-When both an alias and a canonical variable are set, the canonical variable wins.
-
-### Hybrid Provider Mode (closes [#140](https://github.com/raphaelmansuy/edgequake/issues/140))
-
-Run a different provider or Ollama instance for embeddings vs. LLM inference:
-
-| Variable                        | Type    | Default                | Description                                         |
-| ------------------------------- | ------- | ---------------------- | --------------------------------------------------- |
-| `OLLAMA_EMBEDDING_HOST`         | String  | value of `OLLAMA_HOST` | Dedicated Ollama host for embeddings                |
-| `EDGEQUAKE_EMBEDDING_PROVIDER`  | String  | (same as LLM)          | Explicit embedding provider (`ollama`, `openai`, …) |
-| `EDGEQUAKE_EMBEDDING_MODEL`     | String  | provider default       | Model for the embedding override                    |
-| `EDGEQUAKE_EMBEDDING_DIMENSION` | Integer | `1536` (OpenAI) / `768` (Ollama) | Vector dimension for the embedding override |
-
-**Priority:** `EDGEQUAKE_EMBEDDING_PROVIDER` → `OLLAMA_EMBEDDING_HOST` → default (from `from_env()`).
-
-**Example — OpenAI for LLM, dedicated Ollama node for embeddings:**
-
-```bash
-export EDGEQUAKE_LLM_PROVIDER=openai
-export OPENAI_API_KEY=sk-...
+export EDGEQUAKE_LLM_PROVIDER=openai OPENAI_API_KEY=sk-...
+export EDGEQUAKE_EMBEDDING_PROVIDER=ollama
 export OLLAMA_EMBEDDING_HOST=http://gpu-box:11434
 export OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ```
 
-### Pipeline Timeout & Concurrency (fixes [#194](https://github.com/raphaelmansuy/edgequake/issues/194))
+### Application attribution (SPEC-043)
 
-Controls how aggressively the ingestion pipeline calls the LLM and how long it waits for each
-response. These are the knobs to reach for when processing **large documents** or using **slow
-local LLMs** (Ollama, LM Studio on CPU or a single GPU).
+Identifies EdgeQuake to upstream providers (OpenRouter referer and title, Anthropic application ID, and so on).
 
-| Variable                               | Type    | Default | Min  | Max     | Description                                                |
-| -------------------------------------- | ------- | ------- | ---- | ------- | ---------------------------------------------------------- |
-| `EDGEQUAKE_CHUNK_TIMEOUT_SECS`         | Integer | `180`   | `10` | ∞       | Per-chunk LLM call timeout in seconds                      |
-| `EDGEQUAKE_CHUNK_MAX_RETRIES`          | Integer | `3`     | `0`  | `20`    | Max retry attempts per chunk on timeout or error           |
-| `EDGEQUAKE_CHUNK_RETRY_DELAY_MS`       | Integer | `1000`  | `0`  | `60000` | Initial backoff delay between retries (milliseconds)       |
-| `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` | Integer | `16`    | `1`  | `256`   | Max parallel LLM extraction calls per document             |
-| `EDGEQUAKE_LLM_TIMEOUT_SECS`           | Integer | `600`   | —    | `3600`  | HTTP safety-layer timeout (Layer 2, supports up to 1 hour) |
+| Variable | Description |
+|----------|-------------|
+| `EDGEQUAKE_APP_ID`, `EDGEQUAKE_APP_NAME`, `EDGEQUAKE_APP_URL` | Identity sent upstream. |
+| `EDGEQUAKE_TENANT_ID` | Optional tenant identifier. |
 
-**Two-layer timeout architecture:**
+Headers `x-edgequake-app-id`, `-app-name`, `-app-url`, `-tenant-id` and `-request-id` override these per request. Admins can change them live with `PATCH /api/v1/settings/app-attribution`. `GET /api/v1/settings/attribution` shows the effective values.
 
+## Ingestion: timeouts and concurrency
+
+These are the knobs for large documents and slow local LLMs. Out-of-range values are clamped. Non-numeric values are ignored.
+
+| Variable | Default | Min | Max | Description |
+|----------|---------|-----|-----|-------------|
+| `EDGEQUAKE_CHUNK_TIMEOUT_SECS` | `180` cloud, `600` local | `10` | none | Per-chunk LLM timeout (pipeline layer). |
+| `EDGEQUAKE_CHUNK_MAX_RETRIES` | `3` | `1` | `20` | Retries per chunk. |
+| `EDGEQUAKE_CHUNK_RETRY_DELAY_MS` | `1000` | `0` | `60000` | First backoff delay. |
+| `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` | `16` cloud, `1` local | `1` | `32` | Parallel extraction calls per document. |
+| `EDGEQUAKE_LLM_TIMEOUT_SECS` | `600` | `10` | `3600` | HTTP safety timeout. Keep it at or above the chunk timeout. |
+| `EDGEQUAKE_LLM_MAX_TOKENS` | `16384` | `1` | `65536` | Maximum response tokens. |
+| `EDGEQUAKE_MAX_EXTRACTION_ENTITIES`, `EDGEQUAKE_MAX_EXTRACTION_RECORDS` | `40`, `100` | | | Per-response caps (SPEC-117). |
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  A["Chunk sent to LLM"] --> B{"Answer within chunk timeout?"}
+  B -->|Yes| C["Parse entities"]
+  B -->|No| D{"Retries left?"}
+  D -->|Yes| E["Wait, then retry"]
+  D -->|No| F["Chunk fails"]
+  E --> A
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+classDef eqBad fill:#FEE2E2,stroke:#EF4444,color:#7F1D1D
+class A eqLlm
+class B,F eqBad
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                   TIMEOUT LAYERS                                │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Layer 1 — EDGEQUAKE_CHUNK_TIMEOUT_SECS  (pipeline, fires first)│
-│    └─ Set this to allow the LLM enough time per chunk           │
-│                                                                 │
-│  Layer 2 — EDGEQUAKE_LLM_TIMEOUT_SECS   (HTTP safety cap)      │
-│    └─ Must be ≥ EDGEQUAKE_CHUNK_TIMEOUT_SECS                    │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
 
-**Quick configuration for slow local LLMs:**
+How to read it: the chunk timeout fires first. The HTTP timeout is only a safety net that must not be shorter. "Local" means Ollama or LM Studio. For stalls see [Local extract reliability](local-extract-reliability.md).
 
 ```bash
-# Large document on a single-GPU Ollama instance
-export EDGEQUAKE_CHUNK_TIMEOUT_SECS=600       # 10 minutes per chunk
-export EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=4  # reduce parallelism
-export EDGEQUAKE_LLM_TIMEOUT_SECS=3600        # 1-hour HTTP cap
+# Large document on a single-GPU Ollama
+export EDGEQUAKE_CHUNK_TIMEOUT_SECS=600
+export EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=1
+export EDGEQUAKE_LLM_TIMEOUT_SECS=3600
 ```
 
-> **Note:** Values below the allowed minimum are automatically clamped.
-> Non-numeric values are silently ignored and the default is used.
+## Workers, leases and fairness (SPEC-057)
 
----
+PostgreSQL task rows are the source of truth. The in-memory channel only wakes workers. See [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md).
 
-### Worker Pool, Task Lease & Fairness (SPEC-057)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WORKER_THREADS` | 4 x CPU, at least 4 | Worker count. Local providers cap it at 4. |
+| `MAX_TASKS_PER_TENANT` | about three quarters of workers | Ingest tasks per tenant. `0` disables the cap. Local providers cap it at 1. |
+| `MAX_LIFECYCLE_TASKS_PER_TENANT` | same as ingest cap (local: 4) | Lifecycle lane cap (delete, reprocess). |
+| `EDGEQUAKE_ALLOW_LOCAL_HIGH_CONCURRENCY` | `0` | Set `1` to lift the local caps. |
+| `EDGEQUAKE_EXTRACT_PROVIDER`, `EDGEQUAKE_DEFAULT_EXTRACT_PROVIDER` | unset | Provider used to decide if the local caps apply. |
+| `EDGEQUAKE_TASK_LEASE_TTL_SECS` | `120` (min `30`) | Claim lease. The worker renews it every third of the TTL, at least 5 s. |
+| `EDGEQUAKE_REPLICAS` | `1` | Intended API process count. |
+| `EDGEQUAKE_TASK_DELIVERY` | `local` | `local`, `bridged` or `notify_only`. Boot fails if replicas is above 1 and this is `local`. |
+| `EDGEQUAKE_STARTUP_AUTO_RESUME` | on | Reclaim stale Processing tasks at boot. `0`, `false` or `off` marks them Failed instead. |
+| `EDGEQUAKE_STARTUP_RECONCILE_MAX` | `32` | Maximum orphan rows reconciled at boot. |
+| `EDGEQUAKE_DB_POOL_UTIL_WARN`, `EDGEQUAKE_DB_POOL_UTIL_CRITICAL` | `0.75`, `0.90` | Store contention thresholds. Critical turns `/ready` into 503. |
+| `EDGEQUAKE_COMPENSATION_QUARANTINE_WARN`, `_CRITICAL` | `1`, `5` | Compensation dead-letter thresholds. Critical turns `/ready` into 503. |
+| `EDGEQUAKE_NATIVE_GRAPH_WRITES` | `1` | Native AGE upserts. `0` falls back to Cypher MERGE. |
+| `EDGEQUAKE_HNSW_ITERATIVE_SCAN` | `relaxed_order` | pgvector 0.8 iterative scan mode. |
+| `EDGEQUAKE_HNSW_EF_CONSTRUCTION` | `128` | HNSW build parameter. Only affects new indexes. |
 
-Postgres task rows are the delivery SSOT; the in-memory channel is a wake signal only. See [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md).
+PDF admission queues a convert-only task first. After the Markdown is stored, a separate insert task runs with its own lease and timeout.
 
-| Variable | Type | Default | Description |
-| -------- | ---- | ------- | ----------- |
-| `WORKER_THREADS` | Integer | CPU count | Background worker count |
-| `MAX_TASKS_PER_TENANT` | Integer | ≈ ¾ of `WORKER_THREADS` | Per-tenant concurrency cap; `0` disables |
-| `EDGEQUAKE_ALLOW_LOCAL_HIGH_CONCURRENCY` | Boolean | `0` | When unset/`0`, `ollama`/`lmstudio` clamp to **1** task/tenant |
-| `EDGEQUAKE_EXTRACT_PROVIDER` | String | — | Hybrid extract provider for local clamp (P2) |
-| `EDGEQUAKE_DEFAULT_EXTRACT_PROVIDER` | String | — | Fallback extract provider for clamp |
-| `EDGEQUAKE_TASK_LEASE_TTL_SECS` | Integer | `120` (min `30`) | Claim lease TTL; heartbeat every 60s |
-| `EDGEQUAKE_STARTUP_AUTO_RESUME` | Boolean | `1` (unset) | Default **ON**: reclaim stale **Processing** → Pending. Set `0`/`false`/`off` to mark Interrupted Failed (manual Reprocess) |
-| `EDGEQUAKE_STARTUP_RECONCILE_MAX` | Integer | `32` | Max orphan rows reconciled at boot |
-| `EDGEQUAKE_REPLICAS` | Integer | `1` | Intended API/worker process count |
-| `EDGEQUAKE_TASK_DELIVERY` | String | `local` | `local` \| `bridged` \| `notify_only`; boot fails if `REPLICAS>1` and `local` |
-| `EDGEQUAKE_DB_POOL_UTIL_WARN` | Float | `0.75` | Store contention warn threshold |
-| `EDGEQUAKE_DB_POOL_UTIL_CRITICAL` | Float | `0.90` | Store contention critical (`/ready` 503) |
-| `EDGEQUAKE_COMPENSATION_QUARANTINE_WARN` | Integer | `1` | Compensation DLQ warn |
-| `EDGEQUAKE_COMPENSATION_QUARANTINE_CRITICAL` | Integer | `5` | Compensation DLQ critical (`/ready` 503) |
-| `EDGEQUAKE_NATIVE_GRAPH_WRITES` | Boolean | `1` | Native AGE upserts; `0` forces Cypher MERGE fallback |
-| `EDGEQUAKE_HNSW_ITERATIVE_SCAN` | String | `relaxed_order` | pgvector ≥0.8 iterative scan mode |
-| `EDGEQUAKE_HNSW_EF_CONSTRUCTION` | Integer | `32` local / `128` prod | HNSW build param for **new** indexes only |
+## Data layer and caches
 
-**Multi-replica:** Set `EDGEQUAKE_REPLICAS>1` and `EDGEQUAKE_TASK_DELIVERY=bridged` (or `notify_only`). Correctness remains `claim_next` + lease — never process from channel payload alone.
+Most defaults assume a database after all migrations and drops. Fleets in the middle of an upgrade should follow [Upgrading](upgrading.md) and the [SPEC-091 runbook](spec091-upgrade-from-v0.22.0.md).
 
-**Convert vs ingest (P2):** PDF admission enqueues convert-only (`pdf_processing`); after durable markdown, a separate `insert` task runs under its own lease/timeout. Cancel semantics: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md).
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `EDGEQUAKE_MIGRATION_MODE` | `verify` | `off`, `verify` or `automatic`. The `edgequake migrate` console is the supported path. |
+| `EDGEQUAKE_MIGRATION_CONFIRM_DROP` | `0` | Same as `edgequake migrate --confirm-drop`. Irreversible. Never set it in shared env files. |
+| `EDGEQUAKE_VECTOR_BACKEND` | `typed_embeddings` | Vector storage. `legacy_tables` only before the drops. |
+| `EDGEQUAKE_CHUNK_TEXT_AUTHORITY` | `relational` | Chunk text source. `kv` only before the drops. |
+| `EDGEQUAKE_KV_FAMILY_*` | `relational` | Per-family KV routing. |
+| `EDGEQUAKE_SERVING_FENCE` | `1` | Refuse to serve when typed tables are missing. |
+| `EDGEQUAKE_OUTBOX_DRAIN` | `on` | `off`, `dry-run` or `on`. |
+| `EDGEQUAKE_CITATION_REQUIRE` | `1` | Merges must carry `source_chunk_ids`. |
+| `EDGEQUAKE_CONTEXTUAL_CHUNK` | `0` | Add a context preamble to chunks. |
+| `EDGEQUAKE_EXTRACTION_LANGUAGE` | `English` | Default language for extraction. A workspace can override it. |
+| `EDGEQUAKE_LLM_CACHE` | `1` | Master switch for the keyword and answer caches. |
+| `EDGEQUAKE_KEYWORD_CACHE`, `EDGEQUAKE_QUERY_ANSWER_CACHE` | follow the master | Per-cache override. |
+| `EDGEQUAKE_PROMPT_CACHE` | `1` | Provider-side prompt cache hints. Does not skip generation. |
+| `EDGEQUAKE_PROMPT_CACHE_TTL` | `5m` | Anthropic and Bedrock cache TTL: `5m` or `1h`. |
+| `EDGEQUAKE_LLM_OMIT_TEMPERATURE`, `EDGEQUAKE_LLM_OMIT_REASONING_EFFORT` | `0` | Never send those fields upstream (some Mantle models reject them). |
+| `EDGEQUAKE_LLM_API_FORMAT` | `chat_completions` | Or `responses`. |
 
----
+The release benchmark pins `EDGEQUAKE_LLM_CACHE=0` for cold runs.
 
-### SPEC-091 Data Layer & SPEC-103 LLM Cache (v0.23.0)
+### Langfuse (SPEC-124)
 
-Relational data-layer cutover (typed SSOT) and the LightRAG-parity response cache. Most defaults assume a **post-drop** database; mid-upgrade fleets must follow the [SPEC-091 runbook](spec091-upgrade-from-v0.22.0.md).
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | unset | With both set, trace export turns on. The secret is never logged. |
+| `LANGFUSE_BASE_URL` (alias `LANGFUSE_HOST`) | `https://cloud.langfuse.com` | UI and OTLP base. |
+| `LANGFUSE_PROJECT_ID` | auto | Project for UI deep links. |
+| `EDGEQUAKE_LANGFUSE_ENABLED` | follows keys | Force on or off. |
+| `EDGEQUAKE_LANGFUSE_API` | `auto` | `auto` tries OTLP and falls back to ingestion on HTTP 404. Or force `otlp` or `ingestion`. |
 
-| Variable | Type | Default | Description |
-| -------- | ---- | ------- | ----------- |
-| `EDGEQUAKE_MIGRATION_MODE` | String | `verify` | Migration engine mode (`off` \| `verify` \| `automatic`); `edgequake migrate` console is the canonical path |
-| `EDGEQUAKE_MIGRATION_CONFIRM_DROP` | Boolean | `0` | Acknowledge irreversible drops (**125** KV, **126/131** vectors); also via `edgequake migrate --confirm-drop` (alias `--drop-confirm`, SPEC-137) |
-| `EDGEQUAKE_VECTOR_BACKEND` | String | `typed_embeddings` | Vector write SSOT; `legacy_tables` only for pre-drop fleets |
-| `EDGEQUAKE_CHUNK_TEXT_AUTHORITY` | String | `relational` | Chunk-text SSOT (`relational` post-SPEC-091; `kv` pre-drop) |
-| `EDGEQUAKE_KV_FAMILY_*` | String | `relational` | Per-family KV routing (`artifact`, `cache`, `checkpoint`, `compensation_quarantine`, `doc_hash`, `injection`, `metadata`, `wsdoc`) |
-| `EDGEQUAKE_SERVING_FENCE` | Boolean | `1` | Fail-closed serving when typed tables are missing; set `off`/`false`/`0` to disable |
-| `EDGEQUAKE_OUTBOX_DRAIN` | String | `on` | Outbox drain mode (`off` \| `dry-run` \| `on`) for ingest compensations |
-| `EDGEQUAKE_CITATION_REQUIRE` | Boolean | `1` | Fail-closed citation requirement (`source_chunk_ids`) on merges |
-| `EDGEQUAKE_CONTEXTUAL_CHUNK` | Boolean | `0` | Contextual chunk preamble injection (default off) |
-| `EDGEQUAKE_LLM_CACHE` | Boolean | `1` | **Master** LLM cache switch (keywords + answers); set `0`/`false` to disable both |
-| `EDGEQUAKE_KEYWORD_CACHE` | Boolean | follows master | Keyword-extraction cache override (SPEC-103) |
-| `EDGEQUAKE_QUERY_ANSWER_CACHE` | Boolean | follows master | Query-answer cache override (SPEC-103) |
-| `EDGEQUAKE_PROMPT_CACHE` | Boolean | `1` | **Provider KV / prompt-cache**. Native OpenAI (constructor, including proxies) and Azure send `prompt_cache_key` + GPT-5.6 explicit breakpoints; a structured `error.param` 400 disables them for that process. Compatible/Mistral/NVIDIA: key only. Anthropic: `cache_control`. OpenRouter: `cache_control` + `session_id`. Bedrock Converse: `cachePoint`. Default **on**. Does not skip generation. Acc leaves this on. |
-| `EDGEQUAKE_PROMPT_CACHE_TTL` | String | `5m` | Anthropic `cache_control` and Bedrock Converse `cachePoint` TTL (`5m` or `1h`) |
-| `EDGEQUAKE_LLM_OMIT_TEMPERATURE` | Boolean | `0` | **SPEC-131 / #379** — never send `temperature` upstream (Mantle Gemma/Grok reject it). |
-| `EDGEQUAKE_LLM_OMIT_REASONING_EFFORT` | Boolean | `0` | **SPEC-131** — never send `reasoning_effort` upstream. |
-| `EDGEQUAKE_LLM_API_FORMAT` | String | `chat_completions` | **SPEC-131** — upstream transport: `chat_completions` (default) or `responses` (GPT-5.6 Mantle; `store: false`). |
-| `EDGEQUAKE_EXTRACTION_LANGUAGE` | String | `English` | Fleet default KG extraction NL language (SPEC-096); workspace metadata overrides |
-| `LANGFUSE_PUBLIC_KEY` | String | (unset) | **SPEC-124** — Langfuse public key (`pk-lf-…`). With secret key, enables Langfuse export. |
-| `LANGFUSE_SECRET_KEY` | String | (unset) | **SPEC-124** — Langfuse secret key (`sk-lf-…`); never logged / never shown in UI. |
-| `LANGFUSE_BASE_URL` | String | `https://cloud.langfuse.com` | **SPEC-124** — Langfuse UI + OTLP base (alias `LANGFUSE_HOST`). Local v4: `http://localhost:3310` after `make langfuse-up`. |
-| `LANGFUSE_PROJECT_ID` | String | (auto) | **SPEC-124** — optional project id for Settings deep-link; else fetched once from `/api/public/projects`. |
-| `EDGEQUAKE_LANGFUSE_ENABLED` | Boolean | follows keys | **SPEC-124** — force-enable when keys present; see [OBSERVABILITY.md](../OBSERVABILITY.md). |
-| `EDGEQUAKE_LANGFUSE_API` | String | `auto` | **SPEC-124** — `auto` probes OTLP and falls back to native ingestion on HTTP 404 (Langfuse 3.1.x). `otlp` / `ingestion` force a transport. How-to: [langfuse-3.1.md](langfuse-3.1.md). Upgrade to ≥ 3.22 remains recommended. |
+See [Langfuse 3.1.x](langfuse-3.1.md) and the [observability guide](../OBSERVABILITY.md).
 
-> **Acc note:** The benchmark pins `EDGEQUAKE_LLM_CACHE=0` for fair cold peers (response cache). Provider KV cache (`EDGEQUAKE_PROMPT_CACHE`) stays **on** — it does not change answers. Irreversible drops (**125** KV, **126/131** vectors) are human-gated via `edgequake migrate --confirm-drop` (alias `--drop-confirm`) or `EDGEQUAKE_MIGRATION_CONFIRM_DROP=1` — never set it casually in shared env files.
+### Decision extraction (SPEC-160, preview)
 
----
+An unset `EDGEQUAKE_EXTRACTION_MODE` still means the chat-LLM extractor. Guide: [Decision extraction](../concepts/decision-extraction.md). A bad value fails startup.
 
-### SPEC-160 Decision extraction
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `EDGEQUAKE_EXTRACTION_MODE` | `llm` | Fleet default: `llm` or `decision`. Document beats workspace beats this value. |
+| `EDGEQUAKE_DECISION_ENABLED` | on | `0` locks it off. `workspace` lets each workspace opt in. |
+| `EDGEQUAKE_DECISION_BACKEND` | `ollama_system_one` | The only shipped backend. `openai_logprobs` is refused at boot. |
+| `EDGEQUAKE_DECISION_BASE_URL` | `http://localhost:11434` | Does not follow `OLLAMA_HOST`. |
+| `EDGEQUAKE_DECISION_MODEL` | `tev1:0.8b` | Default model tag. |
+| `EDGEQUAKE_DECISION_PACK_SIZE` | `4` | Questions per request (1 to 16). |
+| `EDGEQUAKE_DECISION_GATE_PRESET` | `balanced` | `strict`, `balanced` or `recall`. Uncalibrated. |
+| `EDGEQUAKE_DECISION_TIMEOUT_SECS` | `600` | Per-request timeout. |
+| `EDGEQUAKE_DECISION_KEEP_ALIVE` | `30m` | Ollama `keep_alive`. |
+| `EDGEQUAKE_DECISION_CACHE_TTL_DAYS`, `EDGEQUAKE_DECISION_CACHE_MAX_ROWS` | `30`, `200000` | Answer cache limits. |
 
-Preview local knowledge-graph mode. Unset `EDGEQUAKE_EXTRACTION_MODE` still means the chat-LLM extractor. Making the engine available does not switch that default. Operator guide: [Decision extraction](../concepts/decision-extraction.md). A bad value fails startup.
+It needs schema 166 or newer (`decision_cache`, `decision_review`).
 
-| Variable | Type | Default | Description |
-| -------- | ---- | ------- | ----------- |
-| `EDGEQUAKE_EXTRACTION_MODE` | String | unset (`llm`) | Fleet default mode word: `llm` or `decision`. Document, then workspace, then this value |
-| `EDGEQUAKE_DECISION_ENABLED` | String | unset (on) | `1` / unset forces the engine on. `0` locks it off. `workspace` lets each workspace opt in |
-| `EDGEQUAKE_DECISION_BACKEND` | String | `ollama_system_one` | Only Ollama System One ships. `openai_logprobs` is refused at boot |
-| `EDGEQUAKE_DECISION_BASE_URL` | String | `http://localhost:11434` | Decision Ollama URL. Does not follow `OLLAMA_HOST` |
-| `EDGEQUAKE_DECISION_API_KEY` | String | unset | Bearer token reserved for a future logprobs backend. Never logged |
-| `EDGEQUAKE_DECISION_MODEL` | String | `tev1:0.8b` | Default decision model tag |
-| `EDGEQUAKE_DECISION_PACK_SIZE` | Integer | `4` | Questions per request (1–16) |
-| `EDGEQUAKE_DECISION_GATE_PRESET` | String | `balanced` | `strict`, `balanced`, or `recall`. Presets are uncalibrated |
-| `EDGEQUAKE_DECISION_TIMEOUT_SECS` | Integer | `600` | Per-request timeout |
-| `EDGEQUAKE_DECISION_KEEP_ALIVE` | String | `30m` | Ollama `keep_alive` so the model stays loaded |
-| `EDGEQUAKE_DECISION_CACHE_TTL_DAYS` | Integer | `30` | Decision answer cache TTL |
-| `EDGEQUAKE_DECISION_CACHE_MAX_ROWS` | Integer | `200000` | Decision cache rows per workspace |
+## Security and authentication
 
-Schema: migration **166** (`decision_cache`, `decision_review`) is additive. Run `edgequake migrate` before serving a binary that expects schema 166.
+Full guides: [Enable login](auth-quickstart.md) and [Runtime auth hardening](runtime-auth-hardening.md).
 
----
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `EDGEQUAKE_AUTH_ENABLED` (alias `AUTH_ENABLED`) | on | Explicit setting. Wins over dev mode. |
+| `EDGEQUAKE_AUTH_DISABLED` | unset | `true` turns auth off when `EDGEQUAKE_AUTH_ENABLED` is unset. |
+| `EDGEQUAKE_DEV_MODE` | `false` | Open API for local use. Auth follows it when no explicit setting exists. |
+| `JWT_SECRET` | insecure default | 32 or more bytes. Fatal at boot if weak and dev mode is off. |
+| `JWT_EXPIRY_SECONDS` | `900` | Access token lifetime. |
+| `REFRESH_TOKEN_EXPIRY_DAYS` | `30` | Refresh token lifetime. |
+| `MAX_LOGIN_ATTEMPTS`, `LOCKOUT_DURATION_MINUTES` | `5`, `15` | Account lockout. |
+| `ALLOW_REGISTRATION` | `true` | Set `false` in production. |
+| `EDGEQUAKE_ALLOW_ANONYMOUS` | `true` | Shared guest user for chat when unauthenticated. |
+| `EDGEQUAKE_MASTER_API_KEY` | none | Master key (aliases `EDGEQUAKE_GLOBAL_API_KEY`, `MASTER_API_KEY`). |
+| `EDGEQUAKE_API_KEYS` | none | Comma-separated static keys. |
+| `EDGEQUAKE_CORS_ORIGINS` | none | Allowed origins. Required with dev mode off and a remote database. |
+| `EDGEQUAKE_RATE_LIMIT_ENABLED` | `false` | Turn it on in production. |
+| `EDGEQUAKE_STRICT_STARTUP` | `false` | Turn startup warnings into fatal errors. |
+| `EDGEQUAKE_SECRETS_KEY` | none | AES-256-GCM key for stored connection secrets (32 raw bytes, base64 or 64 hex characters). |
+| `EDGEQUAKE_SECRETS_KEY_ID` | `v1` | Key label stored with each secret. |
+| `EDGEQUAKE_SETUP_TOKEN` | none | When set, `POST /api/v1/setup/initialize` requires it. |
+| `EDGEQUAKE_BOOTSTRAP_ADMIN_USERNAME`, `_PASSWORD`, `_EMAIL` | `admin`, none, `<user>@localhost` | First admin (auth on, dev mode off). |
 
-### Security / Authentication
+Web UI variables (set at runtime unless noted): `NEXT_PUBLIC_AUTH_ENABLED` and `NEXT_PUBLIC_DISABLE_DEMO_LOGIN` (build-time in custom builds), `EDGEQUAKE_API_URL` (runtime API URL), and `EDGEQUAKE_HEALTH_POLL_MS` (optional health poll interval; unset means one probe on load).
 
-| Variable                    | Type    | Default | Description                                                                 |
-| --------------------------- | ------- | ------- | --------------------------------------------------------------------------- |
-| `EDGEQUAKE_AUTH_ENABLED`    | Boolean | `true`  | Enable API authentication (secure default)                                  |
-| `EDGEQUAKE_DEV_MODE`        | Boolean | `false` | Set `true` for local open API without keys (`make dev` sets this)           |
-| `EDGEQUAKE_MASTER_API_KEY`  | String  | None    | Master API key for authenticated requests                                   |
-| `EDGEQUAKE_API_KEYS`        | String  | None    | Comma-separated API keys (alternative to master key)                        |
-| `EDGEQUAKE_STRICT_STARTUP`  | Boolean | `false` | Exit on insecure production config when `1`                                 |
-| `EDGEQUAKE_CORS_ORIGINS`    | String  | None    | Comma-separated allowed CORS origins (`None` = allow any, legacy default)   |
+## models.toml
 
-### Security / Frontend
-
-| Variable                         | Type   | Default | Description                                                                                                                             |
-| -------------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_DISABLE_DEMO_LOGIN` | String | `false` | Set to `true` to hide the demo "skip login" button in production (closes [#139](https://github.com/raphaelmansuy/edgequake/issues/139)) |
-| `EDGEQUAKE_HEALTH_POLL_MS`       | Number | unset   | WebUI periodic `/live`+`/health` poll (ms) while healthy. Unset/`0`/`false`/`off` = one probe on load. `10000` restores the former 10s loop. While `/health` is `degraded`, the UI polls every 5s anyway so the header Busy pill can clear. Runtime-injected (not baked `NEXT_PUBLIC_*`). Playwright always disables the loop. |
-
-> **Production tip:** Keep `EDGEQUAKE_AUTH_ENABLED=true`, unset `EDGEQUAKE_DEV_MODE`, configure `EDGEQUAKE_MASTER_API_KEY` or `EDGEQUAKE_API_KEYS`, and set `NEXT_PUBLIC_DISABLE_DEMO_LOGIN=true` in your frontend build.
-
----
-
-## models.toml Reference
-
-The `models.toml` file configures LLM providers and model cards.
-
-### Location Priority
-
-1. `EDGEQUAKE_MODELS_CONFIG` environment variable
-2. `./models.toml` (current working directory)
-3. `~/.edgequake/models.toml` (user home)
-4. Built-in defaults
-
-### Structure
+`models.toml` describes providers and model cards. The bundled copy is `edgequake/models.toml`. Copy and edit it, then point `EDGEQUAKE_MODELS_CONFIG` at it.
 
 ```toml
-# Default provider selection (bundled models.toml)
 [defaults]
 llm_provider = "openai"
 llm_model = "gpt-4.1-mini"
@@ -520,74 +344,6 @@ embedding_model = "text-embedding-3-small"
 vision_provider = "openai"
 vision_model = "gpt-4o"
 
-# Provider definitions
-[[providers]]
-name = "openai"
-display_name = "OpenAI"
-type = "openai"
-api_base = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
-enabled = true
-priority = 10
-description = "OpenAI GPT models"
-
-# Model definitions within provider
-[[providers.models]]
-name = "gpt-4.1-mini"
-display_name = "GPT-4.1 Mini"
-model_type = "llm"                   # or "embedding"
-description = "Cost-effective model with 1M context"
-deprecated = false
-tags = ["recommended", "fast"]
-
-[providers.models.capabilities]
-context_length = 128000
-max_output_tokens = 16384
-supports_vision = true
-supports_function_calling = true
-supports_json_mode = true
-supports_streaming = true
-supports_system_message = true
-embedding_dimension = 0              # 0 for LLMs, >0 for embeddings
-
-[providers.models.cost]
-input_per_1k = 0.00015
-output_per_1k = 0.0006
-embedding_per_1k = 0.0
-image_per_unit = 0.0
-```
-
-### Provider Types
-
-| Type         | Description             | API Key Variable       |
-| ------------ | ----------------------- | ---------------------- |
-| `openai`     | OpenAI API compatible   | `OPENAI_API_KEY`       |
-| `anthropic`  | Anthropic Claude models | `ANTHROPIC_API_KEY`    |
-| `mistral`    | Mistral AI models       | `MISTRAL_API_KEY`      |
-| `gemini`     | Google Gemini Developer API | `GEMINI_API_KEY` / `GOOGLE_API_KEY` |
-| `vertexai`   | Google Vertex AI (enterprise) | **Identity** — `GOOGLE_CLOUD_PROJECT` + ADC/SA (no static API key) |
-| `xai`        | xAI Grok models         | `XAI_API_KEY`          |
-| `openrouter` | OpenRouter aggregator   | `OPENROUTER_API_KEY`   |
-| `minimax`    | MiniMax AI models       | `MINIMAX_API_KEY`      |
-| `azure`      | Azure OpenAI            | `AZURE_OPENAI_API_KEY` |
-| `ollama`     | Ollama local models     | None (local)           |
-| `lmstudio`   | LM Studio local         | None (local)           |
-| `mock`       | Testing without costs   | None                   |
-
-### Model Types
-
-| Type        | Purpose           | Key Capability                        |
-| ----------- | ----------------- | ------------------------------------- |
-| `llm`       | Text generation   | `context_length`, `max_output_tokens` |
-| `embedding` | Vector embeddings | `embedding_dimension`                 |
-
----
-
-## Provider Configuration Examples
-
-### OpenAI (Production)
-
-```toml
 [[providers]]
 name = "openai"
 display_name = "OpenAI"
@@ -600,441 +356,65 @@ priority = 10
 [[providers.models]]
 name = "gpt-4.1-mini"
 display_name = "GPT-4.1 Mini"
-model_type = "llm"
-tags = ["recommended"]
+model_type = "llm"                 # or "embedding"
 
 [providers.models.capabilities]
 context_length = 128000
 max_output_tokens = 16384
 supports_vision = true
-supports_function_calling = true
-supports_json_mode = true
-supports_streaming = true
-
-[[providers.models]]
-name = "text-embedding-3-small"
-display_name = "Text Embedding 3 Small"
-model_type = "embedding"
-tags = ["recommended"]
-
-[providers.models.capabilities]
-context_length = 8191
-embedding_dimension = 1536
-```
-
-### Ollama (Local Development)
-
-```toml
-[[providers]]
-name = "ollama"
-display_name = "Ollama"
-type = "ollama"
-api_base = "http://localhost:11434"
-enabled = true
-priority = 20
-
-[[providers.models]]
-name = "gemma4:latest"
-display_name = "Gemma 4 Latest"
-model_type = "llm"
-tags = ["recommended", "local"]
-
-[providers.models.capabilities]
-context_length = 128000
-max_output_tokens = 8192
-supports_vision = true
-supports_streaming = true
-
-[[providers.models]]
-name = "embeddinggemma:latest"
-display_name = "Embedding Gemma"
-model_type = "embedding"
-
-[providers.models.capabilities]
-context_length = 8192
-embedding_dimension = 768
-```
-
-### Azure OpenAI
-
-```toml
-[[providers]]
-name = "azure-openai"
-display_name = "Azure OpenAI"
-type = "openai"  # Uses OpenAI-compatible API
-api_base = "https://your-resource.openai.azure.com"
-api_key_env = "AZURE_OPENAI_API_KEY"
-enabled = true
-priority = 5
-
-[[providers.models]]
-name = "gpt-4.1-mini"  # Your deployment name
-display_name = "Azure GPT-4o Mini"
-model_type = "llm"
-
-[providers.models.capabilities]
-context_length = 128000
-max_output_tokens = 16384
-supports_function_calling = true
-supports_json_mode = true
-supports_streaming = true
-```
-
-### Anthropic Claude
-
-```toml
-[[providers]]
-name = "anthropic"
-display_name = "Anthropic"
-type = "anthropic"
-api_base = "https://api.anthropic.com"
-api_key_env = "ANTHROPIC_API_KEY"
-enabled = true
-priority = 8
-
-[[providers.models]]
-name = "claude-sonnet-4-5-20250929"
-display_name = "Claude Sonnet 4.5"
-model_type = "llm"
-tags = ["recommended", "fast"]
-
-[providers.models.capabilities]
-context_length = 200000
-max_output_tokens = 128000
-supports_vision = true
-supports_streaming = true
-supports_system_message = true
-
-[providers.models.cost]
-input_per_1k = 0.003
-output_per_1k = 0.015
-```
-
-### Google Gemini
-
-```toml
-[[providers]]
-name = "gemini"
-display_name = "Google Gemini"
-type = "gemini"
-api_base = "https://generativelanguage.googleapis.com"
-api_key_env = "GEMINI_API_KEY"
-enabled = true
-priority = 9
-
-[[providers.models]]
-name = "gemini-2.5-flash"
-display_name = "Gemini 2.5 Flash"
-model_type = "llm"
-tags = ["recommended", "fast", "thinking"]
-
-[providers.models.capabilities]
-context_length = 1000000
-max_output_tokens = 8192
-supports_vision = true
-supports_streaming = true
-
-[providers.models.cost]
-input_per_1k = 0.00015
-output_per_1k = 0.0006
-
-[[providers.models]]
-name = "gemini-embedding-001"
-display_name = "Gemini Embedding"
-model_type = "embedding"
-
-[providers.models.capabilities]
-context_length = 10000
-embedding_dimension = 3072
-
-[providers.models.cost]
-input_per_1k = 0.00015
-```
-
-### Google Vertex AI (Enterprise)
-
-Vertex uses IAM identity auth — leave `api_key_env` empty in `models.toml`:
-
-```toml
-[[providers]]
-name = "vertexai"
-display_name = "Google Vertex AI"
-type = "vertexai"
-api_base = "https://aiplatform.googleapis.com"
-api_key_env = ""   # OAuth2 identity — not a static key
-enabled = true
-priority = 7
-description = "Enterprise Gemini on Vertex AI; IAM / ADC authentication"
-
-[[providers.models]]
-name = "gemini-2.5-flash"
-display_name = "Gemini 2.5 Flash (Vertex)"
-model_type = "llm"
-tags = ["recommended", "enterprise"]
-
-[providers.models.capabilities]
-context_length = 1000000
-max_output_tokens = 8192
-supports_vision = true
-supports_streaming = true
-
-[[providers.models]]
-name = "gemini-embedding-001"
-display_name = "Gemini Embedding (Vertex)"
-model_type = "embedding"
-
-[providers.models.capabilities]
-context_length = 10000
-embedding_dimension = 3072
-```
-
-Set `GOOGLE_CLOUD_PROJECT` and authenticate via ADC or an attached service account before selecting `vertexai` in the UI or `EDGEQUAKE_LLM_PROVIDER=vertexai`.
-
-### xAI (Grok)
-
-```toml
-[[providers]]
-name = "xai"
-display_name = "xAI"
-type = "xai"
-api_base = "https://api.x.ai/v1"
-api_key_env = "XAI_API_KEY"
-enabled = true
-priority = 7
-
-[[providers.models]]
-name = "grok-4-1-fast"
-display_name = "Grok 4.1 Fast"
-model_type = "llm"
-tags = ["recommended", "fast", "large-context"]
-
-[providers.models.capabilities]
-context_length = 2000000
-max_output_tokens = 16384
-supports_vision = false
-supports_streaming = true
-
-[providers.models.cost]
-input_per_1k = 0.0002
-output_per_1k = 0.0005
-```
-
-### OpenRouter
-
-```toml
-[[providers]]
-name = "openrouter"
-display_name = "OpenRouter"
-type = "openrouter"
-api_base = "https://openrouter.ai/api"
-api_key_env = "OPENROUTER_API_KEY"
-enabled = true
-priority = 6
-
-[[providers.models]]
-name = "openai/gpt-4o-mini"
-display_name = "OpenRouter GPT-4o Mini"
-model_type = "llm"
-tags = ["recommended"]
-
-[providers.models.capabilities]
-context_length = 128000
-max_output_tokens = 16384
-supports_vision = true
-supports_streaming = true
+embedding_dimension = 0            # 0 for LLMs, above 0 for embeddings
 
 [providers.models.cost]
 input_per_1k = 0.00015
 output_per_1k = 0.0006
 ```
 
----
+Provider `type` values: `openai`, `anthropic`, `mistral`, `gemini`, `vertexai`, `xai`, `openrouter`, `minimax`, `azure`, `ollama`, `lmstudio`, `mock`. The `mock` provider is for tests: the server refuses it for real work unless `EDGEQUAKE_ALLOW_MOCK_PROVIDER=1`.
 
-## Runtime Provider Switching
-
-EdgeQuake supports switching providers at runtime via API:
+## Change providers at runtime
 
 ```bash
-# Get current effective configuration (resolution chain)
-curl http://localhost:8080/api/v1/config/effective | jq .
-
-# List available providers (Settings UI source)
-curl http://localhost:8080/api/v1/settings/providers
-
-# List all models grouped by provider
-curl http://localhost:8080/api/v1/models
-
-# Get models for a specific provider
-curl http://localhost:8080/api/v1/models/openai
-
-# Query with specific provider (per-request)
-curl -X POST http://localhost:8080/api/v1/query \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "What is quantum computing?",
-    "mode": "hybrid",
-    "llm_provider": "openai",
-    "llm_model": "gpt-4.1-mini"
-  }'
+curl http://localhost:8080/api/v1/config/effective | jq .      # effective settings
+curl http://localhost:8080/api/v1/settings/providers           # providers for the UI
+curl http://localhost:8080/api/v1/models                       # models by provider
+curl http://localhost:8080/api/v1/models/openai                # one provider
 ```
 
----
-
-## Workspace-Level Configuration
-
-Each workspace can have its own LLM/embedding configuration:
+If auth is on, add `-H "Authorization: Bearer $TOKEN"` or `-H "X-API-Key: $KEY"`. A query can name a provider for one request:
 
 ```bash
-# Create workspace with custom providers
-curl -X POST http://localhost:8080/api/v1/workspaces \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Production Workspace",
-    "llm_provider": "openai",
-    "llm_model": "gpt-4o",
-    "embedding_provider": "openai",
-    "embedding_model": "text-embedding-3-large"
-  }'
+curl -X POST http://localhost:8080/api/v1/query -H "Content-Type: application/json" \
+  -d '{"query":"What is quantum computing?","mode":"hybrid","llm_provider":"openai","llm_model":"gpt-4.1-mini"}'
 ```
 
-Workspace configuration overrides server defaults for all operations within that workspace.
+A workspace can store its own models. Create one with `POST /api/v1/tenants/{tenant_id}/workspaces` and fields such as `llm_provider`, `llm_model`, `embedding_provider` and `embedding_model`. Workspace settings apply to every operation in that workspace. Changing the embedding model of a workspace with data needs a rebuild: see [Embedding registry backfill](embedding-registry-backfill.md).
 
----
-
-## Logging Configuration
-
-The `RUST_LOG` environment variable controls logging:
+## Examples
 
 ```bash
-# Debug all EdgeQuake components
-RUST_LOG="edgequake=debug"
-
-# Production logging
-RUST_LOG="edgequake=info,tower_http=info"
-
-# Verbose debugging
-RUST_LOG="edgequake=trace,sqlx=debug,tower_http=debug"
-
-# Specific component debugging
-RUST_LOG="edgequake_pipeline=debug,edgequake_query=debug"
-```
-
-### Log Levels
-
-| Level   | Use Case              |
-| ------- | --------------------- |
-| `error` | Errors only           |
-| `warn`  | Errors + warnings     |
-| `info`  | Standard production   |
-| `debug` | Development debugging |
-| `trace` | Detailed tracing      |
-
----
-
-## Performance Tuning
-
-### Worker Threads
-
-```bash
-# Set worker count (default: CPU count)
-WORKER_THREADS=8
-```
-
-Workers handle background document processing. More workers = faster ingestion but higher memory.
-
-### Connection Pool (PostgreSQL)
-
-Connection pooling is built into SQLx. For high-load scenarios, use an external pooler:
-
-```bash
-# Use PgBouncer
-DATABASE_URL="postgresql://user:pass@pgbouncer:6432/edgequake?application_name=edgequake"
-```
-
-### Query Tuning
-
-| Setting        | Scope   | Default | Description            |
-| -------------- | ------- | ------- | ---------------------- |
-| `max_results`  | Per query | 20   | Max chunks retrieved (falls back to engine `max_chunks`) |
-| `max_entities` | Engine config | 60 | Max entities retrieved |
-| `temperature`  | Chat API | 0.7 | LLM temperature (chat requests only; query requests have no temperature field) |
-| `max_tokens`   | HTTP safety layer | 16384 | Max response tokens (`EDGEQUAKE_LLM_MAX_TOKENS` overrides) |
-
----
-
-## Example Configurations
-
-### Development (Minimal)
-
-```bash
-# Requires DATABASE_URL — set via .env or environment
-# Bundled default: openai/gpt-4.1-mini (requires OPENAI_API_KEY)
-# make dev without API key uses ollama/gemma4:latest instead
-make dev
-```
-
-### Development with Ollama
-
-```bash
+# Local with Ollama
 export OLLAMA_HOST="http://localhost:11434"
-export EDGEQUAKE_DEFAULT_LLM_PROVIDER=ollama
-export EDGEQUAKE_DEFAULT_LLM_MODEL="gemma4:latest"
-export EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER=ollama
-export EDGEQUAKE_DEFAULT_EMBEDDING_MODEL="embeddinggemma:latest"
+export EDGEQUAKE_DEFAULT_LLM_PROVIDER=ollama EDGEQUAKE_DEFAULT_LLM_MODEL="gemma4:latest"
+export EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER=ollama EDGEQUAKE_DEFAULT_EMBEDDING_MODEL="embeddinggemma:latest"
 make dev
-```
 
-### Development with PostgreSQL
-
-```bash
-export DATABASE_URL="postgresql://edgequake:edgequake_secret@localhost:5432/edgequake"
-export OPENAI_API_KEY="sk-..."
-cargo run
-```
-
-### Production
-
-```bash
+# Production sketch
 export DATABASE_URL="postgresql://edgequake:$DB_PASS@db.example.com:5432/edgequake?sslmode=require"
 export OPENAI_API_KEY="$OPENAI_KEY"
-export RUST_LOG="edgequake=info,tower_http=info"
-export HOST="0.0.0.0"
-export PORT="8080"
-export WORKER_THREADS="8"
-./edgequake
+export EDGEQUAKE_DEV_MODE=false EDGEQUAKE_AUTH_ENABLED=true
+export JWT_SECRET="$(openssl rand -hex 32)" EDGEQUAKE_CORS_ORIGINS="https://app.example.com"
+export EDGEQUAKE_STRICT_STARTUP=1
+edgequake migrate && edgequake
 ```
 
----
+## Check your configuration
 
-## Validation
+Run `edgequake doctor` (add `--json` for scripts). It checks `DATABASE_URL`, the secrets key, `JWT_SECRET` and the bind host. Exit code 0 means all passed, 1 means the database check failed, and 2 means another check failed. The API also logs a warning or exits 1 at startup for the checks in [Runtime auth hardening](runtime-auth-hardening.md#what-the-api-checks-at-startup). `POST /api/v1/providers/test` tests a provider before you save it.
 
-EdgeQuake validates configuration at startup:
+## See also
 
-```
-╔══════════════════════════════════════════════════════════════╗
-║                                                              ║
-║   ⚡ EdgeQuake v0.23.0                                        ║
-║                                                              ║
-║   🐘 Storage: POSTGRESQL (persistent)
-║   🌐 Server:  http://0.0.0.0:8080
-║   📚 Swagger: http://0.0.0.0:8080/swagger-ui/
-║                                                              ║
-╚══════════════════════════════════════════════════════════════╝
-```
-
-Validation errors are logged with actionable messages:
-
-```
-ERROR: DATABASE_URL is invalid: invalid connection string
-HINT: Format: postgresql://user:password@host:port/database
-```
-
----
-
-## See Also
-
-- [Deployment Guide](/docs/operations/deployment/) - Production deployment
-- [Monitoring Guide](/docs/operations/monitoring/) - Observability setup
-- [Ingestion cancel & fairness](/docs/ingestion-cancel-and-fairness/) - Worker lease, fairness, cancel
-- [REST API Reference](/docs/api-reference/rest-api/) - API documentation
-- [LLM Provider Docs](/docs/concepts/hybrid-retrieval/) - Provider integration
+- [Deployment](deployment.md)
+- [Monitoring](monitoring.md)
+- [Performance tuning](performance-tuning.md)
+- [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md)
+- [REST API reference](../api-reference/rest-api.md)

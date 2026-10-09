@@ -140,7 +140,14 @@ pub async fn get_provider_status(
     State(app_state): State<AppState>,
 ) -> Result<Json<ProviderStatusResponse>, ApiError> {
     // Create status response from current AppState
-    let status = ProviderStatusResponse::from_app_state(&app_state);
+    let mut status = ProviderStatusResponse::from_app_state(&app_state);
+    let reachable =
+        crate::providers::probe::probe_named_provider_reachable(&status.provider.name).await;
+    status.provider.status = if reachable {
+        crate::provider_types::ConnectionStatus::Connected
+    } else {
+        crate::provider_types::ConnectionStatus::Disconnected
+    };
 
     tracing::debug!(
         provider = %status.provider.name,

@@ -1,5 +1,6 @@
 ---
 title: "SPEC-091 Upgrade from v0.22.0"
+description: "Runbook for upgrading a v0.22.0 fleet through the SPEC-091 data-layer cutover."
 ---
 
 # SPEC-091 — Upgrade from published v0.22.0

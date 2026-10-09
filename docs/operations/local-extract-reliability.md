@@ -1,5 +1,6 @@
 ---
 title: "Local extract reliability (Ollama / LM Studio)"
+description: "Make local LLM extraction reliable under load."
 ---
 
 # Local extract reliability (Ollama / LM Studio)
