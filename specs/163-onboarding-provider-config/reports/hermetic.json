@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "elapsed_secs": 108,
+  "elapsed_secs": 118,
   "suites": [
     "edgequake-secrets",
     "edgequake-fake-llm shapes",

@@ -393,6 +393,24 @@ impl DocumentTaskProcessor {
         )
     }
 
+    /// Pool for decrypting saved provider connections during ingest.
+    pub(crate) fn ambient_connection_pool(
+        &self,
+    ) -> crate::providers::connection_store::AmbientPool {
+        #[cfg(feature = "postgres")]
+        {
+            self.pg_pool.clone().or_else(|| {
+                self.app_state
+                    .as_ref()
+                    .and_then(|state| state.pg_pool.clone())
+            })
+        }
+        #[cfg(not(feature = "postgres"))]
+        {
+            ()
+        }
+    }
+
     /// Explicit Postgres pool port for document SQL helpers.
     #[inline]
     pub(crate) fn optional_pg_pool(&self) -> crate::services::OptionalPgPool<'_> {

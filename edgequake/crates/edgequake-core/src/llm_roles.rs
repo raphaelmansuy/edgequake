@@ -235,6 +235,18 @@ pub fn resolve_role_reasoning_effort(
     }
 }
 
+/// SPEC-163: `llm_roles.<role>.connection_id`, including non-LLM keys such as `embedding`.
+pub fn metadata_connection_id(ws: &Workspace, role_key: &str) -> Option<String> {
+    ws.metadata
+        .get("llm_roles")?
+        .get(role_key)?
+        .get("connection_id")?
+        .as_str()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
 /// Read role overrides from workspace metadata key `llm_roles`.
 pub fn role_config_from_workspace(ws: &Workspace, role: LlmRole) -> Option<RoleLlmConfig> {
     let roles = ws.metadata.get("llm_roles")?;
@@ -454,6 +466,26 @@ mod tests {
         assert_eq!(
             resolved.connection_id.as_deref(),
             Some("11111111-1111-1111-1111-111111111111")
+        );
+        assert_eq!(
+            metadata_connection_id(&ws, "query").as_deref(),
+            Some("11111111-1111-1111-1111-111111111111")
+        );
+    }
+
+    #[test]
+    fn embedding_connection_id_is_readable() {
+        let mut meta = HashMap::new();
+        meta.insert(
+            "llm_roles".into(),
+            serde_json::json!({
+                "embedding": { "connection_id": "22222222-2222-2222-2222-222222222222" }
+            }),
+        );
+        let ws = sample_workspace(meta);
+        assert_eq!(
+            metadata_connection_id(&ws, "embedding").as_deref(),
+            Some("22222222-2222-2222-2222-222222222222")
         );
     }
 

@@ -86,9 +86,9 @@ pub type PostgresWorkspaceService = WorkspaceServiceImpl;
 // Re-export keyword extractor
 pub use keyword_extractor::{ExtractedKeywords, KeywordExtractor};
 pub use llm_roles::{
-    env_extract_role_llm, env_keyword_role_llm, parse_llm_roles_map, resolve_extract_role_llm,
-    resolve_role_llm, resolve_role_reasoning_effort, role_capability_hint,
-    role_config_from_workspace, role_uses_structured_effort_floor,
+    env_extract_role_llm, env_keyword_role_llm, metadata_connection_id, parse_llm_roles_map,
+    resolve_extract_role_llm, resolve_role_llm, resolve_role_reasoning_effort,
+    role_capability_hint, role_config_from_workspace, role_uses_structured_effort_floor,
     workspace_default_reasoning_effort, LlmRole, ResolvedReasoningEffort, ResolvedRoleLlm,
     RoleLlmConfig,
 };

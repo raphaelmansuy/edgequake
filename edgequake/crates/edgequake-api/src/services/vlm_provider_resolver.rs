@@ -58,18 +58,25 @@ async fn try_workspace_vlm(
         .ok()
         .flatten();
     // Prefer explicit llm_roles.vlm; else SPEC-123 cascade with tenant.
-    let (provider, model) = if ws
+    let (provider, model, connection_id) = if ws
         .metadata
         .get("llm_roles")
         .and_then(|v| v.get("vlm"))
         .is_some()
     {
         let role = resolve_role_llm(&ws, LlmRole::Vlm);
-        (role.provider, role.model)
+        (role.provider, role.model, role.connection_id)
     } else {
         let resolved = resolve_vision_llm_choice(None, None, Some(&ws), tenant.as_ref());
-        (resolved.provider, resolved.model)
+        (resolved.provider, resolved.model, None)
     };
+    if let Some(id) = connection_id.as_deref() {
+        if let Some(connected) =
+            crate::providers::connection_store::llm_from_ambient_connection(id, &model).await
+        {
+            return Some(connected);
+        }
+    }
     create_safe_vision_provider(&provider, &model).ok()
 }
 
@@ -83,18 +90,25 @@ async fn try_workspace_vlm_pass_b(
         .await
         .ok()
         .flatten();
-    let (provider, model) = if ws
+    let (provider, model, connection_id) = if ws
         .metadata
         .get("llm_roles")
         .and_then(|v| v.get("vlm"))
         .is_some()
     {
         let role = resolve_role_llm(&ws, LlmRole::Vlm);
-        (role.provider, role.model)
+        (role.provider, role.model, role.connection_id)
     } else {
         let resolved = resolve_vision_llm_choice(None, None, Some(&ws), tenant.as_ref());
-        (resolved.provider, resolved.model)
+        (resolved.provider, resolved.model, None)
     };
+    if let Some(id) = connection_id.as_deref() {
+        if let Some(connected) =
+            crate::providers::connection_store::llm_from_ambient_connection(id, &model).await
+        {
+            return Some(connected);
+        }
+    }
     create_safe_vision_provider_for_pass_b(&provider, &model).ok()
 }
 
@@ -104,6 +118,13 @@ async fn try_workspace_extract(
 ) -> Option<Arc<dyn LLMProvider>> {
     let ws = workspace_service.get_workspace(workspace_id).await.ok()??;
     let role = resolve_role_llm(&ws, LlmRole::Extract);
+    if let Some(id) = role.connection_id.as_deref() {
+        if let Some(connected) =
+            crate::providers::connection_store::llm_from_ambient_connection(id, &role.model).await
+        {
+            return Some(connected);
+        }
+    }
     create_safe_llm_provider(&role.provider, &role.model).ok()
 }
 
@@ -210,7 +231,12 @@ pub async fn resolve_vlm_provider(
     workspace_id: Option<Uuid>,
 ) -> Arc<dyn LLMProvider> {
     if let Some(ws_id) = workspace_id {
-        if let Some(provider) = try_workspace_vlm(&state.workspace_service, ws_id).await {
+        let provider = crate::providers::connection_store::scope_saved_connection_pool(
+            crate::providers::connection_store::ambient_pool_from_state(state),
+            try_workspace_vlm(&state.workspace_service, ws_id),
+        )
+        .await;
+        if let Some(provider) = provider {
             tracing::info!(workspace_id = %ws_id, "VLM image ingest using workspace-configured provider");
             return provider;
         }

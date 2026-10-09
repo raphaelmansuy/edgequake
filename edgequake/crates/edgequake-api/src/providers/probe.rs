@@ -95,6 +95,25 @@ pub async fn probe_provider(req: ProbeRequest) -> ProbeResponse {
             };
         }
     }
+    if let Err(e) =
+        crate::ssrf::enforce_resolved_addresses(&base, SsrfPolicy { allow_private }).await
+    {
+        let kind = match e {
+            crate::ssrf::SsrfError::DnsFailed(_) => ProbeErrorKind::Unreachable,
+            _ => ProbeErrorKind::SsrfDenied,
+        };
+        return ProbeResponse {
+            ok: false,
+            kind,
+            latency_ms: start.elapsed().as_millis() as u64,
+            message: e.to_string(),
+            models: vec![],
+            embedding_dimension: None,
+            chat_ok: false,
+            embed_ok: false,
+            list_ok: false,
+        };
+    }
 
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(8))
@@ -403,7 +422,7 @@ pub async fn probe_named_provider_reachable(name: &str) -> bool {
             .ok()
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "http://127.0.0.1:9060".into()),
-        _ => return true,
+        _ => return false,
     };
     let req = ProbeRequest {
         shape,

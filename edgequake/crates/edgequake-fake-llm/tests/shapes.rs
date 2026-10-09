@@ -77,6 +77,17 @@ async fn openai_anthropic_ollama_and_faults() {
     let tags = client.get(format!("{base}/api/tags")).send().await.unwrap();
     assert!(tags.status().is_success());
 
+    let ollama_embed = client
+        .post(format!("{base}/api/embed"))
+        .json(&serde_json::json!({"model": "fake-embed", "input": ["x"]}))
+        .send()
+        .await
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    assert_eq!(ollama_embed["embeddings"][0].as_array().unwrap().len(), 8);
+
     let five = client
         .get(format!("{base}/v1/models?mode=500"))
         .header("x-api-key", "test-key")

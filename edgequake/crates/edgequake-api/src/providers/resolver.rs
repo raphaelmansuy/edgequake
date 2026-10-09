@@ -540,6 +540,28 @@ impl WorkspaceProviderResolver {
         }
     }
 
+    async fn embedding_from_saved_connection(
+        &self,
+        workspace: &edgequake_core::Workspace,
+        model: &str,
+        dimension: usize,
+    ) -> Option<Arc<dyn EmbeddingProvider>> {
+        let raw = edgequake_core::metadata_connection_id(workspace, "embedding")?;
+        #[cfg(feature = "postgres")]
+        {
+            let pool = self.pg_pool.as_ref()?;
+            return crate::providers::connection_store::embedding_from_pool(
+                pool, &raw, model, dimension,
+            )
+            .await;
+        }
+        #[cfg(not(feature = "postgres"))]
+        {
+            let _ = (raw, model, dimension);
+            None
+        }
+    }
+
     /// Resolve embedding provider for a workspace.
     ///
     /// Unlike LLM providers, embedding providers are always workspace-specific
@@ -577,6 +599,18 @@ impl WorkspaceProviderResolver {
             return Err(ProviderResolutionError::InvalidProviderName(
                 "Workspace embedding provider is not configured".to_string(),
             ));
+        }
+
+        if let Some(provider) = self
+            .embedding_from_saved_connection(&workspace, &choice.model, choice.dimension)
+            .await
+        {
+            return Ok(ResolvedEmbeddingProvider {
+                provider,
+                provider_name: choice.provider,
+                model_name: choice.model,
+                dimension: choice.dimension,
+            });
         }
 
         debug!(
@@ -652,6 +686,18 @@ impl WorkspaceProviderResolver {
                 "Workspace has no embedding provider configured, using server default"
             );
             return Ok(None);
+        }
+
+        if let Some(provider) = self
+            .embedding_from_saved_connection(&workspace, &choice.model, choice.dimension)
+            .await
+        {
+            return Ok(Some(ResolvedEmbeddingProvider {
+                provider,
+                provider_name: choice.provider,
+                model_name: choice.model,
+                dimension: choice.dimension,
+            }));
         }
 
         debug!(

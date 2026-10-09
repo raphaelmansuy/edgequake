@@ -102,16 +102,19 @@ pub async fn reanalyze_document_multimodal(
         .unwrap_or("default")
         .to_string();
 
-    let outcome = run_multimodal_analyze_stage_outcome(
-        markdown,
-        process_options.as_deref(),
-        &filename,
-        Some(&state.workspace_service),
-        workspace_id,
-        Arc::clone(&state.query.llm_provider),
-        None,
-        Some(&params.document_id),
-        Some(Arc::clone(&kv)),
+    let outcome = crate::providers::connection_store::scope_saved_connection_pool(
+        crate::providers::connection_store::ambient_pool_from_state(state),
+        run_multimodal_analyze_stage_outcome(
+            markdown,
+            process_options.as_deref(),
+            &filename,
+            Some(&state.workspace_service),
+            workspace_id,
+            Arc::clone(&state.query.llm_provider),
+            None,
+            Some(&params.document_id),
+            Some(Arc::clone(&kv)),
+        ),
     )
     .await;
 

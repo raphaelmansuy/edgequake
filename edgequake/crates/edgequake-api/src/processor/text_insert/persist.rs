@@ -172,14 +172,45 @@ impl DocumentTaskProcessor {
         }
         .await;
 
-        let persist_llm = crate::services::resolve_summary_llm_or_fallback(
-            summary_ws.as_ref(),
-            extract_fallback,
-            |provider, model| {
-                crate::safety_limits::create_safe_llm_provider(provider, model)
-                    .map_err(|e| e.to_string())
-            },
-        );
+        let summary_connection = {
+            #[cfg(feature = "postgres")]
+            {
+                match (summary_ws.as_ref(), self.pg_pool.as_ref()) {
+                    (Some(ws), Some(pool)) => {
+                        let role =
+                            edgequake_core::resolve_role_llm(ws, edgequake_core::LlmRole::Summary);
+                        match role.connection_id.as_deref() {
+                            Some(id) => {
+                                crate::providers::connection_store::llm_from_pool(
+                                    pool,
+                                    id,
+                                    &role.model,
+                                )
+                                .await
+                            }
+                            None => None,
+                        }
+                    }
+                    _ => None,
+                }
+            }
+            #[cfg(not(feature = "postgres"))]
+            {
+                None::<std::sync::Arc<dyn edgequake_llm::LLMProvider>>
+            }
+        };
+        let persist_llm = if let Some(connected) = summary_connection {
+            connected
+        } else {
+            crate::services::resolve_summary_llm_or_fallback(
+                summary_ws.as_ref(),
+                extract_fallback,
+                |provider, model| {
+                    crate::safety_limits::create_safe_llm_provider(provider, model)
+                        .map_err(|e| e.to_string())
+                },
+            )
+        };
 
         // SPEC-032 W-04: Broadcast merge progress for any tracked task (PDF + reprocess).
         let has_track = !track_id.is_empty();

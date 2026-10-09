@@ -10,16 +10,7 @@ import { Grid3x3 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
-const ROLES = [
-  'extract',
-  'query',
-  'keyword',
-  'summary',
-  'embedding',
-  'vlm',
-  'reranker',
-  'decision',
-] as const;
+const ROLES = ['extract', 'query', 'keyword', 'summary', 'vlm', 'embedding'] as const;
 
 type RoleKey = (typeof ROLES)[number];
 

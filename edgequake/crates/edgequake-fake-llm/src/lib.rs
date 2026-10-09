@@ -104,6 +104,7 @@ pub fn app(state: FakeLlmState) -> Router {
         .route("/api/tags", get(ollama_tags))
         .route("/api/version", get(ollama_version))
         .route("/api/chat", post(ollama_chat))
+        .route("/api/embed", post(ollama_embed))
         .layer(middleware::from_fn(fault_mw))
         .with_state(state)
 }
@@ -181,11 +182,14 @@ async fn openai_chat(
     Json(json!({
         "id": "chatcmpl-fake",
         "object": "chat.completion",
+        "created": 0,
+        "model": state.model,
         "choices": [{
             "index": 0,
             "message": { "role": "assistant", "content": format!("echo:{last}") },
             "finish_reason": "stop"
-        }]
+        }],
+        "usage": { "prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2 }
     }))
     .into_response()
 }
@@ -304,6 +308,14 @@ async fn ollama_chat(
         "message": { "role": "assistant", "content": format!("echo:{last}") },
         "done": true
     }))
+}
+
+async fn ollama_embed(State(state): State<FakeLlmState>, Json(_body): Json<Value>) -> Json<Value> {
+    state.hits.fetch_add(1, Ordering::Relaxed);
+    let embedding: Vec<f32> = (0..state.embedding_dimension)
+        .map(|i| (i as f32) * 0.01)
+        .collect();
+    Json(json!({ "embeddings": [embedding] }))
 }
 
 /// Bind `127.0.0.1:0` and return `(bound_addr, join_handle)`.

@@ -50,8 +50,6 @@ pub struct UpsertConnection {
     pub timeout_secs: Option<i32>,
     #[serde(default)]
     pub allow_private_network: Option<bool>,
-    #[serde(default)]
-    pub tenant_id: Option<Uuid>,
 }
 
 fn env_connections() -> Vec<ConnectionView> {
@@ -79,57 +77,85 @@ fn env_connections() -> Vec<ConnectionView> {
             last_test_error: None,
         });
     };
-    if let Ok(url) = std::env::var("OLLAMA_HOST") {
-        if !url.is_empty() {
-            push("ollama", "ollama", &url);
-        }
+    let non_empty = |key: &str| std::env::var(key).ok().filter(|s| !s.is_empty());
+    if let Some(url) = non_empty("OLLAMA_HOST") {
+        push("ollama", "ollama", &url);
+    } else if std::env::var("EDGEQUAKE_LLM_PROVIDER")
+        .ok()
+        .is_some_and(|p| p.eq_ignore_ascii_case("ollama"))
+    {
+        push("ollama", "ollama", "http://127.0.0.1:11434");
     }
-    if let Ok(url) = std::env::var("OPENAI_COMPATIBLE_BASE_URL") {
-        if !url.is_empty() {
-            push("openai-compatible", "openai_chat", &url);
-        }
+    if non_empty("OPENAI_API_KEY").is_some() {
+        let url =
+            non_empty("OPENAI_BASE_URL").unwrap_or_else(|| "https://api.openai.com/v1".into());
+        push("openai", "openai_chat", &url);
     }
-    if let Ok(url) = std::env::var("OMLX_HOST").or_else(|_| std::env::var("OMLX_BASE_URL")) {
-        if !url.is_empty() {
-            push("omlx", "openai_chat", &url);
-        }
+    if let Some(url) = non_empty("OPENAI_COMPATIBLE_BASE_URL") {
+        push("openai-compatible", "openai_chat", &url);
     }
-    if let Ok(url) = std::env::var("ANTHROPIC_BASE_URL") {
-        if !url.is_empty() {
-            push("anthropic", "anthropic_messages", &url);
-        }
+    if let Some(url) = non_empty("OMLX_HOST").or_else(|| non_empty("OMLX_BASE_URL")) {
+        push("omlx", "openai_chat", &url);
     }
-    if let Ok(url) = std::env::var("LMSTUDIO_HOST") {
-        if !url.is_empty() {
-            push("lmstudio", "openai_chat", &url);
-        }
+    if non_empty("ANTHROPIC_API_KEY").is_some() || non_empty("ANTHROPIC_BASE_URL").is_some() {
+        let url =
+            non_empty("ANTHROPIC_BASE_URL").unwrap_or_else(|| "https://api.anthropic.com".into());
+        push("anthropic", "anthropic_messages", &url);
+    }
+    if let Some(url) = non_empty("LMSTUDIO_HOST") {
+        push("lmstudio", "openai_chat", &url);
+    }
+    if let Some(url) = non_empty("LLAMACPP_HOST") {
+        push("llamacpp", "openai_chat", &url);
+    }
+    if let Some(url) = non_empty("MLX_LM_HOST") {
+        push("mlx-lm", "openai_chat", &url);
+    }
+    if let Some(url) = non_empty("VLLM_MLX_HOST") {
+        push("vllm-mlx", "openai_chat", &url);
+    }
+    if let Some(url) = non_empty("MTPLX_HOST") {
+        push("mtplx", "openai_chat", &url);
     }
     out
+}
+
+fn scoped_tenant(ctx: &crate::middleware::TenantContext) -> Result<Option<Uuid>, ApiError> {
+    match crate::middleware::resolve_tenant_header(ctx.tenant_id.as_deref()) {
+        crate::middleware::ScopeHeader::Absent => Ok(None),
+        crate::middleware::ScopeHeader::Resolved(id) => Ok(Some(id)),
+        crate::middleware::ScopeHeader::Malformed => Err(ApiError::BadRequest(
+            "X-Tenant-ID must be a UUID or \"default\"".into(),
+        )),
+    }
 }
 
 #[utoipa::path(get, path = "/api/v1/connections", tag = "Providers")]
 pub async fn list_connections(
     State(state): State<AppState>,
     _admin: ApiRequireAdmin,
+    tenant_ctx: crate::middleware::TenantContext,
 ) -> ApiResult<Json<Vec<ConnectionView>>> {
+    let tenant = scoped_tenant(&tenant_ctx)?;
     let mut rows = env_connections();
     #[cfg(feature = "postgres")]
     if let Some(pool) = state.pg_pool.as_ref() {
-        let db_rows = sqlx::query_as::<_, ConnectionRow>(
-            r#"SELECT id, tenant_id, slug, display_name, api_shape, locality, base_url,
+        let sql = r#"SELECT id, tenant_id, slug, display_name, api_shape, locality, base_url,
                       auth_scheme, key_fingerprint, api_key_ciphertext IS NOT NULL AS key_configured,
                       timeout_secs, allow_private_network, last_test_ok, last_test_error
                FROM provider_connections
-               ORDER BY slug"#,
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+               WHERE ($1::uuid IS NULL OR tenant_id IS NULL OR tenant_id = $1)
+               ORDER BY slug"#;
+        let db_rows = sqlx::query_as::<_, ConnectionRow>(sql)
+            .bind(tenant)
+            .fetch_all(pool)
+            .await
+            .map_err(map_sql)?;
         for r in db_rows {
             rows.push(r.into_view());
         }
     }
-    let _ = &state;
+    let _ = (&state, &tenant);
     Ok(Json(rows))
 }
 
@@ -179,9 +205,10 @@ impl ConnectionRow {
 pub async fn create_connection(
     State(state): State<AppState>,
     _admin: ApiRequireAdmin,
+    tenant_ctx: crate::middleware::TenantContext,
     Json(body): Json<UpsertConnection>,
 ) -> Result<(StatusCode, Json<ConnectionView>), ApiError> {
-    let view = upsert(&state, None, body).await?;
+    let view = upsert(&state, None, scoped_tenant(&tenant_ctx)?, body).await?;
     Ok((StatusCode::CREATED, Json(view)))
 }
 
@@ -189,16 +216,20 @@ pub async fn create_connection(
 pub async fn update_connection(
     State(state): State<AppState>,
     _admin: ApiRequireAdmin,
+    tenant_ctx: crate::middleware::TenantContext,
     Path(id): Path<Uuid>,
     Json(body): Json<UpsertConnection>,
 ) -> ApiResult<Json<ConnectionView>> {
-    Ok(Json(upsert(&state, Some(id), body).await?))
+    Ok(Json(
+        upsert(&state, Some(id), scoped_tenant(&tenant_ctx)?, body).await?,
+    ))
 }
 
 #[utoipa::path(delete, path = "/api/v1/connections/{id}", tag = "Providers")]
 pub async fn delete_connection(
     State(state): State<AppState>,
     _admin: ApiRequireAdmin,
+    tenant_ctx: crate::middleware::TenantContext,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
     #[cfg(feature = "postgres")]
@@ -210,12 +241,17 @@ pub async fn delete_connection(
                 message: "PostgreSQL required".into(),
                 retry_after_secs: 5,
             })?;
-        let n = sqlx::query("DELETE FROM provider_connections WHERE id = $1")
-            .bind(id)
-            .execute(pool)
-            .await
-            .map_err(|e| ApiError::Internal(e.to_string()))?
-            .rows_affected();
+        let tenant = scoped_tenant(&tenant_ctx)?;
+        let n = sqlx::query(
+            r#"DELETE FROM provider_connections
+               WHERE id = $1 AND ($2::uuid IS NULL OR tenant_id IS NULL OR tenant_id = $2)"#,
+        )
+        .bind(id)
+        .bind(tenant)
+        .execute(pool)
+        .await
+        .map_err(map_sql)?
+        .rows_affected();
         if n == 0 {
             return Err(ApiError::NotFound("connection not found".into()));
         }
@@ -223,7 +259,7 @@ pub async fn delete_connection(
     }
     #[cfg(not(feature = "postgres"))]
     {
-        let _ = (state, id);
+        let _ = (state, id, tenant_ctx);
         Err(ApiError::ServiceUnavailable {
             message: "PostgreSQL required".into(),
             retry_after_secs: 5,
@@ -235,6 +271,7 @@ pub async fn delete_connection(
 pub async fn test_stored_connection(
     State(state): State<AppState>,
     _admin: ApiRequireAdmin,
+    tenant_ctx: crate::middleware::TenantContext,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<ProbeResponse>> {
     #[cfg(feature = "postgres")]
@@ -246,6 +283,7 @@ pub async fn test_stored_connection(
                 message: "PostgreSQL required".into(),
                 retry_after_secs: 5,
             })?;
+        let tenant = scoped_tenant(&tenant_ctx)?;
         let row: (
             String,
             String,
@@ -257,12 +295,14 @@ pub async fn test_stored_connection(
         ) = sqlx::query_as(
             r#"SELECT api_shape, base_url, auth_scheme, api_key_ciphertext, api_key_nonce, key_id,
                           allow_private_network
-                   FROM provider_connections WHERE id = $1"#,
+                   FROM provider_connections
+                   WHERE id = $1 AND ($2::uuid IS NULL OR tenant_id IS NULL OR tenant_id = $2)"#,
         )
         .bind(id)
+        .bind(tenant)
         .fetch_optional(pool)
         .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .map_err(map_sql)?
         .ok_or_else(|| ApiError::NotFound("connection not found".into()))?;
 
         let api_key = match (row.3, row.4, row.5) {
@@ -308,7 +348,7 @@ pub async fn test_stored_connection(
     }
     #[cfg(not(feature = "postgres"))]
     {
-        let _ = (state, id);
+        let _ = (state, id, tenant_ctx);
         Err(ApiError::ServiceUnavailable {
             message: "PostgreSQL required".into(),
             retry_after_secs: 5,
@@ -319,17 +359,19 @@ pub async fn test_stored_connection(
 async fn upsert(
     state: &AppState,
     id: Option<Uuid>,
+    tenant_id: Option<Uuid>,
     body: UpsertConnection,
 ) -> Result<ConnectionView, ApiError> {
-    let locality = body.locality.unwrap_or_else(|| {
-        if crate::locality::is_slow_local_provider(&body.api_shape) {
-            "local".into()
-        } else {
-            "cloud".into()
-        }
-    });
+    let locality = body
+        .locality
+        .clone()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| crate::locality::locality_for_url(&body.base_url).to_string());
     let allow_private = body.allow_private_network.unwrap_or(locality == "local");
     validate_provider_url(&body.base_url, SsrfPolicy { allow_private })
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    crate::ssrf::enforce_resolved_addresses(&body.base_url, SsrfPolicy { allow_private })
+        .await
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
     let mut fingerprint = None;
@@ -361,7 +403,25 @@ async fn upsert(
             })?;
         let timeout = body.timeout_secs.unwrap_or(120);
         let auth_scheme = body.auth_scheme.unwrap_or_else(|| "none".into());
-        let tenant_id = body.tenant_id;
+        let duplicate: bool = sqlx::query_scalar(
+            r#"SELECT EXISTS(
+                   SELECT 1 FROM provider_connections
+                   WHERE slug = $1
+                     AND tenant_id IS NOT DISTINCT FROM $2::uuid
+                     AND ($3::uuid IS NULL OR id <> $3)
+               )"#,
+        )
+        .bind(&body.slug)
+        .bind(tenant_id)
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .map_err(map_sql)?;
+        if duplicate {
+            return Err(ApiError::Conflict(
+                "a connection with this slug already exists".into(),
+            ));
+        }
         let row = if let Some(existing) = id {
             sqlx::query_as::<_, ConnectionRow>(
                 r#"UPDATE provider_connections SET
@@ -371,9 +431,10 @@ async fn upsert(
                     api_key_nonce = COALESCE($9, api_key_nonce),
                     key_id = COALESCE($10, key_id),
                     key_fingerprint = COALESCE($11, key_fingerprint),
-                    timeout_secs = $12, allow_private_network = $13, tenant_id = $14,
+                    timeout_secs = $12, allow_private_network = $13,
                     updated_at = now()
                    WHERE id = $1
+                     AND ($14::uuid IS NULL OR tenant_id IS NULL OR tenant_id = $14)
                    RETURNING id, tenant_id, slug, display_name, api_shape, locality, base_url,
                              auth_scheme, key_fingerprint, api_key_ciphertext IS NOT NULL AS key_configured,
                              timeout_secs, allow_private_network, last_test_ok, last_test_error"#,
@@ -394,7 +455,7 @@ async fn upsert(
             .bind(tenant_id)
             .fetch_one(pool)
             .await
-            .map_err(|e| ApiError::Internal(e.to_string()))?
+            .map_err(map_sql)?
         } else {
             sqlx::query_as::<_, ConnectionRow>(
                 r#"INSERT INTO provider_connections (
@@ -421,16 +482,27 @@ async fn upsert(
             .bind(allow_private)
             .fetch_one(pool)
             .await
-            .map_err(|e| ApiError::Internal(e.to_string()))?
+            .map_err(map_sql)?
         };
         return Ok(row.into_view());
     }
     #[cfg(not(feature = "postgres"))]
     {
-        let _ = (state, id, ciphertext, nonce, key_id, fingerprint);
+        let _ = (state, id, tenant_id, ciphertext, nonce, key_id, fingerprint);
         Err(ApiError::ServiceUnavailable {
             message: "PostgreSQL required".into(),
             retry_after_secs: 5,
         })
+    }
+}
+
+#[cfg(feature = "postgres")]
+fn map_sql(e: sqlx::Error) -> ApiError {
+    match e {
+        sqlx::Error::RowNotFound => ApiError::NotFound("connection not found".into()),
+        sqlx::Error::Database(db) if db.code().as_deref() == Some("23505") => {
+            ApiError::Conflict("a connection with this slug already exists".into())
+        }
+        other => ApiError::Internal(other.to_string()),
     }
 }

@@ -109,6 +109,14 @@ async fn resolve_keyword_llm(
     // (avoid doubling Query LLM when roles are unset).
     let _cfg = edgequake_core::role_config_from_workspace(&ws, edgequake_core::LlmRole::Keyword)?;
     let role = edgequake_core::resolve_role_llm(&ws, edgequake_core::LlmRole::Keyword);
+    #[cfg(feature = "postgres")]
+    if let (Some(id), Some(pool)) = (role.connection_id.as_deref(), state.pg_pool.as_ref()) {
+        if let Some(connected) =
+            crate::providers::connection_store::llm_from_pool(pool, id, &role.model).await
+        {
+            return Some(connected);
+        }
+    }
     crate::safety_limits::create_safe_llm_provider(&role.provider, &role.model).ok()
 }
 

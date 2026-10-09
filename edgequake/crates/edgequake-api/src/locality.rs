@@ -50,6 +50,28 @@ pub fn local_health_path(provider_name: &str) -> &'static str {
     }
 }
 
+/// `local` when the URL host is loopback, localhost, or RFC1918/ULA. Otherwise `cloud`.
+///
+/// Link-local and metadata addresses stay `cloud` so SSRF still denies them.
+pub fn locality_for_url(raw: &str) -> &'static str {
+    let Ok(url) = url::Url::parse(raw) else {
+        return "cloud";
+    };
+    let Some(host) = url.host_str() else {
+        return "cloud";
+    };
+    if host.eq_ignore_ascii_case("localhost") {
+        return "local";
+    }
+    let trimmed = host.trim_matches(|c| c == '[' || c == ']');
+    if let Ok(ip) = trimmed.parse::<std::net::IpAddr>() {
+        if crate::ssrf::is_private_or_loopback(ip) && !crate::ssrf::is_metadata_or_link_local(ip) {
+            return "local";
+        }
+    }
+    "cloud"
+}
+
 /// Default loopback base URL for a local kind.
 pub fn default_local_base_url(provider_name: &str) -> Option<&'static str> {
     match provider_name.trim().to_ascii_lowercase().as_str() {
@@ -75,5 +97,14 @@ mod tests {
         assert!(!is_slow_local_provider("openai"));
         assert!(!is_slow_local_provider("mock"));
         assert!(is_local_provider("mock"));
+    }
+
+    #[test]
+    fn locality_follows_the_host() {
+        assert_eq!(locality_for_url("http://127.0.0.1:9050"), "local");
+        assert_eq!(locality_for_url("http://localhost:11434"), "local");
+        assert_eq!(locality_for_url("http://10.1.2.3:8080"), "local");
+        assert_eq!(locality_for_url("https://api.openai.com/v1"), "cloud");
+        assert_eq!(locality_for_url("http://169.254.169.254/"), "cloud");
     }
 }

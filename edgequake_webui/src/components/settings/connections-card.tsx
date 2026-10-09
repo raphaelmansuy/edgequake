@@ -28,6 +28,26 @@ interface ProbeResponse {
   embedding_dimension?: number | null;
 }
 
+function connectionLocality(raw: string): { locality: 'local' | 'cloud'; allowPrivate: boolean } {
+  try {
+    const host = new URL(raw).hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    const privateHost =
+      host === 'localhost' ||
+      host === '::1' ||
+      host.startsWith('127.') ||
+      host.startsWith('10.') ||
+      host.startsWith('192.168.') ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
+      host.startsWith('fc') ||
+      host.startsWith('fd');
+    return privateHost
+      ? { locality: 'local', allowPrivate: true }
+      : { locality: 'cloud', allowPrivate: false };
+  } catch {
+    return { locality: 'cloud', allowPrivate: false };
+  }
+}
+
 export function ConnectionsCard() {
   const [rows, setRows] = useState<ConnectionView[]>([]);
   const [shape, setShape] = useState('openai_chat');
@@ -52,13 +72,14 @@ export function ConnectionsCard() {
   const testDraft = async () => {
     setBusy(true);
     try {
+      const place = connectionLocality(baseUrl);
       const result = await apiClient<ProbeResponse>('/providers/test', {
         method: 'POST',
         body: JSON.stringify({
           shape,
           base_url: baseUrl,
           api_key: apiKey || undefined,
-          allow_private_network: true,
+          allow_private_network: place.allowPrivate,
         }),
       });
       if (result.ok) {
@@ -80,6 +101,7 @@ export function ConnectionsCard() {
   const save = async () => {
     setBusy(true);
     try {
+      const place = connectionLocality(baseUrl);
       await apiClient('/connections', {
         method: 'POST',
         body: JSON.stringify({
@@ -88,8 +110,8 @@ export function ConnectionsCard() {
           api_shape: shape,
           base_url: baseUrl,
           api_key: apiKey || undefined,
-          locality: 'local',
-          allow_private_network: true,
+          locality: place.locality,
+          allow_private_network: place.allowPrivate,
         }),
       });
       setApiKey('');

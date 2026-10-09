@@ -843,18 +843,21 @@ impl DocumentTaskProcessor {
                         data.multimodal_process_options.as_deref(),
                     );
                     let mm_outcome =
-                        crate::services::run_multimodal_analyze_stage_outcome_with_cancel(
-                            stored_markdown,
-                            data.multimodal_process_options.as_deref(),
-                            &filename,
-                            self.workspace_service.as_ref(),
-                            data.workspace_id,
-                            Arc::clone(&self.llm_provider),
-                            mm_asset_base.as_deref(),
-                            Some(&early_doc_id),
-                            Some(Arc::clone(&self.kv_storage)),
-                            None,
-                            Some(cancel_token.clone()),
+                        crate::providers::connection_store::scope_saved_connection_pool(
+                            self.ambient_connection_pool(),
+                            crate::services::run_multimodal_analyze_stage_outcome_with_cancel(
+                                stored_markdown,
+                                data.multimodal_process_options.as_deref(),
+                                &filename,
+                                self.workspace_service.as_ref(),
+                                data.workspace_id,
+                                Arc::clone(&self.llm_provider),
+                                mm_asset_base.as_deref(),
+                                Some(&early_doc_id),
+                                Some(Arc::clone(&self.kv_storage)),
+                                None,
+                                Some(cancel_token.clone()),
+                            ),
                         )
                         .await;
                     if crate::services::multimodal::should_abort_multimodal_hard_error(
@@ -1984,18 +1987,21 @@ impl DocumentTaskProcessor {
                 page_modality,
                 edgequake_pipeline::with_optional_document_language(
                     detected_language.clone(),
-                    crate::services::run_multimodal_analyze_stage_outcome_with_cancel(
-                        markdown,
-                        data.multimodal_process_options.as_deref(),
-                        &filename,
-                        self.workspace_service.as_ref(),
-                        data.workspace_id,
-                        Arc::clone(&self.llm_provider),
-                        mm_asset_base.as_deref(),
-                        Some(&early_doc_id),
-                        Some(Arc::clone(&self.kv_storage)),
-                        converting_substep,
-                        Some(cancel_token.clone()),
+                    crate::providers::connection_store::scope_saved_connection_pool(
+                        self.ambient_connection_pool(),
+                        crate::services::run_multimodal_analyze_stage_outcome_with_cancel(
+                            markdown,
+                            data.multimodal_process_options.as_deref(),
+                            &filename,
+                            self.workspace_service.as_ref(),
+                            data.workspace_id,
+                            Arc::clone(&self.llm_provider),
+                            mm_asset_base.as_deref(),
+                            Some(&early_doc_id),
+                            Some(Arc::clone(&self.kv_storage)),
+                            converting_substep,
+                            Some(cancel_token.clone()),
+                        ),
                     ),
                 ),
             )
