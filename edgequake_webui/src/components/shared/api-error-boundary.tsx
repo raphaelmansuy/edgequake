@@ -19,6 +19,8 @@ import { Component, type ReactNode } from 'react';
 
 interface ApiErrorBoundaryProps {
   children?: ReactNode;
+  /** When this changes (route), a stuck fallback is cleared. */
+  resetKey?: string;
   /** Optional fallback render. Receives the error and a retry callback. */
   fallback?: (error: Error, retry: () => void) => ReactNode;
   /** Called when an error is caught (for logging / telemetry). */
@@ -37,6 +39,12 @@ export class ApiErrorBoundary extends Component<
 
   static getDerivedStateFromError(error: Error): ApiErrorBoundaryState {
     return { error };
+  }
+
+  componentDidUpdate(prev: ApiErrorBoundaryProps): void {
+    if (prev.resetKey !== this.props.resetKey && this.state.error) {
+      this.setState({ error: null });
+    }
   }
 
   componentDidCatch(error: Error, info: { componentStack: string }): void {

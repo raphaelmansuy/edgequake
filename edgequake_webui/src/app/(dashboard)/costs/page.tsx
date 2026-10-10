@@ -29,6 +29,7 @@ import {
     useWorkspaceCostSummary,
 } from '@/hooks';
 import { formatCost } from '@/lib/format';
+import type { BudgetInfo } from '@/types/cost';
 import {
     Calendar, DollarSign,
     Download, RefreshCw,
@@ -38,6 +39,21 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 type TimePeriod = '7d' | '30d' | '90d' | 'all';
+
+function statusFromBudget(budget: BudgetInfo) {
+  const limit = budget.monthly_budget_usd;
+  const used = budget.spent_usd;
+  return {
+    current_usage_usd: used,
+    limit_usd: limit,
+    percentage_used: limit > 0 ? (used / limit) * 100 : 0,
+    period: 'monthly' as const,
+    reset_at: '',
+    alert_triggered:
+      budget.is_over_budget ||
+      (limit > 0 && budget.alert_threshold > 0 && (used / limit) * 100 >= budget.alert_threshold),
+  };
+}
 
 export default function CostDashboardPage() {
   const { t } = useTranslation();
@@ -147,7 +163,7 @@ export default function CostDashboardPage() {
             <div>
               <BudgetIndicator
                 budget={budget ?? null}
-                status={null}
+                status={budget ? statusFromBudget(budget) : null}
                 alerts={[]}
                 isLoading={isBudgetLoading && !budget}
               />
@@ -247,7 +263,7 @@ function CostTrendChart({
             title={`${label}: $${item.total_cost.toFixed(4)} (${item.document_count} docs)`}
           >
             <div
-              className="w-full bg-primary/80 hover:bg-primary rounded-t transition-all"
+              className="w-full bg-primary/80 hover:bg-primary rounded-t transition-colors"
               style={{ height: `${Math.max(height, 2)}%` }}
             />
             {data.length <= 14 && (

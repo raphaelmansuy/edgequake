@@ -268,7 +268,7 @@ export function Composer({
             "Ask a question…  type @ to focus on a document",
           )}
           className={cn(
-            "query-input min-h-[52px] max-h-[200px] resize-none",
+            "query-input min-h-[52px] max-h-[200px] resize-none [scrollbar-gutter:stable]",
             "border-0 border-none bg-transparent shadow-none rounded-none ring-0 outline-none",
             "focus-visible:border-0 focus-visible:ring-0 focus-visible:shadow-none focus-visible:outline-none",
             "px-4 pt-3.5 pb-1 text-[15px] leading-relaxed",

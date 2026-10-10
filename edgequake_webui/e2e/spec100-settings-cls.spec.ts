@@ -3,6 +3,7 @@
  */
 import { expect, test } from "@playwright/test";
 import { GOTO_OPTS } from "./helpers/app-ready";
+import { expectClsWithinBudget, installStabilityProbe } from "./helpers/stability-probe";
 import {
   mockSpec038AdmissionRoutes,
   seedSpec038TenantContext,
@@ -15,6 +16,7 @@ test.describe("SPEC-100 settings CLS", () => {
     await mockSpec038AdmissionRoutes(page);
     await seedSpec038TenantContext(page);
 
+    await installStabilityProbe(page);
     await page.goto("/settings", GOTO_OPTS);
 
     await expect(page.getByRole("heading", { name: /^Settings$/i })).toBeAttached({
@@ -29,5 +31,6 @@ test.describe("SPEC-100 settings CLS", () => {
         .or(page.getByTestId("spec100-user-management-skeleton"))
         .or(page.getByRole("heading", { name: /^Settings$/i })),
     ).toBeAttached();
+    await expectClsWithinBudget(page);
   });
 });

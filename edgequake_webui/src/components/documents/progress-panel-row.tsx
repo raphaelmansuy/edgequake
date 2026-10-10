@@ -18,7 +18,7 @@ import { shouldShowReprocessQueuingPanel } from '@/lib/documents/reprocess-cache
 import { buildIngestionRunViewFromProgress } from '@/lib/pipeline/ingestion-run-view';
 import { sourceTypeFromFileName } from '@/lib/upload/file-kind';
 import { X } from 'lucide-react';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 export interface ProgressPanelRowProps {
@@ -90,10 +90,18 @@ export function ProgressPanelRow({
     });
   }, [progress, isPdf, documentName]);
 
+  const terminalFired = useRef<'completed' | 'failed' | null>(null);
   useEffect(() => {
     if (!progress) return;
-    if (progress.status === 'completed') onComplete?.();
+    if (progress.status === 'completed') {
+      if (terminalFired.current === 'completed') return;
+      terminalFired.current = 'completed';
+      onComplete?.();
+      return;
+    }
     if (progress.status === 'failed') {
+      if (terminalFired.current === 'failed') return;
+      terminalFired.current = 'failed';
       onFailed?.(progress.progress.latest_message || 'Failed');
     }
   }, [progress, onComplete, onFailed]);

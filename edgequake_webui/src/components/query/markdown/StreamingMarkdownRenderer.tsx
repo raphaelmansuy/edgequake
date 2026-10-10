@@ -322,6 +322,9 @@ export const StreamingMarkdownRenderer = memo(function StreamingMarkdownRenderer
   const scrollRequestRef = useRef<number | null>(null);
   const lastScrollTimeRef = useRef<number>(0);
   const userHasScrolledRef = useRef<boolean>(false);
+  /** Stay on the live token renderer after a stream so height does not swap. */
+  const renderedWhileStreaming = useRef(false);
+  if (isStreaming) renderedWhileStreaming.current = true;
 
   // Analyze streaming content for incomplete structures
   const streamingStatus = useMemo(() => {
@@ -477,7 +480,7 @@ export const StreamingMarkdownRenderer = memo(function StreamingMarkdownRenderer
          rendering all tokens at once freezes the browser. LazyMarkdownSections
          splits tokens into sections and renders them progressively via
          IntersectionObserver, keeping initial paint fast. */}
-      {!isStreaming && tokens.length >= LAZY_SECTION_THRESHOLD ? (
+      {!isStreaming && !renderedWhileStreaming.current && tokens.length >= LAZY_SECTION_THRESHOLD ? (
         <LazyMarkdownSections
           tokens={tokens}
           isStreaming={false}

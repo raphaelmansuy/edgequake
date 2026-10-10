@@ -24,6 +24,9 @@ interface UseDocumentWebSocketOptions {
   enabled?: boolean;
 }
 
+/** Stable default so the effect does not re-subscribe on every render. */
+const DEFAULT_DOCUMENTS_QUERY_KEY: unknown[] = ["documents"];
+
 /** Status values that indicate a document is still ingesting */
 const TERMINAL_DOCUMENT_STATUSES = new Set([
   "completed",
@@ -52,7 +55,16 @@ export function useDocumentWebSocket(
   queryClient: QueryClient,
   options?: UseDocumentWebSocketOptions,
 ): void {
-  const { queryKey = ["documents"], enabled = true } = options ?? {};
+  const { enabled = true } = options ?? {};
+  const queryKeyIdentity = JSON.stringify(
+    options?.queryKey ?? DEFAULT_DOCUMENTS_QUERY_KEY,
+  );
+  const queryKey = useMemo(
+    () => options?.queryKey ?? DEFAULT_DOCUMENTS_QUERY_KEY,
+    // Contents, not array identity — callers often pass a fresh array.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [queryKeyIdentity],
+  );
   const { connected, subscribe, unsubscribe } = useWebSocket();
 
   // WHY: Memoize the sorted list of processing track IDs so the subscription

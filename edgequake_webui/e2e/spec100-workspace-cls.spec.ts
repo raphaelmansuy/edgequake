@@ -4,6 +4,7 @@
  */
 import { expect, test } from "@playwright/test";
 import { GOTO_OPTS } from "./helpers/app-ready";
+import { expectClsWithinBudget, installStabilityProbe } from "./helpers/stability-probe";
 import {
   mockSpec038AdmissionRoutes,
   seedSpec038TenantContext,
@@ -16,6 +17,7 @@ test.describe("SPEC-100 workspace CLS", () => {
     await mockSpec038AdmissionRoutes(page);
     await seedSpec038TenantContext(page);
 
+    await installStabilityProbe(page);
     await page.goto("/workspace", GOTO_OPTS);
 
     const slot = page.getByTestId("spec100-workspace-rebuild-slot");
@@ -24,5 +26,6 @@ test.describe("SPEC-100 workspace CLS", () => {
     const box = await slot.boundingBox();
     // Idle: no tall empty reservation (was ≥80px blank).
     expect(box?.height ?? 0).toBeLessThan(24);
+    await expectClsWithinBudget(page);
   });
 });

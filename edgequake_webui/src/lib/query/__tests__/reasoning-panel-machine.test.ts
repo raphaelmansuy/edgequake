@@ -8,7 +8,7 @@ import {
 } from "../reasoning-panel-machine";
 
 describe("reasoning-panel-machine", () => {
-  it("auto-expands on stream_live and collapses on stream_answer", () => {
+  it("stays open through the answer and collapses when the stream ends", () => {
     let s = createReasoningPanelState();
     s = reduceReasoningPanel(s, { type: "stream_live" });
     expect(s.phase).toBe("live");
@@ -16,6 +16,9 @@ describe("reasoning-panel-machine", () => {
     expect(isReasoningPanelLive(s.phase)).toBe(true);
 
     s = reduceReasoningPanel(s, { type: "stream_answer" });
+    expect(s.phase).toBe("live");
+
+    s = reduceReasoningPanel(s, { type: "stream_idle" });
     expect(s.phase).toBe("collapsed");
     expect(isReasoningPanelLive(s.phase)).toBe(false);
   });
@@ -59,7 +62,7 @@ describe("reasoning-panel-machine", () => {
         cotOpen: false,
         hasResponseText: true,
       }),
-    ).toEqual({ type: "stream_answer" });
+    ).toEqual({ type: "stream_idle" });
     expect(
       reasoningEventFromStream({
         isStreaming: false,

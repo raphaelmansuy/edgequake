@@ -147,11 +147,26 @@ export class LayoutScheduler {
     const { graph, getLayout, onApplied } = this.deps;
     if (graph.order === 0) return;
     const layout = getLayout();
+    const frozen = new Map<string, { x: number; y: number }>();
+    if (mode === "streaming") {
+      graph.forEachNode((id, attrs) => {
+        if (attrs[PLACED_ATTR] === true) {
+          frozen.set(id, { x: attrs.x as number, y: attrs.y as number });
+        }
+      });
+    }
     try {
       if (isTopologyLayout(layout)) seedUnplacedNodes(graph);
       applyLayoutToGraph(graph, layout, mode, {
         viewportPx: this.deps.getViewportPx?.(),
       });
+      if (mode === "streaming") {
+        for (const [id, pos] of frozen) {
+          if (!graph.hasNode(id)) continue;
+          graph.setNodeAttribute(id, "x", pos.x);
+          graph.setNodeAttribute(id, "y", pos.y);
+        }
+      }
       markAllPlaced(graph);
       onApplied();
     } catch (error) {

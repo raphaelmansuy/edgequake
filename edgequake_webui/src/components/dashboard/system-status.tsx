@@ -12,8 +12,6 @@
  */
 'use client';
 
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getBackendReadinessSnapshot } from '@/lib/api/client';
 import { checkHealth } from '@/lib/api/edgequake';
@@ -22,7 +20,6 @@ import {
   getHealthDetailsRefetchIntervalForState,
 } from '@/lib/runtime/health-poll';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle, Circle, Server, XCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 export function SystemStatus() {
@@ -95,47 +92,20 @@ export function SystemStatus() {
     );
   }
 
-  return (
-    <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm flex items-center gap-2">
-          <Server className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-          {t('dashboard.system.title', 'System Status')}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">{t('dashboard.system.apiStatus', 'API')}</span>
-            <Badge
-              variant={isConnected ? (isBusy ? 'secondary' : 'default') : 'destructive'}
-              className="gap-1 h-5 text-xs"
-            >
-              {!isConnected ? (
-                <><XCircle className="h-3 w-3" />{t('dashboard.system.disconnected', 'Disconnected')}</>
-              ) : isBusy ? (
-                <><Circle className="h-3 w-3 fill-amber-500 text-amber-500" />{t('dashboard.system.busy', 'Busy')}</>
-              ) : (
-                <><CheckCircle className="h-3 w-3" />{t('dashboard.system.connected', 'Connected')}</>
-              )}
-            </Badge>
-          </div>
+  const degradedLabel = !isConnected
+    ? t('dashboard.system.disconnected', 'Disconnected')
+    : isBusy
+      ? t('dashboard.system.busy', 'Busy')
+      : t('dashboard.system.title', 'System Status');
 
-          {isConnected && health?.llm_provider_name && (
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">{t('dashboard.system.llmProvider', 'LLM')}</span>
-              <Badge variant="outline" className="gap-1 h-5 text-xs">
-                <Circle className={`h-2 w-2 ${
-                  health.components?.llm_provider === true || health.components?.llm_provider === 'up'
-                    ? 'fill-green-500 text-green-500'
-                    : 'fill-amber-500 text-amber-500'
-                }`} />
-                {health.llm_provider_name.charAt(0).toUpperCase() + health.llm_provider_name.slice(1)}
-              </Badge>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+  return (
+    <div
+      className="flex h-9 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/50 px-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-100"
+      role="status"
+      data-testid="dashboard-system-degraded"
+    >
+      <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true" />
+      <span className="truncate">{degradedLabel}</span>
+    </div>
   );
 }

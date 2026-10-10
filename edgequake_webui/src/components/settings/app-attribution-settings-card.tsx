@@ -42,8 +42,8 @@ export function AppAttributionSettingsCard() {
   const [appName, setAppName] = useState("");
   const [appUrl, setAppUrl] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     try {
       const resp = await apiClient<AttributionSettingsResponse>("/settings/attribution");
       setData(resp);
@@ -74,7 +74,7 @@ export function AppAttributionSettingsCard() {
         }),
       });
       toast.success("Application attribution saved");
-      await load();
+      await load({ silent: true });
     } catch (e) {
       toast.error("Failed to save attribution — set EDGEQUAKE_APP_* env or use admin API");
       console.error(e);
@@ -83,10 +83,10 @@ export function AppAttributionSettingsCard() {
     }
   };
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <Card data-testid="app-attribution-card">
-        <CardContent className="py-8 flex justify-center">
+        <CardContent className="flex min-h-[16rem] items-center justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>

@@ -333,20 +333,20 @@ export function useQueryStreamSession({
           return;
         }
 
-        // Allow react-query to refetch then clear optimistic pending
-        await new Promise((r) => setTimeout(r, 150));
+        let settledId = conversationId;
         setSession((s) => {
-          const id = s.accumulator.newConversationId || activeConversationId;
-          if (id) {
-            void queryClient.invalidateQueries({
-              queryKey: conversationKeys.detail(id),
-            });
-            void queryClient.invalidateQueries({
-              queryKey: conversationKeys.lists(),
-            });
-          }
-          return s.stage === "stopped" ? s : clearPendingAfterMerge(s);
+          settledId = s.accumulator.newConversationId || settledId;
+          return s;
         });
+        if (settledId) {
+          await queryClient.invalidateQueries({
+            queryKey: conversationKeys.detail(settledId),
+          });
+          await queryClient.invalidateQueries({
+            queryKey: conversationKeys.lists(),
+          });
+        }
+        setSession((s) => (s.stage === "stopped" ? s : clearPendingAfterMerge(s)));
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
           setSession((s) => reduceStreamSession(s, { type: "abort" }));

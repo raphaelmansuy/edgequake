@@ -36,10 +36,15 @@ function SsoCallbackInner() {
 
   if (!error) {
     return (
-      <div role="status" className="flex flex-col items-center gap-3 text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
-        <p className="text-sm">{t('auth.sso.completing', 'Completing sign-in…')}</p>
-      </div>
+      <Card className="w-full max-w-md min-h-48" data-testid="sso-completing">
+        <CardContent
+          role="status"
+          className="flex min-h-48 flex-col items-center justify-center gap-3 text-muted-foreground"
+        >
+          <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
+          <p className="text-sm">{t('auth.sso.completing', 'Completing sign-in…')}</p>
+        </CardContent>
+      </Card>
     );
   }
 

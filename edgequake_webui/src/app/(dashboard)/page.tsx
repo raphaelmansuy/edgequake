@@ -150,7 +150,8 @@ export default function DashboardPage() {
     staleTime: 0, // Always fetch fresh stats to reflect latest document processing
     refetchOnMount: 'always', // Always refetch when component mounts
     // SPEC-100: soft refresh keeps prior stats (no card skeleton flash)
-    placeholderData: (previous) => previous,
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === selectedWorkspaceId ? previous : undefined,
   });
   const coldStats = isLoadingStats && !stats;
 
@@ -163,7 +164,8 @@ export default function DashboardPage() {
     enabled: _hasHydrated && !!selectedWorkspaceId, // Wait for hydration
     staleTime: 30000,
     // SPEC-100: soft refresh keeps prior activity feed
-    placeholderData: (previous) => previous,
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[2] === selectedWorkspaceId ? previous : undefined,
   });
   const coldDocs = isLoadingDocs && !documentsData;
 

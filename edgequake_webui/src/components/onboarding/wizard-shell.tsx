@@ -133,7 +133,7 @@ export function WizardShell({
             // SPEC-114 layout: DialogContent defaults to `grid` — force a column flex
             // shell so sticky chrome + scroll body + footer share max height correctly.
             '!flex !flex-col gap-0 overflow-hidden p-0',
-            'max-h-[min(92vh,56rem)] w-[calc(100%-1.5rem)] sm:!max-w-5xl lg:!max-w-7xl',
+            'h-[min(70vh,40rem)] max-h-[min(92vh,56rem)] w-[calc(100%-1.5rem)] sm:!max-w-5xl lg:!max-w-7xl',
             className,
           )}
           data-testid={testId}

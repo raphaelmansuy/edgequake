@@ -7,6 +7,10 @@
 import { expect, test } from "@playwright/test";
 import { GOTO_OPTS } from "./helpers/app-ready";
 import {
+  expectClsWithinBudget,
+  installStabilityProbe,
+} from "./helpers/stability-probe";
+import {
   mockSpec038AdmissionRoutes,
   seedSpec038TenantContext,
 } from "./helpers/spec038-admission-mocks";
@@ -81,27 +85,7 @@ test.describe("SPEC-099 layout stability (CLS)", () => {
       sessionStorage.setItem(key, "1");
     }, LIVE_WORK_HINT_KEY);
 
-    // Collect layout-shift score during load
-    await page.addInitScript(() => {
-      (window as unknown as { __eqClsScore?: number }).__eqClsScore = 0;
-      const obs = new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) {
-          const ls = entry as PerformanceEntry & {
-            value?: number;
-            hadRecentInput?: boolean;
-          };
-          if (!ls.hadRecentInput) {
-            (window as unknown as { __eqClsScore: number }).__eqClsScore +=
-              ls.value ?? 0;
-          }
-        }
-      });
-      obs.observe({ type: "layout-shift", buffered: true });
-      (
-        window as unknown as { __eqClsObserver?: PerformanceObserver }
-      ).__eqClsObserver = obs;
-    });
-
+    await installStabilityProbe(page);
     await page.goto("/documents", GOTO_OPTS);
     await expandIntakeWorking(page);
 
@@ -134,7 +118,7 @@ test.describe("SPEC-099 layout stability (CLS)", () => {
     // Soft refresh must not unmount the zone / bounce inventory
     const refresh = page.getByTestId("documents-refresh-button");
     await refresh.click();
-    await page.waitForTimeout(400);
+    await expect(page.getByTestId("spec048-active-runs-panel")).toBeVisible();
     const yAfterRefresh = await inventory.boundingBox();
     expect(yAfterRefresh).toBeTruthy();
     expect(
@@ -142,15 +126,6 @@ test.describe("SPEC-099 layout stability (CLS)", () => {
     ).toBeLessThan(16);
     await expect(page.getByTestId("spec048-active-runs-panel")).toBeVisible();
 
-    const clsScore = await page.evaluate(() => {
-      const w = window as unknown as {
-        __eqClsScore?: number;
-        __eqClsObserver?: PerformanceObserver;
-      };
-      w.__eqClsObserver?.disconnect();
-      return w.__eqClsScore ?? 0;
-    });
-    // Good CLS budget for this surface (Google "good" ≤ 0.1)
-    expect(clsScore).toBeLessThan(0.35);
+    await expectClsWithinBudget(page);
   });
 });

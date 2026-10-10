@@ -261,19 +261,6 @@ export default function KnowledgeDetailPage() {
         </span>
       </div>
 
-      {/* Error alert */}
-      {data.status === 'failed' && data.error && (
-        <Card className="border-destructive/50 bg-destructive/5">
-          <CardContent className="flex items-start gap-3 py-4">
-            <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-            <div>
-              <p className="font-medium text-destructive">Processing failed</p>
-              <p className="text-sm text-muted-foreground mt-1 font-mono">{data.error}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Content */}
       <Card>
         <CardHeader>
@@ -299,6 +286,19 @@ export default function KnowledgeDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Error stays below the content card so a failed poll does not shove the body. */}
+      {data.status === 'failed' && data.error && (
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="flex items-start gap-3 py-4">
+            <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-destructive">Processing failed</p>
+              <p className="text-sm text-muted-foreground mt-1 font-mono">{data.error}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Metadata */}
       <Card>

@@ -11,12 +11,19 @@ import { BackendStatusBanner } from '@/components/shared/backend-status-banner';
 import { ProviderDownBanner } from '@/components/shared/provider-down-banner';
 import { SkipLink } from '@/components/shared/skip-link';
 import { useWorkspaceUrl } from '@/hooks/use-workspace-url';
-import { Suspense } from 'react';
+import { usePathname } from 'next/navigation';
+import { Suspense, type ReactNode } from 'react';
 
 // Wrap the workspace URL hook in a component for Suspense boundary
 function WorkspaceUrlSync() {
   useWorkspaceUrl();
   return null;
+}
+
+/** Clear a stuck error fallback when the user navigates to another route. */
+function RouteErrorBoundary({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  return <ApiErrorBoundary resetKey={pathname}>{children}</ApiErrorBoundary>;
 }
 
 export default function DashboardLayout({
@@ -58,13 +65,13 @@ export default function DashboardLayout({
             className="flex min-h-0 flex-1 flex-col overflow-clip"
             tabIndex={-1}
           >
-            <ApiErrorBoundary>
+            <RouteErrorBoundary>
               <TenantGuard>
                 <div className="flex h-full min-h-0 flex-col overflow-clip">
                   {children}
                 </div>
               </TenantGuard>
-            </ApiErrorBoundary>
+            </RouteErrorBoundary>
           </main>
         </div>
       </div>

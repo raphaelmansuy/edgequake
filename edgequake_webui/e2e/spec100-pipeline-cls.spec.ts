@@ -3,6 +3,7 @@
  */
 import { expect, test } from "@playwright/test";
 import { GOTO_OPTS } from "./helpers/app-ready";
+import { expectClsWithinBudget, installStabilityProbe } from "./helpers/stability-probe";
 import {
   mockSpec038AdmissionRoutes,
   seedSpec038TenantContext,
@@ -64,6 +65,7 @@ test.describe("SPEC-100 pipeline CLS", () => {
       await route.fallback();
     });
 
+    await installStabilityProbe(page);
     await page.goto("/pipeline", GOTO_OPTS);
 
     const chunk = page.getByTestId("spec100-pipeline-chunk-slot");
@@ -77,9 +79,10 @@ test.describe("SPEC-100 pipeline CLS", () => {
 
     const chunkY1 = await chunk.boundingBox();
     await page.getByTestId("pipeline-refresh-button").click();
-    await page.waitForTimeout(300);
+    await expect(chunk).toBeVisible();
     const chunkY2 = await chunk.boundingBox();
     expect(Math.abs((chunkY2?.y ?? 0) - (chunkY1?.y ?? 0))).toBeLessThan(8);
     await expect(chunk).toBeVisible();
+    await expectClsWithinBudget(page);
   });
 });

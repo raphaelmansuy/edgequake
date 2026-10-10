@@ -3,7 +3,7 @@
 import type { DecisionModels, DecisionStatus } from '@/constants/extraction-mode';
 import { getDecisionModels, getDecisionStatus } from '@/lib/api/edgequake';
 import { useTenantStore } from '@/stores/use-tenant-store';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 /** Short enough that "I just pulled the model" shows up without a reload. */
 const DECISION_STATUS_STALE_MS = 15_000;
@@ -27,6 +27,7 @@ export function useDecisionStatus(
     enabled: options?.enabled ?? true,
     staleTime: DECISION_STATUS_STALE_MS,
     refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
     retry: 1,
   });
 }
@@ -39,6 +40,7 @@ export function useDecisionModels(options?: { enabled?: boolean }) {
     enabled: options?.enabled ?? true,
     staleTime: DECISION_STATUS_STALE_MS,
     refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
     retry: 1,
   });
 }

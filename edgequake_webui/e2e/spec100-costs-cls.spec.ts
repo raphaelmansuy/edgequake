@@ -3,6 +3,7 @@
  */
 import { expect, test } from "@playwright/test";
 import { GOTO_OPTS } from "./helpers/app-ready";
+import { expectClsWithinBudget, installStabilityProbe } from "./helpers/stability-probe";
 import {
   mockSpec038AdmissionRoutes,
   seedSpec038TenantContext,
@@ -14,6 +15,7 @@ test.describe("SPEC-100 costs CLS", () => {
     await mockSpec038AdmissionRoutes(page);
     await seedSpec038TenantContext(page);
 
+    await installStabilityProbe(page);
     await page.goto("/costs", GOTO_OPTS);
 
     const trend = page.getByTestId("spec100-costs-trend");
@@ -21,5 +23,6 @@ test.describe("SPEC-100 costs CLS", () => {
     await trend.evaluate((el) => el.scrollIntoView({ block: "center" }));
     const box = await trend.boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(180);
+    await expectClsWithinBudget(page);
   });
 });

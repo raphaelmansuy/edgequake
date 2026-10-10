@@ -186,14 +186,6 @@ export const AssistantMessage = memo(function AssistantMessage({
             />
           ) : null}
 
-          {/* Early source chips while streaming (Q10) */}
-          {(message.isStreaming || !message.isStreaming) && message.context ? (
-            <SourceChips
-              context={message.context}
-              onOpenSources={() => setSourcesOpenSignal((n) => n + 1)}
-            />
-          ) : null}
-
           {hasThinking ? (
             <ReasoningPanel
               thinking={thinkingBlocks}
@@ -227,6 +219,13 @@ export const AssistantMessage = memo(function AssistantMessage({
               ) : null}
             </div>
           )}
+
+          {message.context ? (
+            <SourceChips
+              context={message.context}
+              onOpenSources={() => setSourcesOpenSignal((n) => n + 1)}
+            />
+          ) : null}
 
           {message.stopped ? (
             <p

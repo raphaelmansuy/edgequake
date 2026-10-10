@@ -52,10 +52,22 @@ function getServerSnapshot(): boolean {
 export function I18nProvider({ children }: I18nProviderProps) {
   const hydrated = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
-  // On first render (SSR), we return null to prevent hydration mismatch
-  // Once client hydrates, we render children
+  // Server and the hydration pass share this shell so the first paint is not
+  // blank. Geometry matches the dashboard chrome (sidebar w-64, header h-12).
   if (!hydrated) {
-    return null;
+    return (
+      <div
+        className="flex h-dvh max-h-dvh overflow-hidden bg-background"
+        aria-busy="true"
+        data-testid="app-shell-skeleton"
+      >
+        <div className="hidden w-64 shrink-0 border-r bg-card md:block" />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="h-12 shrink-0 border-b bg-card" />
+          <div className="flex-1" />
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;

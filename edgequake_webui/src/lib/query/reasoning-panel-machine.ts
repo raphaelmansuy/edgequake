@@ -42,7 +42,8 @@ export function reduceReasoningPanel(
       return { phase: "live" };
 
     case "stream_answer":
-      if (state.phase === "live") return { phase: "collapsed" };
+      // Keep the live panel until the stream ends so the answer is not shoved up.
+      if (state.phase === "live") return state;
       if (state.phase === "expanded" || state.phase === "collapsed_locked") {
         return state;
       }
@@ -91,8 +92,11 @@ export function reasoningEventFromStream(opts: {
   if (opts.isStreaming && opts.cotOpen && !opts.hasResponseText) {
     return { type: "stream_live" };
   }
-  if (opts.hasResponseText) {
+  if (opts.hasResponseText && opts.isStreaming) {
     return { type: "stream_answer" };
+  }
+  if (opts.hasResponseText && !opts.isStreaming) {
+    return { type: "stream_idle" };
   }
   if (!opts.isStreaming) {
     return { type: "stream_idle" };

@@ -3,6 +3,7 @@
  */
 import { expect, test } from "@playwright/test";
 import { GOTO_OPTS } from "./helpers/app-ready";
+import { expectClsWithinBudget, installStabilityProbe } from "./helpers/stability-probe";
 import {
   mockSpec038AdmissionRoutes,
   seedSpec038TenantContext,
@@ -29,11 +30,13 @@ test.describe("SPEC-100 knowledge CLS", () => {
       });
     });
 
+    await installStabilityProbe(page);
     await page.goto("/knowledge", GOTO_OPTS);
 
     const skeleton = page.getByTestId("spec100-knowledge-grid-skeleton");
     await expect(
       skeleton.or(page.getByRole("heading", { name: /No knowledge injections/i })),
     ).toBeVisible({ timeout: 20_000 });
+    await expectClsWithinBudget(page);
   });
 });

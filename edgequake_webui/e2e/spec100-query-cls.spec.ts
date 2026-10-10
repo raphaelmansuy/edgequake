@@ -3,6 +3,7 @@
  */
 import { expect, test } from "@playwright/test";
 import { GOTO_OPTS } from "./helpers/app-ready";
+import { expectClsWithinBudget, installStabilityProbe } from "./helpers/stability-probe";
 import {
   mockSpec038AdmissionRoutes,
   seedSpec038TenantContext,
@@ -14,12 +15,16 @@ test.describe("SPEC-100 query CLS", () => {
     await mockSpec038AdmissionRoutes(page);
     await seedSpec038TenantContext(page);
 
+    await installStabilityProbe(page);
     await page.goto("/query", GOTO_OPTS);
 
     // Idle slot uses min-h-0 overflow-hidden (intentionally not "visible")
     await expect(page.getByTestId("spec100-query-attachments-slot")).toBeAttached({
       timeout: 20_000,
     });
-    await expect(page.locator("textarea").first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("combobox", { name: /ask a question/i })).toBeVisible({
+      timeout: 10_000,
+    });
+    await expectClsWithinBudget(page);
   });
 });

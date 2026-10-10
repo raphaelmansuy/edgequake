@@ -46,7 +46,7 @@ export function RoleMatrixCard() {
 
   useEffect(() => {
     void apiClient<ConnectionView[]>('/connections')
-      .then(setConnections)
+      .then((data) => setConnections(Array.isArray(data) ? data : []))
       .catch(() => setConnections([]));
   }, []);
 

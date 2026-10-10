@@ -30,7 +30,28 @@ function LoginPageInner() {
   const postLoginPath =
     safeRedirectPath(searchParams.get('redirect') ?? searchParams.get('next')) ?? '/';
 
-  if (!setupLoading && setupStatus?.needs_setup && setupStatus.auth_enabled) {
+  if (setupLoading) {
+    return (
+      <div
+        className="flex h-full min-h-0 items-center justify-center bg-background p-4"
+        aria-busy="true"
+        data-testid="login-setup-skeleton"
+      >
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <div className="h-6 w-40 rounded bg-muted" />
+            <div className="h-4 w-64 rounded bg-muted" />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="h-10 w-full rounded bg-muted" />
+            <div className="h-10 w-full rounded bg-muted" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (setupStatus?.needs_setup && setupStatus.auth_enabled) {
     return (
       <div className="flex h-full min-h-0 items-center justify-center overflow-y-auto bg-background p-4">
         <FirstRunWizard surface="login" />

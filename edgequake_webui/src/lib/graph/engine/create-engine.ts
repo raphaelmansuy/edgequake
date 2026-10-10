@@ -116,6 +116,7 @@ export class GraphEngine {
   private focusEdgeOverlay: FocusEdgeOverlayHandle | null = null;
   /** Node whose context menu is open (kept emphasised; selection untouched). */
   private contextTargetId: string | null = null;
+  private resizeObserver: ResizeObserver | null = null;
 
   constructor(container: HTMLElement, options: GraphEngineOptions = {}) {
     this.id = nextEngineId();
@@ -404,6 +405,8 @@ export class GraphEngine {
     if (this.destroyed) return;
     this.destroyed = true;
     this.stopLayout();
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.interactions?.unbind();
     this.interactions = null;
     this.focusEdgeOverlay?.unbind();
@@ -648,6 +651,12 @@ export class GraphEngine {
         edgeReducer,
       });
       this.sigma = sigma;
+      this.resizeObserver?.disconnect();
+      this.resizeObserver = new ResizeObserver(() => {
+        sigma.resize();
+        sigma.refresh();
+      });
+      this.resizeObserver.observe(this.container);
       this.bindInteractions(sigma);
       this.focusEdgeOverlay = bindFocusEdgeOverlay(sigma, {
         getColor: () => this.theme.focus,

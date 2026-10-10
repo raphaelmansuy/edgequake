@@ -247,7 +247,7 @@ export function Sidebar() {
   return (
     <aside 
       className={cn(
-        "hidden border-r bg-card md:block transition-all duration-300",
+        "hidden border-r bg-card md:block transition-[width] duration-300",
         sidebarCollapsed ? "w-16" : "w-64"
       )} 
       aria-label="Sidebar navigation"

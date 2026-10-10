@@ -42,7 +42,7 @@ const ApiReferenceReact = dynamic(
 );
 
 export function ApiExplorerView() {
-  const { config, scalarConfiguration, swaggerUiUrl, themeMode } =
+  const { config, scalarConfiguration, swaggerUiUrl, themeMode, themeReady } =
     useApiExplorerConfig();
 
   const handleOpenSwagger = useCallback(() => {
@@ -95,7 +95,16 @@ export function ApiExplorerView() {
         data-testid="api-explorer-scalar"
         data-theme={themeMode}
       >
-        <ApiReferenceReact configuration={scalarConfiguration} />
+        {themeReady ? (
+          <ApiReferenceReact configuration={scalarConfiguration} />
+        ) : (
+          <div
+            className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground"
+            data-testid="api-explorer-theme-pending"
+          >
+            Loading API Explorer…
+          </div>
+        )}
       </div>
     </div>
   );

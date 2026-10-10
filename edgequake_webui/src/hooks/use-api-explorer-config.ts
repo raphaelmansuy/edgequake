@@ -31,6 +31,7 @@ export interface ApiExplorerViewModel {
   scalarConfiguration: AnyApiReferenceConfiguration;
   swaggerUiUrl: string;
   themeMode: ApiExplorerThemeMode;
+  themeReady: boolean;
 }
 
 /** Computes explorer config + Scalar configuration from current app context. */
@@ -42,8 +43,9 @@ export function useApiExplorerConfig(): ApiExplorerViewModel {
   const serverBaseUrl = getRuntimeServerBaseUrl();
   const { resolvedTheme } = useTheme();
 
+  const themeReady = resolvedTheme === "light" || resolvedTheme === "dark";
   const themeMode: ApiExplorerThemeMode =
-    resolvedTheme === 'light' ? 'light' : 'dark';
+    resolvedTheme === "light" ? "light" : "dark";
 
   return useMemo(() => {
     const config = buildApiExplorerConfig({
@@ -65,6 +67,7 @@ export function useApiExplorerConfig(): ApiExplorerViewModel {
       scalarConfiguration,
       swaggerUiUrl: buildSwaggerUiUrl(config.serverBaseUrl),
       themeMode,
+      themeReady,
     };
   }, [
     accessToken,
@@ -73,5 +76,6 @@ export function useApiExplorerConfig(): ApiExplorerViewModel {
     tenantId,
     workspaceId,
     themeMode,
+    themeReady,
   ]);
 }

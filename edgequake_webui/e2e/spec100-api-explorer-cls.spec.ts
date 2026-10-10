@@ -3,6 +3,7 @@
  */
 import { expect, test } from "@playwright/test";
 import { GOTO_OPTS } from "./helpers/app-ready";
+import { expectClsWithinBudget, installStabilityProbe } from "./helpers/stability-probe";
 import {
   mockSpec038AdmissionRoutes,
   seedSpec038TenantContext,
@@ -14,6 +15,7 @@ test.describe("SPEC-100 api-explorer CLS", () => {
     await mockSpec038AdmissionRoutes(page);
     await seedSpec038TenantContext(page);
 
+    await installStabilityProbe(page);
     await page.goto("/api-explorer", GOTO_OPTS);
 
     const shell = page.getByTestId("api-explorer-page");
@@ -30,5 +32,6 @@ test.describe("SPEC-100 api-explorer CLS", () => {
         { timeout: 20_000, message: "API Explorer shell should fill the main area" },
       )
       .toBeGreaterThanOrEqual(400);
+    await expectClsWithinBudget(page);
   });
 });

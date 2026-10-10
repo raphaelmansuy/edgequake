@@ -79,29 +79,30 @@ export function AuthenticatedMarkdownImage({
   // Non-asset URLs render directly; asset URLs wait for the authenticated blob.
   const shownSrc = isMmAssetUrl(src) ? resolvedSrc : src;
 
-  if (!shownSrc) {
-    return (
-      <span
-        data-layout-asset={layoutAsset}
-        className="text-muted-foreground text-sm italic my-2 inline-block"
-      >
-        Loading image…
-      </span>
-    );
-  }
-
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={shownSrc}
-      alt={alt ?? ''}
-      title={title}
-      data-layout-asset={layoutAsset}
-      className={cn(
-        className,
-        'data-[layout-asset-focused=true]:ring-2 data-[layout-asset-focused=true]:ring-primary',
+    <span className="my-2 block aspect-video w-full max-w-full overflow-hidden rounded-md bg-muted/30">
+      {shownSrc ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={shownSrc}
+          alt={alt ?? ''}
+          title={title}
+          data-layout-asset={layoutAsset}
+          className={cn(
+            'h-full w-full object-contain',
+            className,
+            'data-[layout-asset-focused=true]:ring-2 data-[layout-asset-focused=true]:ring-primary',
+          )}
+          loading="lazy"
+        />
+      ) : (
+        <span
+          data-layout-asset={layoutAsset}
+          className="flex h-full items-center px-3 text-sm italic text-muted-foreground"
+        >
+          Loading image…
+        </span>
       )}
-      loading="lazy"
-    />
+    </span>
   );
 }

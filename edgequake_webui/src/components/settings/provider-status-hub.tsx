@@ -67,7 +67,13 @@ export function ProviderStatusHub({
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
-        {enabled.length === 0 ? (
+        {isLoading && providerList.length === 0 ? (
+          <div className="space-y-2" data-testid="provider-status-skeleton" aria-busy="true">
+            {Array.from({ length: 3 }, (_, i) => (
+              <div key={i} className="h-14 rounded-lg border bg-muted/40" />
+            ))}
+          </div>
+        ) : enabled.length === 0 ? (
           <p className="text-sm text-muted-foreground">No providers configured.</p>
         ) : (
           enabled.map((provider) => {

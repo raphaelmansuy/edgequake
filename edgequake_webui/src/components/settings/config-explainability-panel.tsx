@@ -357,7 +357,7 @@ export function ConfigExplainabilityPanel() {
 
         {/* Loading state */}
         {loading && !config && (
-          <div className="text-sm text-muted-foreground animate-pulse py-4 text-center">
+          <div className="min-h-[16rem] text-sm text-muted-foreground animate-pulse py-4 text-center">
             Loading configuration chain…
           </div>
         )}

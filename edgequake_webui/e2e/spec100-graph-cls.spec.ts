@@ -3,6 +3,7 @@
  */
 import { expect, test } from "@playwright/test";
 import { GOTO_OPTS } from "./helpers/app-ready";
+import { expectClsWithinBudget, installStabilityProbe } from "./helpers/stability-probe";
 import {
   mockSpec038AdmissionRoutes,
   seedSpec038TenantContext,
@@ -14,6 +15,7 @@ test.describe("SPEC-100 graph CLS", () => {
     await mockSpec038AdmissionRoutes(page);
     await seedSpec038TenantContext(page);
 
+    await installStabilityProbe(page);
     await page.goto("/graph", GOTO_OPTS);
 
     const count = page.getByTestId("spec100-graph-count-slot");
@@ -21,9 +23,9 @@ test.describe("SPEC-100 graph CLS", () => {
     const yDuring = await count.boundingBox();
     expect(yDuring).toBeTruthy();
 
-    // Allow graph query to settle; chip Y should stay stable
-    await page.waitForTimeout(800);
+    await expect(count).toBeVisible();
     const yAfter = await count.boundingBox();
     expect(Math.abs((yAfter?.y ?? 0) - (yDuring?.y ?? 0))).toBeLessThanOrEqual(8);
+    await expectClsWithinBudget(page);
   });
 });

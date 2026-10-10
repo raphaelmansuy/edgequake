@@ -4,6 +4,7 @@
  */
 import { expect, test } from "@playwright/test";
 import { GOTO_OPTS } from "./helpers/app-ready";
+import { expectClsWithinBudget, installStabilityProbe } from "./helpers/stability-probe";
 import {
   mockSpec038AdmissionRoutes,
   seedSpec038TenantContext,
@@ -27,6 +28,7 @@ test.describe("SPEC-100 breadcrumb slot", () => {
       }),
     ]);
 
+    await installStabilityProbe(page);
     await page.goto("/documents", GOTO_OPTS);
     await expect(page.getByTestId("documents-page")).toBeVisible({
       timeout: 20_000,
@@ -35,8 +37,8 @@ test.describe("SPEC-100 breadcrumb slot", () => {
     await expect(page.getByTestId("breadcrumb-spacer")).toHaveCount(0);
     await expect(page.getByTestId("breadcrumb-bar")).toHaveCount(0);
 
-    const appHeader = page.locator("header.flex.h-12").first();
-    const title = page.getByRole("heading", { name: /^documents$/i }).first();
+    const appHeader = page.locator("header.flex.h-12");
+    const title = page.getByRole("heading", { name: /^documents$/i });
     await expect(title).toBeVisible();
     const headerBox = await appHeader.boundingBox();
     const titleBox = await title.boundingBox();
@@ -59,5 +61,6 @@ test.describe("SPEC-100 breadcrumb slot", () => {
       // Still must not resurrect the empty list-route spacer.
       await expect(page.getByTestId("breadcrumb-spacer")).toHaveCount(0);
     }
+    await expectClsWithinBudget(page);
   });
 });

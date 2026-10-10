@@ -81,14 +81,14 @@ export function StatsCard({
   if (isLoading) {
     return (
       <Card className={cn('relative overflow-hidden border-0 shadow-sm', className)}>
-        <CardContent className="p-4">
+        <CardContent className="p-3 sm:p-4">
           <div className="flex items-center justify-between gap-3">
-            <div className="space-y-2 flex-1">
+            <div className="space-y-1 flex-1">
               <Skeleton className="h-3.5 w-20" />
               <Skeleton className="h-8 w-16" />
-              {description && <Skeleton className="h-3 w-28" />}
+              <Skeleton className="h-3 w-28" />
             </div>
-            <Skeleton className="h-11 w-11 rounded-lg flex-shrink-0" />
+            <Skeleton className="h-9 w-9 sm:h-11 sm:w-11 rounded-lg flex-shrink-0" />
           </div>
         </CardContent>
       </Card>
@@ -107,7 +107,7 @@ export function StatsCard({
         // WHY: translate-y on 4 adjacent cards simultaneously looks mechanical;
         // shadow depth change is subtler and communicates "interactive surface"
         // without kinetic noise.
-        'relative overflow-hidden transition-all duration-200 border-0 shadow-sm',
+        'relative overflow-hidden transition-shadow duration-200 border-0 shadow-sm',
         'hover:shadow-md',
         // The link (when present) owns the focus ring; avoid a double ring.
         !href && 'focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',

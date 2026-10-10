@@ -73,8 +73,31 @@ def check_live_stack_gate(path: Path, text: str) -> list[str]:
     return [f"{path.name}: missing skipUnlessLiveStack() for backend/bootstrap spec"]
 
 
+STABILITY_NAME = re.compile(r"spec099-layout-stability|spec100-")
+STRICT_SLEEP = re.compile(r"waitForTimeout\s*\(")
+STRICT_FIRST = re.compile(r"\.first\s*\(")
+STRICT_SKIP = re.compile(r"^\s*test\.skip\s*\(")
+
+
+def check_stability_specs(path: Path, text: str) -> list[str]:
+    """CLS specs must not paper over races with sleeps, ambiguous .first(), or bare skips."""
+    if not STABILITY_NAME.search(path.name):
+        return []
+    found: list[str] = []
+    for line_no, line in enumerate(text.splitlines(), 1):
+        if STRICT_SLEEP.search(line):
+            found.append(f"{path.name}:{line_no}: waitForTimeout in stability spec")
+        if STRICT_FIRST.search(line) and "waitForTimeout" not in line:
+            found.append(f"{path.name}:{line_no}: ambiguous .first() in stability spec")
+        if STRICT_SKIP.search(line):
+            found.append(f"{path.name}:{line_no}: bare test.skip in stability spec")
+    return found
+
+
 def main() -> int:
     violations: list[str] = []
+    for path in sorted(E2E.rglob("*.spec.ts")):
+        violations.extend(check_stability_specs(path, path.read_text()))
     for path in sorted(E2E.glob("*.spec.ts")):
         text = path.read_text()
         violations.extend(check_live_stack_gate(path, text))

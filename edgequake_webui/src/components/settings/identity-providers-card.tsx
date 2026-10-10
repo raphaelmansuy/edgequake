@@ -37,7 +37,7 @@ export function IdentityProvidersCard() {
   if (!hydrated || !isAdmin) return null;
 
   const storedBySlug = new Map((stored.data ?? []).map((p) => [p.slug, p]));
-  const rows = active.data ?? [];
+  const rows = Array.isArray(active.data) ? active.data : [];
 
   return (
     <Card data-testid="identity-providers-card">

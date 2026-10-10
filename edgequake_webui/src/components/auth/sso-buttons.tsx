@@ -26,9 +26,19 @@ function acceptsOrgHint(provider: SsoProvider): boolean {
  */
 export function SsoButtons({ redirect, defaultOrg = '' }: SsoButtonsProps) {
   const { t } = useTranslation();
-  const { data: providers } = useSsoProviders();
+  const { data: providers, isLoading } = useSsoProviders();
   const [org, setOrg] = useState(defaultOrg);
   const [pending, setPending] = useState<string | null>(null);
+
+  if (isLoading) {
+    return (
+      <div
+        className="h-10 w-full rounded-md bg-muted"
+        aria-busy="true"
+        data-testid="sso-buttons-skeleton"
+      />
+    );
+  }
 
   if (!providers || providers.length === 0) return null;
 

@@ -3,6 +3,7 @@
  */
 import { expect, test } from "@playwright/test";
 import { GOTO_OPTS } from "./helpers/app-ready";
+import { expectClsWithinBudget, installStabilityProbe } from "./helpers/stability-probe";
 import {
   mockSpec038AdmissionRoutes,
   seedSpec038TenantContext,
@@ -53,6 +54,7 @@ test.describe("SPEC-100 dashboard CLS", () => {
       });
     });
 
+    await installStabilityProbe(page);
     await page.goto("/", GOTO_OPTS);
 
     const activity = page.getByTestId("spec100-dashboard-activity");
@@ -74,5 +76,6 @@ test.describe("SPEC-100 dashboard CLS", () => {
     expect(boxAfterH).toBeGreaterThanOrEqual(280);
     expect(Math.abs(boxAfterH - boxDuringH), JSON.stringify({ boxDuringH, boxAfterH })).toBeLessThanOrEqual(40);
     await expect(page.getByTestId("spec100-dashboard-subtitle")).toBeVisible();
+    await expectClsWithinBudget(page);
   });
 });

@@ -207,6 +207,7 @@ export const DocumentTableSection = memo(function DocumentTableSection({
     count: documents.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    measureElement: (element) => element.getBoundingClientRect().height,
     overscan: 8,
   });
 
@@ -385,6 +386,7 @@ export const DocumentTableSection = memo(function DocumentTableSection({
                         isBackground={isBackground}
                         isLiveRun={isLiveRun}
                         showCostColumn={showCostColumn}
+                        rowMeasureRef={virtualizer.measureElement}
                         searchQuery={searchQuery}
                         onSelect={onSelectOne}
                         onClick={onRowClick}

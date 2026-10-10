@@ -414,8 +414,8 @@ export const MermaidBlock = memo(function MermaidBlock({
     );
   }
 
-  // Loading state
-  if (isLoading) {
+  // Keep the last diagram while a theme or code change re-renders.
+  if (isLoading && !svg) {
     return (
       <div
         className={cn(

@@ -5,6 +5,10 @@
 import { expect, test } from "@playwright/test";
 import { GOTO_OPTS } from "./helpers/app-ready";
 import {
+  expectClsWithinBudget,
+  installStabilityProbe,
+} from "./helpers/stability-probe";
+import {
   mockSpec038AdmissionRoutes,
   seedSpec038TenantContext,
 } from "./helpers/spec038-admission-mocks";
@@ -36,22 +40,7 @@ test.describe("SPEC-100 document detail CLS", () => {
     await mockSpec038AdmissionRoutes(page);
     await seedSpec038TenantContext(page);
 
-    await page.addInitScript(() => {
-      (window as unknown as { __eqClsScore?: number }).__eqClsScore = 0;
-      const obs = new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) {
-          const ls = entry as PerformanceEntry & {
-            value?: number;
-            hadRecentInput?: boolean;
-          };
-          if (!ls.hadRecentInput) {
-            (window as unknown as { __eqClsScore: number }).__eqClsScore +=
-              ls.value ?? 0;
-          }
-        }
-      });
-      obs.observe({ type: "layout-shift", buffered: true });
-    });
+    await installStabilityProbe(page);
 
     await page.route(`**/api/v1/documents/${DOC_ID}**`, async (route) => {
       if (route.request().method() !== "GET") {
@@ -85,8 +74,8 @@ test.describe("SPEC-100 document detail CLS", () => {
     const slotBox = await progressSlot.boundingBox();
     expect(slotBox?.height ?? 0).toBeLessThanOrEqual(4);
 
-    const headerTitle = page.locator("header h1").first();
-    const bodyHeading = page.getByRole("heading", { name: /^Hello$/i }).first();
+    const headerTitle = page.locator("header").locator("h1");
+    const bodyHeading = page.getByRole("heading", { name: /^Hello$/i });
     await expect(bodyHeading).toBeVisible({ timeout: 10_000 });
     const headerBox = await headerTitle.boundingBox();
     const bodyBox = await bodyHeading.boundingBox();
@@ -98,9 +87,6 @@ test.describe("SPEC-100 document detail CLS", () => {
     expect(gap).toBeGreaterThanOrEqual(0);
     expect(gap).toBeLessThan(80);
 
-    const cls = await page.evaluate(
-      () => (window as unknown as { __eqClsScore?: number }).__eqClsScore ?? 0,
-    );
-    expect(cls).toBeLessThan(0.35);
+    await expectClsWithinBudget(page);
   });
 });

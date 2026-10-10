@@ -46,6 +46,8 @@ export function AuthGuard({ children }: AuthGuardProps) {
   const probing = useRef(false);
   /** True after restore failed and we started navigating to /login. */
   const redirecting = useRef(false);
+  /** Once a session painted, keep the tree mounted while the refresh cookie redeems. */
+  const seenSession = useRef(false);
 
   // Playwright cannot write SPEC-154 memory tokens via localStorage. Specs
   // seed `window.__eqE2ePendingToken` before navigation; adopt it once.
@@ -82,6 +84,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
   const requiresAuth = authEnabled || disableDemoLogin;
   // Soft-expiry (5m buffer) means "refresh needed", not permanent logout.
   const hasSession = isAuthenticated && !!accessToken && !isTokenExpired();
+  if (hasSession) seenSession.current = true;
 
   // Listen for API-level auth failures (e.g. 401 after failed token refresh)
   useEffect(() => {
@@ -169,7 +172,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     pathname !== '/login' &&
     (!hasHydrated || cookieProbe === 'probing' || (cookieProbe === 'idle' && !hasSession))
   ) {
-    if (!hasSession) {
+    if (!hasSession && !seenSession.current) {
       return (
         <div className="flex h-full items-center justify-center">
           <div className="text-center">
@@ -184,6 +187,10 @@ export function AuthGuard({ children }: AuthGuardProps) {
   // After a failed restore we redirect; avoid a permanent blank shell.
   // Login page must still render children so the password form is usable.
   if (requiresAuth && !hasSession && pathname !== '/login') {
+    // Soft expiry: refresh is in flight. Unmounting drops in-progress UI (streams).
+    if (seenSession.current && cookieProbe !== 'done') {
+      return <>{children}</>;
+    }
     return null;
   }
 

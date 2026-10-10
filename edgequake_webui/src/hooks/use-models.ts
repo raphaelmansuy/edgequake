@@ -13,7 +13,7 @@
  */
 
 import { getAutomationAwareRefetchInterval } from "@/lib/runtime/browser-detection";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
     EmbeddingModelsResponse,
     fetchEmbeddingModels,
@@ -100,6 +100,7 @@ export function useProvidersHealth(options?: {
     ), // 1 minute
     enabled: options?.enabled ?? true,
     refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
   });
 }
 

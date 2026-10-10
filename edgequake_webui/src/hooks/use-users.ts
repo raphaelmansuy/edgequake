@@ -47,7 +47,7 @@ export function useUsers(): UseUsersReturn {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [includeAnonymous, setIncludeAnonymous] = useState(false);
 
   // ----- Load ---------------------------------------------------------------

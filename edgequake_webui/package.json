@@ -21,7 +21,8 @@
     "test:locale-parity": "node scripts/locale-parity.mjs",
     "test:perf-budget": "node scripts/perf-budget.mjs",
     "test:e2e:spec155": "playwright test --project=mock-api",
-    "test:e2e:spec157": "playwright test --project=mock-api --grep @spec157"
+    "test:e2e:spec157": "playwright test --project=mock-api --grep @spec157",
+    "test:e2e:stability": "playwright test spec099-layout-stability.spec.ts spec100- --repeat-each=5"
   },
   "edgequake": {
     "openapiTypes": {

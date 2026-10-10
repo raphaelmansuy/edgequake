@@ -220,32 +220,31 @@ function TourOverlay() {
   useEffect(() => {
     if (!currentStepData) return;
 
-    const findTarget = () => {
+    const scrolledFor = { target: "" };
+    const measure = (scrollOnce: boolean) => {
       const target = document.querySelector(currentStepData.target);
-      if (target) {
-        const rect = target.getBoundingClientRect();
-        setTargetRect(rect);
-        
-        // Scroll target into view if needed
-        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else {
+      if (!target) {
         setTargetRect(null);
+        return;
+      }
+      setTargetRect(target.getBoundingClientRect());
+      if (scrollOnce && scrolledFor.target !== currentStepData.target) {
+        scrolledFor.target = currentStepData.target;
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     };
 
-    // Initial find
-    findTarget();
+    measure(true);
 
-    // Watch for layout changes
-    const observer = new ResizeObserver(findTarget);
+    const observer = new ResizeObserver(() => measure(false));
     observer.observe(document.body);
 
-    // Also update on scroll
-    window.addEventListener('scroll', findTarget, true);
+    const onScroll = () => measure(false);
+    window.addEventListener("scroll", onScroll, true);
 
     return () => {
       observer.disconnect();
-      window.removeEventListener('scroll', findTarget, true);
+      window.removeEventListener("scroll", onScroll, true);
     };
   }, [currentStepData]);
 

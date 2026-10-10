@@ -53,7 +53,7 @@ export function useStickToBottom(
     userDetachedRef.current = false;
     setShouldAutoScroll(true);
     setShowJumpPill(false);
-    scrollToBottom("smooth");
+    scrollToBottom("auto");
   }, [scrollToBottom]);
 
   useEffect(() => {
@@ -74,8 +74,20 @@ export function useStickToBottom(
       }
     };
 
+    const handleWheel = (event: WheelEvent) => {
+      if (event.deltaY < 0) {
+        userDetachedRef.current = true;
+        setShouldAutoScroll(false);
+        setShowJumpPill(true);
+      }
+    };
+
     viewport.addEventListener("scroll", handleScroll, { passive: true });
-    return () => viewport.removeEventListener("scroll", handleScroll);
+    viewport.addEventListener("wheel", handleWheel, { passive: true });
+    return () => {
+      viewport.removeEventListener("scroll", handleScroll);
+      viewport.removeEventListener("wheel", handleWheel);
+    };
   }, [getViewport]);
 
   // Only re-enable stickiness when a NEW stream starts (idle → thinking),

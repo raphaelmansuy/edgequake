@@ -50,7 +50,7 @@ export const ReasoningPanel = memo(function ReasoningPanel({
 
   return (
     <div
-      className="rounded-xl border overflow-hidden bg-muted/20"
+      className="relative rounded-xl border bg-muted/20"
       data-testid="query-reasoning-panel"
       data-live={isLive ? "true" : "false"}
     >
@@ -90,7 +90,7 @@ export const ReasoningPanel = memo(function ReasoningPanel({
         ) : null}
       </Button>
       {isExpanded ? (
-        <div className="px-4 pb-4 border-t">
+        <div className="absolute inset-x-0 top-full z-20 mt-1 rounded-xl border bg-background px-4 pb-4 shadow-md">
           <div
             className={cn(
               "text-sm text-muted-foreground whitespace-pre-wrap",

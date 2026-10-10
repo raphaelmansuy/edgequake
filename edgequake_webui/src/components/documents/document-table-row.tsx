@@ -177,6 +177,8 @@ export interface DocumentTableRowProps {
   isDeleting?: boolean;
   /** SPEC-099: Cost column opt-in */
   showCostColumn?: boolean;
+  /** Virtualizer measure callback (reads data-index). */
+  rowMeasureRef?: (node: Element | null) => void;
 }
 
 /**
@@ -206,6 +208,7 @@ export const DocumentTableRow = memo(function DocumentTableRow({
   isCancelling,
   isDeleting = false,
   showCostColumn = false,
+  rowMeasureRef,
 }: DocumentTableRowProps) {
   const { t } = useTranslation();
   const displayStatus = getDocumentDisplayStatus(doc);
@@ -237,6 +240,8 @@ export const DocumentTableRow = memo(function DocumentTableRow({
 
   return (
     <TableRow
+      ref={rowMeasureRef}
+      data-index={index}
       className={cn(rowClassName, 'group/row')}
       onClick={() => onClick(doc)}
       onDoubleClick={() => onDoubleClick(doc)}

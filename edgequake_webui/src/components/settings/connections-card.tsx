@@ -31,6 +31,7 @@ interface ProbeResponse {
 
 export function ConnectionsCard() {
   const [rows, setRows] = useState<ConnectionView[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [shape, setShape] = useState('openai_chat');
   const [baseUrl, setBaseUrl] = useState('http://127.0.0.1:9050');
   const [slug, setSlug] = useState('local');
@@ -40,9 +41,11 @@ export function ConnectionsCard() {
   const refresh = useCallback(async () => {
     try {
       const data = await apiClient<ConnectionView[]>('/connections');
-      setRows(data);
+      setRows(Array.isArray(data) ? data : []);
+      setLoaded(true);
     } catch (err) {
       console.error(err);
+      setLoaded(true);
     }
   }, []);
 
@@ -157,7 +160,11 @@ export function ConnectionsCard() {
               {r.last_test_ok === false ? ' · last test failed' : ''}
             </li>
           ))}
-          {rows.length === 0 ? <li>No saved connections. Env providers appear here when set.</li> : null}
+          {!loaded ? (
+            <li className="h-5" aria-busy="true">Loading connections…</li>
+          ) : rows.length === 0 ? (
+            <li>No saved connections. Env providers appear here when set.</li>
+          ) : null}
         </ul>
       </CardContent>
     </Card>
