@@ -55,7 +55,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "edgequake-sdk": "^0.1.0",
     "postcss": "^8.5.12",
     "zod": "^3.24.0"
