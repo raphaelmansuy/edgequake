@@ -14,12 +14,19 @@ import { layoutAssetStem } from '@/components/documents/layout-asset';
 import { buildHeaders } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
+import { imageAspectRatio } from './image-dimensions';
 
 interface AuthenticatedMarkdownImageProps {
   src: string;
   alt?: string;
   title?: string;
   className?: string;
+}
+
+interface ShownImage {
+  src: string;
+  /** width / height from the file header or a decoded probe. */
+  ratio: number | null;
 }
 
 function isMmAssetUrl(src: string): boolean {
@@ -31,21 +38,39 @@ function isMmAssetUrl(src: string): boolean {
   );
 }
 
+function ratioFromImage(img: HTMLImageElement): number | null {
+  if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+    return img.naturalWidth / img.naturalHeight;
+  }
+  return null;
+}
+
 export function AuthenticatedMarkdownImage({
   src,
   alt,
   title,
   className,
 }: AuthenticatedMarkdownImageProps) {
-  const [resolvedSrc, setResolvedSrc] = useState<string | null>(
-    isMmAssetUrl(src) ? null : src,
-  );
+  const [shown, setShown] = useState<ShownImage | null>(null);
 
   useEffect(() => {
-    if (!isMmAssetUrl(src)) return;
-
     let objectUrl: string | null = null;
+    let cancelled = false;
     const ac = new AbortController();
+
+    const publish = (nextSrc: string, ratio: number | null) => {
+      if (!cancelled) setShown({ src: nextSrc, ratio });
+    };
+
+    if (!isMmAssetUrl(src)) {
+      const probe = new Image();
+      probe.onload = () => publish(src, ratioFromImage(probe));
+      probe.onerror = () => publish(src, null);
+      probe.src = src;
+      return () => {
+        cancelled = true;
+      };
+    }
 
     (async () => {
       // Always fetch with the full session headers (tenant/workspace + optional
@@ -55,54 +80,57 @@ export function AuthenticatedMarkdownImage({
       headers.delete('Content-Type'); // GET with no body
       const res = await fetch(src, { headers, signal: ac.signal });
       if (!res.ok) {
-        setResolvedSrc(src);
+        publish(src, null);
         return;
       }
       const blob = await res.blob();
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const ratio = imageAspectRatio(bytes);
       objectUrl = URL.createObjectURL(blob);
-      setResolvedSrc(objectUrl);
+      publish(objectUrl, ratio);
     })().catch(() => {
-      if (!ac.signal.aborted) {
-        setResolvedSrc(src);
-      }
+      if (!ac.signal.aborted) publish(src, null);
     });
 
     return () => {
+      cancelled = true;
       ac.abort();
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [src]);
 
   const layoutAsset = layoutAssetStem(src);
-  // Non-asset URLs render directly; asset URLs wait for the authenticated blob.
-  const shownSrc = isMmAssetUrl(src) ? resolvedSrc : src;
+
+  if (!shown) {
+    return (
+      <span
+        data-layout-asset={layoutAsset}
+        className={cn(
+          'my-2 block min-h-32 w-full max-w-full rounded-md bg-muted/30 text-sm italic text-muted-foreground',
+          className,
+        )}
+      >
+        <span className="flex h-full min-h-32 items-center px-3">Loading image…</span>
+      </span>
+    );
+  }
 
   return (
-    <span className="my-2 block aspect-video w-full max-w-full overflow-hidden rounded-md bg-muted/30">
-      {shownSrc ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={shownSrc}
-          alt={alt ?? ''}
-          title={title}
-          data-layout-asset={layoutAsset}
-          className={cn(
-            'h-full w-full object-contain',
-            className,
-            'data-[layout-asset-focused=true]:ring-2 data-[layout-asset-focused=true]:ring-primary',
-          )}
-          loading="lazy"
-        />
-      ) : (
-        <span
-          data-layout-asset={layoutAsset}
-          className="flex h-full items-center px-3 text-sm italic text-muted-foreground"
-        >
-          Loading image…
-        </span>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={shown.src}
+      alt={alt ?? ''}
+      title={title}
+      width={shown.ratio ? 1000 : undefined}
+      height={shown.ratio ? Math.round(1000 / shown.ratio) : undefined}
+      data-layout-asset={layoutAsset}
+      style={shown.ratio ? { aspectRatio: String(shown.ratio) } : undefined}
+      className={cn(
+        'my-2 h-auto w-full max-w-full rounded-md bg-muted/30',
+        className,
+        'data-[layout-asset-focused=true]:ring-2 data-[layout-asset-focused=true]:ring-primary',
       )}
-    </span>
+      loading="lazy"
+    />
   );
 }

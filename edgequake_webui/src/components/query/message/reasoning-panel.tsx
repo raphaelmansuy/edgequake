@@ -90,7 +90,7 @@ export const ReasoningPanel = memo(function ReasoningPanel({
         ) : null}
       </Button>
       {isExpanded ? (
-        <div className="absolute inset-x-0 top-full z-20 mt-1 rounded-xl border bg-background px-4 pb-4 shadow-md">
+        <div className="absolute inset-x-0 bottom-full z-20 mb-1 rounded-xl border bg-background px-4 pb-4 shadow-md">
           <div
             className={cn(
               "text-sm text-muted-foreground whitespace-pre-wrap",

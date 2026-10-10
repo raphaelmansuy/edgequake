@@ -132,6 +132,20 @@ export function sectionIndexForPage(sections: Token[][], page: number): number {
  * close enough for the scrollbar to feel predictable.  Once a section is
  * rendered we switch to its measured height.
  */
+function lineCount(text: string, charsPerLine: number): number {
+  if (!text) return 1;
+  return text.split('\n').reduce((total, line) => {
+    return total + Math.max(1, Math.ceil(line.length / charsPerLine));
+  }, 0);
+}
+
+function inlineImageCount(token: Token): number {
+  const nested = (token as { tokens?: Token[] }).tokens ?? [];
+  let count = token.type === 'image' ? 1 : 0;
+  for (const child of nested) count += inlineImageCount(child);
+  return count;
+}
+
 function estimateSectionHeight(tokens: Token[]): number {
   let height = 0;
 
@@ -142,14 +156,23 @@ function estimateSectionHeight(tokens: Token[]): number {
         height += depth <= 2 ? 56 : depth <= 4 ? 44 : 36;
         break;
       }
-      case 'paragraph':
-        // Rough: ~28px per line, estimate 2 lines per paragraph average.
-        height += 56;
+      case 'paragraph': {
+        const text = (token as Tokens.Paragraph).text ?? '';
+        const images = inlineImageCount(token);
+        // A figure is far taller than two lines of text. 480px is a midpoint
+        // between a landscape figure and a portrait page so the placeholder
+        // does not collapse and then explode when the section mounts.
+        height += images * 480;
+        if (images === 0) {
+          height += 12 + lineCount(text, 72) * 28;
+        }
         break;
-      case 'code':
-        // Code blocks are typically taller.
-        height += 140;
+      }
+      case 'code': {
+        const text = (token as Tokens.Code).text ?? '';
+        height += 40 + lineCount(text, 80) * 20;
         break;
+      }
       case 'table': {
         const rows = (token as Tokens.Table).rows?.length ?? 3;
         height += 48 + rows * 36; // header + rows
