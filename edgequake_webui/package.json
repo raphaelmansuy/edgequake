@@ -77,7 +77,7 @@
     "graphology-shortest-path": "2.1.0",
     "i18next": "^25.8.4",
     "i18next-browser-languagedetector": "^8.2.0",
-    "katex": "^0.16.28",
+    "katex": "^0.18.2",
     "lucide-react": "^0.562.0",
     "marked": "^17.0.1",
     "marked-highlight": "^2.2.3",
