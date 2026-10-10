@@ -3,7 +3,7 @@ title: EdgeQuake Documentation
 description: Map of the EdgeQuake documentation, with a stack overview, quick links, and one-line start commands.
 ---
 
-> **Released: v0.32.2** (schema 168) · **On main: v0.33.0 in progress** (schema 169) · Contract: [`openapi.snapshot.json`](../edgequake_webui/openapi/openapi.snapshot.json) · Ops: [Ingestion cancel and fairness](ingestion-cancel-and-fairness.md)
+> **Released: v0.33.0** (schema 169) · Contract: [`openapi.snapshot.json`](../edgequake_webui/openapi/openapi.snapshot.json) · Ops: [Ingestion cancel and fairness](ingestion-cancel-and-fairness.md)
 
 # EdgeQuake Documentation
 

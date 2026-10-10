@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.33.0] — 2026-10-10
+
+Minor: provider connections with encrypted secrets and onboarding (SPEC-163),
+explicit schema upgrades (SPEC-150), and MCP agent-id round-trip (SPEC-162).
+Schema train moves **168 → 169**. Upgrade:
+[`docs/operations/upgrade-to-0.33.0.md`](docs/operations/upgrade-to-0.33.0.md).
+
+**CD:** GHCR `edgequake`, `edgequake-frontend`, `edgequake-postgres`, and
+`edgequake-keycloak` on tag `v0.33.0`.
+
+**SPEC-001 Acc:** attested from existing
+[`publish/latest`](specs/001-benchmark/e2e/artifacts/publish/latest/)
+(`valid: true`, medical-mid, `2026-08-15T11:02:18Z`) — no fresh n=200 run.
+Connections, schema gating, and the query UI were **not** re-scored.
+
+### Added
+
+- **SPEC-163 provider connections:** Saved connections with AES-256-GCM
+  secrets (`EDGEQUAKE_SECRETS_KEY`), admin CRUD at `/api/v1/connections`, and
+  onboarding. Extract, query, and vision roles resolve through a saved
+  connection. `edgequake doctor` and live `/health` probes report what is
+  actually reachable. Spec pack: `specs/163-onboarding-provider-config/`.
+- **SPEC-150 migration lifecycle:** Schema upgrades are explicit, progressive,
+  and gated. Serve does not migrate at boot. Epoch coverage records every
+  published tag. Migration **169** adds `provider_connections` (expand-only).
+
+### Fixed
+
+- MCP agent ids round-trip across graph tools (SPEC-162).
+- Streamed answers stay on screen until the conversation refetch echoes the
+  same assistant text. Toasts sit at the top right so they do not cover Send.
+- Workspace `clippy -D warnings` on provider-connection handlers and the fake
+  LLM stub.
+
 ## [0.32.2] — 2026-10-07
 
 Patch: PDF viewer paint window, SPEC-161 MCP control surface, clippy/fmt.

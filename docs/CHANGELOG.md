@@ -7,7 +7,7 @@ description: "Product changelog for EdgeQuake releases."
 
 Product and documentation release history lives in the **root** changelog. Do not keep a second list here.
 
-→ **[CHANGELOG.md](../CHANGELOG.md)** (current product line: **v0.32.2**)
+→ **[CHANGELOG.md](../CHANGELOG.md)** (current product line: **v0.33.0**)
 
 Each release section follows the same path, from an `[Unreleased]` entry to a published image.
 

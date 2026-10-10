@@ -74,7 +74,7 @@ make stack
 `EDGEQUAKE_VERSION` defaults to `latest`. For anything long-lived, pin it:
 
 ```bash
-EDGEQUAKE_VERSION=0.32.2 docker compose -f docker-compose.quickstart.yml up -d
+EDGEQUAKE_VERSION=0.33.0 docker compose -f docker-compose.quickstart.yml up -d
 ```
 
 ## Open it
@@ -116,7 +116,7 @@ Provider guides, the role matrix and how to save keys in the database are in [Pr
 | Variable | Default | Meaning |
 |----------|---------|---------|
 | `EDGEQUAKE_VERSION` | `latest` | Image tag for the API, web UI and PostgreSQL. |
-| `EDGEQUAKE_POSTGRES_TAG` | same as version | PostgreSQL image tag, for example `0.32.2-pg16`. |
+| `EDGEQUAKE_POSTGRES_TAG` | same as version | PostgreSQL image tag, for example `0.33.0-pg16`. |
 | `EDGEQUAKE_LLM_PROVIDER` | `ollama` | LLM provider. |
 | `EDGEQUAKE_LLM_MODEL` | empty | Model. Empty means the provider default. |
 | `EDGEQUAKE_EMBEDDING_PROVIDER` / `EDGEQUAKE_EMBEDDING_MODEL` | empty | Embedding provider and model. Empty follows the LLM provider. |
@@ -165,7 +165,7 @@ PostgreSQL extension pins: pgvector 0.8.5 on all majors. Apache AGE 1.6.0 on PG1
 Pin the PostgreSQL major like this:
 
 ```bash
-EDGEQUAKE_VERSION=0.32.2 EDGEQUAKE_POSTGRES_TAG=0.32.2-pg16 \
+EDGEQUAKE_VERSION=0.33.0 EDGEQUAKE_POSTGRES_TAG=0.33.0-pg16 \
   docker compose -f docker-compose.quickstart.yml up -d
 ```
 

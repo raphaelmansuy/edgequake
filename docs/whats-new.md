@@ -3,7 +3,7 @@ title: "What's new"
 description: "Per-release highlights moved out of the README."
 ---
 
-This page lists the highlights of each release from v0.32.2 back to v0.24.0, newest first. Most entries name the schema number, so you can plan a database migration before you upgrade. For the full change list, see the [CHANGELOG](CHANGELOG.md), and for the upgrade steps, see the linked upgrade guide.
+This page lists the highlights of each release from v0.33.0 back to v0.24.0, newest first. Most entries name the schema number, so you can plan a database migration before you upgrade. For the full change list, see the [CHANGELOG](CHANGELOG.md), and for the upgrade steps, see the linked upgrade guide.
 
 ## Schema train at a glance
 
@@ -23,12 +23,22 @@ timeline
     v0.31.0 : 166
     v0.32.0 : 168
     v0.32.2 : 168 pinned
-    main for v0.33.0 : 169 in progress
+    v0.33.0 : 169
 ```
 
-The timeline shows the schema number each release leaves the database at, from v0.23.0 to the migration on `main`.
+The timeline shows the schema number each release leaves the database at, from v0.23.0 through v0.33.0.
 
 Run `edgequake migrate` when you move to a release with a higher number. The [upgrading guide](operations/upgrading.md) covers the steps.
+
+### What's new in 0.33.0
+
+Minor: saved provider connections with encrypted secrets and onboarding
+(SPEC-163), explicit progressive schema upgrades (SPEC-150), and MCP agent
+ids that round-trip (SPEC-162). Schema train moves **168 → 169**. SPEC-001
+Acc is attested from the existing 2026-08-15 medical-mid pack; connections
+and schema gating were not re-scored.
+
+Upgrade: **[upgrade-to-0.33.0.md](operations/upgrade-to-0.33.0.md)** · changelog: [CHANGELOG.md](CHANGELOG.md).
 
 ### What's new in 0.32.2
 

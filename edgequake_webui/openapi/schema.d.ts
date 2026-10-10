@@ -751,6 +751,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_connections"];
+        put?: never;
+        post: operations["create_connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["update_connection"];
+        post?: never;
+        delete: operations["delete_connection"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connections/{id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["test_stored_connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversations": {
         parameters: {
             query?: never;
@@ -2756,6 +2804,22 @@ export interface paths {
         get: operations["get_pipeline_status"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/providers/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["test_provider"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4851,6 +4915,45 @@ export interface components {
          * @enum {string}
          */
         ConnectionStatus: "connected" | "connecting" | "disconnected" | "error";
+        /**
+         * @example {
+         *       "allow_private_network": {},
+         *       "api_shape": {},
+         *       "auth_scheme": {},
+         *       "base_url": {},
+         *       "display_name": {},
+         *       "id": {},
+         *       "key_configured": {},
+         *       "key_fingerprint": {},
+         *       "last_test_error": {},
+         *       "last_test_ok": {},
+         *       "locality": {},
+         *       "slug": {},
+         *       "source": {},
+         *       "tenant_id": {},
+         *       "timeout_secs": {}
+         *     }
+         */
+        ConnectionView: {
+            allow_private_network: boolean;
+            api_shape: string;
+            auth_scheme: string;
+            base_url: string;
+            display_name: string;
+            /** Format: uuid */
+            id: string;
+            key_configured: boolean;
+            key_fingerprint?: string | null;
+            last_test_error?: string | null;
+            last_test_ok?: boolean | null;
+            locality: string;
+            slug: string;
+            source: string;
+            /** Format: uuid */
+            tenant_id?: string | null;
+            /** Format: int32 */
+            timeout_secs: number;
+        };
         /**
          * @example {
          *       "approve": {},
@@ -7681,6 +7784,7 @@ export interface components {
             pdf_storage_enabled?: boolean | null;
             providers?: null | components["schemas"]["ProvidersHealth"];
             schema?: null | components["schemas"]["SchemaHealth"];
+            security_posture?: null | components["schemas"]["SecurityPosture"];
             /** @description Service status. */
             status: string;
             /** @description Storage mode: "memory" or "postgresql". */
@@ -10940,6 +11044,61 @@ export interface components {
             uuidv7_available: boolean;
         };
         /**
+         * @example {}
+         * @enum {string}
+         */
+        ProbeErrorKind: "ok" | "unreachable" | "unauthorized" | "model_not_found" | "dim_mismatch" | "shape_mismatch" | "ssrf_denied" | "invalid_url";
+        /**
+         * @example {
+         *       "allow_private_network": {},
+         *       "api_key": {},
+         *       "auth_scheme": {},
+         *       "base_url": {},
+         *       "embedding_model": {},
+         *       "expected_dimension": {},
+         *       "model": {},
+         *       "shape": {}
+         *     }
+         */
+        ProbeRequest: {
+            allow_private_network?: boolean | null;
+            api_key?: string | null;
+            /** @description `none`, `bearer`, `x_api_key` */
+            auth_scheme?: string | null;
+            base_url?: string | null;
+            embedding_model?: string | null;
+            /** @description Expected embedding dimension; mismatch → dim_mismatch. */
+            expected_dimension?: number | null;
+            model?: string | null;
+            /** @description `openai_chat`, `anthropic_messages`, `ollama`, or a native provider id. */
+            shape: string;
+        };
+        /**
+         * @example {
+         *       "chat_ok": {},
+         *       "embed_ok": {},
+         *       "embedding_dimension": {},
+         *       "kind": {},
+         *       "latency_ms": {},
+         *       "list_ok": {},
+         *       "message": {},
+         *       "models": [],
+         *       "ok": {}
+         *     }
+         */
+        ProbeResponse: {
+            chat_ok: boolean;
+            embed_ok: boolean;
+            embedding_dimension?: number | null;
+            kind: components["schemas"]["ProbeErrorKind"];
+            /** Format: int64 */
+            latency_ms: number;
+            list_ok: boolean;
+            message: string;
+            models: string[];
+            ok: boolean;
+        };
+        /**
          * @example {
          *       "attribution_support": {},
          *       "body_fields": [],
@@ -11071,6 +11230,28 @@ export interface components {
             /** @description Relative login entrypoint (the SPA appends `org` / `redirect`). */
             login_path: string;
             slug: string;
+        };
+        /**
+         * @example {
+         *       "allow_private_network": {},
+         *       "api_key": {},
+         *       "auth_scheme": {},
+         *       "base_url": {},
+         *       "embedding_model": {},
+         *       "expected_dimension": {},
+         *       "model": {},
+         *       "shape": {}
+         *     }
+         */
+        ProviderTestBody: {
+            allow_private_network?: boolean | null;
+            api_key?: string | null;
+            auth_scheme?: string | null;
+            base_url?: string | null;
+            embedding_model?: string | null;
+            expected_dimension?: number | null;
+            model?: string | null;
+            shape: string;
         };
         /**
          * @description Combined provider health for LLM and embedding.
@@ -12835,6 +13016,25 @@ export interface components {
             total_matches: number;
         };
         /**
+         * @description Additive `/health` security signals (SPEC-163).
+         * @example {
+         *       "auth_enabled": {},
+         *       "dev_mode": {},
+         *       "jwt_secret_is_default": {},
+         *       "rate_limit_enabled": {},
+         *       "secrets_key_configured": {},
+         *       "swagger_enabled": {}
+         *     }
+         */
+        SecurityPosture: {
+            auth_enabled: boolean;
+            dev_mode: boolean;
+            jwt_secret_is_default: boolean;
+            rate_limit_enabled: boolean;
+            secrets_key_configured: boolean;
+            swagger_enabled: boolean;
+        };
+        /**
          * @description Response for server-wide defaults.
          * @example {
          *       "default_max_workspaces": {},
@@ -14368,6 +14568,31 @@ export interface components {
             task_id?: string | null;
             /** @description Track ID for batch grouping. */
             track_id: string;
+        };
+        /**
+         * @example {
+         *       "allow_private_network": {},
+         *       "api_key": {},
+         *       "api_shape": {},
+         *       "auth_scheme": {},
+         *       "base_url": {},
+         *       "display_name": {},
+         *       "locality": {},
+         *       "slug": {},
+         *       "timeout_secs": {}
+         *     }
+         */
+        UpsertConnection: {
+            allow_private_network?: boolean | null;
+            api_key?: string | null;
+            api_shape: string;
+            auth_scheme?: string | null;
+            base_url: string;
+            display_name: string;
+            locality?: string | null;
+            slug: string;
+            /** Format: int32 */
+            timeout_secs?: number | null;
         };
         /**
          * @description User information (safe for API responses).
@@ -15922,6 +16147,70 @@ export interface operations {
                 };
             };
         };
+    };
+    list_connections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: never;
+    };
+    create_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertConnection"];
+            };
+        };
+        responses: never;
+    };
+    update_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertConnection"];
+            };
+        };
+        responses: never;
+    };
+    delete_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: never;
+    };
+    test_stored_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: never;
     };
     list_conversations: {
         parameters: {
@@ -19460,6 +19749,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EnhancedPipelineStatusResponse"];
+                };
+            };
+        };
+    };
+    test_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderTestBody"];
+            };
+        };
+        responses: {
+            /** @description Probe result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProbeResponse"];
                 };
             };
         };

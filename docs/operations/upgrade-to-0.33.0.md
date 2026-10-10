@@ -9,7 +9,7 @@ description: "Upgrade notes for EdgeQuake v0.33.0: encrypted provider connection
 
 This release adds onboarding and provider configuration (SPEC-163). Provider connections are stored encrypted, health reports real probe results, and the new `edgequake doctor` command checks the setup. The schema moves to **169** with one additive table.
 
-**Product crate pin on this branch may still read 0.32.2 until the tagged cut.** Schema **169** is already on HEAD. Run `edgequake migrate` before you expect stored connections to work.
+**demo.edgequake.com:** this cut installs the 0.33.0 API and WebUI. `edgequake migrate` applies **169**. Password auth remains the demo default.
 
 ## Highlights
 

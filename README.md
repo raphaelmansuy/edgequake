@@ -5,7 +5,7 @@
 > **Graph-RAG in Rust: one binary, one Postgres, any LLM — cloud or fully local.**  
 > Turn documents into a knowledge graph and get answers with sources, not just similar chunks.
 
-[![Version](https://img.shields.io/badge/version-0.32.2-blue.svg?style=flat)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.33.0-blue.svg?style=flat)](CHANGELOG.md)
 [![CI](https://github.com/raphaelmansuy/edgequake/actions/workflows/ci.yml/badge.svg)](https://github.com/raphaelmansuy/edgequake/actions/workflows/ci.yml)
 [![Rust](https://img.shields.io/badge/rust-1.95+-orange.svg?style=flat&logo=rust)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat)](LICENSE)
@@ -52,7 +52,7 @@ curl -X POST http://localhost:8080/api/v1/query \
 | REST API / Swagger | http://localhost:8080 · `/swagger-ui` | see `make status` |
 | Health | http://localhost:8080/health | see `make status` |
 
-Pin a version: `EDGEQUAKE_VERSION=0.32.2 sh quickstart.sh`. More options: [Docker deployment options](docs/operations/docker-deployment-options.md) · [Enable login](docs/operations/auth-quickstart.md).
+Pin a version: `EDGEQUAKE_VERSION=0.33.0 sh quickstart.sh`. More options: [Docker deployment options](docs/operations/docker-deployment-options.md) · [Enable login](docs/operations/auth-quickstart.md).
 
 ---
 

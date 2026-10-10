@@ -7,7 +7,7 @@ description: Run EdgeQuake in production - deploy, configure, secure, upgrade, m
 
 This section is for people who run EdgeQuake: platform engineers, SREs, and anyone who owns a deployment. Start here to find the right page for your task.
 
-> **Current release: v0.32.2** · Schema train **169** · Contract: OpenAPI
+> **Current release: v0.33.0** · Schema train **169** · Contract: OpenAPI
 
 ## Operating rules
 

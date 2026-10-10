@@ -9,7 +9,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "0.32.2"
+    "version": "0.33.0"
   },
   "servers": [
     {
@@ -1575,6 +1575,160 @@
             }
           }
         },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/connections": {
+      "get": {
+        "tags": [
+          "Providers"
+        ],
+        "operationId": "list_connections",
+        "responses": {},
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Providers"
+        ],
+        "operationId": "create_connection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertConnection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {},
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/connections/{id}": {
+      "put": {
+        "tags": [
+          "Providers"
+        ],
+        "operationId": "update_connection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertConnection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {},
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Providers"
+        ],
+        "operationId": "delete_connection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {},
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/connections/{id}/test": {
+      "post": {
+        "tags": [
+          "Providers"
+        ],
+        "operationId": "test_stored_connection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {},
         "security": [
           {
             "bearer_auth": [],
@@ -3629,8 +3783,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "reprocess_failed",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "reprocess_failed"
       }
     },
     "/api/v1/documents/scan": {
@@ -7518,6 +7672,48 @@
         ]
       }
     },
+    "/api/v1/providers/test": {
+      "post": {
+        "tags": [
+          "Providers"
+        ],
+        "operationId": "test_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderTestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Probe result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
     "/api/v1/query": {
       "post": {
         "tags": [
@@ -9843,8 +10039,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "rebuild_embeddings"
+        "x-edgequake-v2-job-type": "rebuild_embeddings",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph": {
@@ -9917,8 +10113,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "rebuild_knowledge_graph"
+        "x-edgequake-v2-job-type": "rebuild_knowledge_graph",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/reprocess-documents": {
@@ -10592,8 +10788,8 @@
             "description": "WebSocket upgrade failed"
           }
         },
-        "x-edgequake-transport": "websocket",
-        "x-edgequake-upgrade": "RFC6455"
+        "x-edgequake-upgrade": "RFC6455",
+        "x-edgequake-transport": "websocket"
       }
     },
     "/ws/progress/{track_id}": {
@@ -12639,6 +12835,101 @@
           "error"
         ],
         "example": {}
+      },
+      "ConnectionView": {
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "display_name",
+          "api_shape",
+          "locality",
+          "base_url",
+          "auth_scheme",
+          "key_configured",
+          "timeout_secs",
+          "allow_private_network",
+          "source"
+        ],
+        "properties": {
+          "allow_private_network": {
+            "type": "boolean"
+          },
+          "api_shape": {
+            "type": "string"
+          },
+          "auth_scheme": {
+            "type": "string"
+          },
+          "base_url": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key_configured": {
+            "type": "boolean"
+          },
+          "key_fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_test_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_test_ok": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "locality": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "timeout_secs": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "example": {
+          "allow_private_network": {},
+          "api_shape": {},
+          "auth_scheme": {},
+          "base_url": {},
+          "display_name": {},
+          "id": {},
+          "key_configured": {},
+          "key_fingerprint": {},
+          "last_test_error": {},
+          "last_test_ok": {},
+          "locality": {},
+          "slug": {},
+          "source": {},
+          "tenant_id": {},
+          "timeout_secs": {}
+        }
       },
       "ConsentForm": {
         "type": "object",
@@ -18352,6 +18643,17 @@
               {
                 "$ref": "#/components/schemas/SchemaHealth",
                 "description": "Database schema health (PostgreSQL only).\n\nWHY: Mission requirement - \"verify the integrity of schema against\nthe version of edgequake running.\""
+              }
+            ]
+          },
+          "security_posture": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SecurityPosture",
+                "description": "SPEC-163 security posture (dev mode, bind, secrets, CORS)."
               }
             ]
           },
@@ -24647,6 +24949,149 @@
           "uuidv7_available": {}
         }
       },
+      "ProbeErrorKind": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "unreachable",
+          "unauthorized",
+          "model_not_found",
+          "dim_mismatch",
+          "shape_mismatch",
+          "ssrf_denied",
+          "invalid_url"
+        ],
+        "example": {}
+      },
+      "ProbeRequest": {
+        "type": "object",
+        "required": [
+          "shape"
+        ],
+        "properties": {
+          "allow_private_network": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "auth_scheme": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`none`, `bearer`, `x_api_key`"
+          },
+          "base_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "embedding_model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expected_dimension": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Expected embedding dimension; mismatch → dim_mismatch.",
+            "minimum": 0
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shape": {
+            "type": "string",
+            "description": "`openai_chat`, `anthropic_messages`, `ollama`, or a native provider id."
+          }
+        },
+        "example": {
+          "allow_private_network": {},
+          "api_key": {},
+          "auth_scheme": {},
+          "base_url": {},
+          "embedding_model": {},
+          "expected_dimension": {},
+          "model": {},
+          "shape": {}
+        }
+      },
+      "ProbeResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "kind",
+          "latency_ms",
+          "message",
+          "models",
+          "chat_ok",
+          "embed_ok",
+          "list_ok"
+        ],
+        "properties": {
+          "chat_ok": {
+            "type": "boolean"
+          },
+          "embed_ok": {
+            "type": "boolean"
+          },
+          "embedding_dimension": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ProbeErrorKind"
+          },
+          "latency_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "list_ok": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "example": {
+          "chat_ok": {},
+          "embed_ok": {},
+          "embedding_dimension": {},
+          "kind": {},
+          "latency_ms": {},
+          "list_ok": {},
+          "message": {},
+          "models": [],
+          "ok": {}
+        }
+      },
       "ProviderAttributionInfo": {
         "type": "object",
         "required": [
@@ -24921,6 +25366,70 @@
           "kind": {},
           "login_path": {},
           "slug": {}
+        }
+      },
+      "ProviderTestBody": {
+        "type": "object",
+        "required": [
+          "shape"
+        ],
+        "properties": {
+          "allow_private_network": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "auth_scheme": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "base_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "embedding_model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expected_dimension": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shape": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "allow_private_network": {},
+          "api_key": {},
+          "auth_scheme": {},
+          "base_url": {},
+          "embedding_model": {},
+          "expected_dimension": {},
+          "model": {},
+          "shape": {}
         }
       },
       "ProvidersHealth": {
@@ -28259,6 +28768,46 @@
           "total_matches": {}
         }
       },
+      "SecurityPosture": {
+        "type": "object",
+        "description": "Additive `/health` security signals (SPEC-163).",
+        "required": [
+          "auth_enabled",
+          "dev_mode",
+          "secrets_key_configured",
+          "jwt_secret_is_default",
+          "rate_limit_enabled",
+          "swagger_enabled"
+        ],
+        "properties": {
+          "auth_enabled": {
+            "type": "boolean"
+          },
+          "dev_mode": {
+            "type": "boolean"
+          },
+          "jwt_secret_is_default": {
+            "type": "boolean"
+          },
+          "rate_limit_enabled": {
+            "type": "boolean"
+          },
+          "secrets_key_configured": {
+            "type": "boolean"
+          },
+          "swagger_enabled": {
+            "type": "boolean"
+          }
+        },
+        "example": {
+          "auth_enabled": {},
+          "dev_mode": {},
+          "jwt_secret_is_default": {},
+          "rate_limit_enabled": {},
+          "secrets_key_configured": {},
+          "swagger_enabled": {}
+        }
+      },
       "ServerDefaultsResponse": {
         "type": "object",
         "description": "Response for server-wide defaults.",
@@ -31469,6 +32018,71 @@
           "message": "Document accepted for ingestion"
         }
       },
+      "UpsertConnection": {
+        "type": "object",
+        "required": [
+          "slug",
+          "display_name",
+          "api_shape",
+          "base_url"
+        ],
+        "properties": {
+          "allow_private_network": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "api_shape": {
+            "type": "string"
+          },
+          "auth_scheme": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "base_url": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "locality": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "slug": {
+            "type": "string"
+          },
+          "timeout_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        },
+        "example": {
+          "allow_private_network": {},
+          "api_key": {},
+          "api_shape": {},
+          "auth_scheme": {},
+          "base_url": {},
+          "display_name": {},
+          "locality": {},
+          "slug": {},
+          "timeout_secs": {}
+        }
+      },
       "UserInfo": {
         "type": "object",
         "description": "User information (safe for API responses).",
@@ -32273,7 +32887,7 @@
     "asyncapi": "2.6.0",
     "info": {
       "title": "EdgeQuake WebSocket Progress",
-      "version": "0.32.2",
+      "version": "0.33.0",
       "description": "Real-time pipeline and document processing progress over WebSocket (RFC 6455). SPEC-149: clients subscribe to owned track_ids on the global channel; events use a tagged {type,data} envelope."
     },
     "defaultContentType": "application/json",

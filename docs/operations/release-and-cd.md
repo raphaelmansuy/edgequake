@@ -7,11 +7,11 @@ description: "Release and continuous-delivery runbook."
 
 This runbook covers cutting a product release: the local quality gates, the tag-triggered Docker publish, and the checks after publish. Workspace crates are **not** published to crates.io. Product delivery is GHCR Docker images, built when you push a `vX.Y.Z` tag.
 
-> **Product: v0.32.2** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Product: v0.33.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
 >
-> Upgrade: [upgrade-to-0.32.2.md](upgrade-to-0.32.2.md) (PDF paint + SPEC-161 MCP; schema **168**). Earlier guides: [0.32.1](upgrade-to-0.32.1.md) and [0.32.0](upgrade-to-0.32.0.md) (schema **168**), [0.31.0](upgrade-to-0.31.0.md) (schema **166**), [0.30.0](upgrade-to-0.30.0.md) (schema **165**), [0.29.0](upgrade-to-0.29.0.md) (schema **163**), [0.28.5](upgrade-to-0.28.5.md) (schema **162**).
+> Upgrade: [upgrade-to-0.33.0.md](upgrade-to-0.33.0.md) (SPEC-163 connections; schema **169**). Earlier guides: [0.32.2](upgrade-to-0.32.2.md) and [0.32.0](upgrade-to-0.32.0.md) (schema **168**), [0.31.0](upgrade-to-0.31.0.md) (schema **166**), [0.30.0](upgrade-to-0.30.0.md) (schema **165**), [0.29.0](upgrade-to-0.29.0.md) (schema **163**), [0.28.5](upgrade-to-0.28.5.md) (schema **162**).
 >
-> **SPEC-001 Acc (this cut):** attested existing [`publish/latest`](../../specs/001-benchmark/e2e/artifacts/publish/latest/) (`valid: true`, medical-mid, `2026-08-15T11:02:18Z`) — no fresh n=200 run; **PDF UI and MCP control not re-scored**. Decision mode is unscored.
+> **SPEC-001 Acc (this cut):** attested existing [`publish/latest`](../../specs/001-benchmark/e2e/artifacts/publish/latest/) (`valid: true`, medical-mid, `2026-08-15T11:02:18Z`) — no fresh n=200 run; **connections, schema gating, and the query UI not re-scored**. Decision mode is unscored.
 >
 > **Pinned crates.io versions** (`edgequake/Cargo.toml`): `edgequake-llm` 0.10.9, `edgequake-pdf2md` 0.9.11, `edgeparse-core` 0.3.2. The Rust SDK in `sdks/rust` is version 0.4.0.
 
