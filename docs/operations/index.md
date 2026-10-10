@@ -7,13 +7,13 @@ description: Run EdgeQuake in production - deploy, configure, secure, upgrade, m
 
 This section is for people who run EdgeQuake: platform engineers, SREs, and anyone who owns a deployment. Start here to find the right page for your task.
 
-> **Product: v0.32.2 released** · HEAD ships as v0.33.0 · Schema train **169** · Contract: OpenAPI
+> **Current release: v0.32.2** · Schema train **169** · Contract: OpenAPI
 
 ## Operating rules
 
 These rules keep a deployment predictable:
 
-- **The API never migrates the database.** Run `edgequake migrate` first (see [Upgrading](upgrading.md)).
+- **The API does not change the schema at startup by default.** `EDGEQUAKE_MIGRATION_MODE` defaults to `verify`, which only checks. Run `edgequake migrate` first (see [Upgrading](upgrading.md)).
 - **Use readiness probes, not sleeps.** `/live` means the process is up. `/ready` means it can take traffic.
 - **Fail closed.** An invalid or missing workspace context returns an error, not a guess.
 - **Pin the Rust toolchain.** Local builds and CI then give the same result.
@@ -44,7 +44,7 @@ How to read it: pick the branch that matches your situation. Each leaf is a page
 | Run the full stack in one command | [Docker Quickstart](docker-quickstart.md) |
 | Pick an image option (API only, prebuilt, source) | [Docker deployment options](docker-deployment-options.md) |
 | Deploy to bare metal, Compose, Kubernetes or GCP | [Deployment](deployment.md) |
-| Look up an environment variable | [Configuration](configuration.md) and the generated [env reference](env-reference.md) |
+| Look up an environment variable | [Configuration](configuration.md) and the [env reference](env-reference.md) |
 | Choose and connect an LLM provider | [Providers](../providers/index.md) |
 | Turn on login | [Enable login](auth-quickstart.md) |
 | Harden authentication for production | [Runtime auth hardening](runtime-auth-hardening.md) |

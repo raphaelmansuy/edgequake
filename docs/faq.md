@@ -46,7 +46,7 @@ EdgeQuake is a Rust implementation inspired by [LightRAG](https://github.com/HKU
 
 **Production (the minimum to boot):**
 
-- 8+ GB RAM is enough to start the stack. It is not enough for the proven 50k or supported 100k filtered ANN shapes. See [Product limits: Pick your size](product-limits.md): at least 16 GB for up to 50k, 32 GB preferred for 100k Wave-2, and `shared_buffers` of at least 2 GB.
+- 8 GB or more of RAM is enough to start the stack. It is not enough for the proven 50k or supported 100k filtered ANN shapes. See [Product limits: Pick your size](product-limits.md): at least 16 GB for up to 50k, 32 GB preferred for 100k Wave-2, and `shared_buffers` of at least 2 GB.
 - 4 or more CPU cores
 - A model provider (OpenAI, Ollama, or another; see [Providers](providers/index.md))
 - A vision-capable model if you ingest PDFs with the default backend (see [Vision and PDF processing](#vision--pdf-processing))
@@ -55,7 +55,9 @@ EdgeQuake is a Rust implementation inspired by [LightRAG](https://github.com/HKU
 
 ### Can I run EdgeQuake without PostgreSQL?
 
-No. `DATABASE_URL` is required in every server mode. In-memory storage was removed in v0.4.0, and the server exits with code 1 if it cannot reach a database.
+No. `DATABASE_URL` is required in every server mode. In-memory storage has been removed, and the server exits at startup if it cannot reach a database.
+
+### How do I start a stack?
 
 ```bash
 make dev          # PostgreSQL, API and UI
@@ -84,7 +86,7 @@ Only for tests. The mock provider is used by `cargo test`. For real use you need
 
 ### How do I add and test a provider?
 
-Set the provider through environment variables, or in **Settings** in the UI. Provider Connections stored in the database, `POST /api/v1/providers/test` and `edgequake doctor` are part of SPEC-163. They are on `main` and ship with v0.33.0; the v0.32.2 images do not have them. See [Providers](providers/index.md) and [Upgrade to v0.33.0](operations/upgrade-to-0.33.0.md).
+Set the provider through environment variables, or in **Settings** in the UI. Provider connections stored in the database, `POST /api/v1/providers/test` and `edgequake doctor` are part of SPEC-163. They are on `main` and ship with v0.33.0; the v0.32.2 images do not have them. See [Providers](providers/index.md) and [Upgrade to v0.33.0](operations/upgrade-to-0.33.0.md).
 
 ## Cost
 
@@ -106,7 +108,7 @@ This page gives no cost-per-document figure because it varies too much. Read `GE
 1. Use a cheaper model:
 
    ```bash
-   EDGEQUAKE_DEFAULT_LLM_MODEL=gpt-5-mini
+   EDGEQUAKE_DEFAULT_LLM_MODEL=gpt-5.4-mini
    ```
 
 2. Use a local model:
@@ -116,7 +118,7 @@ This page gives no cost-per-document figure because it varies too much. Read `GE
    EDGEQUAKE_DEFAULT_LLM_MODEL=gemma4:latest
    ```
 
-3. Turn off gleaning (the second extraction pass) for a workspace or upload when recall matters less than cost.
+3. Turn off gleaning (the second extraction pass) for an upload when recall matters less than cost.
 
 ### Is there a free tier for OpenAI?
 
@@ -156,10 +158,10 @@ For several worker replicas, see [Ingestion, replicas and leases](#ingestion-can
 
 **Data plane (often the real cliff before the model):**
 
-1. **Use Wave-2 for about 100k filtered ANN.** Set `EDGEQUAKE_VECTOR_STORAGE=halfvec` and `EDGEQUAKE_HNSW_PARTIAL_BY_WORKSPACE=1` on a new database only. See [Product limits](product-limits.md).
+1. **Use Wave-2 for about 100k filtered ANN.** Set `EDGEQUAKE_HNSW_PARTIAL_BY_WORKSPACE=1` on a new database only. `halfvec` is already the default storage mode. See [Product limits](product-limits.md).
 2. **Keep the data resident.** Keep `shared_buffers` at 2 GB or more (4 GB for large labs). Without it, a cold query at 100k on the default path takes about 1.5 s.
 3. **Warm a filtered query after each deploy** so the partial HNSW index exists. Use `./scripts/wave2_warmup.sh` or `POST /api/v1/admin/ann/warmup`.
-4. **Fix filtered recall underfill.** EdgeQuake sets `hnsw.iterative_scan=relaxed_order` and `max_scan_tuples` on filtered queries only. Tune `EDGEQUAKE_HNSW_MAX_SCAN_TUPLES` and `EDGEQUAKE_HNSW_SCAN_MEM_MULTIPLIER` if needed ([SPEC-075](../specs/075-filtered-recall-gates/000-index.md)). Judge changes by filtered recall@20 (`make filtered-recall-gate`), never unfiltered-only.
+4. **Fix filtered recall underfill.** EdgeQuake sets `hnsw.iterative_scan=relaxed_order` and `max_scan_tuples` on filtered queries only. Tune `EDGEQUAKE_HNSW_MAX_SCAN_TUPLES` and `EDGEQUAKE_HNSW_SCAN_MEM_MULTIPLIER` if needed ([SPEC-075](../specs/075-filtered-recall-gates/000-index.md)). Judge changes by filtered recall@20 (`make filtered-recall-gate`), never by unfiltered results alone.
 
 **Query and model:**
 
@@ -170,7 +172,7 @@ For several worker replicas, see [Ingestion, replicas and leases](#ingestion-can
 
 ### How do I enable the supported 100k shape?
 
-Use the Turnkey greenfield recipe in [Product limits](product-limits.md):
+Use the turnkey greenfield recipe in [Product limits](product-limits.md):
 
 ```bash
 eval "$(make -s wave2-greenfield-env)"
@@ -178,51 +180,25 @@ eval "$(make -s wave2-greenfield-env)"
 ./scripts/wave2_warmup.sh <workspace_uuid>
 ```
 
-That sets `halfvec`, the workspace partial HNSW index, and optionally `EDGEQUAKE_HNSW_EF_SEARCH=240` (a concurrency tip, not a default). Do not silently flip an existing vector database. A dedicated `*_ws_*` table with HNSW only isolates dimensions; it is not the 100k concurrent path.
+That sets the workspace partial HNSW index (`halfvec` is the default storage mode), and optionally `EDGEQUAKE_HNSW_EF_SEARCH=240` (a concurrency tip, not a default). Do not silently flip an existing vector database. A dedicated `*_ws_*` table with HNSW only isolates dimensions; it is not the 100k concurrent path.
 
-### How do I enable opt-in DiskANN @150k or @250k?
+### Which vector-tuning options are opt-in, and which gate each one?
 
-See [Product limits: Opt-in DiskANN recipe](product-limits.md). Use the `pg18-vectorscale` image and a dedicated table with `USING diskann`.
+Each row below is a separate, opt-in path. Wave-2 stays the default. Judge changes by filtered recall@20, not by unfiltered results alone. Details and current floors are in [Product limits](product-limits.md).
 
-- **@150k:** `query_search_list_size` of at least 400 and `query_rescore` about half of that.
-- **@250k (SPEC-082 floor):** list at least 800, rescore about 400, and a higher-quality build (`num_neighbors=64`, `search_list_size=200`).
+| Need | Setting or command | Status |
+|------|--------------------|--------|
+| About 100k filtered ANN | Wave-2 recipe above | Supported (default) |
+| 150k to 250k dense ANN | Dedicated DiskANN on `pg18-vectorscale`: `query_search_list_size` of at least 400 at 150k (800 at 250k), `query_rescore` near half of that. Gates: `make diskann-recall-pareto`, `make diskann-rescore-smoke` | Supported, opt-in; not a silent default |
+| Filtered recall check | `make filtered-recall-gate` (SPEC-075) | Gate; does not raise the 100k floor |
+| Ranking precision | `EDGEQUAKE_ANN_EXACT_REORDER=1` (with `EDGEQUAKE_ANN_REORDER_CANDIDATE_K`, default 50); `EDGEQUAKE_SPARSE_FUSION=rrf` for codes and names. Gate: `make precision-layers-gate` (SPEC-076) | Opt-in; does not raise floors |
+| Small workspaces | Exact search at or below `EDGEQUAKE_ANN_EXACT_MAX_ROWS` (default 2000); gate `make tiny-slice-exact-gate` (SPEC-080) | Default behaviour |
+| Binary quantization | `EDGEQUAKE_BINARY_QUANTIZE` (off); study `make binary-quantize-bakeoff` (SPEC-077) | Study only |
+| Filtered-DiskANN labels | `EDGEQUAKE_FILTERED_DISKANN_LABELS` (off); study `make filtered-diskann-labels-bakeoff` (SPEC-078) | Study only; no product labels migration |
+| Chunks that have vectors | `eq_serving_chunk_presence` and `eq_serving_vector_presence` views; gate `make serving-view-check` (SPEC-081) | Admin and debug only; not the RAG ANN path |
+| Larger ladder | `make push-scale-ladder` (SPEC-082) | Archives 150k and 250k; floors rise only when the full gate is green |
 
-Wave-2 stays the default. DiskANN is opt-in only. Gates: `make diskann-recall-pareto`, `make push-scale-ladder`, `make diskann-rescore-smoke`.
-
-### How do I gate filtered recall@20?
-
-Run `make filtered-recall-gate` (SPEC-075). It archives workspace-filtered recall@20 for Wave-2 and a compare run with `iterative_scan` only. It soft-fails on product floors and does not raise the 100k Wave-2 floor. See [Product limits: Filtered recall and iterative_scan](product-limits.md).
-
-### How do I improve ranking precision without raising floors?
-
-See [Product limits: Precision tips (SPEC-076)](product-limits.md):
-
-1. **Opt-in ANN to exact reorder:** `EDGEQUAKE_ANN_EXACT_REORDER=1`, with `EDGEQUAKE_ANN_REORDER_CANDIDATE_K=50` if you like. It is off by default.
-2. **Sparse full-text plus ANN RRF tip** for codes and names: `EDGEQUAKE_SPARSE_FUSION=rrf`. The default stays sparse-first weighted.
-
-The gate is `make precision-layers-gate`. Mix and RRF do not raise the Wave-2 or DiskANN floors.
-
-### What about binary quantization for larger corpora?
-
-It is a study only (SPEC-077). `make binary-quantize-bakeoff` compares Wave-2 halfvec HNSW with pgvector `binary_quantize`, Hamming ANN and exact rerank, under a workspace filter. Wave-2 stays the default. `EDGEQUAKE_BINARY_QUANTIZE` stays off, and you should not flip it silently. See [Product limits: Binary quantize study](product-limits.md).
-
-### What about Filtered-DiskANN labels for shared tables?
-
-It is a study only (SPEC-078). `make filtered-diskann-labels-bakeoff` compares Wave-2, post-filter DiskANN, and pgvectorscale Filtered-DiskANN (`labels smallint[]` with `labels && ...`) under a workspace filter. Wave-2 stays the default, and dedicated DiskANN at 150k is unchanged. `EDGEQUAKE_FILTERED_DISKANN_LABELS` stays off, and there is no product labels migration. See [Product limits: Filtered-DiskANN labels study](product-limits.md).
-
-The mid-scale archive is `make midscale-quantize-labels` (SPEC-079). Its tips stay Not promoted unless a full concurrent gate says otherwise.
-
-### Why are tiny workspaces forced onto HNSW?
-
-They are not. SPEC-080 skips the Wave-2 `enable_seqscan=off` bias when a workspace has `EDGEQUAKE_ANN_EXACT_MAX_ROWS` rows or fewer (default 2000). The gate is `make tiny-slice-exact-gate`.
-
-### Is there a serving view for "chunks that have vectors"?
-
-Admin and debug only (SPEC-081): `eq_serving_chunk_presence` and `eq_serving_vector_presence`. It is not the RAG ANN path, and it does not unify the dual stores. Gate: `make serving-view-check`.
-
-### How do we push performance tests and floors further?
-
-`make push-scale-ladder` (SPEC-082) archives A6 Filtered-DiskANN at 150k and 250k, a Wave-2 filtered spot at 150k, and the DiskANN primary full gate at 250k. Floors rise only when the full gate is green. The Wave-2 default stays at 100k unless a separate full gate says otherwise. See [Product limits](product-limits.md).
+A dedicated table with HNSW only isolates dimensions and does not give the 100k concurrent path. Mid-scale quantize and label archives (`make midscale-quantize-labels`, SPEC-079) stay Not promoted unless a full concurrent gate says otherwise.
 
 ## Multi-tenancy
 
@@ -249,11 +225,10 @@ Yes. The provider and model are set per workspace through the API, or fall back 
 | At rest | Depends on your PostgreSQL setup |
 | In transit | Use HTTPS in front of the API |
 | Stored provider API keys | Encrypted with AES-256-GCM using `EDGEQUAKE_SECRETS_KEY` (SPEC-163, v0.33.0); shown masked and write-only |
-| Logs | API keys are not logged |
 
 ### Does EdgeQuake send data to outside services?
 
-Only to the model providers you configure. Cloud providers receive document chunks for extraction and vision. Ollama and other local servers keep data on your network. EdgeQuake sends no telemetry of its own; OpenTelemetry export is off unless you configure it.
+Only to the model providers you configure. Cloud providers receive document chunks for extraction and vision. Ollama and other local servers keep data on your network. OpenTelemetry export is off unless you set `OTEL_EXPORTER_OTLP_ENDPOINT` or `EDGEQUAKE_OTEL_ENABLED`.
 
 ### How do I secure the API?
 
@@ -261,7 +236,7 @@ Auth is on by default (SPEC-027). Protected routes need a JWT (`Authorization: B
 
 | Mode | When | Setup |
 |------|------|-------|
-| Production | Deployed stacks | Auth on (default). Set `JWT_SECRET`, bootstrap the admin, turn off demo login |
+| Production | Deployed stacks | Auth on (default). Set `JWT_SECRET`, bootstrap the admin, and set `NEXT_PUBLIC_DISABLE_DEMO_LOGIN=true` on the UI |
 | Local dev | `make dev`, Docker quickstart | `EDGEQUAKE_DEV_MODE=true` |
 
 Bootstrap the first admin before the first login:
@@ -278,9 +253,9 @@ Extra layers for production:
 
 1. A reverse proxy (nginx or Caddy) with TLS.
 2. Network isolation, such as a private subnet.
-3. Enterprise SSO through built-in OIDC with Keycloak. See [Authentication and SSO](security/authentication/index.md). An [oauth2-proxy](https://github.com/oauth2-proxy/oauth2-proxy) in front of the API is also supported.
+3. Enterprise SSO through built-in OIDC with Keycloak. See [Authentication and SSO](security/authentication/index.md). An external proxy such as [oauth2-proxy](https://github.com/oauth2-proxy/oauth2-proxy) in front of the API is also supported.
 
-Turning auth off (`EDGEQUAKE_AUTH_ENABLED=false` or `EDGEQUAKE_AUTH_DISABLED=true`) is for local development only. Run `edgequake doctor` (v0.33.0) to check the secrets key, JWT secret and bind address.
+Turning auth off (`EDGEQUAKE_AUTH_ENABLED=false` or `EDGEQUAKE_AUTH_DISABLED=true`) is for local development only. Run `edgequake doctor` to check the database, LLM provider, secrets key, JWT secret and bind address.
 
 ## Ingestion: cancel, fairness, replicas & convert → ingest
 
@@ -292,7 +267,7 @@ Details are in [Ingestion cancel and fairness](ingestion-cancel-and-fairness.md)
 POST /api/v1/tasks/{track_id}/cancel
 ```
 
-Other cancel routes: `DELETE /api/v2/workspaces/{id}/jobs/{job_id}`, the PDF cancel route, a pipeline-wide cancel, and a WebSocket message `{ "type": "cancel", "track_id": "..." }`.
+Other cancel routes: `DELETE /api/v2/workspaces/{id}/jobs/{job_id}`, the PDF cancel route (`DELETE /api/v1/documents/pdf/{pdf_id}/cancel`), a pipeline-wide cancel, and a WebSocket message `{ "type": "cancel", "track_id": "..." }`.
 
 Cancel is cooperative. Expect a short delay while the current model call stops. The UI shows "Stopping" until the document reaches `display_status=cancelled`.
 
@@ -321,7 +296,7 @@ Historical measurement (v0.24.3, small text fixtures, N=5, not repeated since): 
 
 ### What are claim and lease semantics on restart?
 
-Task rows in Postgres are the source of truth. A worker claims a task with `FOR UPDATE SKIP LOCKED` and holds a lease (`EDGEQUAKE_TASK_LEASE_TTL_SECS`, default 120 s, minimum 30 s), which it refreshes about every 60 s.
+Task rows in Postgres are the source of truth. A worker claims a task with `FOR UPDATE SKIP LOCKED` and holds a lease. The lease TTL is `EDGEQUAKE_TASK_LEASE_TTL_SECS` (default 120 s, minimum 30 s). The worker renews it every third of the TTL (about 40 s by default, with a 5 s floor).
 
 | Status at boot | Default (`EDGEQUAKE_STARTUP_AUTO_RESUME` unset or on) | With `EDGEQUAKE_STARTUP_AUTO_RESUME=0` |
 |----------------|-------|------|
@@ -335,7 +310,7 @@ Yes. Set `EDGEQUAKE_REPLICAS` to the process count. When it is above 1, `EDGEQUA
 
 ### Why does the Documents page say "Read path busy"?
 
-The documents list, document search, tenant list and workspace list share a short deadline (`EDGEQUAKE_DOCUMENTS_READ_TIMEOUT_MS`, default 2500 ms) and a small database permit. HTTP 503 `read_path_busy` means the budget ran out (`work_deadline`, `permit_wait` or `permit_closed`). The UI retries once and then offers Try again. The "Busy" pill in the header means `/health` reports `degraded`; it polls every 5 seconds. A cache miss on `?include_stats=true` returns `stats: null` rather than computing stats inside the deadline. See [Common issues, section 10](troubleshooting/common-issues.md#10-documents-page-read-path-busy).
+The documents list, document search, tenant list and workspace list share a short deadline (`EDGEQUAKE_DOCUMENTS_READ_TIMEOUT_MS`, default 2500 ms) and a small database permit. HTTP 503 `read_path_busy` means the budget ran out (`work_deadline`, `permit_wait` or `permit_closed`). Retry after a short wait. Workspace list requests with `?include_stats=true` (`GET /api/v1/tenants/{tenant_id}/workspaces`) are cache-only: on a cache miss they return `stats: null` rather than computing stats inside the deadline. See [Common issues, section 10](troubleshooting/common-issues.md#10-documents-page-read-path-busy).
 
 ### Why does PDF processing have two phases?
 
@@ -382,7 +357,7 @@ JSON uses a small `POST /api/v1/documents` body. A PDF uses multipart `POST /api
 2. **Match the proxy body size** to `EDGEQUAKE_MAX_UPLOAD_BYTES` (default 50 MiB). A proxy limit below that gives 413 on PDFs while small JSON still works.
 3. **Make the pdfium cache writable.** Compose sets `PDFIUM_AUTO_CACHE_DIR=/tmp/edgequake-pdfium-cache`. Confirm the runtime user can write there.
 4. **Reach the vision provider from the container.** For example `OLLAMA_HOST=http://host.docker.internal:11434`. If vision is down, admit succeeds and then the status stays on Converting or ends in `PDF_CONVERSION_FAILED`. That is a convert failure, not an unsupported format.
-5. **Send a workspace.** PDF requests need a workspace ID (`X-Workspace-ID`).
+5. **Send a workspace ID.** Send `X-Workspace-ID` with PDF requests. If the header is absent, the default workspace is used.
 
 See the [upload quick reference](api-reference/document-upload-quick-reference.md) and the SPEC-121 [system lens](../specs/121-pdf-docx/05-lenses/007-system-engineer.md).
 
@@ -446,11 +421,12 @@ When auth is on, add `-H "Authorization: Bearer $TOKEN"` or `-H "X-API-Key: $KEY
 ### How do I check that EdgeQuake is healthy?
 
 ```bash
-curl -s http://localhost:8080/health   # status, components, providers, schema (no auth)
+curl -s http://localhost:8080/health   # status, version, components, no auth
 curl -s http://localhost:8080/ready    # 200 when it can serve traffic; 503 with a reason otherwise
+curl -s http://localhost:8080/live     # plain liveness probe
 ```
 
-`/health` returns `healthy` or `degraded`. `/ready` also checks the schema, storage and queue pressure. `/live` is the plain liveness probe.
+`/health` returns `healthy` or `degraded`, plus component state (`kv_storage`, `vector_storage`, `graph_storage`, `llm_provider`). `/ready` also checks the schema, storage and queue pressure.
 
 ### The API exits or `/ready` returns 503 after an upgrade. Why?
 
@@ -531,7 +507,7 @@ Restart the backend afterwards.
 
 ### How does EdgeQuake choose the vision provider and model?
 
-It uses the first match in this list. Incompatible provider and model pairs are skipped with a warning.
+It uses the first level that has a value. Incompatible provider and model pairs are skipped with a warning.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
@@ -554,7 +530,7 @@ Read the chart from the top. The first level that has a value wins.
 3. The tenant default vision provider and model.
 4. The workspace chat provider and model, when you set them deliberately.
 5. Server environment: `EDGEQUAKE_VISION_PROVIDER` and `EDGEQUAKE_VISION_MODEL`, then `EDGEQUAKE_VISION_LLM_*`, then `EDGEQUAKE_DEFAULT_LLM_*`, then `EDGEQUAKE_LLM_*`.
-6. The built-in default. For the provider that is `ollama` when nothing is set.
+6. The built-in default. It uses the `ollama` provider when nothing else is set.
 
 ### Can I use a different model for vision than for text extraction?
 

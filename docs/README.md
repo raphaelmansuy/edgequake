@@ -7,7 +7,7 @@ description: Map of the EdgeQuake documentation, with a stack overview, quick li
 
 # EdgeQuake Documentation
 
-EdgeQuake is a Graph-RAG framework written in Rust. It reads your documents, builds a knowledge graph of the entities and relationships in them, and answers questions using both the graph and vector search. PostgreSQL with pgvector and Apache AGE is required; there is no in-memory mode. Auth is on by default unless `EDGEQUAKE_DEV_MODE=true`.
+EdgeQuake is a Graph-RAG framework written in Rust. It reads your documents, builds a knowledge graph of the entities and relationships in them, and answers questions using both the graph and vector search. PostgreSQL with pgvector and Apache AGE is required; there is no in-memory mode. Auth is on by default. To turn it off for local work, set `EDGEQUAKE_DEV_MODE=true` (or `EDGEQUAKE_AUTH_DISABLED=true`).
 
 This page is the map. Start with [Getting Started](getting-started/index.md) if you are new.
 
@@ -32,7 +32,7 @@ class C eqStore
 class G eqLlm
 ```
 
-Read the chart from the left. The pipeline chunks and embeds your text and extracts entities with a model. PostgreSQL holds the vectors and the graph. The query engine reads both and returns an answer with its sources.
+Read the chart from the left: the ingest pipeline stores vectors and the graph in PostgreSQL, and the query engine reads them back to answer with sources.
 
 ## Documentation index
 
@@ -133,7 +133,7 @@ SDK packages carry their own version numbers. They do not match the product vers
 | [FAQ](faq.md) | Common questions |
 | [Product limits](product-limits.md) | Sizing and scale limits |
 | [Feature registry](features.md) | Feature IDs grounded in code |
-| [Environment variable reference](operations/env-reference.md) | Generated from the registry |
+| [Environment variable reference](operations/env-reference.md) | Hand-maintained; every variable is checked against the registry |
 | [Changelog](../CHANGELOG.md) | Release history |
 
 ### Operations

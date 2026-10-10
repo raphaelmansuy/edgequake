@@ -3,11 +3,26 @@ title: 'EdgeQuake Feature Registry'
 description: "Feature registry (FEAT IDs) for EdgeQuake product capabilities."
 ---
 
-> **Product: v0.23.0** · Contract: [`openapi.snapshot.json`](../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](ingestion-cancel-and-fairness.md)
+> **Product: v0.32.2** · Contract: [`openapi.snapshot.json`](../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](ingestion-cancel-and-fairness.md)
 
 # EdgeQuake Feature Registry
 
-This file maintains traceability between code features, business requirements, and shipped releases (v0.11–v0.23).
+This registry links each FEAT ID to its code marker, spec, and the release that shipped it. Entries range from v0.8.0 to the unreleased SPEC-160 preview, and the release map below covers v0.11 to v0.23. Newer releases are described in [What's new](whats-new.md) and [CHANGELOG](../CHANGELOG.md).
+
+A FEAT ID is the stable key. Code carries an `@implements FEAT-…` marker, the spec explains the design, and the release table records when it shipped.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    A["Code marker @implements FEAT-ID"] --> B["FEAT entry in this registry"]
+    B --> C["Spec folder or issue"]
+    B --> D["Release that shipped it"]
+    B --> E["Tests and OpenAPI snapshot"]
+    D --> F["CHANGELOG section"]
+```
+
+Read the chart from the left: the code marker and this registry share one FEAT ID, so searching for it finds both.
 
 ## Index
 
@@ -100,7 +115,7 @@ Workspace-scoped `entity_types` with preset-driven and custom configuration, nor
 
 ### FEAT-010 — Configurable PDF Parser Backend
 
-**Released**: v0.10.0 (2026-04-10)  
+**Released**: v0.10.0 (2026-04-11)  
 **Status**: ✅ Completed
 
 Runtime PDF extraction backends: `vision` (VLM), `edgeparse` (CPU), `edgeparse-ocr` (EdgeParse + Tesseract), and `auto`. Resolution: per-upload → workspace default → `EDGEQUAKE_PDF_PARSER_BACKEND` env → `vision`.
@@ -309,6 +324,8 @@ Workspace- and upload-scoped `extraction_mode` (`llm` or `decision`). Decision m
 
 ## Release Map (v0.11 → v0.23)
 
+The map stops at v0.23.0. For later releases, use [What's new](whats-new.md) or the [CHANGELOG](../CHANGELOG.md).
+
 | Version | Date | Highlights |
 | ------- | ---- | ---------- |
 | 0.11.0 | 2026-04-27 | Mistral first-class provider |
@@ -327,6 +344,6 @@ Workspace- and upload-scoped `extraction_mode` (`llm` or `decision`). Decision m
 
 ---
 
-**Last Updated**: 2026-08-03  
-**Total Features (indexed)**: 25  
+**Last Updated**: 2026-10-10  
+**Total Features (indexed)**: 28  
 **OpenAPI SSOT**: [`edgequake_webui/openapi/openapi.snapshot.json`](../edgequake_webui/openapi/openapi.snapshot.json)

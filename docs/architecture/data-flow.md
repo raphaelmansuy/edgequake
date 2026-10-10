@@ -56,9 +56,11 @@ stateDiagram-v2
     Pending --> Processing : worker claims
     Processing --> Indexed : success
     Processing --> Failed : error
+    Processing --> Pending : lease lost or released
     Processing --> Cancelled : cancel request
     Pending --> Cancelled : cancel request
     Failed --> Pending : retry
+    Failed --> Cancelled : cancel request
     Indexed --> [*]
     Cancelled --> [*]
 ```
@@ -86,7 +88,7 @@ sequenceDiagram
     participant W as Worker
     participant P as PDF converter
     participant D as Database
-    C->>A: POST /documents/pdf
+    C->>A: POST /api/v1/documents/pdf
     A->>T: Enqueue PdfProcessing
     A-->>C: track_id
     W->>T: Claim task with lease
@@ -124,7 +126,7 @@ flowchart LR
     per --> fin["4. Finalize"]
 ```
 
-Read it left to right. The status values are `chunking`, `extracting`, `indexing`, and then `completed`.
+Read it left to right. The document `status` shows the current stage: `chunking`, `extracting`, `indexing`, and finally `completed`.
 
 ### Phase 1 and 2: prepare and extract
 
@@ -173,7 +175,7 @@ Read it top to bottom. New entities are merged with ones already in the graph, t
 
 ### Phase 4: finalize
 
-The worker marks the document `completed`, stores the lineage record, and clears query caches for the workspace so new content is visible. See [Lineage tracking](./lineage-tracking.md).
+The worker marks the document `completed`, stores the lineage record, and invalidates the cached workspace statistics so counts include the new content. See [Lineage tracking](./lineage-tracking.md).
 
 ---
 

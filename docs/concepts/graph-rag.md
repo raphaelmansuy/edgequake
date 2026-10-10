@@ -88,7 +88,7 @@ class C,F eqLlm
 class G eqStore
 ```
 
-Read the chart from the document. One extraction pass yields nodes and edges. Chunks, entities and relations are all embedded. Everything lands in PostgreSQL, and queries read from there.
+Read the chart from top to bottom. One extraction pass per chunk yields nodes and edges. Chunks, entities and relations are all embedded. Everything lands in PostgreSQL, and queries read from there.
 
 ## What you gain
 

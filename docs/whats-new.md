@@ -3,6 +3,33 @@ title: "What's new"
 description: "Per-release highlights moved out of the README."
 ---
 
+This page lists the highlights of each release from v0.32.2 back to v0.24.0, newest first. Most entries name the schema number, so you can plan a database migration before you upgrade. For the full change list, see the [CHANGELOG](CHANGELOG.md), and for the upgrade steps, see the linked upgrade guide.
+
+## Schema train at a glance
+
+The schema number is the highest migration applied by a release. Releases that do not add a migration keep the previous number.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+timeline
+    title Schema train by release
+    v0.23.0 : 141
+    v0.24.0 : 142
+    v0.25.0 : 148
+    v0.26.0 : 149
+    v0.29.0 : 163
+    v0.30.0 : 165
+    v0.31.0 : 166
+    v0.32.0 : 168
+    v0.32.2 : 168 pinned
+    main for v0.33.0 : 169 in progress
+```
+
+The timeline shows the schema number each release leaves the database at, from v0.23.0 to the migration on `main`.
+
+Run `edgequake migrate` when you move to a release with a higher number. The [upgrading guide](operations/upgrading.md) covers the steps.
+
 ### What's new in 0.32.2
 
 Patch: PDF viewer paints the scrollport (no blank “Page N” placeholder on
@@ -99,7 +126,7 @@ Upgrade: **[upgrade-to-0.25.0.md](operations/upgrade-to-0.25.0.md)** · changelo
 #### Database migration (read this first)
 
 **The API never migrates the database.** Schema changes are an explicit operator step.
-Current schema train: **168** (product pin **v0.32.2**).
+Current schema train: **168** (product pin **v0.32.2**). `main` is at **169** for v0.33.0, which is in progress.
 
 | Situation | What to run |
 |-----------|-------------|

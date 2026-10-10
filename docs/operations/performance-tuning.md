@@ -1,254 +1,229 @@
 ---
 title: 'Performance Tuning Guide'
-description: "Tune EdgeQuake for throughput and latency."
+description: "Tune EdgeQuake query latency, ingestion throughput and PostgreSQL. Covers the env knobs and their code defaults, and how to measure before you change them."
 ---
 
-> **Product: v0.26.5** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Product: v0.32.2** · Contract: OpenAPI · Related: [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md)
 
 # Performance Tuning Guide
 
-> **Optimizing EdgeQuake for Production Workloads**
+This guide is for operators who need faster queries or higher ingestion throughput. It shows where time goes, which settings matter, and the defaults the code uses. Measure first, then change one setting at a time.
 
-**Capacity / sizing SSOT:** [Product limits](../product-limits.md) — pick host RAM, `shared_buffers`, and Wave-2 env from the sizing table before tuning LLM knobs.
+Start with the sizing table in [Product limits](../product-limits.md). It sets RAM, `shared_buffers` and pool sizes for your workload. Claim ladders (`make ceiling-proof`) are honesty gates, not day-2 sizing.
 
-**Vector search (pgvector):** For ~100k filtered ANN, use the Wave-2 greenfield recipe (`halfvec` + `EDGEQUAKE_HNSW_PARTIAL_BY_WORKSPACE=1`). SPEC-067 applies session-local planner bias (`enable_seqscan=off`, `random_page_cost=1.1`) when a workspace partial HNSW is ready and filters are column-only. Do **not** invent ad-hoc `CREATE INDEX … ON embeddings` SQL — EdgeQuake owns `eq_*_vectors` DDL.
+## Where query time goes
 
-Claim ladders (`make ceiling-proof`) are honesty gates, not day-2 sizing.
-
----
-
-## Performance Overview
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 PERFORMANCE BOTTLENECKS                          │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Request Latency Breakdown (typical hybrid query):              │
-│                                                                   │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ Phase          │ Time    │ Bottleneck                    │   │
-│  ├──────────────────────────────────────────────────────────┤   │
-│  │ Embedding      │ 50ms    │ LLM API latency               │   │
-│  │ Vector Search  │ 20ms    │ pgvector index                │   │
-│  │ Graph Traverse │ 30ms    │ Apache AGE queries            │   │
-│  │ LLM Generation │ 2000ms  │ Token generation (dominant)   │   │
-│  │ Network/Parse  │ 50ms    │ Serialization                 │   │
-│  ├──────────────────────────────────────────────────────────┤   │
-│  │ TOTAL          │ ~2150ms │ LLM is 93% of latency         │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                   │
-│  Key Insight: Optimizing LLM selection has largest impact       │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  A["Query request<br/>POST /api/v1/query"] --> B["Embed query<br/>(embedding cache)"]
+  B --> C["Vector search<br/>(pgvector)"]
+  C --> D["Graph traversal<br/>(Apache AGE)"]
+  D --> E["Rerank<br/>(optional)"]
+  E --> F["Build context"]
+  F --> G["LLM generation"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class B,G eqLlm
+class C,D eqStore
 ```
 
----
+Each step is a tuning point. `naive` mode skips the graph step, and `bypass` skips retrieval. The caption above is the typical path for `hybrid` and `mix`.
 
-## Quick Wins
+Every query response includes a `stats` object. Use it to find the slow step:
 
-### 1. Choose the Right LLM for the Workload
+```json
+{
+  "stats": {
+    "embedding_time_ms": 45,
+    "retrieval_time_ms": 123,
+    "generation_time_ms": 2890,
+    "total_time_ms": 3058
+  }
+}
+```
 
-Latency varies by provider, hardware, and context size — **do not treat static TTFT tables as SSOT**. Measure with your models and `GET /api/v1/pipeline/queue-metrics`.
+`keyword_time_ms` appears when keyword extraction ran.
+
+## Quick wins
+
+### 1. Choose the LLM for the workload
+
+Latency depends on the provider, hardware and context size. Measure with your own models instead of relying on published numbers.
 
 | Workload | Starting point |
 | -------- | -------------- |
-| Production cloud ingest/query | `gpt-5-mini` or `gpt-4.1-nano` (cost/latency balance) |
+| Cloud ingest and query | `gpt-5-nano` (the repo's recommended model for extraction) |
 | Local dev (`make dev`, no API key) | `ollama` / `gemma4:latest` |
-| Vision PDF convert (unset env) | `ollama` / `gemma4:latest` per `vision_env.rs`; cloud: set `EDGEQUAKE_VISION_*` explicitly |
+| Vision PDF conversion, env unset | `ollama` / `gemma4:latest`; for cloud, set `EDGEQUAKE_VISION_*` explicitly |
 
-Pin models via `EDGEQUAKE_DEFAULT_LLM_MODEL` (or Makefile / `.env.example` — see [Configuration](/docs/operations/configuration/)).
+Pin the model with `EDGEQUAKE_DEFAULT_LLM_MODEL`. See [Configuration](configuration.md#provider-and-model-selection).
 
-### 2. Reduce Context Size
+### 2. Send fewer chunks per query
 
-Smaller context = faster LLM processing:
+Two per-request fields control how much context reaches the LLM:
+
+| Field | Default | Lower it to |
+| ----- | ------- | ----------- |
+| `max_results` | server `max_chunks` (20) | 5 to 8 |
+| `rerank_top_k` | 20 | 10 |
+
+Server-side engine defaults (`QueryEngineConfig`, not per-request fields): `max_chunks` 20, `max_entities` 60, `max_relationships` 60, `max_context_tokens` 30000, `graph_depth` 2.
 
 ```bash
-# Query with fewer results (per-query knobs)
 curl -X POST http://localhost:8080/api/v1/query \
+  -H "Content-Type: application/json" \
   -d '{"query": "...", "max_results": 5}'
 ```
 
-**Per-query knobs** (from `QueryRequest`):
-| Setting          | Default | Optimized |
-| ---------------- | ------- | --------- |
-| `max_results`    | 10      | 5-8       |
-| `rerank_top_k`   | 20      | 10        |
+### 3. Pick the query mode
 
-Server-side engine defaults (`QueryEngineConfig`, not per-query request fields): `max_chunks` 20, `max_entities` 60, `max_relationships` 60, `max_context_tokens` 30000, `graph_depth` 2.
+| Mode | What it retrieves | Use it for |
+| ---- | ----------------- | ---------- |
+| `naive` | Vector search over chunks only | Simple factual questions (cheapest retrieval) |
+| `local` | Entity and its neighbourhood | Questions about one entity |
+| `global` | Relationship vectors | Themes across the corpus |
+| `hybrid` | Local and global together | General questions |
+| `mix` (server default) | Vector and graph results, fused with RRF | Production default |
+| `bypass` | No retrieval; the LLM answers directly | Questions that need no corpus |
 
-### 3. Use Appropriate Query Mode
-
-| Mode     | Speed   | Use Case               |
-| -------- | ------- | ---------------------- |
-| `naive`  | Fastest | Simple factual queries |
-| `local`  | Fast    | Entity-focused queries |
-| `hybrid` | Medium  | General queries        |
-| `global` | Slow    | Overview/theme queries |
+`global` and `mix` do the most work per query. Compare them with `stats` on your data.
 
 ```bash
-# Fast mode for simple queries
+# Fast mode for simple factual questions
 curl -X POST http://localhost:8080/api/v1/query \
+  -H "Content-Type: application/json" \
   -d '{"query": "What is X?", "mode": "naive"}'
 ```
 
----
+## Document processing
 
-## Document Processing Optimization
+### Worker threads and fairness
 
-### Worker Configuration
+- `WORKER_THREADS` defaults to 4 times the CPU count (at least 4). Local providers (Ollama, LM Studio) cap it at 4.
+- `MAX_TASKS_PER_TENANT` defaults to about three quarters of the worker count. `0` removes the cap.
+- Local providers run one ingest task per tenant unless `EDGEQUAKE_ALLOW_LOCAL_HIGH_CONCURRENCY=1`.
+- If the LLM is cloud but extraction runs locally, set `EDGEQUAKE_EXTRACT_PROVIDER=ollama` so the local cap applies.
 
-```bash
-# Default: Uses all CPU cores
-# For I/O bound workloads (LLM API calls), use 2x cores
-export WORKER_THREADS=8  # For 4-core machine
-
-# Fairness cap (default ≈ ¾ of WORKER_THREADS)
-# MAX_TASKS_PER_TENANT=0  # disable limiter
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TB
+  A["Worker claims ingest task"] --> B{"Local LLM provider?"}
+  B -->|Yes| C{"EDGEQUAKE_ALLOW_LOCAL_HIGH_CONCURRENCY=1?"}
+  C -->|No| D["Cap at 1 task per tenant"]
+  C -->|Yes| E["Use MAX_TASKS_PER_TENANT"]
+  B -->|No| E
+  D --> F{"Tenant under cap?"}
+  E --> F
+  F -->|Yes| G["Run task"]
+  F -->|No| H["Wait for a free slot"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class B eqLlm
 ```
 
-### Tenant Fairness & Local LLM Clamp (SPEC-057)
+Local providers are clamped to one ingest task per tenant by default, so a single GPU is not flooded.
 
-When `MAX_TASKS_PER_TENANT` > 0, workers park excess tasks on a per-tenant semaphore — **no 500ms requeue storm**. Parked tasks release their DB claim before waiting; monitor `tenant_park_waiters` on queue-metrics.
+```bash
+# 8 workers on a 4-core machine (LLM calls are I/O-bound)
+export WORKER_THREADS=8
+# Per-tenant ingest cap (default is about 3/4 of WORKER_THREADS; 0 disables it)
+export MAX_TASKS_PER_TENANT=6
+```
 
-Local providers (`ollama`, `lmstudio`) clamp to **1 concurrent task per tenant** unless `EDGEQUAKE_ALLOW_LOCAL_HIGH_CONCURRENCY=1`. Hybrid mode: set `EDGEQUAKE_EXTRACT_PROVIDER=ollama` when LLM is cloud but extract runs locally so the clamp applies.
+### Task lease and multi-replica
 
-### Task Lease & Multi-Replica (SPEC-057 P1/P3)
+| Variable | Default | Tuning note |
+| -------- | ------- | ----------- |
+| `EDGEQUAKE_TASK_LEASE_TTL_SECS` | `120` (minimum 30) | Workers renew the lease every TTL/3, so 40 s by default (at least 5 s). A longer TTL gives slow workers more slack before another worker reclaims the task. |
+| `EDGEQUAKE_STARTUP_AUTO_RESUME` | on | Set `0` to mark interrupted tasks as Failed at boot, then reprocess them by hand. |
+| `EDGEQUAKE_REPLICAS` and `EDGEQUAKE_TASK_DELIVERY` | `1` and `local` | More than one replica needs `bridged` or `notify_only`. Boot fails otherwise. |
 
-| Variable | Tuning note |
-| -------- | ----------- |
-| `EDGEQUAKE_TASK_LEASE_TTL_SECS` | Default `120`; heartbeat every 60s |
-| `EDGEQUAKE_STARTUP_AUTO_RESUME` | Default ON (unset); set `0` for Interrupted Failed + manual Reprocess |
-| `EDGEQUAKE_REPLICAS` + `EDGEQUAKE_TASK_DELIVERY` | `REPLICAS>1` requires `bridged` or `notify_only` |
+### Timeouts for large documents
 
-### Adaptive Timeouts — LargeDocumentProfile (SPEC-038 / SPEC-057 P2)
-
-Convert and ingest run as **separate tasks** with independent timeouts derived from page count:
+Conversion and ingestion run as separate tasks. Each gets a timeout from `LargeDocumentProfile` (`edgequake-api/src/services/large_document_profile.rs`), which depends on page count:
 
 | Phase | Task type | Timeout source |
 | ----- | --------- | -------------- |
-| Convert | `pdf_processing` | `LargeDocumentProfile::convert_timeout_secs` (+ Pass B budget) |
-| Ingest | `insert` | `LargeDocumentProfile::ingest_timeout_secs` |
+| Convert | `pdf_processing` | `convert_timeout_secs` (plus the Pass B budget) |
+| Ingest | `insert` | `ingest_timeout_secs` |
 
-Override both phases with `TASK_PROCESSING_TIMEOUT_SECS` (legacy single knob). Floors/ceilings: 7200s–86400s. Upload ETA and admission routing use the same profile — see `edgequake-api/src/services/large_document_profile.rs`.
+To override both phases, set `TASK_PROCESSING_TIMEOUT_SECS` (the legacy single knob). The floor is 7200 s.
 
-### Chunk Size Tuning
+### Chunk size
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 CHUNK SIZE TRADEOFFS                             
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  
-│  Small chunks (256 tokens):                                      
-│  ✅ More precise retrieval                                       
-│  ✅ Lower token cost per extraction                              
-│  ❌ More LLM calls (slower processing)                          
-│  ❌ Less context per chunk                                       
-│                                                                   
-│  Large chunks (1024 tokens):                                     
-│  ✅ Fewer LLM calls (faster processing)                         
-│  ✅ Better context preservation                                  
-│  ❌ Less precise retrieval                                       
-│  ❌ Higher token cost per extraction                             
-│                                                                   
-│  Recommendation: 1200 tokens (default, balanced)                
-│                                                                 
-└─────────────────────────────────────────────────────────────────┘
-```
+The server default chunk size is 1200 (`chunk_size` in the pipeline config). Trade-offs:
 
-### Batch Processing / bulk ingest (SPEC-122)
+- **Smaller chunks**: more precise retrieval and lower token cost per extraction call, but more LLM calls and less context per chunk.
+- **Larger chunks**: fewer LLM calls and more context per chunk, but less precise retrieval and higher token cost per call.
 
-WebUI multi-select uses up to **3 concurrent HTTP admits** (not one multiplexed pipeline job). Text/image batch uses `POST /documents/upload/batch` (serial loop, cap 20). **PDFs** must use `POST /documents/pdf` (WebUI) or `POST /documents/pdf/batch` (API/SDK) — `/upload/batch` rejects PDFs (SPEC-123 / SPEC-132).
+Keep the default unless measurements show a clear gain.
 
-**Before raising concurrency:** measure with `GET /api/v1/pipeline/queue-metrics` and
-`make measure-bulk-ingest ARM=D N=5` (wraps
-`specs/122-implementation/scripts/measure-bulk-ingest.py`). Local Ollama stays
-near-serial unless you also raise `OLLAMA_NUM_PARALLEL` / VRAM headroom and set
-`EDGEQUAKE_ALLOW_LOCAL_HIGH_CONCURRENCY=1`.
+### Batch uploads
 
-**Regression floor (HEAD 0.26.3, Docker-like tenant=6, Mistral, N=5 small text):**
-≥ **4.0 docs/min** and `admit_s ≪ t_all` — see
-[`specs/122-implementation/measurements/20260830-summary.json`](../../specs/122-implementation/measurements/20260830-summary.json).
-This is a floor to detect regressions, not a partner marketing SLO.
+- Text and image batches use `POST /api/v1/documents/upload/batch`. A request takes up to 20 files by default (`EDGEQUAKE_MAX_BATCH_UPLOAD_FILES`, range 1 to 500).
+- PDFs use `POST /api/v1/documents/pdf` or `POST /api/v1/documents/pdf/batch`. `/documents/upload/batch` rejects PDFs.
+- The Web UI uploads up to 3 files at a time (`MAX_CONCURRENT_FILE_UPLOADS`).
 
 ```bash
-# Multi-PDF admit (API) — processing still capacity-governed (SPEC-122)
+# Upload several PDFs in one request. Processing stays capacity-governed.
 curl -X POST http://localhost:8080/api/v1/documents/pdf/batch \
   -F "files=@doc1.pdf" \
   -F "files=@doc2.pdf" \
   -F "files=@doc3.pdf"
 ```
 
-Concurrency SSOT: Makefile local/cloud profiles, `edgequake/docker/docker-compose.yml`, and [`specs/122-implementation/03-code-as-is.md`](../../specs/122-implementation/03-code-as-is.md).
+Before you raise concurrency, measure with `GET /api/v1/pipeline/queue-metrics` and `make measure-bulk-ingest ARM=D N=5`. Local Ollama stays close to serial unless you also raise Ollama's `OLLAMA_NUM_PARALLEL`, add VRAM headroom, and set `EDGEQUAKE_ALLOW_LOCAL_HIGH_CONCURRENCY=1`.
 
----
+The recorded regression floor is at least 4.0 docs/min (HEAD 0.26.3, tenant 6, Mistral, N=5 small text). It detects regressions and is not a service-level target. See [the measurement summary](../../specs/122-implementation/measurements/20260830-summary.json).
 
-## Graph UI Optimization
+## Graph UI optimization
 
-The WebUI graph viewer uses Sigma.js and Graphology. For interactive graphs,
-browser-side lifecycle mistakes are often more expensive than backend latency.
+The Web UI graph viewer uses Sigma.js and Graphology. Browser-side lifecycle mistakes often cost more than backend latency.
 
-### Current defaults
+- Prefer `force` for general exploration. Use `circular` or `hierarchical` when you need a fast, stable layout.
+- Keep layout logic in `edgequake_webui/src/lib/graph/layouts.ts` and edge-identity rules in `edgequake_webui/src/lib/graph/ids.ts`.
+- Do not recreate the Sigma instance for a plain layout switch, and do not mutate every node on hover. Sigma reducers can express the same visual state.
 
-- Layout selection reuses a single shared layout engine.
-- Large graph thresholds reduce label density and disable expensive edge events.
-- Hover and selection emphasis are handled through Sigma reducers plus
-  `scheduleRefresh()` rather than broad graph mutations.
-- Streaming graph updates append nodes and edges incrementally instead of
-  rebuilding the renderer.
+## Database optimization
 
-### Operational guidance
+### PostgreSQL settings
 
-- Prefer `force` for general exploration and `circular` or `hierarchical` when
-  you want faster deterministic rearrangement.
-- Keep edge labels off for dense graphs unless relationship text is essential.
-- If you extend the graph UI, add new layout logic only in
-  `edgequake_webui/src/lib/graph/layouts.ts`.
-- If you add new edge-identity rules, keep them centralized in
-  `edgequake_webui/src/lib/graph/ids.ts`.
-
-### Anti-patterns to avoid
-
-- Recreating the Sigma instance for a plain layout switch.
-- Long-lived animation loops that refresh the full graph continuously.
-- Re-implementing layout parameters in multiple components.
-- Mutating every node and edge on hover when a reducer can express the same
-  visual state.
-
----
-
-## Database Optimization
-
-### PostgreSQL Configuration
-
-**postgresql.conf** tuning for EdgeQuake:
+These are starting points for a dedicated database host. Adjust them to your RAM and workload.
 
 ```ini
 # Memory (adjust for your RAM)
-shared_buffers = 4GB                  # 25% of RAM
-effective_cache_size = 12GB           # 75% of RAM
-work_mem = 256MB                      # For complex queries
-maintenance_work_mem = 1GB            # For indexing
+shared_buffers = 4GB                  # about 25% of RAM
+effective_cache_size = 12GB           # about 75% of RAM
+work_mem = 64MB                       # per sort or hash, per connection: keep it modest
+maintenance_work_mem = 1GB            # index builds
 
-# Connections
-max_connections = 200                 # Match app pool size
+# Connections: must cover the pool budget (see configuration.md#database)
+max_connections = 200
 
-# Write Ahead Log
+# Write-ahead log
 wal_buffers = 64MB
 checkpoint_completion_target = 0.9
 
-# Query Planning
-random_page_cost = 1.1                # For SSD storage
-effective_io_concurrency = 200        # For SSD storage
+# Query planning (SSD)
+random_page_cost = 1.1
+effective_io_concurrency = 200
 
-# Parallel Query
+# Parallel query
 max_parallel_workers_per_gather = 4
 max_parallel_workers = 8
 ```
 
-### Connection Pooling
+`work_mem` applies to every sort or hash in every connection. A high value multiplied by many connections can exhaust RAM, so raise it only after you measure.
 
-Use PgBouncer for high-concurrency:
+### Connection pooling
+
+Each EdgeQuake process opens four role-based pools (query 16, ingest 12, queue 4, admin 2 by default). The boot-time budget check counts them against `max_connections`. See [Configuration: Database](configuration.md#database).
+
+Add PgBouncer only when the total across replicas exceeds what PostgreSQL should accept. Session pooling is the safe default. Test transaction pooling with your driver before you use it.
 
 ```ini
 # pgbouncer.ini
@@ -256,198 +231,127 @@ Use PgBouncer for high-concurrency:
 edgequake = host=localhost port=5432 dbname=edgequake
 
 [pgbouncer]
-pool_mode = transaction
+pool_mode = session
 max_client_conn = 1000
 default_pool_size = 50
 reserve_pool_size = 10
 ```
 
-**Connection String**:
-
 ```bash
-# Via PgBouncer (port 6432)
+# Connect through PgBouncer (port 6432)
 DATABASE_URL="postgresql://user:pass@localhost:6432/edgequake"
 ```
 
-### pgvector Index Tuning
+### pgvector indexes
+
+EdgeQuake owns the vector schema. Migrations create the vector tables (for example `chunk_embeddings` and `entity_embeddings`) and their HNSW indexes. Do not create ad-hoc indexes on those tables.
+
+- **Build time**: `m = 16` and `ef_construction = 128` by default. `EDGEQUAKE_HNSW_EF_CONSTRUCTION` changes the value for new indexes only.
+- **Query time**: `EDGEQUAKE_HNSW_EF_SEARCH` (1 to 1000) sets `hnsw.ef_search`. Higher values improve recall and cost latency. Measure on your data.
+- **Iterative scan**: `EDGEQUAKE_HNSW_ITERATIVE_SCAN` is `relaxed_order` by default. The other values are `strict_order` and `off`.
+- **Per-workspace partial indexes**: `EDGEQUAKE_HNSW_PARTIAL_BY_WORKSPACE` is on by default. When a workspace partial index is ready and filters use only columns, EdgeQuake sets `enable_seqscan = off` and `random_page_cost = 1.1` for that query (SPEC-067).
+
+To inspect the indexes, run:
 
 ```sql
--- Check current index
-\d embeddings
-
--- Optimal HNSW parameters for performance
-CREATE INDEX CONCURRENTLY embeddings_vector_idx
-ON embeddings
-USING hnsw (embedding vector_cosine_ops)
-WITH (m = 16, ef_construction = 64);
-
--- For higher recall (slower)
--- WITH (m = 32, ef_construction = 128);
+SELECT indexname, indexdef
+FROM pg_indexes
+WHERE indexdef ILIKE '%hnsw%';
 ```
 
-**Search Quality vs Speed**:
+### Apache AGE
 
-| ef_search | Recall | Latency |
-| --------- | ------ | ------- |
-| 40        | 95%    | 10ms    |
-| 100       | 98%    | 20ms    |
-| 200       | 99%    | 40ms    |
+EdgeQuake creates the graph per namespace. Graph names follow `eq_<namespace>_graph` (for example `eq_eq_default_graph`). Do not create labels by hand.
 
-```sql
--- Set search quality at runtime
-SET hnsw.ef_search = 100;
-```
-
-### Apache AGE Tuning
+- `EDGEQUAKE_NATIVE_GRAPH_WRITES` is `1` by default (native upserts). Set `0` to fall back to Cypher `MERGE`.
+- For ad-hoc inspection in `psql`, load AGE first:
 
 ```sql
--- Ensure graph is loaded in memory
-SET search_path = ag_catalog, "$user", public;
 LOAD 'age';
-
--- Index commonly filtered properties
-SELECT create_vlabel('edgequake_graph', 'Entity');
-SELECT create_elabel('edgequake_graph', 'Relationship');
+SET search_path = ag_catalog, "$user", public;
 ```
 
----
+## Query optimization
 
-## Query Optimization
+### Caches
 
-### Embedding Caching
+- **Query embeddings**: an in-process LRU cache of 10,000 entries with a 1-hour TTL. It is cleared on restart.
+- **Keyword and answer caches**: `EDGEQUAKE_LLM_CACHE` is the master switch (on by default). `EDGEQUAKE_KEYWORD_CACHE` and `EDGEQUAKE_QUERY_ANSWER_CACHE` override each cache.
+- **Provider prompt cache**: `EDGEQUAKE_PROMPT_CACHE` (on by default) sends cache hints to the provider. It does not skip generation.
 
-EdgeQuake caches embeddings for repeated queries:
+Turn the LLM caches off for cold benchmark runs.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 QUERY CACHING                                   │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Query "What is X?" ──→ [Embedding Cache] ──→ Vector Search     │
-│                              │                                  │
-│                    Cache Hit: 0ms                               │
-│                    Cache Miss: 50ms                             │
-│                                                                 │
-│  Cache is in-memory, cleared on restart                         │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+### Reranking
 
-### Reranking Strategy
-
-Reranking improves quality but adds latency:
+Reranking improves precision and adds a model call. It is on by default (`enable_rerank` is `true`, `rerank_top_k` is 20).
 
 ```bash
-# Disable reranking for faster queries
+# Skip reranking for the lowest latency
 curl -X POST http://localhost:8080/api/v1/query \
+  -H "Content-Type: application/json" \
   -d '{"query": "...", "enable_rerank": false}'
 
-# Or use smaller rerank set
+# Rerank fewer candidates
 curl -X POST http://localhost:8080/api/v1/query \
-  -d '{"query": "...", "rerank_top_k": 3}'
+  -H "Content-Type: application/json" \
+  -d '{"query": "...", "rerank_top_k": 5}'
 ```
 
-| Reranking | Latency | Quality  |
-| --------- | ------- | -------- |
-| Disabled  | -100ms  | Baseline |
-| Top 3     | +30ms   | +5%      |
-| Top 5     | +50ms   | +8%      |
-| Top 10    | +100ms  | +10%     |
+### Streaming
 
-### Query Prefetching
-
-For chat applications, prefetch likely follow-up queries:
-
-```javascript
-// Client-side optimization
-async function queryWithPrefetch(query) {
-  const response = await fetch("/api/v1/query", {
-    method: "POST",
-    body: JSON.stringify({ query }),
-  });
-
-  // Prefetch entity expansions in background
-  const entities = extractEntities(await response.json());
-  entities.slice(0, 3).forEach((entity) => {
-    fetch(`/api/v1/graph/entities/${entity}/neighborhood`);
-  });
-}
-```
-
----
-
-## LLM Provider Optimization
-
-### OpenAI Optimization
+For chat interfaces, stream the answer with `POST /api/v1/query/stream` to start showing text sooner:
 
 ```bash
-# Use streaming for faster time-to-first-token
 curl -X POST http://localhost:8080/api/v1/query/stream \
   -H "Accept: text/event-stream" \
+  -H "Content-Type: application/json" \
   -d '{"query": "..."}'
 ```
 
-### Ollama Optimization
+## LLM provider optimization
 
-**GPU Acceleration**:
+### Cloud providers
 
-```bash
-# Ensure CUDA is available
-nvidia-smi
+- Keep `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` below your provider's requests-per-minute limit. The cloud default is 16.
+- Set `EDGEQUAKE_LLM_TIMEOUT_SECS` for the HTTP call. Keep it at or above the chunk timeout.
 
-# Set GPU layers (more = faster, more VRAM)
-export OLLAMA_NUM_GPU=50
-ollama serve
+### Ollama
+
+- Check that the model runs on the GPU with `ollama ps`. The processor column shows CPU or GPU.
+- `OLLAMA_NUM_PARALLEL` is Ollama's own setting for parallel requests. EdgeQuake assumes about one for local providers unless you lift the cap.
+- `make dev` sets `OLLAMA_CONTEXT_LENGTH` to 8192 unless you override it.
+- Pick a quantized model build that fits your VRAM with headroom. Smaller quantizations are faster but usually less accurate.
+
+### Local versus cloud latency
+
+Measure in your environment. Local GPUs avoid network round trips, but cloud models usually give better extraction quality and throughput at scale. Use `pressure` and `tenant_park_waiters` from the queue metrics to tell fairness waits apart from slow LLM calls.
+
+## Scaling strategies
+
+### Horizontal scaling
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  U["Clients"] --> L["Load balancer"]
+  L --> A["EdgeQuake replica 1"]
+  L --> B["EdgeQuake replica 2"]
+  L --> C["EdgeQuake replica N"]
+  A --> P["PostgreSQL<br/>(pgvector + AGE)"]
+  B --> P
+  C --> P
+  P -.-> R["Read replica<br/>(DATABASE_READ_URL)"]
+%% eq-classes
+classDef eqActor fill:#FCE7F3,stroke:#EC4899,color:#500724
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class U eqActor
+class P,R eqStore
 ```
 
-**Model Quantization**:
-| Quantization | Speed   | Quality   | VRAM |
-| ------------ | ------- | --------- | ---- |
-| Q4_K_M       | Fastest | Good      | 4GB  |
-| Q5_K_M       | Fast    | Better    | 5GB  |
-| Q8_0         | Slow    | Best      | 8GB  |
-| FP16         | Slowest | Reference | 16GB |
-
-```bash
-# Download quantized model
-ollama pull gemma4:latest-q4_K_M
-```
-
-### Local vs Cloud Latency
-
-Measure in your environment. Local Ollama on GPU often wins on time-to-first-token for short contexts; cloud models win on throughput and extraction quality at scale. Use queue-metrics `pressure` and document `display_status` to spot fairness stalls vs true LLM slowness.
-
----
-
-## Scaling Strategies
-
-### Horizontal Scaling
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 HORIZONTAL ARCHITECTURE                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│                      Load Balancer                              │
-│                           │                                     │
-│         ┌─────────────────┼─────────────────┐                   │
-│         ↓                 ↓                 ↓                   │
-│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐            │
-│  │ EdgeQuake 1 │   │ EdgeQuake 2 │   │ EdgeQuake 3 │            │
-│  │  (Queries)  │   │  (Queries)  │   │ (Processing)│            │
-│  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘            │
-│         │                 │                 │                   │
-│         └─────────────────┼─────────────────┘                   │
-│                           ↓                                     │
-│                    ┌─────────────┐                              │
-│                    │ PostgreSQL  │                              │
-│                    │  + Replicas │                              │
-│                    └─────────────┘                              │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Kubernetes HPA**:
+- Run several API replicas behind a load balancer. Set `EDGEQUAKE_REPLICAS` to the highest replica count you expect.
+- More than one replica needs `EDGEQUAKE_TASK_DELIVERY=bridged` or `notify_only`.
+- All replicas share one PostgreSQL. Each process has its own pool budget, so count them together.
 
 ```yaml
 apiVersion: autoscaling/v2
@@ -470,188 +374,145 @@ spec:
           averageUtilization: 70
 ```
 
-### Read Replicas
+### Read replicas
 
-Separate read and write workloads:
+Set `DATABASE_READ_URL` to send query-pool traffic to a replica. Writes still go to `DATABASE_URL`.
 
 ```bash
-# Primary for writes
 DATABASE_URL="postgresql://user:pass@primary:5432/edgequake"
-
-# Replica for reads (queries)
 DATABASE_READ_URL="postgresql://user:pass@replica:5432/edgequake"
 ```
 
----
+## Monitoring performance
 
-## Monitoring Performance
+### Key metrics
 
-### Key Metrics
+These are example alert levels. Set your own after you record a baseline.
 
-| Metric                | Target     | Alert        |
-| --------------------- | ---------- | ------------ |
-| p50 query latency     | <2s        | >5s          |
-| p99 query latency     | <10s       | >30s         |
-| Processing throughput | >1 doc/min | <0.5 doc/min |
-| Error rate            | <1%        | >5%          |
-| DB connection pool    | <80%       | >90%         |
+| Signal | Metric or endpoint | Example alert |
+| ------ | ------------------ | ------------- |
+| Query latency | `edgequake_query_duration_seconds` (histogram) | p99 above 30 s |
+| Ingestion throughput | `edgequake_document_processing_total` | below 0.5 docs/min |
+| HTTP errors | `edgequake_http_requests_total` with `status` 5xx | above 5% of requests |
+| DB pool pressure | `EDGEQUAKE_DB_POOL_UTIL_WARN` (0.75) and `_CRITICAL` (0.90) | critical threshold |
+| Queue backlog | `GET /api/v1/pipeline/queue-metrics` (`pending_count`, `pressure`, `tenant_park_waiters`) | sustained growth |
 
-### Prometheus Queries
+### Prometheus queries
 
 ```promql
-# Query latency percentiles
+# Query latency p99
 histogram_quantile(0.99,
   rate(edgequake_query_duration_seconds_bucket[5m])
 )
 
-# Processing throughput
-rate(edgequake_documents_processed_total[5m])
+# Document processing rate
+rate(edgequake_document_processing_total[5m])
 
-# Error rate
-rate(edgequake_query_errors_total[5m])
-  / rate(edgequake_query_total[5m])
+# Share of 5xx responses
+sum(rate(edgequake_http_requests_total{status=~"5.."}[5m]))
+  / sum(rate(edgequake_http_requests_total[5m]))
 ```
 
 ### Benchmarking
 
-```bash
-# Run built-in benchmarks
-cargo bench
+`cargo bench` runs the benchmarks in `edgequake/benches/`. Run it from `edgequake/`. Record your own baselines. [`edgequake/benches/BASELINES.md`](../../edgequake/benches/BASELINES.md) lists the recorded ones.
 
-# Results:
-# vector_search          10.2 ms/iter
-# graph_traverse         5.1 ms/iter
-# entity_extraction     150 ms/iter (mock LLM)
-```
+## Performance checklist
 
----
-
-## Performance Checklist
-
-### Pre-Optimization
+### Before you tune
 
 - [ ] Baseline metrics recorded
-- [ ] Bottleneck identified (usually LLM)
+- [ ] Bottleneck identified from `stats` or queue metrics (usually the LLM)
 - [ ] Resource monitoring in place
 
-### Quick Wins
+### Quick wins
 
-- [ ] Model/provider chosen for workload (measure, don't guess from static tables)
-- [ ] Context size reduced (max_chunks ≤ 10)
-- [ ] Appropriate query mode selected
+- [ ] Model and provider chosen for the workload, after measuring
+- [ ] `max_results` and `rerank_top_k` lowered for latency
+- [ ] Query mode chosen (`naive` for simple questions)
 - [ ] Streaming enabled for chat
-- [ ] `tenant_park_waiters` understood under local LLM clamp
+- [ ] `tenant_park_waiters` understood under the local LLM cap
 
 ### Database
 
-- [ ] PostgreSQL tuned for RAM
-- [ ] pgvector HNSW index created
-- [ ] Connection pooling enabled
-- [ ] Read replicas for high load
+- [ ] PostgreSQL tuned for RAM, with `work_mem` checked against connection count
+- [ ] Vector indexes created by migrations (`pg_indexes` shows HNSW)
+- [ ] Pool budget checked against `max_connections`
+- [ ] Read replica set with `DATABASE_READ_URL`, if needed
 
 ### Scaling
 
-- [ ] Horizontal scaling configured
-- [ ] Auto-scaling rules defined
-- [ ] Load testing completed
-- [ ] Graceful degradation planned
+- [ ] `EDGEQUAKE_REPLICAS` and `EDGEQUAKE_TASK_DELIVERY` set for the replica count
+- [ ] Autoscaling rules defined
+- [ ] Load test completed
 
----
+## Troubleshooting slow queries
 
-## Troubleshooting Slow Queries
+Compare the `stats` fields from the response with the table:
 
-### Debug Query Timing
+| Symptom | Likely cause | Fix |
+| ------- | ------------ | --- |
+| Slow `embedding_time_ms` | Cold start or provider latency | Warm up with a test query; check the provider |
+| Slow `retrieval_time_ms` | Missing or unready vector index | Check `pg_indexes` for HNSW; check migrations |
+| Slow `generation_time_ms` | Large context | Lower `max_results` or `rerank_top_k` |
+| Slow `generation_time_ms` | Slow model | Switch to a faster model |
+| High latency variance | Connection pool or read path busy | Check pool utilization and `read_path_busy` (HTTP 503) |
 
-```bash
-# Add timing to response
-curl -X POST http://localhost:8080/api/v1/query \
-  -d '{"query": "...", "debug": true}'
-```
+## Ingestion pipeline tuning
 
-**Response**:
+On large documents or a slow local LLM (Ollama on one GPU, LM Studio on CPU), the default limits can cause `Timeout after 180s` failures (see [issue #194](https://github.com/raphaelmansuy/edgequake/issues/194)). These variables tune the pipeline:
 
-```json
-{
-  "answer": "...",
-  "stats": {
-    "embedding_time_ms": 45,
-    "retrieval_time_ms": 123,
-    "generation_time_ms": 2890,
-    "total_time_ms": 3058
-  }
-}
-```
+| Variable | Default | Guidance |
+| -------- | ------- | -------- |
+| `EDGEQUAKE_CHUNK_TIMEOUT_SECS` | `180` cloud, `600` local | Set it to the time one LLM call takes on your biggest chunk, times 1.5. |
+| `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` | `16` cloud, `1` local | Local providers stay at 1 unless `EDGEQUAKE_ALLOW_LOCAL_HIGH_CONCURRENCY=1`. Cloud: stay under your rate limit. |
+| `EDGEQUAKE_CHUNK_MAX_RETRIES` | `3` | Set `1` for fast failure while you debug. |
+| `EDGEQUAKE_CHUNK_RETRY_DELAY_MS` | `1000` | Raise to `5000` if the LLM needs time to warm up. |
+| `EDGEQUAKE_LLM_TIMEOUT_SECS` | `600` cloud, `900` local | Must be at least `EDGEQUAKE_CHUNK_TIMEOUT_SECS`. |
 
-### Common Causes
-
-| Symptom               | Cause           | Fix                     |
-| --------------------- | --------------- | ----------------------- |
-| Slow embedding        | Cold start      | Warm up with test query |
-| Slow retrieval        | Missing index   | Create HNSW index       |
-| Slow generation       | Large context   | Reduce max_chunks       |
-| Slow generation       | Slow model      | Switch to faster model  |
-| High latency variance | Connection pool | Enable PgBouncer        |
-
----
-
-## Ingestion Pipeline Tuning (fixes [#194](https://github.com/raphaelmansuy/edgequake/issues/194))
-
-When ingesting **large documents** or using a **slow local LLM** (Ollama on a single GPU, LM Studio
-on CPU), the default pipeline limits can cause "Timeout after 180s" failures. Use these env vars
-to tune the ingestion pipeline:
-
-### Key variables
-
-| Variable                               | Default | Guidance                                       |
-| -------------------------------------- | ------- | ---------------------------------------------- |
-| `EDGEQUAKE_CHUNK_TIMEOUT_SECS`         | `180`   | Increase to match your LLM's expected latency  |
-| `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` | `16`    | Lower on a single GPU (use 2–4 for Ollama CPU) |
-| `EDGEQUAKE_CHUNK_MAX_RETRIES`          | `3`     | Reduce to 1 for fast-fail during debugging     |
-| `EDGEQUAKE_CHUNK_RETRY_DELAY_MS`       | `1000`  | Increase to 5000 if the LLM needs warm-up time |
-| `EDGEQUAKE_LLM_TIMEOUT_SECS`           | `600`   | Must be ≥ `EDGEQUAKE_CHUNK_TIMEOUT_SECS`       |
+Local providers are clamped to one concurrent extraction unless you set `EDGEQUAKE_ALLOW_LOCAL_HIGH_CONCURRENCY=1`. Set that flag in every local profile that needs more than one.
 
 ### Profiles
 
-**GPU server (powerful) — maximize throughput:**
+**GPU server (high throughput):**
 
 ```bash
+export EDGEQUAKE_ALLOW_LOCAL_HIGH_CONCURRENCY=1
 export EDGEQUAKE_CHUNK_TIMEOUT_SECS=120
 export EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=32
 export EDGEQUAKE_LLM_TIMEOUT_SECS=600
 ```
 
-**Single-GPU workstation — balanced:**
+**Single-GPU workstation (balanced):**
 
 ```bash
+export EDGEQUAKE_ALLOW_LOCAL_HIGH_CONCURRENCY=1
 export EDGEQUAKE_CHUNK_TIMEOUT_SECS=300
 export EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=4
 export EDGEQUAKE_LLM_TIMEOUT_SECS=1800
 ```
 
-**CPU-only Ollama — conservative:**
+**CPU-only Ollama (conservative):** keep the local default of one extraction at a time.
 
 ```bash
 export EDGEQUAKE_CHUNK_TIMEOUT_SECS=600
-export EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=2
 export EDGEQUAKE_CHUNK_RETRY_DELAY_MS=5000
 export EDGEQUAKE_LLM_TIMEOUT_SECS=3600
 ```
 
-**Cloud LLM (OpenAI / Anthropic) — fast, rate-limited:**
+**Cloud LLM (OpenAI, Anthropic, Mistral; fast, rate-limited):**
 
 ```bash
 export EDGEQUAKE_CHUNK_TIMEOUT_SECS=60
-export EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=8   # stay under RPM limits
+export EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS=8   # stay under your RPM limit
 export EDGEQUAKE_LLM_TIMEOUT_SECS=120
 ```
 
-> **Rule of thumb:** Set `EDGEQUAKE_CHUNK_TIMEOUT_SECS` = (time one LLM call takes for your
-> biggest chunk) × 1.5 as a safety margin. Then set `EDGEQUAKE_LLM_TIMEOUT_SECS` ≥ that value.
+> **Rule of thumb:** set `EDGEQUAKE_CHUNK_TIMEOUT_SECS` to the time one LLM call takes on your biggest chunk, times 1.5. Then set `EDGEQUAKE_LLM_TIMEOUT_SECS` to at least that value.
 
----
+## See also
 
-## See Also
-
-- [Configuration Reference](/docs/operations/configuration/) - All settings
-- [Deployment Guide](/docs/operations/deployment/) - Production setup
-- [Monitoring Guide](/docs/operations/monitoring/) - Observability
+- [Configuration reference](configuration.md): all settings and defaults
+- [Environment variable reference](env-reference.md): one-page lookup
+- [Deployment guide](deployment.md): production setup
+- [Monitoring guide](monitoring.md): observability

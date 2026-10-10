@@ -1,6 +1,6 @@
 ---
 title: "JSONB envelope acceptance"
-description: "Decision record GAP-091-05: four typed tables keep a JSONB payload column on purpose. Lists which tables, why, what is typed elsewhere, and what operators should know."
+description: "Decision record GAP-091-05: four typed tables keep a JSONB payload column on purpose. Lists the tables, why each keeps JSONB, what stays typed, and what operators should know."
 ---
 
 # JSONB envelope acceptance (GAP-091-05)
@@ -9,31 +9,51 @@ description: "Decision record GAP-091-05: four typed tables keep a JSONB payload
 
 **Spec:** SPEC-091 IW3, [19-improvement-plan.md](../../specs/091-simplify-data-layer/19-improvement-plan.md).
 
-JSONB is a PostgreSQL column type that stores flexible JSON. A few typed tables keep one JSONB payload column instead of splitting it into many typed columns. The application defines the shape of that payload (an "envelope"). This was a deliberate choice, not unfinished work.
+JSONB is a PostgreSQL column type that stores flexible JSON. Four typed tables keep one JSONB payload column instead of splitting it into many typed columns. The application defines the shape of each payload (an "envelope"). This was a deliberate choice, not unfinished work.
 
 ## Tables that keep a JSONB payload
 
-| Table | Column | What it holds | Why JSONB stays |
-|---|---|---|---|
-| `pipeline_checkpoints` | checkpoint payload | Resume tokens and extraction snapshots | Pipeline stages change often, and few queries read inside the payload. |
-| `document_artifacts` | artifact body | Lineage and multimodal manifests and chunks | The shape varies. Reads are always by document ID. |
-| `llm_cache` | `value` | Cached LLM, keyword, and multimodal answers | Keyed by hash. The provider payload is opaque. |
-| `compensation_quarantine` | `payload` | Dead-letter records from failed merges | Same shape as the old key-value dead-letter queue, so operators keep one format. |
+| Table | JSONB column | Key | What it holds | Why JSONB stays |
+|---|---|---|---|---|
+| `pipeline_checkpoints` | `payload` | `(document_id, kind)`, where `kind` is `checkpoint` or `snapshot` | Pipeline resume data | Pipeline stages change often, and few queries read inside the payload. |
+| `document_artifacts` | `payload` | `(document_id, kind)` | Lineage, multimodal manifests, multimodal chunks, and multimodal cache entries | The shape varies by `kind`. |
+| `llm_cache` | `value` | `(cache_key, namespace)` | Cached LLM, keyword, and multimodal answers | Keyed by hash. The provider payload is opaque. |
+| `compensation_quarantine` | `payload` | `entry_id` | Dead-letter records from failed merges | The failure details vary by merge, so the payload stays flexible. |
 
-## Data that is already typed
+Migration 116 creates the first two tables, migration 124 creates `llm_cache`, and migration 107 creates `compensation_quarantine`.
 
-- Document metadata lives in `documents.metadata` (JSONB) with a relational compare-and-set (`document_shell.rs`). It is the source for list and detail views and is outside this decision.
-- Chunk text lives in `chunks.content` (text).
+## Related data outside this decision
+
+Some tables also store JSON, but they are not envelopes:
+
+- `documents.metadata` is JSONB. It is a plain column with a relational compare-and-set in `edgequake/crates/edgequake-storage/src/adapters/postgres/document_shell.rs`, so this decision does not cover it.
+- Chunk text lives in `chunks.content` (text). `content_tsv` is generated from it.
 - Chunk vectors live in `chunk_embeddings.embedding` (`halfvec`).
+
+## Decision guide
+
+Use a JSONB envelope only when a payload is read as one unit and its shape varies. Otherwise use typed columns.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    q1{"Is the field filtered, joined, or indexed?"} -- "yes" --> t1["Typed column with an index"]
+    q1 -- "no" --> q2{"Is the whole payload read as one unit?"}
+    q2 -- "no" --> t2["Typed columns"]
+    q2 -- "yes" --> q3{"Does the shape vary by kind or release?"}
+    q3 -- "no" --> t3["Typed columns"]
+    q3 -- "yes" --> env["JSONB envelope with a kind column"]
+```
 
 ## What operators should know
 
-- The console and advisor residue checks leave out checkpoints, caches, and quarantine on purpose when they check that migration 125 drained the old key-value data. Those families are transient.
-- The drain worker (`compensation_drain.rs`) reads the `payload.kind` of quarantine rows. You cannot retract a quarantined item with plain SQL. Use the applier.
+- The advisor's durable-residue check counts only families marked durable. Checkpoints and compensation quarantine are marked non-durable (`edgequake/crates/edgequake-storage/src/migration_engine/advisor/types.rs`). When migration 125 drained the old key-value data, those rows were not counted as residue. They are transient by design.
+- The drain worker (`edgequake/crates/edgequake-storage/src/compensation_drain.rs`) claims quarantine rows and processes their `payload`. A manual change to a row can race with it, so make changes through the compensation applier (`edgequake/crates/edgequake-storage/src/compensation.rs`) instead of plain SQL.
 
 ## Where it is verified
 
-- The typed stores write these tables directly: `relational_sidecar_store.rs` (in `edgequake-api`), `llm_cache.rs`, and `PgQuarantineSink`.
-- Tests: `contract_spec091_llm_cache_scope.rs` and the compensation tests in `compensation.rs`.
+- Writers: `edgequake/crates/edgequake-api/src/services/relational_sidecar_store.rs` and `edgequake/crates/edgequake-api/src/services/postgres_checkpoint_artifact_store.rs` for the checkpoint and artifact tables, `edgequake/crates/edgequake-storage/src/adapters/postgres/llm_cache.rs` for `llm_cache`, and `PgQuarantineSink` in `edgequake/crates/edgequake-storage/src/adapters/postgres/quarantine_sink.rs`.
+- Tests: `edgequake/crates/edgequake-storage/tests/contract_spec091_llm_cache_scope.rs`, and the compensation tests in `edgequake/crates/edgequake-storage/src/compensation.rs`.
 
-See also: [llm-cache-scope.md](./llm-cache-scope.md) and the legacy key-value section in [postgres.md](./postgres.md#legacy-key-value-store).
+See also: [llm-cache-scope.md](./llm-cache-scope.md), and the legacy key-value section in [postgres.md](./postgres.md#legacy-key-value-store).

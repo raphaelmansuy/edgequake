@@ -16,7 +16,7 @@ Terms used below:
 - **CI** is a 95% confidence interval. If the CI for the difference includes 0, the result is a tie.
 - **Cold** means no LLM cache. **Warm** means the LLM and embedding caches are on for both systems.
 
-> Publish Acc SSOT. GraphRAG-Bench medical-mid. Run with `make bench`. Last full-scale refresh: 2026-08-16.
+> Publish Acc SSOT: GraphRAG-Bench medical-mid, run with `make bench`. `publish/latest/` is the archive `medical-mid-20260815T110218Z` (2026-08-15). The medical-full peer (n=2062) ran on 2026-08-16. It is a labeled scale check, not the SSOT.
 
 The test is fair and dual-system: same corpus, same questions, Mix mode, Mistral Small plus `mistral-embed`, and the official `generation_eval`. It is **not** the UltraDomain win-rate test, and it is **not** the paper's Table 2 (GPT-4o-mini plus BGE).
 
@@ -53,23 +53,6 @@ Protocol: [SPEC-001 index](../../specs/001-benchmark/000-index.md). Business bri
 **Do not claim** “EdgeQuake beats LightRAG” on **Acc**, Acc mid Parity, or SOTA on GraphRAG-Bench. Acc Beat / Acc Equal mid remain **STOP** until [080 promote checklist](../../specs/001-benchmark/001-edgquake-improvements/080-phase-g-promote-checklist.md) is green (`ctx_rel ≥ 0.50`, Fact ER ≥ LR−0.03, medical-full). Acc ingest pin is **chunk 1200/100** (LR parity).
 
 **Allowed warm claim:** under matched LLM+embed cache, warm Mix wall **EdgeQuake beats LightRAG** (82 vs 993 ms). Fair cold engine truth stays `C1COLD_v1`.
-
----
-
-## Acc-law medical-full (n=2062, labeled scale — not Acc SSOT)
-
-Best known Acc pack (E2-occ 086, chunk 1200/100, GWC off, pool=mix, query-only on `23b09c73-…`).
-
-| Field | Value |
-|-------|--------|
-| Peer | [`ACC_E2OCC_086_MEDICAL_FULL_v1`](../../specs/001-benchmark/e2e/artifacts/publish/peers/ACC_E2OCC_086_MEDICAL_FULL_v1/) |
-| Archive | [`medical-full-20260816T012004Z`](../../specs/001-benchmark/e2e/artifacts/history/medical-full-20260816T012004Z/) |
-| Ingest pin | chunk **1200/100** (LR CHUNK_SIZE parity) |
-| Acc | EQ **0.786** · LR **0.786** (point tie; bootstrap paired n=16 underpowered) |
-| ctx_rel | EQ 0.427 · LR 0.485 — still **below 0.50** |
-| overall ER / Fact ER | 0.927 / **0.914** vs LR 0.947 / 0.945 |
-| vs P0 full (Jul 22) | Acc 0.724 → **0.786** (closed 6pp scale gap) |
-| `can_claim_beats_lightrag` | `false` |
 
 ---
 
@@ -126,6 +109,23 @@ Best known Acc pack (E2-occ 086, chunk 1200/100, GWC off, pool=mix, query-only o
 | Law | Workspace Mix inject reuses engine embed LRU ([064](../../specs/001-benchmark/001-edgquake-improvements/064-product-ttft-cache-batch-embed.md)) |
 
 Prior Acc packs: [`medical-mid-20260815T090820Z`](../../specs/001-benchmark/e2e/artifacts/history/medical-mid-20260815T090820Z/) (EQ 0.805 / LR 0.798) · [`medical-mid-20260812T004216Z`](../../specs/001-benchmark/e2e/artifacts/history/medical-mid-20260812T004216Z/) (EQ 0.783 / LR 0.774).
+
+---
+
+## Acc-law medical-full (n=2062, labeled scale, not Acc SSOT)
+
+Best known Acc pack (E2-occ 086, chunk 1200/100, GWC off, pool=mix, query-only on `23b09c73-…`).
+
+| Field | Value |
+|-------|--------|
+| Peer | [`ACC_E2OCC_086_MEDICAL_FULL_v1`](../../specs/001-benchmark/e2e/artifacts/publish/peers/ACC_E2OCC_086_MEDICAL_FULL_v1/) |
+| Archive | [`medical-full-20260816T012004Z`](../../specs/001-benchmark/e2e/artifacts/history/medical-full-20260816T012004Z/) |
+| Ingest pin | chunk **1200/100** (LR CHUNK_SIZE parity) |
+| Acc | EQ **0.786** · LR **0.786** (point tie; bootstrap paired n=16 underpowered) |
+| ctx_rel | EQ 0.427 · LR 0.485 — still **below 0.50** |
+| overall ER / Fact ER | 0.927 / **0.914** vs LR 0.947 / 0.945 |
+| vs P0 full (Jul 22) | Acc 0.724 → **0.786** (closed 6pp scale gap) |
+| `can_claim_beats_lightrag` | `false` |
 
 ---
 

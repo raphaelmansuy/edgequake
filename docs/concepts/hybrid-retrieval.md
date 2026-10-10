@@ -58,7 +58,12 @@ Set `mode` in the request. If you leave it out, EdgeQuake uses `mix`.
 | `mix` | Local, global and naive, blended by weights or rank fusion | General use (default) |
 | `bypass` | Nothing; the model answers alone | Testing and debugging |
 
-Two points differ from upstream LightRAG. EdgeQuake `hybrid` also includes the naive chunk arm. EdgeQuake `mix` blends the arms by weighted score, not round-robin. Always set `mode` explicitly when you compare systems.
+Two points differ from LightRAG:
+
+- EdgeQuake `hybrid` also includes the naive chunk arm. LightRAG's `hybrid` uses only local and global.
+- EdgeQuake `mix` blends its arms by weight or by reciprocal rank fusion (RRF). It does not interleave them round-robin. `hybrid` does.
+
+Always set `mode` explicitly when you compare systems.
 
 ### Choose a mode
 
@@ -74,7 +79,7 @@ flowchart TD
     D -->|yes| GL["global"]
     D -->|no| E{"Simple fact?"}
     E -->|yes| NA["naive"]
-    E -->|no| MX["mix or hybrid"]
+    E -->|no| MX["mix (default) or hybrid"]
 ```
 
 Read the chart from the top and take the first branch that fits. When unsure, use `mix`.
@@ -107,7 +112,7 @@ curl -s -X POST http://localhost:8080/api/v1/query \
   -d '{"query": "Tell me about the research"}' | jq -r .answer
 ```
 
-Use port 8090 with `make dev`. The reply has `answer`, `mode`, `sources`, `stats`, and more. Other request fields include `include_references`, `include_subgraph`, `max_results`, `enable_rerank`, `conversation_history` and `document_filter`. See [Query modes](../deep-dives/query-modes.md) and the [REST API](../api-reference/rest-api.md).
+The examples use port 8080. With `make dev`, the API listens on port 8090, or on the next free port if 8090 is busy. The reply has `answer`, `mode`, `sources`, `stats`, and more. Other request fields include `include_references`, `include_subgraph`, `max_results`, `enable_rerank`, `conversation_history` and `document_filter`. See [Query modes](../deep-dives/query-modes.md) and the [REST API](../api-reference/rest-api.md).
 
 ## Learn more
 

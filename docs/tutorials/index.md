@@ -3,20 +3,20 @@ title: Tutorials
 description: Step-by-step guides for EdgeQuake, from your first Graph-RAG app to multi-tenant deployment and migration from LightRAG.
 ---
 
-These tutorials teach you EdgeQuake by doing. Each one has numbered steps, copy-paste commands and the output you should expect.
+These tutorials teach you EdgeQuake by doing. Each one has numbered steps, copy-paste commands and the output you should expect. Pick the path that matches your goal, then follow it in order.
 
-> Product release: v0.32.2. Commands target the REST API under `/api/v1`. The OpenAPI contract at `/swagger-ui` is the source of truth for every field.
+> **Product release:** v0.32.2. Commands target the REST API under `/api/v1`. The OpenAPI contract at `/swagger-ui` is the source of truth for every field.
 
 ## Before you start
 
 You need a running EdgeQuake server. The quickest way is the Docker quickstart in [Getting started](../getting-started/index.md). You also need a chat model and an embedding model; see [Configure LLM providers](../providers/index.md).
 
-All curl examples assume `curl` and `jq` are installed. They share these shell variables:
+All curl examples assume `curl` and `jq` are installed. They use the `EQ_API` shell variable. Set it to the address of your install:
 
-| Variable | Docker quickstart | `make dev` |
-|----------|-------------------|------------|
-| `EQ_API` | `http://localhost:8080` | `http://localhost:8090` (run `make status` to see the real port) |
-| Web UI | `http://localhost:3000` | `http://localhost:3010` |
+| Install | `EQ_API` | Web UI |
+|---------|----------|--------|
+| Docker quickstart | `http://localhost:8080` | `http://localhost:3000` |
+| `make dev` | `http://localhost:8090` (run `make status` to see the real port) | `http://localhost:3010` |
 
 ## Pick a path
 
@@ -39,7 +39,7 @@ classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
 class J eqStore
 ```
 
-Read it top to bottom. An arrow means "read this one next if you want to go deeper".
+Read it top to bottom. An arrow means "read this one next if you want to go deeper". Users coming from LightRAG can skip straight to the migration guide.
 
 | Tutorial | You will learn | Time |
 |----------|----------------|------|

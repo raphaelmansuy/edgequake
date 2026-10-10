@@ -3,13 +3,13 @@ title: Troubleshooting guide
 description: Symptom, cause and fix tables for the problems operators hit most, checked against the error messages and exit codes in the EdgeQuake code.
 ---
 
-This page helps you find out why EdgeQuake does not start, does not ingest, or does not answer. Find your symptom, read the cause, and apply the fix. Every message in quotes comes from the code.
+This guide helps you find out why EdgeQuake does not start, does not ingest, or does not answer. Find your symptom in the tables, read the likely cause, and apply the fix. Quoted messages are the exact text that EdgeQuake, Axum or PostgreSQL returns, so you can search the logs for them.
 
-> Product release: v0.32.2. Sections 5.2, 11 and the `edgequake doctor` command describe SPEC-163, which ships in v0.33.0. Ingestion internals: [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md).
+> Product release: v0.32.2 (see `VERSION`). Sections 5.2, 11 and the `edgequake doctor` command describe SPEC-163. That work is in the source tree but not yet in a released changelog entry, so this guide marks it v0.33.0. Ingestion internals: [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md).
 
 ## Start here
 
-Run these four checks first. They take a minute and narrow most problems to one area.
+Run these four checks first. They narrow most problems to one area.
 
 ```bash
 edgequake doctor                         # checks env settings (v0.33.0+)
@@ -25,7 +25,7 @@ pg_isready -h localhost -p 5432
 | `/ready` | 200 when the server can take traffic. 503 while a migration or index is pending, or when queue pressure is high. |
 | `pg_isready` | Whether PostgreSQL answers at all. |
 
-The next diagram shows where to go from the first symptom.
+Read the diagram from the top. The first check that fails tells you which section to open.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
@@ -47,8 +47,6 @@ class E eqLlm
 class F eqBad
 ```
 
-Read it from the top. Each leaf names the section of this page that covers that case.
-
 ## Diagnostic commands
 
 ```bash
@@ -56,7 +54,7 @@ Read it from the top. Each leaf names the section of this page that covers that 
 tail -f /tmp/edgequake-backend.log
 tail -f /tmp/edgequake-frontend.log
 
-# Docker deployments
+# Docker deployments (services: edgequake, postgres)
 docker compose logs -f edgequake
 docker compose logs -f postgres
 
@@ -74,7 +72,7 @@ SELECT id, title, error_message FROM documents WHERE status = 'failed';
 
 ## 1. Document upload errors
 
-EdgeQuake has three upload routes. Most upload errors come from sending the wrong body to the wrong route.
+EdgeQuake has several upload routes, one per file type. Most upload errors come from sending the file to the wrong route.
 
 | Upload type | Endpoint | Content-Type | Body |
 |-------------|----------|--------------|------|
@@ -113,6 +111,8 @@ curl -X POST http://localhost:8080/api/v1/documents/pdf \
 
 The server stops early on purpose when something unsafe or missing would give you a half-working system. Use the message or exit code to find the row.
 
+Exit codes 78 and 75 come from the migration gate. For exit code 1, read the last log line to find the cause.
+
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
 %% eq-theme:v1
@@ -132,8 +132,6 @@ class F eqStore
 class G,I eqBad
 ```
 
-Exit 78 and 75 are the two codes that orchestrators can act on. Exit 1 has several causes, so read the last log line.
-
 | Message or exit code | Cause | Fix |
 |----------------------|-------|-----|
 | "DATABASE_URL is required; start PostgreSQL and rerun make dev or make dev-auth" | `DATABASE_URL` is not set. There is no in-memory mode. | Set it, or run `make dev`. Check with `psql "$DATABASE_URL" -c "SELECT 1"` |
@@ -146,7 +144,7 @@ Exit 78 and 75 are the two codes that orchestrators can act on. Exit 1 has sever
 | "EDGEQUAKE_CORS_ORIGINS is required in production ..." | Non-local database and no allowed web origins | Set `EDGEQUAKE_CORS_ORIGINS` to your web origin list |
 | "invalid EDGEQUAKE_DECISION_* setting" | A decision-extraction variable has a bad value | Fix the variable named in the error |
 | Boot fails after setting `EDGEQUAKE_REPLICAS` above 1 | Task delivery is `local`, which is single-process | See [3.4](#34-multi-replica-boot-failure-edgequake_replicas1) |
-| Boot continues but warns | A soft posture check failed | Fix the warning, or set `EDGEQUAKE_STRICT_STARTUP=1` so warnings stop the boot |
+| Boot continues but warns | A soft posture check failed | Fix the warning. Set `EDGEQUAKE_STRICT_STARTUP=1` to stop the boot on insecure production settings |
 
 The full list of startup checks is in the [security guide](../security/best-practices.md#startup-posture-checks). Local database hosts are `localhost`, `127.0.0.1`, `::1` and `host.docker.internal`.
 
@@ -154,12 +152,18 @@ The full list of startup checks is in the [security guide](../security/best-prac
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| "Extension 'vector' not found" | pgvector is not installed in this database | As a superuser run `CREATE EXTENSION IF NOT EXISTS vector;`, or use the project's Docker image |
-| "AGE extension not loaded" | Apache AGE is not loaded in the session | Use the project's PostgreSQL image. Manual check: `LOAD 'age'; SET search_path = ag_catalog, "$user", public;` |
+| `extension "vector" is not available` (PostgreSQL) | pgvector is not installed on this server | Use the project's PostgreSQL image, or install pgvector. Then run `CREATE EXTENSION IF NOT EXISTS vector;` as a superuser |
+| Graph queries fail with `ag_catalog` or AGE errors | Apache AGE is not loaded in the session | Use the project's PostgreSQL image. In a session, run `LOAD 'age'; SET search_path = ag_catalog, "$user", public;` |
 
 ### Docker is down
 
-`make db-start` reuses a reachable EdgeQuake PostgreSQL (ports 5432 to 5449). If Docker is down and none is reachable, it stops with instructions. It does not start Docker for you. Start Docker (or OrbStack) yourself, wait for `docker info` to work, and run `make dev`. To skip Docker, point `DATABASE_URL` at an existing PostgreSQL.
+`make db-start` uses PostgreSQL on port 5432. If another PostgreSQL holds that port, it picks a free port from 5433 to 5449. When Docker is down and no database is reachable, it stops with instructions. It does not start Docker for you.
+
+1. Start Docker (or OrbStack) yourself.
+2. Wait until `docker info` works.
+3. Run `make dev`.
+
+To skip Docker, point `DATABASE_URL` at an existing PostgreSQL.
 
 ## 3. Documents stay in Processing
 
@@ -189,16 +193,16 @@ curl -X POST "http://localhost:8080/api/v1/documents/reprocess" \
 
 ### 3.1 Interrupted / Reprocess
 
-A document shows Failed with "Interrupted — use Reprocess". A task was in `Processing` when the server restarted or its lease expired.
+A document shows Failed with the message "Interrupted by server restart — use Reprocess to resume" or "Interrupted — task lease expired". The task was in `Processing` when the server restarted or its lease expired.
 
-When `EDGEQUAKE_STARTUP_AUTO_RESUME` is unset, the server moves stale `Processing` tasks back to `Pending` at boot. Set it to `0`, `false`, `off` or `no` to opt out. Then those tasks become Failed with the Interrupted message. Pending tasks always survive a restart. Reprocess with the command above.
+When `EDGEQUAKE_STARTUP_AUTO_RESUME` is unset, the server moves stale `Processing` tasks back to `Pending` at boot. Set it to `0`, `false`, `off` or `no` to opt out. Then those tasks become Failed with the Interrupted message. Reprocess them with the command above.
 
 ### 3.2 Lease stuck in Processing
 
 A task stays `Processing` with no progress. A worker died without releasing its lease, or an LLM call ran past the lease.
 
 ```bash
-curl -s http://localhost:8080/api/v1/pipeline/queue-metrics | jq '{pending, processing, pressure, store_contention}'
+curl -s http://localhost:8080/api/v1/pipeline/queue-metrics | jq '{pending_count, processing_count, pressure, store_contention}'
 grep -i "lease expired\|heartbeat lost\|Interrupted" /tmp/edgequake-backend.log | tail -20
 ```
 
@@ -237,6 +241,8 @@ A PDF is parsed by one of these backends. Pick it with the form field `pdf_parse
 | `auto` | none | Let EdgeQuake choose |
 
 An unknown value is ignored, so check the spelling. These form fields are accepted on the PDF routes: `enable_vision`, `vision_provider`, `vision_model`, `vision_reasoning_effort`, `title`, `metadata`, `track_id`, `pdf_parser_backend`, `vision_extract_images`, `vision_extract_charts`, `vision_extract_figures` and the four `vision_*_system_prompt` fields.
+
+Start with the symptom. Empty output usually means a scanned PDF, so retry with vision.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
@@ -303,10 +309,10 @@ Very complex tables (many levels of merged cells) can still be imperfect. If you
 The most common cause of vision timeouts is a model that the provider cannot serve. An example is `EDGEQUAKE_VISION_MODEL=gpt-4.1-nano` with `EDGEQUAKE_VISION_PROVIDER=ollama`. It happens when a Makefile or compose file sets the model and `.env` sets the provider. Check the effective settings:
 
 ```bash
-curl -s http://localhost:8080/api/v1/config/effective | jq '.areas[] | select(.name == "Vision")'
+curl -s http://localhost:8080/api/v1/config/effective | jq '.vision | {has_mismatch, mismatch_description}'
 ```
 
-If `has_mismatch` is `true`, `mismatch_description` says how to fix it. The Settings page shows the same data under Configuration Explainability. EdgeQuake skips an incompatible model at run time and logs a warning, but you should fix the variables.
+If `has_mismatch` is `true`, `mismatch_description` says how to fix it. The Settings page shows the same data under Configuration Explainability. EdgeQuake skips an incompatible model from the environment and logs a warning, but you should fix the variables.
 
 | Fix | Command |
 |-----|---------|
@@ -354,7 +360,7 @@ The answer has a `kind`. Use it to pick the fix.
 | `model_not_found` | The model is not on the server | Use a model from the list the test returns |
 | `dim_mismatch` | The embedding size differs from the expected size | Use the same embedding model as the workspace |
 
-The test adds `/v1/models` and `/v1/chat/completions` to your base URL itself. The chat client used at run time takes the base URL as given and adds only `/chat/completions`. Save a Connection with a base URL that ends in `/v1` for OpenAI-compatible servers. A URL without `/v1` can pass the test and then fail in use. This comes from reading the code and was not run against a live server. See [OpenAI-compatible](../providers/openai-compatible.md).
+The test adds `/v1/models`, `/v1/chat/completions` and `/v1/embeddings` to your base URL itself. The chat client used at run time takes the base URL as given and adds only `/chat/completions`. So save a Connection with a base URL that ends in `/v1` for OpenAI-compatible servers. A URL without `/v1` can pass the test and then fail in use. See [OpenAI-compatible](../providers/openai-compatible.md).
 
 ### 5.3 Saving a Connection fails
 
@@ -372,10 +378,10 @@ Role and Connection resolution falls back silently. A bad `connection_id`, a mis
 
 1. Check the server log for the provider name actually used.
 2. Re-save the Connection with its key, so the key is encrypted with the current secrets key.
-3. Remember that only the `extract` and `query` roles use `connection_id` today. See [Roles](../providers/roles.md).
+3. Check the role's `connection_id` in the workspace settings. See [Roles](../providers/roles.md) for the roles that read it.
 4. A Connection with an Ollama shape still reads `OLLAMA_HOST` at run time, not its `base_url`.
 
-Keys are never returned by the API. If you lose the secrets key, you must enter the provider keys again. `quickstart.sh` creates a new `EDGEQUAKE_SECRETS_KEY` on each run unless you export one, so keep yours in your environment or `.env` file.
+Keys are never returned by the API. If you lose the secrets key, you must enter the provider keys again. `quickstart.sh` generates `EDGEQUAKE_SECRETS_KEY` when it is not set, so export your own key or keep it in your `.env` file.
 
 ## 6. Slow answers and timeouts
 
@@ -392,7 +398,7 @@ Turn on debug logs (`RUST_LOG="edgequake=debug"`) and look at the timing in the 
 
 ### 6.2 "Timeout after 180s (attempt X/3)" during ingestion
 
-The per-chunk limit ended before your model finished. There are two layers. The first fires first.
+The per-chunk limit ended before your model finished. There are two layers. The first one fires first.
 
 | Layer | Variable | Default | Notes |
 |-------|----------|---------|-------|
@@ -417,14 +423,14 @@ time curl -s http://localhost:11434/api/chat \
   -d '{"model":"gemma4:latest","messages":[{"role":"user","content":"extract entities from: Alice works at Acme"}]}'
 ```
 
-More profiles: [Performance tuning](../operations/performance-tuning.md#ingestion-pipeline-tuning).
+More profiles: [Performance tuning](../operations/performance-tuning.md) (ingestion pipeline tuning section).
 
 ## 7. Database problems
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| "Connection pool exhausted" | More concurrent work than connections | Check `SELECT count(*) FROM pg_stat_activity WHERE datname='edgequake'`. Raise `DATABASE_POOL_SIZE` (default 32). Use PgBouncer if needed |
-| "relation 'documents' does not exist" | The schema has not been created | Run `edgequake migrate`, then start the server |
+| "Connection pool timeout" | More concurrent work than connections | Check `SELECT count(*) FROM pg_stat_activity WHERE datname='edgequake'`. Raise `DATABASE_POOL_SIZE` (default 32). Use PgBouncer if needed |
+| `relation "documents" does not exist` (PostgreSQL) | The schema has not been created | Run `edgequake migrate`, then start the server |
 | Disk full or slow inserts | The disk is full or tables are bloated | `df -h`, find big tables with `pg_total_relation_size`, run `VACUUM ANALYZE` |
 
 ## 8. Graph problems
@@ -433,10 +439,16 @@ More profiles: [Performance tuning](../operations/performance-tuning.md#ingestio
 |---------|-------|-----|
 | Entities have no relationships | Extraction found none, or it failed | Check `GET /api/v1/graph/relationships`. Reprocess with `RUST_LOG="edgequake_pipeline=debug"` |
 | Graph page is empty | No entities, or the browser cannot reach the API | Check `GET /api/v1/graph/entities`, then the browser console |
-| Nodes named like `84b69e27-e38b-444a-...` | Older versions stored opaque ids from the text as entity names | Re-ingest after upgrading. New ingests reject UUID, ULID, hash and ARN-shaped names. Delete leftover nodes in the Graph page |
+| Nodes named like `84b69e27-e38b-444a-...` | Older versions stored opaque ids from the text as entity names | Re-ingest after upgrading. New ingests skip entity names that look like UUIDs, ULIDs, hashes or ARNs (log: "Skipping opaque identifier entity name"). Delete leftover nodes in the Graph page |
 | PostgreSQL stays busy during a community refresh | The refresh is scanning a large graph | See below |
 
-Community refresh loads the workspace graph in pages. Each page is cancelled after `EDGEQUAKE_COMMUNITY_STATEMENT_TIMEOUT_MS` (default 30 s, range 1 s to 300 s). The refresh is skipped when the workspace has more than `EDGEQUAKE_COMMUNITY_BACKFILL_MAX_NODES` nodes (default 50,000), when counting nodes fails, or when another replica holds the lock. When it runs, it loads at most `EDGEQUAKE_COMMUNITY_MAX_NODES` nodes (default 50,000) and clusters a sample beyond that. Look for `Skipping community index refresh` or `statement_timeout` in the log. Raise the limits only for a plan you trust.
+Community refresh loads the workspace graph in pages. Each page is cancelled after `EDGEQUAKE_COMMUNITY_STATEMENT_TIMEOUT_MS` (default 30 s, range 1 s to 300 s). The refresh is skipped in these cases:
+
+- The workspace has more than `EDGEQUAKE_COMMUNITY_BACKFILL_MAX_NODES` nodes (default 50,000).
+- Counting the nodes fails. The refresh fails closed.
+- Another replica holds the refresh lock.
+
+When it runs, it loads at most `EDGEQUAKE_COMMUNITY_MAX_NODES` nodes (default 50,000) and clusters a sample beyond that. Look for `Skipping community index refresh` or `statement_timeout` in the log. Raise the limits only for a plan you trust.
 
 ## 9. Web UI problems
 
@@ -445,7 +457,7 @@ Community refresh loads the workspace graph in pages. Each page is cancelled aft
 | The UI cannot reach the API | The backend is down, or CORS blocks the origin | `curl http://localhost:8080/health`. Outside dev mode set `EDGEQUAKE_CORS_ORIGINS` to the UI origin |
 | Stale data after an upgrade | Browser cache | Hard refresh (Cmd+Shift+R) |
 | Port 3000 in use | A stale process | `lsof -ti:3000 \| xargs kill` |
-| The "provider down" banner shows | `/health` reports `components.llm_provider` as false (checked every 30 s) | See 5.1 and 5.2 |
+| The "provider down" banner shows | `/health` reports `components.llm_provider` as false | See 5.1 and 5.2 |
 
 ## 10. Documents page: Read path busy
 

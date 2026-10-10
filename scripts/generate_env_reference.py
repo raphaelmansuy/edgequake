@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Generate docs/operations/env-reference.md from edgequake/env_registry.toml."""
+"""Verify docs/operations/env-reference.md covers every registry variable.
+
+The env reference is a hand-maintained, grouped page (name, default, purpose).
+This script does NOT overwrite it. It reads edgequake/env_registry.toml and
+fails if any registered variable name is missing from the page, so the
+registry stays the source of truth for coverage.
+
+Usage: python3 scripts/generate_env_reference.py   (exit 1 on missing names)
+"""
 from __future__ import annotations
 
 import pathlib
@@ -12,32 +20,19 @@ except ImportError:  # py<3.11
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 REG = ROOT / "edgequake" / "env_registry.toml"
-OUT = ROOT / "docs" / "operations" / "env-reference.md"
+PAGE = ROOT / "docs" / "operations" / "env-reference.md"
 
 
 def main() -> int:
-    data = tomllib.loads(REG.read_text())
-    rows = data.get("var", [])
-    lines = [
-        "---",
-        "title: Environment variable reference",
-        "description: Generated from edgequake/env_registry.toml (SPEC-163).",
-        "---",
-        "",
-        "> **Generated.** Do not edit by hand. `python3 scripts/generate_env_reference.py`",
-        "",
-        "| Variable | Purpose | Documented in |",
-        "|----------|---------|---------------|",
-    ]
-    for row in rows:
-        docs = ", ".join(f"[doc]({d})" if not str(d).startswith("docs/") else f"[{d}](../{pathlib.Path(d).name})" for d in row.get("docs", []))
-        # Keep relative links inside docs/operations to sibling trees.
-        doc_links = ", ".join(f"[`{d}`](../../{d})" for d in row.get("docs", []))
-        lines.append(f"| `{row['name']}` | {row['purpose']} | {doc_links} |")
-    lines.append("")
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text("\n".join(lines))
-    print(f"wrote {OUT} ({len(rows)} vars)")
+    rows = tomllib.loads(REG.read_text()).get("var", [])
+    text = PAGE.read_text()
+    missing = [row["name"] for row in rows if row["name"] not in text]
+    for name in missing:
+        print(f"MISSING {name} in {PAGE.relative_to(ROOT)}")
+    if missing:
+        print(f"FAIL: {len(missing)} registry variable(s) not documented")
+        return 1
+    print(f"PASS: all {len(rows)} registry variables appear in {PAGE.relative_to(ROOT)}")
     return 0
 
 

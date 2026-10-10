@@ -3,11 +3,11 @@ title: Configure LLM providers
 description: Choose and connect a cloud or local model server to EdgeQuake, test it, and see how a workspace role turns into a working client.
 ---
 
-EdgeQuake needs two kinds of model: a chat model (to extract entities and answer questions) and an embedding model (to turn text into vectors). This section shows how to point each one at a cloud API or a local server, and how to check that the link works.
+EdgeQuake needs two models. A chat model extracts entities and writes answers. An embedding model turns text into vectors. This section shows how to point each one at a cloud API or a local server, and how to check the link before you ingest documents.
 
 > Product release: v0.32.2. Connections, `edgequake doctor` and `POST /api/v1/providers/test` are new in the next release (v0.33.0, SPEC-163).
 
-## Three ways to start
+## Start in one of four ways
 
 | Path | Command | Use it when |
 |------|---------|-------------|
@@ -20,7 +20,7 @@ EdgeQuake needs two kinds of model: a chat model (to extract entities and answer
 
 ## Which provider should I use?
 
-The chart below picks a provider from two questions: may text leave your machine, and what hardware do you have.
+Answer two questions: may text leave your machine, and what hardware do you have? The chart gives a starting point. You can mix choices, for example a cloud chat model with local embeddings (see [Roles](roles.md)).
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
@@ -40,38 +40,38 @@ classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
 class D,F,G,H,I,J eqLlm
 ```
 
-Read it top to bottom: answer each diamond and follow the labelled arrow to a box. You can mix choices, for example a cloud chat model with local embeddings (see [Roles](roles.md)).
+Read it top to bottom. Answer each diamond and follow the labelled arrow to a box.
 
-## How EdgeQuake finds the client for a role
+## How a workspace role finds its client
 
-A workspace assigns a model to each role. If a role names a saved Connection, EdgeQuake loads it from PostgreSQL, decrypts the key in memory and builds the client. If anything in that chain fails, it silently falls back to the next choice (request, workspace, tenant, environment).
+A workspace assigns a provider and model to each role. If a role names a saved Connection, EdgeQuake loads it from PostgreSQL, decrypts the key in memory and builds the client. If any step fails, EdgeQuake falls back to the next source of configuration. It does not return an error.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
 %% eq-theme:v1
 sequenceDiagram
-  participant R as "Request"
-  participant P as "Resolver"
-  participant W as "Workspace"
-  participant D as "PostgreSQL"
-  participant S as "Secrets"
-  participant U as "Model server"
-  R->>P: "Query in workspace"
-  P->>W: "Read llm_roles.query"
-  W-->>P: "Model and connection_id"
-  P->>D: "Load provider_connections row"
-  D-->>P: "URL, shape, encrypted key"
-  P->>S: "Decrypt with EDGEQUAKE_SECRETS_KEY"
-  S-->>P: "API key, memory only"
-  P->>U: "Chat call with key"
-  Note over P,U: "On any failure the resolver falls back to the environment default"
+  participant R as Request
+  participant P as Resolver
+  participant W as Workspace
+  participant D as PostgreSQL
+  participant S as Secrets
+  participant U as Model server
+  R->>P: Query in workspace
+  P->>W: Read llm_roles.query
+  W-->>P: Model and connection_id
+  P->>D: Load provider_connections row
+  D-->>P: URL, shape, encrypted key
+  P->>S: Decrypt with EDGEQUAKE_SECRETS_KEY
+  S-->>P: API key, memory only
+  P->>U: Chat call with key
+  Note over P,U: Any failure falls back to the next configuration source
 ```
 
-Read it left to right and top to bottom: each arrow is one step in time. The key never leaves the server process, and API responses show only a fingerprint.
+Read it top to bottom. The key never leaves the server process, and API responses show only a fingerprint.
 
 ## Providers
 
-Server defaults come from `EDGEQUAKE_LLM_PROVIDER` and `EDGEQUAKE_LLM_MODEL` (aliases `EDGEQUAKE_DEFAULT_LLM_PROVIDER` and `EDGEQUAKE_DEFAULT_LLM_MODEL`). The full variable list is in the [environment reference](../operations/env-reference.md).
+Server defaults come from `EDGEQUAKE_LLM_PROVIDER` and `EDGEQUAKE_LLM_MODEL` for chat, and `EDGEQUAKE_EMBEDDING_PROVIDER` and `EDGEQUAKE_EMBEDDING_MODEL` for embeddings. The full variable list is in the [environment reference](../operations/env-reference.md).
 
 | Provider id | Page | Auth | Default URL used by the client |
 |-------------|------|------|-------------------------------|
@@ -85,11 +85,11 @@ Server defaults come from `EDGEQUAKE_LLM_PROVIDER` and `EDGEQUAKE_LLM_MODEL` (al
 | `llamacpp` | [llama.cpp](llamacpp.md) | optional | `http://127.0.0.1:8080` |
 | `openai-compatible` | [Generic OpenAI shape](openai-compatible.md) | optional | none (you must set it) |
 
-The catalog `edgequake/models.toml` also lists `mistral`, `gemini`, `xai`, `openrouter`, `minimax`, `nvidia`, `cohere`, `jina`, `huggingface`, `vertexai` and `mtplx`. Each reads the key from the variable named in its `api_key_env` field (for example `MISTRAL_API_KEY`, `GEMINI_API_KEY`). `azure` and `mock` are in the catalog but disabled.
+The catalog `edgequake/models.toml` also lists `mistral`, `gemini`, `xai`, `openrouter`, `minimax`, `nvidia`, `cohere`, `jina`, `huggingface`, `vertexai`, `vscode-copilot` and `mtplx`. Most of them read the key from the variable in their `api_key_env` field, for example `MISTRAL_API_KEY` or `GEMINI_API_KEY`. `azure`, `bedrock` and `mock` are in the catalog but disabled.
 
 ## Test a server
 
-Run a probe before you save anything. It lists models, sends one chat ping and one embedding ping, and reports a `kind` such as `unreachable`, `unauthorized`, `model_not_found`, `dim_mismatch`, `shape_mismatch`, `ssrf_denied` or `invalid_url`. The endpoint needs an admin credential; with auth off (dev mode) no header is needed.
+Run the probe before you save anything. It lists models, sends a short chat request and, for OpenAI-shaped servers, one embedding request. It returns `ok: true` or a `kind`: `unreachable`, `unauthorized`, `model_not_found`, `dim_mismatch`, `shape_mismatch`, `ssrf_denied` or `invalid_url`. The endpoint needs an admin credential. With auth off (dev mode) no header is needed.
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8080/api/v1/providers/test \
@@ -97,9 +97,22 @@ curl -sS -X POST http://127.0.0.1:8080/api/v1/providers/test \
   -d '{"shape":"openai_chat","base_url":"http://127.0.0.1:9050","allow_private_network":true}'
 ```
 
-In the web UI, open Settings, find **LLM connections** and press **Test connection**. To check the whole install from a shell, run `edgequake doctor` (add `--json` for machine output). It exits 0 when all checks pass, 1 when `DATABASE_URL` is missing, and 2 for any other failed check.
+- In the web UI, open Settings, find **LLM connections** and press **Test connection**.
+- From a shell, run `edgequake doctor` (add `--json` for machine output). It exits `0` when all checks pass, `1` when `DATABASE_URL` is missing, and `2` for any other failed check.
 
-Check the live state with `curl http://127.0.0.1:8080/health`. The status is `degraded` when a local provider (Ollama, LM Studio, oMLX and similar) does not answer; for cloud providers `/health` only checks that a key is set.
+## Check the live server with /health
+
+`GET /health` reports the state of the default provider. What it checks depends on the provider:
+
+- **Local servers** (Ollama, LM Studio, oMLX, MLX-LM, vLLM-MLX, llama.cpp, MTPLX) get a live request. `llm_provider` is `false` and the status is `degraded` when they do not answer.
+- **Cloud providers** (OpenAI, Anthropic and the others) only report whether the key variable is set. They make no network call.
+- **openai-compatible** reports `llm_provider: true` without checking anything. Use the probe above to test it.
+
+```bash
+curl -sS http://127.0.0.1:8080/health
+```
+
+Look for `"llm_provider": true` under `components`.
 
 ## Pages
 

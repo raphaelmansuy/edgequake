@@ -5,11 +5,11 @@ description: "Choose an authentication mode and turn on login for Docker Compose
 
 # Enable login (auth quickstart)
 
-This page is for operators who want users to sign in. It tells you which settings switch authentication on, how the first admin is created, and what to check when the API refuses to start. For production hardening (master API keys, SSO, CORS) continue to [Runtime auth hardening](runtime-auth-hardening.md).
+This page is for operators who want users to sign in. It explains which settings turn authentication on, how the first admin is created, and what to check when the API refuses to start. For production hardening (master API keys, SSO, CORS), continue to [Runtime auth hardening](runtime-auth-hardening.md).
 
 ## Pick a mode
 
-Authentication is **on by default** since v0.15. Identity lives in PostgreSQL. The quickstart Compose file turns it off so a demo works without a login.
+Authentication is on by default. Identity lives in PostgreSQL. The quickstart Compose file turns it off so a demo works without a login.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
@@ -23,15 +23,15 @@ flowchart TD
   F --> G["Also set JWT_SECRET and CORS origins"]
 ```
 
-How to read it: the further down the chart you go, the more settings the API insists on. Open mode needs none. Production mode refuses to start if `JWT_SECRET` or the CORS list is missing.
+The further along the chart you go, the more settings the API requires. Production mode refuses to start with a weak `JWT_SECRET`. It also needs a CORS list when `DATABASE_URL` points at a remote host.
 
 | Mode | Settings | Admin created for you? |
 |------|----------|------------------------|
 | **Open (demo)** | `EDGEQUAKE_DEV_MODE=true` (Compose default) | No. There is no login. |
-| **Login, dev mode on** | `EDGEQUAKE_AUTH_ENABLED=true` and dev mode on | **No.** The bootstrap admin is skipped while dev mode is on. Create a user with the master API key. |
-| **Production** | `EDGEQUAKE_AUTH_ENABLED=true`, `EDGEQUAKE_DEV_MODE=false`, `JWT_SECRET`, `EDGEQUAKE_CORS_ORIGINS`, bootstrap admin password | Yes, on first start. |
+| **Login, dev mode on** | `EDGEQUAKE_AUTH_ENABLED=true` with dev mode on | No. The bootstrap admin is skipped while dev mode is on. Create a user with the master API key. |
+| **Production** | `EDGEQUAKE_AUTH_ENABLED=true`, `EDGEQUAKE_DEV_MODE=false`, `JWT_SECRET`, `EDGEQUAKE_CORS_ORIGINS`, bootstrap admin password | Yes, if `EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD` is set. |
 
-An explicit `EDGEQUAKE_AUTH_ENABLED` always wins over `EDGEQUAKE_DEV_MODE`. If it is unset, `EDGEQUAKE_AUTH_DISABLED=true` turns auth off, then dev mode turns it off, otherwise auth is on.
+An explicit `EDGEQUAKE_AUTH_ENABLED` (or `AUTH_ENABLED`) always wins over `EDGEQUAKE_DEV_MODE`. If neither is set, `EDGEQUAKE_AUTH_DISABLED=true` turns auth off, then dev mode turns it off, and otherwise auth is on.
 
 ## Turn on login with Docker Compose
 
@@ -46,7 +46,7 @@ services:
       EDGEQUAKE_CORS_ORIGINS: http://localhost:3000
 ```
 
-2. Start the stack with the settings:
+2. Set the variables and start the stack with both files:
 
 ```bash
 export EDGEQUAKE_DEV_MODE=false
@@ -59,9 +59,9 @@ export NEXT_PUBLIC_DISABLE_DEMO_LOGIN=true                 # hide "skip login"
 docker compose -f docker-compose.quickstart.yml -f docker-compose.auth.yml up -d
 ```
 
-The web UI reads `NEXT_PUBLIC_AUTH_ENABLED` from `EDGEQUAKE_AUTH_ENABLED` in the Compose file, so you do not set it yourself. For a real hostname, set `EDGEQUAKE_CORS_ORIGINS` to the exact URL users type in the browser.
+The Compose file passes `EDGEQUAKE_AUTH_ENABLED` to the web UI as `NEXT_PUBLIC_AUTH_ENABLED`, so you do not set that yourself. For a real hostname, set `EDGEQUAKE_CORS_ORIGINS` to the exact URL users type in the browser.
 
-3. Sign in at <http://localhost:3000/login>. With `make dev-auth` use <http://localhost:3010/login>.
+3. Sign in at <http://localhost:3000/login>. With `make dev-auth`, use <http://localhost:3010/login>.
 
 The API creates the admin on startup when auth is on, dev mode is off, and no user with a usable password exists. Upgrades from before v0.15 import old `auth:user:*` records into PostgreSQL automatically.
 
@@ -85,5 +85,5 @@ The API creates the admin on startup when auth is on, dev mode is off, and no us
 ## See also
 
 - [Runtime auth hardening](runtime-auth-hardening.md)
-- [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md): how cancel and restart behave (durable since v0.19).
+- [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md): how cancel and restart behave.
 - [GitHub #288](https://github.com/raphaelmansuy/edgequake/issues/288): secure-by-default background.

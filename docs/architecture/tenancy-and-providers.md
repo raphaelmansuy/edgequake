@@ -182,7 +182,7 @@ Read it top to bottom. The API never returns the key. It returns only a short fi
 Safety rules:
 
 - **Encryption**: keys use AES-256-GCM. The master key comes from `EDGEQUAKE_SECRETS_KEY`. Without it, saving a key returns a `400` error.
-- **URL checks**: only `http` and `https` are accepted. Cloud metadata hostnames, `.internal` hostnames, and link-local addresses are always blocked. The check reads the URL text; it does not resolve DNS names. Loopback and private addresses are allowed only when the connection is marked local (`allow_private_network`) or the server runs in dev mode.
+- **URL checks**: only `http` and `https` are accepted. Cloud metadata hostnames, `.internal` hostnames, and link-local addresses are always blocked. The check reads the URL text, then resolves the host name and rejects any address in a blocked range. A name that fails to resolve is refused. The check runs before the connection is made, so a DNS rebinding attack after the check is still possible. Loopback and private addresses are allowed only when the connection is marked local (`allow_private_network`) or the server runs in dev mode.
 - **No secrets in logs**: keys travel in a `SecretString` that prints as redacted.
 
 ### Where connections apply today
@@ -192,7 +192,7 @@ Safety rules:
 | Extract (ingestion) | Yes |
 | Query (answers) | Yes |
 | Summary, keyword, vision | No, these still use provider and model settings |
-| Embeddings | No. The connection factory has an embedding builder, but no code path calls it yet. |
+| Embeddings | Yes, when the workspace sets `metadata.llm_roles.embedding.connection_id` |
 
 ---
 

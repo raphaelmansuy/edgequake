@@ -111,7 +111,8 @@ The diagram shows **dual-level retrieval**. The question yields two keyword list
 - **Local mode** answers "what is X?" by finding entities that look like X and expanding to their neighbors (default 2 hops).
 - **Global mode** answers "what are the themes?" by finding relationships that match the high-level keywords, then adding entities from the same community.
 - **Naive mode** is plain chunk search.
-- **Hybrid** and **mix** run the three together and merge the chunks.
+- **Mix** (the default) runs local, global and naive retrieval and blends the three with weights.
+- **Hybrid** runs the same three arms and interleaves them round-robin.
 - **Bypass** skips retrieval.
 
 The REST API uses `mix` when no mode is given.

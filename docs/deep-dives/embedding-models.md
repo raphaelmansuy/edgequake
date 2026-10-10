@@ -3,128 +3,79 @@ title: 'Deep Dive: Embedding Models'
 description: "How EdgeQuake selects and runs embedding models."
 ---
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Product: v0.32.2** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
 
 # Deep Dive: Embedding Models
 
-> **Understanding Vector Embeddings in EdgeQuake**
-
-This guide covers how embedding models work in EdgeQuake, how to choose the right one, and optimization strategies.
+An embedding model turns text into a vector, a list of numbers that represents the text's meaning. EdgeQuake uses these vectors to find passages, entities and relationships by meaning rather than exact words. This page explains where embeddings are used, which models EdgeQuake knows, how to configure them, and how to change models safely.
 
 ---
 
 ## What Are Embeddings?
 
-Embeddings are **dense vector representations** of text that capture semantic meaning. Similar concepts have similar vectors.
+An embedding is a dense vector of floats. Texts with similar meaning get vectors that point in similar directions, so a search compares vectors instead of words.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 EMBEDDING VISUALIZATIO                          │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Text: "The cat sat on the mat"                                 │
-│                    ↓                                            │
-│          ┌─────────────────┐                                    │
-│          │ Embedding Model │                                    │
-│          └────────┬────────┘                                    │
-│                   ↓                                             │
-│  Vector: [0.23, -0.15, 0.87, 0.42, ..., -0.31]  (1536 dims)     │
-│                                                                 │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ Semantic Space (2D projection)                           │   │
-│  │                                                          │   │
-│  │     cat●                  ●dog                           │   │
-│  │       ↖                  ↗                               │   │
-│  │  kitten●   ← similar →   ●puppy                          │   │
-│  │                                                          │   │
-│  │                                                          │   │
-│  │         car●          ●truck                             │   │
-│  │               ↖    ↗                                     │   │
-│  │             vehicle●                                     │   │
-│  │                                                          │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  Similar concepts cluster together in vector space              │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+For example, "The cat sat on the mat" becomes a vector such as `[0.23, -0.15, 0.87, 0.42, ..., -0.31]`. The length of that vector is the model's **dimension**, for example 1536.
 
 ---
 
-## Embedding in EdgeQuake
+## Where EdgeQuake Uses Embeddings
 
-EdgeQuake uses embeddings at multiple stages:
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  A["Document chunks"] --> M["Embedding model<br>(provider call)"]
+  B["Entities and relationships"] --> M
+  Q["User question"] --> M
+  M --> S["pgvector storage<br>(for example chunk_embeddings)"]
+  S --> R["Vector search at query time"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+classDef eqActor fill:#FCE7F3,stroke:#EC4899,color:#500724
+class M,S eqLlm
+class Q eqActor
+```
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 EMBEDDING USAGE                                 │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  1. DOCUMENT PROCESSING                                         │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ Document → Chunks → [Embed] → Store in pgvector          │   │
-│  │                                                          │   │
-│  │ Entities → [Embed] → Store in pgvector                   │   │
-│  │                                                          │   │
-│  │ Relationships → [Embed] → Store in pgvector              │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  2. QUERY PROCESSING                                            │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ Query → [Embed] → Vector Search → Top-K results          │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  3. ENTITY MATCHING                                             │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ New Entity → [Embed] → Similar Entity Search → Merge?    │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+Ingestion embeds chunks, entities and relationships. A query embeds only the question and its keyword lists, then searches the stored vectors.
+
+- **Ingestion:** document chunks, entities and relationships are embedded and stored in pgvector.
+- **Queries:** the question and the keyword lists are embedded. See [Query Modes](query-modes.md).
 
 ---
 
 ## Supported Embedding Models
 
-### OpenAI Models
+The model catalog is `models.toml` (see [models.toml Configuration](#modelstoml-configuration)). The tables below list the embedding models it defines.
 
-| Model                    | Dimensions | Max Tokens | Cost/1K  | Quality       |
-| ------------------------ | ---------- | ---------- | -------- | ------------- |
-| `text-embedding-3-small` | 1536       | 8191       | $0.00002 | Good          |
-| `text-embedding-3-large` | 3072       | 8191       | $0.00013 | Excellent     |
-| `text-embedding-ada-002` | 1536       | 8191       | $0.00010 | Good (legacy) |
+### OpenAI
 
-**Recommendation**: Use `text-embedding-3-small` for most use cases (best cost/performance).
+| Model | Dimensions | Max input tokens | Price per 1M tokens | Notes |
+| --- | --- | --- | --- | --- |
+| `text-embedding-3-small` | 1536 | 8191 | $0.02 | Recommended default |
+| `text-embedding-3-large` | 3072 | 8191 | $0.13 | Higher dimension, more precise |
+| `text-embedding-ada-002` | 1536 | 8191 | $0.10 | Deprecated; use `text-embedding-3-small` |
+
+**Recommendation:** use `text-embedding-3-small` for most workloads. It gives the best cost and quality balance.
 
 ```bash
 # Defaults from .env.example (workspace bootstrap)
 export EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER=openai
 export EDGEQUAKE_DEFAULT_EMBEDDING_MODEL=text-embedding-3-small
 export EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION=1536
-
-# Runtime override (takes precedence over DEFAULT_* when set)
-# export EDGEQUAKE_EMBEDDING_PROVIDER=openai
-# export EDGEQUAKE_EMBEDDING_MODEL=text-embedding-3-small
-# export EDGEQUAKE_EMBEDDING_DIMENSION=1536
 ```
 
-### Ollama Models
+### Ollama (local)
 
-| Model                    | Dimensions | Max Tokens | Cost | Quality   |
-| ------------------------ | ---------- | ---------- | ---- | --------- |
-| `embeddinggemma:latest`  | 768        | 8192       | Free | Good (default for `make dev`) |
-| `nomic-embed-text`       | 768        | 8192       | Free | Good      |
-| `mxbai-embed-large`      | 1024       | 512        | Free | Very Good |
-| `all-minilm`             | 384        | 256        | Free | Moderate  |
-| `snowflake-arctic-embed` | 1024       | 512        | Free | Very Good |
+| Model | Dimensions | Max input tokens | Notes |
+| --- | --- | --- | --- |
+| `embeddinggemma:latest` | 768 | 2048 | Default for `make dev` |
+| `nomic-embed-text` | 768 | 2048 | Same 768-dimension size, different model |
+| `mxbai-embed-large` | 1024 | 512 | Larger vectors, short inputs |
+| `snowflake-arctic-embed` | 1024 | 512 | Larger vectors, short inputs |
+| `all-minilm` | 384 | 256 | Smallest vectors, fastest, least precise |
 
-### Mistral Models
-
-| Model           | Dimensions | Notes                          |
-| --------------- | ---------- | ------------------------------ |
-| `mistral-embed` | 1024       | Native Mistral embedding model |
-
-**Recommendation**: Use `embeddinggemma:latest` for local Ollama deployment (`make dev` default). Use `nomic-embed-text` as an alternative with similar 768-dimension vectors.
+Ollama models have no per-token API cost. Their cost is the hardware that runs them.
 
 ```bash
 ollama pull embeddinggemma:latest
@@ -133,152 +84,111 @@ export EDGEQUAKE_DEFAULT_EMBEDDING_MODEL=embeddinggemma:latest
 export EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION=768
 ```
 
+### Other providers
+
+| Provider | Model | Dimensions | Max input tokens | Notes |
+| --- | --- | --- | --- | --- |
+| Mistral | `mistral-embed` | 1024 | 8192 | Native Mistral embedding model |
+| Gemini | `gemini-embedding-001` | see `models.toml` | see `models.toml` | Listed in the default catalog |
+| LM Studio | `text-embedding-nomic-embed-text-v1.5` | see `models.toml` | see `models.toml` | Local OpenAI-compatible server |
+
+**Recommendation:** use `embeddinggemma:latest` for a local Ollama setup (the `make dev` default). Use `nomic-embed-text` as an alternative with the same 768-dimension size.
+
 ---
 
 ## Dimension Tradeoffs
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 DIMENSION TRADEOFFS                             │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Lower Dimensions (384-768):                                    │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ ✅ Faster similarity search                               
-│  │ ✅ Less storage space                                    
-│  │ ✅ Lower memory usage                                    
-│  │ ❌ Less semantic precision                               
-│  │ ❌ May miss subtle distinctions                          
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  Higher Dimensions (1536-3072):                                 │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ ✅ Better semantic precision                             
-│  │ ✅ Captures subtle nuances                               
-│  │ ✅ Better for specialized domains                        
-│  │ ❌ Slower similarity search                              
-│  │ ❌ More storage required                                 
-│  │ ❌ Higher memory usage                                   
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  Storage Impact (100K embeddings):                              │
-│  • 384 dims:  153 MB                                            │
-│  • 768 dims:  307 MB                                            │
-│  • 1536 dims: 614 MB                                            │
-│    • 3072 dims: 1.2 GB                                            │
-  │                                                                 │
-  │ halfvec mode (EDGEQUAKE_VECTOR_STORAGE=halfvec): ~50% column   │
-  │ footprint; required for HNSW when dim ∈ (2000, 4000]. See      │
-  │ [Vector Storage](/docs/deep-dives/vector-storage/).             │
-  │                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+Higher dimensions capture more nuance, but they cost more storage, memory and search time.
+
+| Dimensions | Storage for 100K vectors (float32) | Trade-off |
+| --- | --- | --- |
+| 384 | 153 MB | Fast, small, less semantic precision |
+| 768 | 307 MB | Good balance for local models |
+| 1536 | 614 MB | Default for OpenAI small |
+| 3072 | 1.2 GB | Most precise, slowest and largest |
+
+Storage is computed at float32 precision. EdgeQuake stores vectors as `halfvec` by default, which uses about half the space. The `EDGEQUAKE_VECTOR_STORAGE` setting controls this:
+
+- `halfvec` (default): 16-bit floats. pgvector's `vector` type indexes only up to 2000 dimensions, so `halfvec` is what allows HNSW indexes for models from 2000 up to 4000 dimensions. See [Vector Storage](/docs/deep-dives/vector-storage/).
+- Any other value: 32-bit floats.
 
 ---
 
 ## EmbeddingProvider Trait
 
-EdgeQuake's embedding system is built on a trait abstraction:
+The trait is defined in the `edgequake-llm` crate, which EdgeQuake depends on. Abridged:
 
 ```rust
 #[async_trait]
 pub trait EmbeddingProvider: Send + Sync {
-    /// Get the name of this provider.
     fn name(&self) -> &str;
-
-    /// Get the embedding model.
     fn model(&self) -> &str;
-
-    /// Get the dimension of the embeddings.
+    /// Dimension of the vectors this model returns.
     fn dimension(&self) -> usize;
-
-    /// Get the maximum number of tokens per input.
+    /// Maximum number of tokens per input.
     fn max_tokens(&self) -> usize;
+    /// Texts per request. Defaults to 2048; overridable with EDGEQUAKE_EMBEDDING_BATCH_SIZE.
+    fn max_batch_size(&self) -> usize;
 
-    /// Generate embeddings for a batch of texts.
+    /// Embed one request's worth of texts.
     async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>>;
-
-    /// Generate embedding for a single text.
+    /// Embed any number of texts, split into batches of max_batch_size().
+    async fn embed_batched(&self, texts: &[String]) -> Result<Vec<Vec<f32>>>;
+    /// Embed a single text.
     async fn embed_one(&self, text: &str) -> Result<Vec<f32>>;
 }
 ```
 
-**Why Trait-Based Design**:
+**Why a trait:**
 
-- **Testing**: MockProvider returns deterministic embeddings
-- **Flexibility**: Swap providers without code changes
-- **Cost control**: Route to different providers based on request
-- **Resilience**: Fallback providers when primary unavailable
+- **Swappable providers:** the pipeline and query code depend on the trait, not on OpenAI or Ollama.
+- **Caching:** `EmbeddingCache` wraps any provider (see [Performance](#performance-optimization)).
 
 ---
 
 ## Similarity Metrics
 
-EdgeQuake uses **cosine similarity** by default with pgvector:
+EdgeQuake uses **cosine similarity** with pgvector. HNSW indexes use the cosine operator class (`vector_cosine_ops`, or `halfvec_cosine_ops` for `halfvec` columns above 2000 dimensions).
 
 ```sql
--- Cosine similarity (default, best for text)
-SELECT * FROM embeddings
-ORDER BY embedding <=> query_embedding
+-- Cosine distance (<=>): a smaller value means more similar.
+-- $1 is the query vector, in the same type as the column.
+SELECT id
+FROM chunk_embeddings
+ORDER BY embedding <=> $1
 LIMIT 10;
-
--- Also available:
--- Inner product: <#>
--- L2 distance: <->
 ```
 
-**Why Cosine Similarity**:
+pgvector also provides `<#>` (negative inner product) and `<->` (L2 distance). EdgeQuake's indexes use cosine.
 
-- Normalized vectors (magnitude doesn't matter)
-- Works well for text embeddings
-- Range: -1 to 1 (1 = identical)
-- pgvector optimized for this metric
+**Why cosine:**
+
+- It compares direction, so vector length does not affect the result.
+- It works well for text embeddings.
+- Its similarity range is -1 to 1, where 1 means identical direction.
 
 ---
 
 ## Embedding Pipeline
 
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  A["Texts<br>(chunks, entities, relationships)"] --> B["embed_batched<br>splits by max_batch_size"]
+  B --> C["Provider call<br>OpenAI /embeddings<br>Ollama /api/embed"]
+  C --> D["One vector per text"]
+  D --> E["Stored in pgvector<br>with model name and dimension"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class C,E eqLlm
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                 EMBEDDING PIPELINE                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Input: "Artificial intelligence is transforming..."            │
-│                            ↓                                    │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 1. TOKENIZATION                                            │ │
-│  │    Split text into tokens: ["Artificial", "intelligence",  │ │
-│  │                             "is", "transforming", ...]     │ │
-│  │    Check: tokens < max_tokens (8191 for OpenAI)            │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                            ↓                                    │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 2. BATCHING                                                │ │
-│  │    Group texts for efficient API calls                     │ │
-│  │    OpenAI: up to 2048 texts per batch                      │ │
-│  │    Ollama: 1 text per call (no batching)                   │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                            ↓                                    │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 3. API CALL                                                │ │
-│  │    POST /v1/embeddings                                     │ │
-│  │    {"input": texts, "model": "text-embedding-3-small"}     │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                            ↓                                    │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 4. NORMALIZATION                                           │ │
-│  │    Ensure unit length: ||v|| = 1                           │ │
-│  │    (OpenAI returns pre-normalized, Ollama may not)         │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                            ↓                                    │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 5. STORAGE                                                 │ │
-│  │    INSERT INTO embeddings (id, embedding, ...)             │ │
-│  │    VALUES ($1, $2::vector, ...)                            │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+
+The batches run through the provider, and every vector is stored with the model name and dimension that produced it. That is what keeps vector spaces separate (see the registry rules below).
+
+- **Batching:** `embed_batched` splits inputs into batches of `max_batch_size()`. The default is 2048 texts. Set `EDGEQUAKE_EMBEDDING_BATCH_SIZE` to change it.
+- **OpenAI:** each batch is one `POST /embeddings` request.
+- **Ollama:** each batch is one `POST /api/embed` request. Inputs are truncated to the model's context rather than rejected.
 
 ---
 
@@ -286,32 +196,56 @@ LIMIT 10;
 
 ### Decision Matrix
 
-| Requirement     | Recommended Model                    |
-| --------------- | ------------------------------------ |
-| Lowest cost     | `nomic-embed-text` (Ollama, free)    |
-| Best quality    | `text-embedding-3-large` (OpenAI)    |
-| Best value      | `text-embedding-3-small` (OpenAI)    |
-| Privacy (local) | `nomic-embed-text` (Ollama)          |
-| Low latency     | `all-minilm` (Ollama, 384 dims)      |
-| High recall     | `text-embedding-3-large` (3072 dims) |
+| Requirement | Recommended model |
+| --- | --- |
+| Lowest cost | `nomic-embed-text` (Ollama, free) |
+| Best quality | `text-embedding-3-large` (OpenAI) |
+| Best value | `text-embedding-3-small` (OpenAI) |
+| Privacy (local) | `nomic-embed-text` or `embeddinggemma` (Ollama) |
+| Smallest, fastest vectors | `all-minilm` (Ollama, 384 dimensions) |
+| Highest dimension | `text-embedding-3-large` (3072 dimensions) |
 
 ### Domain Considerations
 
-| Domain            | Recommendation                               |
-| ----------------- | -------------------------------------------- |
-| General knowledge | `text-embedding-3-small`                     |
-| Legal/medical     | `text-embedding-3-large` (precision matters) |
-| Multi-language    | `text-embedding-3-small` (good multilingual) |
-| Code/technical    | `text-embedding-3-small` + domain chunks     |
+| Domain | Recommendation |
+| --- | --- |
+| General knowledge | `text-embedding-3-small` |
+| Legal or medical text, where precision matters | `text-embedding-3-large` |
+| Multi-language content | `text-embedding-3-small` |
+| Code or technical text | `text-embedding-3-small`, with chunks sized to the function or section |
 
 ---
 
 ## Configuration
 
-### Per-Workspace Settings
+### Global Defaults
+
+Environment variables follow the `.env.example` naming:
+
+| Variable | Role |
+| --- | --- |
+| `EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER` | Provider for new workspaces (bootstrap default) |
+| `EDGEQUAKE_DEFAULT_EMBEDDING_MODEL` | Model for new workspaces |
+| `EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION` | Dimension for new workspaces; must match the model output |
+| `EDGEQUAKE_EMBEDDING_PROVIDER` | Provider override, used only when the `DEFAULT_` provider variable is unset |
+| `EDGEQUAKE_EMBEDDING_MODEL` | Model override, used only when the `DEFAULT_` model variable is unset |
+| `EDGEQUAKE_EMBEDDING_DIMENSION` | Dimension override; must match the model output |
+| `EDGEQUAKE_VECTOR_STORAGE` | `halfvec` (default) or `full`; see [Vector Storage](/docs/deep-dives/vector-storage/) |
+
+The resolver reads `EDGEQUAKE_DEFAULT_EMBEDDING_*` first. Set one variable pair, not both.
 
 ```bash
-# Create workspace with specific embedding model
+export EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER=openai
+export EDGEQUAKE_DEFAULT_EMBEDDING_MODEL=text-embedding-3-small
+export EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION=1536
+```
+
+### Per-Workspace Settings
+
+A workspace can choose its own embedding model when it is created. Set `embedding_model`, `embedding_dimension` and, optionally, `embedding_provider`:
+
+```bash
+# Create a workspace with a specific embedding model
 curl -X POST http://localhost:8080/api/v1/tenants/default/workspaces \
   -H "Content-Type: application/json" \
   -d '{
@@ -321,133 +255,101 @@ curl -X POST http://localhost:8080/api/v1/tenants/default/workspaces \
   }'
 ```
 
-### Global Defaults
-
-Environment variables follow `.env.example` naming:
-
-| Variable | Role |
-| -------- | ---- |
-| `EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER` | Workspace bootstrap default |
-| `EDGEQUAKE_DEFAULT_EMBEDDING_MODEL` | Model at workspace creation |
-| `EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION` | Must match model output |
-| `EDGEQUAKE_EMBEDDING_PROVIDER` | Runtime override (wins over `DEFAULT_*`) |
-| `EDGEQUAKE_EMBEDDING_MODEL` | Runtime model override |
-| `EDGEQUAKE_EMBEDDING_DIMENSION` | Runtime dimension override |
-| `EDGEQUAKE_VECTOR_STORAGE` | `full` (vector) or `halfvec` — see [Vector Storage](/docs/deep-dives/vector-storage/) |
-
-```bash
-export EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER=openai
-export EDGEQUAKE_DEFAULT_EMBEDDING_MODEL=text-embedding-3-small
-export EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION=1536
-```
-
 ### models.toml Configuration
+
+Model cards live in `models.toml`. EdgeQuake looks for it in this order: the path in `EDGEQUAKE_MODELS_CONFIG`, then `./models.toml`, then `~/.edgequake/models.toml`, then the built-in defaults.
+
+The file lists providers, then models under each provider:
 
 ```toml
 [defaults]
 embedding_provider = "openai"
 embedding_model = "text-embedding-3-small"
 
-[providers.openai.embedding_models.text-embedding-3-small]
-display_name = "Text Embedding 3 Small"
-dimensions = 1536
-max_tokens = 8191
-price_per_1k_input_tokens = 0.00002
+[[providers]]
+name = "openai"
+api_key_env = "OPENAI_API_KEY"
 
-[providers.openai.embedding_models.text-embedding-3-large]
-display_name = "Text Embedding 3 Large"
-dimensions = 3072
-max_tokens = 8191
-price_per_1k_input_tokens = 0.00013
+[[providers.models]]
+name = "text-embedding-3-large"
+model_type = "embedding"
+
+[providers.models.capabilities]
+context_length = 8191
+embedding_dimension = 3072
+
+[providers.models.cost]
+embedding_per_1k = 0.00013
 ```
 
 ---
 
 ## Changing Embedding Models
 
-**Warning**: Changing embedding models requires rebuilding all embeddings.
+**Warning:** changing the model or the dimension requires rebuilding the embeddings. Vectors from different models are not comparable, so mixing them gives wrong search results.
 
-```bash
-# 1. Update workspace settings
-curl -X PUT http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID \
-  -d '{"embedding_model": "text-embedding-3-large", "embedding_dimension": 3072}'
+1. Update the workspace with the new model and dimension:
 
-# 2. Rebuild embeddings (this reprocesses all documents)
-curl -X POST http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID/rebuild-embeddings
+   ```bash
+   curl -X PUT http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID \
+     -H "Content-Type: application/json" \
+     -d '{"embedding_model": "text-embedding-3-large", "embedding_dimension": 3072}'
+   ```
 
-# 3. Monitor progress
-curl http://localhost:8080/api/v1/tasks?status=running
+2. Rebuild the embeddings:
+
+   ```bash
+   curl -X POST http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID/rebuild-embeddings
+   ```
+
+3. Monitor the running tasks:
+
+   ```bash
+   curl "http://localhost:8080/api/v1/tasks?status=running"
+   ```
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+sequenceDiagram
+  participant C as Admin client
+  participant API as REST API
+  participant J as Rebuild job
+  C->>API: PUT /api/v1/workspaces/{id} (new model, dimension)
+  C->>API: POST /api/v1/workspaces/{id}/rebuild-embeddings
+  API-->>C: Accepted, rebuild started
+  API->>J: Re-embed the workspace documents
+  C->>API: GET /api/v1/tasks?status=running
 ```
 
-**Why Rebuild Is Required**:
-
-- Different models produce different vector spaces
-- Vectors from different models are **not comparable**
-- Search would return incorrect results with mixed embeddings
+The sequence shows the three calls. The rebuild runs as a job, and the client follows its progress through the tasks endpoint.
 
 ---
 
 ## Performance Optimization
 
-### Batch Processing
+### Query Embedding Cache
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 BATCH VS SEQUENTIAL                             │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Sequential (slow):                                             │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ Text 1 → API → Wait → Text 2 → API → Wait → ...          │   │
-│  │                                                          │   │
-│  │ 100 texts × 100ms = 10 seconds                           │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  Batched (fast):                                                │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ [Text 1, Text 2, ..., Text 100] → API → All embeddings   │   │
-│  │                                                          │   │
-│  │ 1 API call = 150ms                                       │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  Speedup: 67x faster with batching                              │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Caching
-
-EdgeQuake caches query embeddings in memory:
-
-```rust
-// Pseudo-code: Query embedding caching
-let cache_key = hash(query_text);
-if let Some(embedding) = cache.get(cache_key) {
-    return embedding;  // Cache hit: 0ms
-}
-let embedding = provider.embed_one(query).await?;  // 50ms
-cache.insert(cache_key, embedding);
-return embedding;
-```
+`EmbeddingCache` wraps a provider and keeps up to 10,000 entries for one hour. A repeated text returns its cached vector without an API call.
 
 ### HNSW Index Tuning
 
-```sql
--- Create optimized HNSW index
-CREATE INDEX CONCURRENTLY embeddings_hnsw_idx
-ON embeddings
-USING hnsw (embedding vector_cosine_ops)
-WITH (m = 16, ef_construction = 64);
+The typed `chunk_embeddings` index is created by migration `129_spec091_chunk_hnsw_ef_converge.sql`. It uses `halfvec_cosine_ops` with `m = 16` and `ef_construction = 128`. The build value comes from `EDGEQUAKE_HNSW_EF_CONSTRUCTION` (default 128, clamped to 4 to 1000).
 
--- Tune search quality/speed tradeoff
-SET hnsw.ef_search = 100;  -- Higher = better recall, slower
+```sql
+CREATE INDEX IF NOT EXISTS idx_chunk_embeddings_hnsw
+ON public.chunk_embeddings
+USING hnsw (embedding halfvec_cosine_ops)
+WITH (m = 16, ef_construction = 128);
 ```
 
-| ef_search | Recall | Latency |
-| --------- | ------ | ------- |
-| 40        | 95%    | 10ms    |
-| 100       | 98%    | 20ms    |
-| 200       | 99%    | 40ms    |
+The legacy `eq_*_vectors` tables use an older index built by migration `071_hnsw_optimize.sql` with `ef_construction = 32`. That migration is checksum-locked and is not rewritten.
+
+Tune the search side per session. A higher `ef_search` gives better recall and is slower. pgvector's default is 40:
+
+```sql
+SET hnsw.ef_search = 100;
+```
 
 ---
 
@@ -455,33 +357,29 @@ SET hnsw.ef_search = 100;  -- Higher = better recall, slower
 
 ### OpenAI Embedding Costs
 
-| Model                  | Cost/1M tokens | 100K Docs (500 tokens each) |
-| ---------------------- | -------------- | --------------------------- |
-| text-embedding-3-small | $0.02          | $1.00                       |
-| text-embedding-3-large | $0.13          | $6.50                       |
-| text-embedding-ada-002 | $0.10          | $5.00                       |
+| Model | Cost per 1M tokens | 100K docs (500 tokens each) |
+| --- | --- | --- |
+| `text-embedding-3-small` | $0.02 | $1.00 |
+| `text-embedding-3-large` | $0.13 | $6.50 |
+| `text-embedding-ada-002` | $0.10 | $5.00 |
 
-### Ollama (Free, Local)
-
-| Model             | GPU VRAM | Tokens/sec |
-| ----------------- | -------- | ---------- |
-| nomic-embed-text  | 1.5 GB   | 500        |
-| mxbai-embed-large | 2 GB     | 300        |
-| all-minilm        | 0.5 GB   | 1000       |
+Ollama models have no per-token cost, so their cost is the hardware that runs them.
 
 ---
 
 ## Troubleshooting
 
-### Dimension Mismatch Error
+### Dimension Mismatch
+
+The error looks like this:
 
 ```
-Error: Vector dimension 768 does not match index dimension 1536
+Dimension mismatch for workspace <workspace-id>: cached=1536, requested=768.
 ```
 
-**Cause**: Embedding model changed without rebuilding index.
+**Cause:** the model or dimension changed without rebuilding the embeddings.
 
-**Solution**:
+**Solution:** rebuild the workspace embeddings (see [Changing Embedding Models](#changing-embedding-models)).
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID/rebuild-embeddings
@@ -489,71 +387,61 @@ curl -X POST http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID/rebuild-embed
 
 ### Out of Memory (Ollama)
 
-```
-Error: CUDA out of memory
-```
+**Cause:** the model does not fit in GPU memory.
 
-**Solution**: Use smaller model or reduce batch size:
+**Solution:** use a smaller model, such as `all-minilm` (384 dimensions). Its dimension is different, so rebuild the embeddings after switching.
 
 ```bash
-ollama pull all-minilm  # Smaller model
+ollama pull all-minilm
 ```
 
 ### Rate Limiting (OpenAI)
 
-```
-Error: Rate limit exceeded
-```
+**Cause:** the account has hit its request or token limit.
 
-**Solution**: EdgeQuake automatically retries with backoff. For high throughput:
+**Solution:**
 
-- Use Tier 2+ OpenAI account
-- Or use local Ollama for embedding
+- Lower the batch size with `EDGEQUAKE_EMBEDDING_BATCH_SIZE`.
+- Retry later, or move to a higher usage tier.
+- Use a local model such as Ollama `embeddinggemma:latest`.
 
 ---
 
 ## Typed ANN registry key (ingest = query)
 
-Ingest and typed ANN **must share the same** `embedding_models(name, dimensions)`
-key as the workspace embedder. EdgeQuake never searches another model’s vector
-space when the preferred key misses.
+Ingest and typed ANN **must share the same** `embedding_models(name, dimensions)` key as the workspace embedder. EdgeQuake never searches another model's vector space when the preferred key misses.
 
 | Concern | Source | Role |
-| ------- | ------ | ---- |
-| Which embedder process loads | `EDGEQUAKE_EMBEDDING_PROVIDER` / provider setup | Runtime client construction — **not** the ANN registry key |
-| ANN / typed write+read registry name | Workspace lineage model, else `embedding_model_key_from_env()` (storage SSOT) | `embedding_models.name` + dimensions; empty Compose `EDGEQUAKE_EMBEDDING_MODEL=` falls through to the product default |
-| Query filter | `QueryEmbeddings.model` → `MetadataFilter.embedding_model` | Preferred-only via `serving_embedding_model_candidates`; miss → empty ANN (then graph label/seed admit) |
+| --- | --- | --- |
+| Which embedder process loads | `EDGEQUAKE_EMBEDDING_PROVIDER` / provider setup | Runtime client construction, **not** the ANN registry key |
+| ANN / typed write and read registry name | Workspace lineage model, else `embedding_model_key_from_env()` (storage SSOT) | `embedding_models.name` plus dimensions. An empty Compose `EDGEQUAKE_EMBEDDING_MODEL=` falls through to the product default |
+| Query filter | `QueryEmbeddings.model` → `MetadataFilter.embedding_model` | Preferred key only, via `serving_embedding_model_candidates`. A miss returns an empty ANN result, and graph label or seed admission still applies |
 
 **Rules**
 
-1. Stamp every typed upsert with the active embedder / lineage model name.
-2. When `MetadataFilter.embedding_model` (workspace/lineage) is set, typed ANN
-   searches **only** that `embedding_models(name, dimensions)` key. A miss is
-   empty — never fall through into the process env model’s space.
-3. Empty env (`EDGEQUAKE_EMBEDDING_MODEL=` from Compose `:-`) must resolve through
-   the SSOT helper — never treat `Ok("")` as a distinct registry name.
-4. When rows were written under the wrong name, **rename/backfill** the registry
-   and typed tables — see
-   [Embedding registry audit & backfill](/docs/operations/embedding-registry-backfill/).
+1. Stamp every typed upsert with the active embedder or lineage model name.
+2. When `MetadataFilter.embedding_model` (workspace or lineage) is set, typed ANN searches **only** that `embedding_models(name, dimensions)` key. A miss is empty. It never falls through to the model in the process environment.
+3. An empty environment value (`EDGEQUAKE_EMBEDDING_MODEL=`, from the Compose `:-` default) must resolve through the SSOT helper. Never treat `Ok("")` as a distinct registry name.
+4. When rows were written under the wrong name, rename or backfill the registry and typed tables. See [Embedding registry audit & backfill](/docs/operations/embedding-registry-backfill/).
 
 ---
 
 ## Best Practices
 
-1. **Consistency**: Use same embedding model for entire workspace
-2. **Match Dimensions**: Ensure workspace dimension matches model output
-3. **Same ANN key**: Ingest and query must share `embedding_models(name, dim)`
-4. **Batch When Possible**: Reduce API calls by batching texts
-5. **Monitor Costs**: Track embedding token usage in cost dashboard
-6. **Consider Local**: Use Ollama for sensitive data or high volume
-7. **Test Before Switching**: Compare quality before changing models
-8. **Index Optimization**: Tune HNSW parameters for your workload
+1. **Consistency:** use the same embedding model for the whole workspace.
+2. **Match dimensions:** the workspace dimension must equal the model's output size.
+3. **Same ANN key:** ingest and query must share `embedding_models(name, dimensions)`.
+4. **Batch when possible:** send texts in batches to reduce API calls.
+5. **Track costs:** follow embedding token usage in [Cost Tracking](cost-tracking.md).
+6. **Consider local models:** use Ollama for sensitive data or high volume.
+7. **Test before switching:** compare retrieval quality before changing models.
+8. **Tune the index:** adjust the HNSW parameters for your workload.
 
 ---
 
 ## See Also
 
-- [Vector Search](/docs/deep-dives/vector-storage/) - How similarity search works
-- [Configuration Reference](/docs/operations/configuration/) - All embedding settings
-- [Performance Tuning](/docs/operations/performance-tuning/) - Optimization guide
-- [Embedding registry audit & backfill](/docs/operations/embedding-registry-backfill/) - Ops SQL for model-key mismatches
+- [Vector Search](/docs/deep-dives/vector-storage/): how similarity search works
+- [Configuration Reference](/docs/operations/configuration/): all embedding settings
+- [Performance Tuning](/docs/operations/performance-tuning/): optimization guide
+- [Embedding registry audit & backfill](/docs/operations/embedding-registry-backfill/): ops SQL for model-key mismatches

@@ -53,12 +53,12 @@ Both projects follow this shape. The rows below describe where the steps differ.
 
 | Step | EdgeQuake | LightRAG | Note |
 | ---- | --------- | -------- | ---- |
-| Chunk size | 800 estimated tokens, overlap 100, minimum 100. The benchmark pins 1200 and 100 to match LightRAG. | Token-based, 1200 by default per the LightRAG docs | The defaults differ |
+| Chunk size | Adaptive by default: 1200, 800, or 600 tokens, chosen by document size. With adaptive sizing off, 1200 is used (set with `EDGEQUAKE_CHUNK_SIZE`). Overlap 100. The benchmark pins 1200 and 100 to match LightRAG. | Token-based, 1200 by default per the LightRAG docs | The defaults differ |
 | Chunk strategies | Five: `Fixed`, `Recursive` (default), `Markdown`, `Pdf`, `Semantic` | Token-based with an optional split character | Differs |
 | Extractors | LLM, SOTA, simple, gleaning (a wrapper), and decision mode (SPEC-160) | LLM extraction | Differs |
 | Gleaning | Optional extra passes, capped at 2 | Optional extra pass | Same idea |
-| Entity matching | Normalized name. Optional embedding match and optional LLM adjudication, both off by default. | Name based | Similar by default |
-| Description merge | Fragments are joined with a separator. An LLM summary replaces them when there are 8 fragments or the token budget is exceeded. | LLM summary after a fragment threshold | Same approach |
+| Entity matching | Normalized name. Optional LLM adjudication (`EDGEQUAKE_ER_LLM`), off by default. | Name based | Similar by default |
+| Description merge | Fragments are joined with a separator. An LLM summary replaces them when there are 8 or more fragments. | LLM summary after a fragment threshold | Same approach |
 | Source tracking | Chunk ids stored per entity and relationship, plus link tables and a lineage API | Chunk ids stored on graph items | Both track sources |
 | Local models | Lower concurrency, longer timeouts, gleaning off by default | Not compared | Not verified |
 
@@ -80,7 +80,7 @@ Both projects follow this shape. The rows below describe where the steps differ.
 
 The original audit described several things that are no longer true:
 
-- **Chunk size.** It listed EdgeQuake's default as 1200. The current default is 800.
+- **Chunk size.** It listed EdgeQuake's default as a fixed 1200. The current default is adaptive: 1200, 800, or 600 tokens, chosen by document size.
 - **Merging.** It said EdgeQuake keeps the longer description and that LightRAG leads on merging. EdgeQuake now uses the same LLM summary approach.
 - **Strategies and extractors.** It counted 4 strategies and 3 extractors. There are now 5 and more.
 - **Speed and test counts.** It claimed "5 to 10 times lower latency" and counted unit tests. Neither claim was backed by a published measurement, so both are removed. The measured cold latency is about equal (1.02x).

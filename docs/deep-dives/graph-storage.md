@@ -3,73 +3,42 @@ title: 'Deep Dive: Graph Storage'
 description: "How the knowledge graph is stored and queried."
 ---
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Product: v0.32.2** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
 
 # Deep Dive: Graph Storage
 
-> **How EdgeQuake Stores and Queries Knowledge Graphs**
+The knowledge graph holds the entities and relationships that EdgeQuake extracts from documents. In production it is stored in PostgreSQL with the Apache AGE extension, which adds Cypher graph queries to PostgreSQL. This page covers the data model, the storage trait, the AGE adapter and the tuning options.
 
-Graph storage is the foundation of EdgeQuake's knowledge management. **Production uses PostgreSQL + Apache AGE exclusively** — there is no Neo4j or alternate graph backend in the shipping stack.
-
-**See also:** [Data Layer](data-layer.md) — physical naming (`eq_eq_*_graph`), child-table indexes (M038/M086), and how Local/Global query modes expand AGE then re-score vectors.
+**See also:** [Data Layer](data-layer.md) for the physical storage layout across PostgreSQL tables and the graph, and [Query Modes](query-modes.md) for how the graph is read at query time.
 
 ---
 
 ## Overview
 
-EdgeQuake uses a property graph model to store extracted knowledge:
+EdgeQuake stores extracted knowledge as a property graph. Each entity is a node, and each relationship is a directed edge. Both carry arbitrary properties.
 
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  A["SARAH_CHEN<br>entity_type: PERSON"] -- "works_at<br>weight: 0.9" --> B["MIT<br>entity_type: ORGANIZATION"]
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    PROPERTY GRAPH MODEL                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │                       NODES (Entities)                      ││
-│  │                                                             ││
-│  │  ┌───────────────────┐     ┌───────────────────┐            ││
-│  │  │ SARAH_CHEN        │     │ MIT               │            ││
-│  │  ├───────────────────┤     ├───────────────────┤            ││
-│  │  │ type: PERSON      │     │ type: ORGANIZATION│            ││
-│  │  │ description: ...  │     │ description: ...  │            ││
-│  │  │ source_id: chunk1 │     │ source_id: chunk1 │            ││
-│  │  │ importance: 0.9   │     │ importance: 0.8   │            ││
-│  │  └─────────┬─────────┘     └─────────┬─────────┘            ││
-│  │            │                         │                      ││
-│  └────────────│─────────────────────────│──────────────────────┘│
-│               │                         │                       │
-│  ┌────────────│─────────────────────────│──────────────────────┐│
-│  │            │     EDGES (Relationships)│                     ││
-│  │            │                         │                      ││
-│  │            └─────────────────────────┘                      ││
-│  │                      │                                      ││
-│  │                      ▼                                      ││
-│  │  ┌─────────────────────────────────────────────────────────┐││
-│  │  │ SARAH_CHEN ──[works_at]──▶ MIT                          │││
-│  │  ├─────────────────────────────────────────────────────────┤││
-│  │  │ relation_type: works_at                                 │││
-│  │  │ description: "Dr. Chen is a researcher at MIT"          │││
-│  │  │ weight: 0.9                                             │││
-│  │  │ keywords: ["researcher", "faculty", "AI"]               │││
-│  │  │ source_chunk_id: chunk1                                 │││
-│  │  └─────────────────────────────────────────────────────────┘││
-│  │                                                             ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+
+The diagram shows one relationship: an edge with its own properties, joining two nodes.
+
+**Production backend.** PostgreSQL with Apache AGE is the only production graph backend. The `GraphStorage` trait has an in-memory implementation (`MemoryGraphStorage`) for tests.
 
 ---
 
 ## Why Property Graphs?
 
-| Feature                  | Benefit                                          |
-| ------------------------ | ------------------------------------------------ |
-| **Arbitrary Properties** | Each node/edge can have different attributes     |
-| **Rich Metadata**        | Store descriptions, weights, timestamps, sources |
-| **Flexible Schema**      | Adapt to different domains without migration     |
-| **Graph Traversal**      | Efficient neighbor and path queries              |
-| **Cypher compatibility** | Apache AGE property graph on PostgreSQL          |
+| Feature | Benefit |
+| --- | --- |
+| **Arbitrary properties** | Each node or edge can carry different attributes |
+| **Rich metadata** | Store descriptions, weights and source chunk ids |
+| **Flexible schema** | Adapt to different domains without a migration |
+| **Graph traversal** | Efficient neighbor and path queries |
+| **Cypher** | Apache AGE exposes Cypher on PostgreSQL |
 
 ---
 
@@ -77,34 +46,24 @@ EdgeQuake uses a property graph model to store extracted knowledge:
 
 ### GraphNode
 
-Represents an entity in the knowledge graph:
+An entity in the knowledge graph:
 
 ```rust
 /// A node in the knowledge graph.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphNode {
-    /// Node identifier (typically the normalized entity name)
+    /// Node identifier (typically the entity name)
     pub id: String,
-
-    /// Node properties (arbitrary key-value pairs)
+    /// Node properties
     pub properties: HashMap<String, serde_json::Value>,
 }
 ```
 
-**Standard Properties:**
-
-| Property             | Type   | Description                         |
-| -------------------- | ------ | ----------------------------------- |
-| `entity_type`        | String | PERSON, ORGANIZATION, CONCEPT, etc. |
-| `description`        | String | LLM-generated description           |
-| `source_chunk_id`    | String | Origin chunk for lineage            |
-| `source_document_id` | String | Origin document                     |
-| `importance`         | f32    | Relevance score (0.0-1.0)           |
-| `created_at`         | String | ISO timestamp                       |
+Common keys set by the pipeline are `entity_type`, `description`, `source_chunk_id` and `importance`. The storage layer accepts any key.
 
 ### GraphEdge
 
-Represents a relationship between entities:
+A relationship between two entities:
 
 ```rust
 /// An edge in the knowledge graph.
@@ -112,28 +71,18 @@ Represents a relationship between entities:
 pub struct GraphEdge {
     /// Source node identifier
     pub source: String,
-
     /// Target node identifier
     pub target: String,
-
     /// Edge properties
     pub properties: HashMap<String, serde_json::Value>,
 }
 ```
 
-**Standard Properties:**
-
-| Property          | Type        | Description                            |
-| ----------------- | ----------- | -------------------------------------- |
-| `relation_type`   | String      | works_at, developed, uses, etc.        |
-| `description`     | String      | LLM-generated relationship description |
-| `weight`          | f32         | Relationship strength (0.0-1.0)        |
-| `keywords`        | Vec<String> | Up to 5 keywords (BR0004)              |
-| `source_chunk_id` | String      | Origin chunk                           |
+Common keys are `relation_type` (for example `works_at`), `weight`, `description` and `keywords`. The extraction parser keeps at most 5 keywords per edge.
 
 ### KnowledgeGraph
 
-A subgraph result from queries:
+A subgraph result from a query:
 
 ```rust
 /// A subgraph extracted from the knowledge graph.
@@ -141,11 +90,9 @@ A subgraph result from queries:
 pub struct KnowledgeGraph {
     /// Nodes in the subgraph
     pub nodes: Vec<GraphNode>,
-
     /// Edges in the subgraph
     pub edges: Vec<GraphEdge>,
-
-    /// Whether result was truncated
+    /// Whether the result was truncated due to size limits
     pub is_truncated: bool,
 }
 ```
@@ -154,271 +101,182 @@ pub struct KnowledgeGraph {
 
 ## The GraphStorage Trait
 
-All graph backends implement this trait:
+Callers depend on the `GraphStorage` trait, not on a backend. The trait is split into read, scan, mutate and analytics sub-traits (interface segregation), and `GraphStorage` combines them:
 
 ```rust
+// Abridged. The real trait is composed of the read, scan, mutate and analytics traits.
 #[async_trait]
-pub trait GraphStorage: Send + Sync {
-    /// Get the storage namespace (for multi-tenancy).
+pub trait GraphStorage:
+    GraphStorageReadOps + GraphScanOps + GraphStorageMutateOps + GraphStorageAnalyticsOps
+{
     fn namespace(&self) -> &str;
-
-    /// Initialize the storage.
     async fn initialize(&self) -> Result<()>;
-
-    /// Flush pending changes.
     async fn finalize(&self) -> Result<()>;
-
-    // ========== Node Operations ==========
-
-    /// Check if a node exists.
-    async fn has_node(&self, node_id: &str) -> Result<bool>;
-
-    /// Get a node by ID.
-    async fn get_node(&self, node_id: &str) -> Result<Option<GraphNode>>;
-
-    /// Insert or update a node.
-    async fn upsert_node(&self, node: &GraphNode) -> Result<()>;
-
-    /// Delete a node.
-    async fn delete_node(&self, node_id: &str) -> Result<()>;
-
-    /// Get all nodes (with optional limit).
-    async fn get_all_nodes(&self, limit: Option<usize>) -> Result<Vec<GraphNode>>;
-
-    // ========== Edge Operations ==========
-
-    /// Check if an edge exists.
-    async fn has_edge(&self, source: &str, target: &str) -> Result<bool>;
-
-    /// Get edges from a node.
-    async fn get_node_edges(&self, node_id: &str) -> Result<Vec<GraphEdge>>;
-
-    /// Insert or update an edge.
-    async fn upsert_edge(&self, edge: &GraphEdge) -> Result<()>;
-
-    /// Delete an edge.
-    async fn delete_edge(&self, source: &str, target: &str) -> Result<()>;
-
-    // ========== Traversal Operations ==========
-
-    /// Get neighbors of a node.
-    async fn get_neighbors(&self, node_id: &str, depth: usize) -> Result<Vec<GraphNode>>;
-
-    /// Find path between two nodes.
-    async fn find_path(&self, from: &str, to: &str) -> Result<Option<Vec<GraphNode>>>;
-
-    // ========== Analytics ==========
-
-    /// Get total node count.
-    async fn node_count(&self) -> Result<usize>;
-
-    /// Get total edge count.
-    async fn edge_count(&self) -> Result<usize>;
-
-    /// Get degree of a node (number of edges).
-    async fn node_degree(&self, node_id: &str) -> Result<usize>;
-
-    // ========== Bulk Operations ==========
-
-    /// Clear all data.
-    async fn clear(&self) -> Result<()>;
-
-    /// Get full graph.
-    async fn get_graph(&self, limit: Option<usize>) -> Result<KnowledgeGraph>;
 }
 ```
+
+The operations fall into these groups. Names are the real method names.
+
+| Group | Examples |
+| --- | --- |
+| Nodes | `has_node`, `get_node`, `get_nodes_by_ids`, `get_all_nodes`, `upsert_node`, `delete_node` |
+| Edges | `has_edge`, `get_edge`, `get_node_edges`, `get_all_edges`, `upsert_edge`, `delete_edge` |
+| Batches | `upsert_nodes_batch`, `upsert_edges_batch`, `delete_nodes_batch`, `get_nodes_batch` |
+| Traversal and search | `get_neighbors(node_id, depth, tenant_id, workspace_id)`, `get_knowledge_graph`, `search_nodes`, `get_popular_nodes_with_degree` |
+| Analytics | `node_count`, `edge_count`, `node_degree`, `node_count_by_workspace` |
+| Reset | `clear`, `clear_workspace` |
 
 ---
 
 ## Storage Backends
 
-### PostgresAGEStorage (production)
+### PostgresAGEGraphStorage (production)
 
-Production graph storage using PostgreSQL with the Apache AGE extension. Implementation: [`edgequake-storage/src/adapters/postgres/`](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-storage/src/adapters/postgres/).
+The production adapter is `PostgresAGEGraphStorage`. Source: [`edgequake-storage/src/adapters/postgres/`](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-storage/src/adapters/postgres/).
 
-```rust
-/// PostgreSQL Apache AGE graph storage.
-pub struct PostgresAGEStorage {
-    pool: PgPool,
-    namespace: String,
-    graph_name: String,
-}
-```
-
-**Characteristics:**
-
-| Attribute   | Value                    |
-| ----------- | ------------------------ |
-| Persistence | ✅ Full durability       |
-| Speed       | Good (optimized queries) |
-| Scalability | Millions of nodes/edges  |
-| Use Case    | Production deployments   |
+| Attribute | Value |
+| --- | --- |
+| Persistence | PostgreSQL transactions (ACID) and replication |
+| Query language | Cypher, run through the `cypher()` function of AGE |
+| Requirements | PostgreSQL 11 to 18 with the Apache AGE extension loaded |
+| Use case | Production deployments |
 
 **Features:**
 
-- Native graph queries via Cypher (`ag_catalog`)
-- BFS traversal indexes on EDGE `src` / `tgt` (Migration **086**, SPEC-053)
-- Transaction support and connection pooling
-- Per-workspace AGE graph namespace
+- Each namespace (workspace) gets its own AGE graph, named `eq_eq_<namespace>_graph`. For example, the namespace `default` maps to `eq_eq_default_graph`.
+- Indexes are created after the first insert, because AGE creates its label tables lazily.
+- Native SQL writes are on by default. `EDGEQUAKE_NATIVE_GRAPH_WRITES=0` falls back to Cypher `MERGE`.
+- Community refresh takes a PostgreSQL advisory lock per workspace, so only one replica refreshes at a time.
 
-### BFS edge indexes (Migration 086)
+### Graph layout
 
-Migration `086_edge_bfs_index_reconcile.sql` ensures property indexes exist on AGE EDGE tables for batch neighbor fetch (used by Local/Hybrid graph arms):
+Nodes are AGE vertices labelled `Node`, keyed by a `node_id` property. Relationships are AGE edges labelled `EDGE`, with `source_id`, `target_id`, `relation_type` and `weight` properties. Denormalized `eq_*` columns (for example `eq_source_id`, `eq_target_id` and `eq_rel_type`) speed up lookups. When they are missing, the adapter uses a slower property-path SQL fallback.
 
-- `{graph}_edge_src_idx` on `(src)`
-- `{graph}_edge_tgt_idx` on `(tgt)`
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["Ingestion and query code"] --> B["GraphStorage traits"]
+  B --> C["PostgresAGEGraphStorage"]
+  C --> D["AGE graph<br>eq_eq_default_graph"]
+  D --> E["PostgreSQL database<br>Node and EDGE tables"]
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class B,C,D,E eqStore
+```
 
-Reconcile runs idempotently at migration time; graphs created later get indexes via bootstrap. Without these, multi-hop queries degrade to sequential edge scans at scale.
+The adapter sits between the callers and PostgreSQL. Each workspace namespace maps to one AGE graph in the database.
 
-**Schema:**
+### BFS edge indexes (migration 086)
+
+Migration `086_edge_bfs_index_reconcile.sql` makes sure two btree indexes exist on the `"EDGE"` table of every AGE graph:
+
+- `idx_edge_source_id` on `source_id`;
+- `idx_edge_target_id` on `target_id`.
+
+The incident-edge lookups and the node-degree counts use these indexes. The migration is idempotent. Graphs created later get the indexes at bootstrap. Without them, the incident-edge lookup falls back to sequential scans, which slow down at scale.
+
+### Schema (Cypher)
+
+Simplified examples. The adapter issues its own statements.
 
 ```sql
--- Apache AGE graph structure
-SELECT * FROM cypher('edgequake', $$
-    CREATE (n:Entity {
-        id: 'SARAH_CHEN',
+-- Create an entity (AGE vertex labelled Node)
+SELECT * FROM cypher('eq_eq_default_graph', $$
+    CREATE (n:Node {
+        node_id: 'SARAH_CHEN',
         entity_type: 'PERSON',
         description: 'Researcher at MIT'
     })
     RETURN n
 $$) AS (n agtype);
 
--- Create relationship
-SELECT * FROM cypher('edgequake', $$
-    MATCH (a:Entity {id: 'SARAH_CHEN'})
-    MATCH (b:Entity {id: 'MIT'})
-    CREATE (a)-[r:WORKS_AT {
+-- Create a relationship (AGE edge labelled EDGE)
+SELECT * FROM cypher('eq_eq_default_graph', $$
+    MATCH (a:Node {node_id: 'SARAH_CHEN'})
+    MATCH (b:Node {node_id: 'MIT'})
+    CREATE (a)-[r:EDGE {
         relation_type: 'works_at',
+        source_id: 'SARAH_CHEN',
+        target_id: 'MIT',
         weight: 0.9
     }]->(b)
     RETURN r
 $$) AS (r agtype);
 ```
 
-**Usage:**
+### Opening a storage
 
 ```rust
-let pool = PgPoolOptions::new()
-    .max_connections(10)
-    .connect(&database_url)
-    .await?;
+use edgequake_storage::adapters::postgres::{PostgresAGEGraphStorage, PostgresConfig};
 
-let storage = PostgresAGEStorage::new(pool, "my_workspace").await?;
+let config = PostgresConfig::new("localhost", 5432, "edgequake", "user", "pass")
+    .with_namespace("my_workspace");
+
+let storage = PostgresAGEGraphStorage::new(config);
 storage.initialize().await?;
 ```
+
+To share a connection pool across storages, use `PostgresAGEGraphStorage::with_pool(pool, config)`.
 
 ---
 
 ## Storage Operations
 
-### Node Operations
+### Nodes and edges
+
+Writes and reads go through the trait. Batch methods such as `upsert_nodes_batch` and `upsert_edges_batch` reduce round trips for large imports.
+
+### Traversal
 
 ```rust
-// Create or update a node
-let mut node = GraphNode::new("SARAH_CHEN");
-node.set_property("entity_type", json!("PERSON"));
-node.set_property("description", json!("Researcher at MIT"));
-node.set_property("importance", json!(0.9));
-
-storage.upsert_node(&node).await?;
-
-// Get a node
-if let Some(node) = storage.get_node("SARAH_CHEN").await? {
-    println!("Found: {}", node.id);
-}
-
-// Delete a node
-storage.delete_node("SARAH_CHEN").await?;
+// 2-hop neighborhood of an entity, scoped to one workspace
+let neighbours = storage
+    .get_neighbors("SARAH_CHEN", 2, None, Some("workspace-id"))
+    .await?;
 ```
 
-### Edge Operations
-
-```rust
-// Create or update an edge
-let mut edge = GraphEdge::new("SARAH_CHEN", "MIT");
-edge.set_property("relation_type", json!("works_at"));
-edge.set_property("description", json!("Research position"));
-edge.set_property("weight", json!(0.9));
-edge.set_property("keywords", json!(["researcher", "faculty"]));
-
-storage.upsert_edge(&edge).await?;
-
-// Get edges from a node
-let edges = storage.get_node_edges("SARAH_CHEN").await?;
-for edge in edges {
-    println!("{} -> {}", edge.source, edge.target);
-}
-
-// Delete an edge
-storage.delete_edge("SARAH_CHEN", "MIT").await?;
-```
-
-### Traversal Operations
-
-```rust
-// Get 1-hop neighbors
-let neighbors = storage.get_neighbors("SARAH_CHEN", 1).await?;
-
-// Get 2-hop neighbors
-let extended = storage.get_neighbors("SARAH_CHEN", 2).await?;
-
-// Find path between entities
-if let Some(path) = storage.find_path("SARAH_CHEN", "GOOGLE").await? {
-    println!("Path: {:?}", path.iter().map(|n| &n.id).collect::<Vec<_>>());
-}
-```
+`get_neighbors` takes the node id, the depth, an optional tenant id and an optional workspace id.
 
 ### Analytics
 
 ```rust
-// Get counts
 let node_count = storage.node_count().await?;
 let edge_count = storage.edge_count().await?;
-
-// Get node degree
 let degree = storage.node_degree("SARAH_CHEN").await?;
-println!("SARAH_CHEN has {} connections", degree);
 ```
 
 ---
 
 ## Multi-Tenancy
 
-Graph storage supports namespace-based tenant isolation:
+Each namespace maps to its own AGE graph. Queries in one graph never read another graph's nodes or edges. Vector filtering by namespace is a separate mechanism.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    MULTI-TENANT GRAPH STORAGE                   │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │                     PostgreSQL Database                     ││
-│  │                                                             ││
-│  │  ┌───────────────┐ ┌───────────────┐ ┌───────────────┐      ││
-│  │  │   tenant_a    │ │   tenant_b    │ │   tenant_c    │      ││
-│  │  │   (Graph)     │ │   (Graph)     │ │   (Graph)     │      ││
-│  │  │               │ │               │ │               │      ││
-│  │  │ • 1000 nodes  │ │ • 500 nodes   │ │ • 2000 nodes  │      ││
-│  │  │ • 3000 edges  │ │ • 1500 edges  │ │ • 6000 edges  │      ││
-│  │  └───────────────┘ └───────────────┘ └───────────────┘      ││
-│  │                                                             ││
-│  │  Each namespace = separate AGE graph                        ││
-│  │  Complete isolation, independent schema                     ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  A["Namespace tenant_a"] --> B["AGE graph<br>eq_eq_tenant_a_graph"]
+  C["Namespace tenant_b"] --> D["AGE graph<br>eq_eq_tenant_b_graph"]
+  B --> E["Same PostgreSQL database"]
+  D --> E
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class B,D,E eqStore
 ```
 
-**Implementation:**
+Two namespaces share one database but use separate graphs. The graph name is derived from the namespace.
 
 ```rust
-// Each workspace gets its own graph
-let tenant_a = PostgresAGEStorage::new(pool.clone(), "tenant_a").await?;
-let tenant_b = PostgresAGEStorage::new(pool.clone(), "tenant_b").await?;
-
-// Data is completely isolated
-tenant_a.upsert_node(&node).await?;
-assert!(tenant_b.get_node(&node.id).await?.is_none());
+// One pool, one storage per namespace
+let tenant_a = PostgresAGEGraphStorage::with_pool(
+    pool.clone(),
+    config.clone().with_namespace("tenant_a"),
+);
+let tenant_b = PostgresAGEGraphStorage::with_pool(
+    pool.clone(),
+    config.clone().with_namespace("tenant_b"),
+);
 ```
 
 ---
@@ -427,79 +285,29 @@ assert!(tenant_b.get_node(&node.id).await?.is_none());
 
 ### Indexing
 
-PostgreSQL AGE uses:
+- Indexes are created lazily, after the first node or edge is inserted.
+- Migration 086 adds the `EDGE` source and target indexes (see above).
+- Entity-type filters use Cypher `MATCH` patterns.
 
-- Node ID property indexes (per-graph bootstrap)
-- **M086** EDGE `src` / `tgt` property indexes for BFS batch fetch
-- Entity-type filters via Cypher `MATCH` patterns
+### Connection pooling
 
-### Query Optimization
-
-```sql
--- Efficient: Index-based lookup
-SELECT * FROM cypher('graph', $$
-    MATCH (n:Entity {id: 'SARAH_CHEN'})
-    RETURN n
-$$) AS (n agtype);
-
--- Efficient: Limited traversal
-SELECT * FROM cypher('graph', $$
-    MATCH (n:Entity {id: 'SARAH_CHEN'})-[r]->(m)
-    RETURN n, r, m
-    LIMIT 100
-$$) AS (n agtype, r agtype, m agtype);
-
--- Less efficient: Full scan
-SELECT * FROM cypher('graph', $$
-    MATCH (n:Entity)
-    WHERE n.importance > 0.8
-    RETURN n
-$$) AS (n agtype);
-```
-
-### Connection Pooling
-
-```rust
-let pool = PgPoolOptions::new()
-    .max_connections(20)           // Concurrent connections
-    .min_connections(5)            // Keep-alive connections
-    .acquire_timeout(Duration::from_secs(30))
-    .idle_timeout(Duration::from_secs(600))
-    .connect(&database_url)
-    .await?;
-```
+`PostgresConfig` sets the pool defaults: `max_connections` 32, `min_connections` 1 and an idle timeout of 600 seconds. Set `EDGEQUAKE_DB_POOL_SIZE_{ROLE}` to override the size for a role.
 
 ---
 
 ## Best Practices
 
-1. **Normalize Entity IDs** - Use UPPERCASE_UNDERSCORE format (BR0008)
-2. **Limit Properties** - Don't store large text in properties
-3. **Use Embeddings Separately** - Store embeddings in vector storage, not graph
-4. **Batch Operations** - Use bulk insert for large imports
-5. **Monitor Size** - Track node/edge counts for capacity planning
-
----
-
-## Benchmarks
-
-Performance on typical workloads (PostgreSQL AGE, 10K nodes, 30K edges):
-
-| Operation          | Latency |
-| ------------------ | ------- |
-| `get_node`         | ~1ms    |
-| `upsert_node`      | ~2ms    |
-| `get_node_edges`   | ~3ms    |
-| `get_neighbors(1)` | ~5ms    |
-| `get_neighbors(2)` | ~15ms   |
-| `node_count`       | ~50ms   |
-| `get_graph(100)`   | ~10ms   |
+1. **Normalize entity ids.** Use the UPPERCASE_UNDERSCORE form (rule BR0008).
+2. **Keep properties small.** Do not store large text blobs in properties.
+3. **Store embeddings separately.** Vectors belong in vector storage, not in the graph.
+4. **Batch writes.** Use the batch methods for large imports.
+5. **Monitor size.** Track node and edge counts with `node_count` and `edge_count` for capacity planning.
 
 ---
 
 ## See Also
 
-- [Entity Extraction](/docs/deep-dives/entity-extraction/) - How entities are created
-- [Query Modes](/docs/deep-dives/query-modes/) - How graph is queried
-- [Architecture: Crates](/docs/architecture/crates/) - Storage crate details
-- [Performance Tuning](/docs/operations/performance-tuning/) - Optimization guide
+- [Entity Extraction](/docs/deep-dives/entity-extraction/): how entities are created
+- [Query Modes](/docs/deep-dives/query-modes/): how the graph is queried
+- [Architecture: Crates](/docs/architecture/crates/): storage crate details
+- [Performance Tuning](/docs/operations/performance-tuning/): optimization guide

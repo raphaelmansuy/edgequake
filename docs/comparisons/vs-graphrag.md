@@ -48,11 +48,11 @@ Read each box top to bottom. GraphRAG adds a reporting step; EdgeQuake does not.
 | Language | Python | Rust |
 | License | MIT | Apache-2.0 |
 | Origin | [GraphRAG paper](https://arxiv.org/abs/2404.16130) | [LightRAG paper](https://arxiv.org/abs/2410.05779) |
-| Communities | Leiden, hierarchical | Louvain by default, flat. Label propagation and connected components are also available. |
+| Communities | Leiden, hierarchical | Louvain by default. Label propagation and connected components are also available. A hierarchy pass is optional (`EDGEQUAKE_LOUVAIN_HIERARCHY`). |
 | Community reports | LLM-written, per level | Not by default. Optional extractive reports with `EDGEQUAKE_COMMUNITY_REPORTS`. |
 | Claims extraction | Yes (optional) | No |
 | Query modes | Local, Global, DRIFT, Basic | `naive`, `local`, `global`, `hybrid`, `mix`, `bypass` |
-| Storage | Parquet files and a vector store such as LanceDB by default | PostgreSQL with pgvector and Apache AGE |
+| Storage | Parquet files and a separate vector store | PostgreSQL with pgvector and Apache AGE |
 | Server and API | Library and CLI | REST API, WebSocket progress, MCP endpoint |
 | Multi-tenancy | Not part of the project | Tenants, workspaces, row-level security |
 | PDF input | Not part of the core pipeline | Built-in vision and text-based conversion |
@@ -108,13 +108,13 @@ What EdgeQuake adds around extraction:
 | Feature | GraphRAG | EdgeQuake |
 | ------- | :------: | :-------: |
 | Entity and relationship extraction | Yes | Yes |
-| Hierarchical communities | Yes | No |
+| Hierarchical communities | Yes | Optional (`EDGEQUAKE_LOUVAIN_HIERARCHY`) |
 | LLM community reports | Yes | No (optional extractive reports) |
 | Claims extraction | Yes | No |
 | DRIFT search | Yes | No |
-| Prompt tuning command | Yes | No |
+| Prompt tuning command | Yes | Not documented |
 | Gleaning | Not verified | Yes |
-| LLM caching | Yes | Yes (keyword, answer, and extraction caches) |
+| LLM caching | Yes | Yes (keyword and answer caches) |
 | Streaming answers | Not verified | Yes |
 | Multi-tenant isolation | Not part of the project | Yes |
 | REST API and WebUI | Not part of the core package | Yes |

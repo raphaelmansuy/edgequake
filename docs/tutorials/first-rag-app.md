@@ -3,13 +3,15 @@ title: "Tutorial: Build your first RAG app"
 description: Create a workspace, upload a document, ask questions and inspect the knowledge graph with the EdgeQuake REST API.
 ---
 
-In this tutorial you build a small question-answering app on top of EdgeQuake. You create a workspace, upload one document, ask questions about it and look at the knowledge graph that EdgeQuake extracted.
+In this tutorial you build a small question-answering app on top of EdgeQuake. You create a workspace, upload one document, ask questions about it and inspect the knowledge graph that EdgeQuake extracted from it.
 
-**Prerequisites:** a running EdgeQuake server with a chat model and an embedding model configured (see [Getting started](../getting-started/index.md) and [Configure LLM providers](../providers/index.md)), plus `curl` and `jq`.
+> **You will build:** a workspace that answers questions about one document, backed by a knowledge graph.
+>
+> **You need:** a running EdgeQuake server with a chat model and an embedding model (see [Getting started](../getting-started/index.md) and [Configure LLM providers](../providers/index.md)), plus `curl` and `jq`. Allow about 15 minutes.
 
 ## What happens
 
-The diagram shows the path of your document from upload to answer. Steps 3 to 6 of this tutorial walk through it.
+Graph-RAG (retrieval-augmented generation over a knowledge graph) first turns your text into entities, relationships and vectors. Then each question pulls matching facts from that store before the LLM writes the answer. The diagram shows both paths. Steps 3 to 6 of this tutorial walk through them.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
@@ -31,7 +33,7 @@ Read it left to right. The top row runs once per document. The bottom row runs f
 
 ## 1. Check the server
 
-Set the base URL and check health. Use port `8080` for the Docker quickstart. `make dev` picks `8090` by default; run `make status` to see the actual port.
+Set the base URL and check health. Use port `8080` for the Docker quickstart. `make dev` uses `8090` by default; run `make status` to see the actual port.
 
 ```bash
 export EQ_API=http://localhost:8080
@@ -56,11 +58,11 @@ Expected output (values vary with your install):
 
 `status` is `healthy` or `degraded`. If it is `degraded`, or `llm_provider` is `false`, fix the provider first. Run `edgequake doctor` or read [Configure LLM providers](../providers/index.md).
 
-> **Authentication.** A default quickstart has auth off, so no credentials are needed. If you turned auth on, add `-H "Authorization: Bearer $TOKEN"` (or `-H "X-API-Key: $KEY"`) to every call and send `X-Tenant-ID` as well. See [Auth quickstart](../operations/auth-quickstart.md).
+> **Authentication.** The Docker quickstart Compose file turns login off, so no credentials are needed. If you turned auth on, add `-H "Authorization: Bearer $TOKEN"` (or `-H "X-API-Key: $KEY"`) to every call and send `X-Tenant-ID` as well. See [Auth quickstart](../operations/auth-quickstart.md).
 
 ## 2. Create a workspace
 
-A **workspace** is an isolated knowledge base: its own documents, graph and vectors. Every workspace belongs to a **tenant**. A fresh server has one tenant named `default` with ID `00000000-0000-0000-0000-000000000002`.
+A **workspace** is an isolated knowledge base with its own documents, graph and vectors. Every workspace belongs to a **tenant**. A fresh server has a default tenant with the slug `default` and the ID `00000000-0000-0000-0000-000000000002`.
 
 ```bash
 export TENANT_ID=00000000-0000-0000-0000-000000000002
@@ -72,9 +74,9 @@ export WORKSPACE_ID=$(curl -s -X POST "$EQ_API/api/v1/tenants/$TENANT_ID/workspa
 echo "$WORKSPACE_ID"
 ```
 
-Expected output: a UUID such as `3f6c1c0e-8a2d-4c6e-9d5b-0a1b2c3d4e5f`. The server derives a URL slug from the name. If you get a `409` conflict, a workspace with that slug already exists in the tenant. Pick another name.
+Expected output: a UUID such as `3f6c1c0e-8a2d-4c6e-9d5b-0a1b2c3d4e5f`. The server derives a URL slug from the name. A `409` response means a workspace with that slug already exists in the tenant. Pick another name.
 
-From here on, every call sends the header `X-Workspace-ID: $WORKSPACE_ID`. That header selects the workspace for documents, queries and the graph.
+From here on, send the header `X-Workspace-ID: $WORKSPACE_ID` with every call. That header selects the workspace for documents, queries and the graph.
 
 ## 3. Upload a document
 
@@ -92,7 +94,7 @@ the indexing pipeline. Their team is based in San Francisco.
 EOF
 ```
 
-Upload it as a file. The server answers right away and processes the document in the background.
+Upload it as a file. The server answers at once with `202 Accepted` and processes the document in the background.
 
 ```bash
 curl -s -X POST "$EQ_API/api/v1/documents/upload" \
@@ -102,17 +104,17 @@ curl -s -X POST "$EQ_API/api/v1/documents/upload" \
 export DOC_ID=$(jq -r '.document_id' upload.json)
 ```
 
-Expected output (the status can also be `pending` or `processing`):
+Expected output (the status is `pending` right after upload):
 
 ```json
 {
   "document_id": "9d1e0a52-4f55-4c43-b3f0-6b6e0b0c2f11",
-  "status": "processing",
-  "track_id": "track-..."
+  "status": "pending",
+  "track_id": "<track-id>"
 }
 ```
 
-To upload plain text from a script instead, use the JSON route `POST /api/v1/documents` with a body such as `{"title": "Notes", "content": "..."}`. It also returns `document_id` and `track_id`. See [Document ingestion](document-ingestion.md) for all options.
+To upload plain text from a script instead, send JSON to `POST /api/v1/documents` with a body such as `{"title": "Notes", "content": "..."}`. It also returns `document_id` and `track_id`. See [Document ingestion](document-ingestion.md) for all options.
 
 ## 4. Wait for processing
 
@@ -153,7 +155,7 @@ The `ui_phase` field has four values:
 
 ## 5. Ask a question
 
-Send a question to `POST /api/v1/query`. The default mode is `mix`, which combines graph and vector retrieval. [Query optimization](query-optimization.md) explains the modes.
+Send a question to `POST /api/v1/query`. The default mode is `mix`, which combines graph and vector retrieval. [Query optimization](query-optimization.md) explains the other modes.
 
 ```bash
 curl -s -X POST "$EQ_API/api/v1/query" \
@@ -163,21 +165,21 @@ curl -s -X POST "$EQ_API/api/v1/query" \
   | jq '{answer, mode, sources: [.sources[] | {source_type, id, score}], total_ms: .stats.total_time_ms}'
 ```
 
-Expected output (the wording of the answer varies):
+Expected output (the wording and IDs vary):
 
 ```json
 {
   "answer": "Dr. Sarah Chen leads the NeuralSearch project at TechCorp. She works with Michael Torres, a senior engineer who designed the indexing pipeline.",
   "mode": "mix",
   "sources": [
-    { "source_type": "chunk", "id": "9d1e0a52-...-chunk-0", "score": 0.82 },
+    { "source_type": "chunk", "id": "<chunk-id>", "score": 0.82 },
     { "source_type": "entity", "id": "SARAH_CHEN", "score": 0.77 }
   ],
   "total_ms": 3100
 }
 ```
 
-Each item in `sources` is a chunk, entity or relationship that fed the answer. To get a streamed answer, call `POST /api/v1/query/stream` with the same body. To get the retrieved context without an LLM answer, add `"context_only": true`.
+Each item in `sources` is a chunk, entity or relationship that fed the answer. To stream the answer, call `POST /api/v1/query/stream` with the same body. To get the retrieved context without an LLM answer, add `"context_only": true`.
 
 ## 6. Inspect the knowledge graph
 
@@ -220,7 +222,7 @@ curl -s "$EQ_API/api/v1/graph/entities/SARAH_CHEN/neighborhood" \
 
 ## 7. Use the Web UI
 
-Open the Web UI (`http://localhost:3000` for Docker, `http://localhost:3010` for `make dev`). Select your workspace in the workspace selector, then use the sidebar:
+Open the Web UI (`http://localhost:3000` for Docker, `http://localhost:3010` for `make dev`). Select your workspace, then use the sidebar:
 
 | Sidebar item | What you do there |
 |--------------|-------------------|
@@ -230,7 +232,7 @@ Open the Web UI (`http://localhost:3000` for Docker, `http://localhost:3010` for
 
 ## 8. Clean up
 
-Deleting a workspace removes its documents, graph and vectors.
+Deleting a workspace removes the workspace row. Its related data goes through foreign-key cascades.
 
 ```bash
 curl -s -X DELETE "$EQ_API/api/v1/workspaces/$WORKSPACE_ID"
@@ -248,6 +250,12 @@ rm -f sample.md upload.json
 | `401` or `403` | Auth is on. | Add credentials and `X-Tenant-ID`; see [Auth quickstart](../operations/auth-quickstart.md). |
 
 More fixes are in [Troubleshooting](../troubleshooting/index.md).
+
+## What you learned
+
+- A workspace isolates documents, graph and vectors, and every call selects one with `X-Workspace-ID`.
+- Uploads return at once; poll `ui_phase` until it is `terminal`.
+- A query returns an answer plus the chunks and entities that support it.
 
 ## Next steps
 

@@ -37,9 +37,9 @@ Precedence for the mode word is **document → workspace → environment → `ll
 
 The engine talks to `http://localhost:11434` unless `EDGEQUAKE_DECISION_BASE_URL` is set. It does not follow `OLLAMA_HOST`.
 
-`GET /api/v1/decision/status` returns 200 even when the backend is down. The body carries `reachable`, `model_present`, and `decision_capable`. The probe stops after 3 seconds and shows the host only.
+`GET /api/v1/decision/status` returns 200 even when the backend is down. Its `backend` object carries `reachable`, `model_present`, and `decision_capable`. The probe stops after 3 seconds and shows the host only.
 
-Uploads that resolve to decision and cannot run return **422**:
+Uploads that resolve to decision and cannot run return **422**. A workspace request with an unknown mode word returns 400 instead.
 
 | `code` | When |
 | ------ | ---- |
@@ -71,6 +71,31 @@ File, PDF, and batch uploads take the same `extraction_mode` field. An optional 
 Presets are not calibrated. The card shows **Uncalibrated** until a later measurement says otherwise.
 
 ## What enters the graph
+
+The sequence shows one upload in decision mode. The chart after it shows what the gate does with each answer.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+sequenceDiagram
+    participant Client
+    participant API as REST API
+    participant Model as Decision model on Ollama
+    participant Store as PostgreSQL
+    Client->>API: POST /api/v1/documents/upload with extraction_mode=decision
+    API->>API: Resolve mode: document, workspace, env, then llm
+    API->>Model: Health and model check
+    alt Backend down or model missing
+        API-->>Client: 422 decision_backend_unavailable or decision_model_missing
+    else Ready
+        API->>Model: Closed questions, 4 per request by default
+        Model-->>API: Answers
+        API->>Store: Accepted facts to graph, review rows to decision_review
+        API-->>Client: Document with decision_stats
+    end
+```
+
+Read the diagram from the top. The API checks the backend before it sends any chunk, so a down backend fails the upload early.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
@@ -136,7 +161,7 @@ A bad value fails startup. It does not fall back.
 | `EDGEQUAKE_DECISION_CACHE_TTL_DAYS` | `30` | Answer cache TTL |
 | `EDGEQUAKE_DECISION_CACHE_MAX_ROWS` | `200000` | Cache rows per workspace |
 
-Full table: [Configuration](../operations/configuration.md#spec-160-decision-extraction). Copy-paste block: [`.env.example`](../../.env.example).
+Full table: [Configuration](../operations/configuration.md#decision-extraction-spec-160-preview). Copy-paste block: [`.env.example`](../../.env.example).
 
 ## Not in this preview
 

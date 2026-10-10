@@ -5,7 +5,7 @@ description: "Choose between the quickstart stack, an API-only container, a preb
 
 # Docker deployment options
 
-This page is for operators who must pick a Docker layout. For a five-minute demo use the [Docker quickstart](docker-quickstart.md). For Kubernetes or bare metal use [Deployment](deployment.md).
+This page is for operators who must choose a Docker layout. For a five-minute demo, use the [Docker quickstart](docker-quickstart.md). For Kubernetes or bare metal, use [Deployment](deployment.md).
 
 ## Pick an option
 
@@ -25,20 +25,20 @@ classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
 class B eqStore
 ```
 
-How to read it: the first question decides whether you need a database container. Only Option A skips PostgreSQL. All options use the same API image.
+The first question decides whether you need a database container. Only Option A skips PostgreSQL. All options run the same API image.
 
 | Option | File | Starts | Runs migrate for you? |
 |--------|------|--------|-----------------------|
-| Quickstart | `docker-compose.quickstart.yml` (repo root) | postgres, migrate, api, frontend | Yes (`migrate` service). |
-| A. API only | `edgequake/docker/docker-compose.api-only.yml` | api | **No.** Run `migrate` yourself. |
-| B. Prebuilt stack | `edgequake/docker/docker-compose.prebuilt.yml` | postgres, migrate, edgequake, frontend | Yes. |
-| C. Source build | `edgequake/docker/docker-compose.yml` | same as B, built locally; optional Jaeger (`observability` profile) | Yes. |
+| Quickstart | `docker-compose.quickstart.yml` (repo root) | PostgreSQL, migrate, API, frontend | Yes (`migrate` service). |
+| A. API only | `edgequake/docker/docker-compose.api-only.yml` | API | **No.** Run `migrate` yourself. |
+| B. Prebuilt stack | `edgequake/docker/docker-compose.prebuilt.yml` | PostgreSQL, migrate, API, frontend | Yes. |
+| C. Source build | `edgequake/docker/docker-compose.yml` | Same as B, built locally; optional Jaeger (`observability` profile) | Yes. |
 
-Whatever you pick, the API refuses to start without a safe auth setup (see the warning below).
+Whichever option you pick, the API refuses to start without a safe auth setup (see the next section).
 
 ## Required before the API starts
 
-The API checks its security settings at boot ([details](runtime-auth-hardening.md#what-the-api-checks-at-startup)). The three files under `edgequake/docker/` do not pass `EDGEQUAKE_DEV_MODE`, `JWT_SECRET` or `EDGEQUAKE_CORS_ORIGINS` into the container. With default settings the API exits with "JWT_SECRET is the insecure default". Fix it with an override file next to the compose file.
+The API checks its security settings at boot ([details](runtime-auth-hardening.md#what-the-api-checks-at-startup)). The three files under `edgequake/docker/` (API only, prebuilt, and source build) do not pass `EDGEQUAKE_DEV_MODE`, `JWT_SECRET` or `EDGEQUAKE_CORS_ORIGINS` into the container. With the default settings, the API exits with "JWT_SECRET is the insecure default". Fix this with an override file next to the Compose file.
 
 For a local demo:
 
@@ -50,11 +50,11 @@ services:
       EDGEQUAKE_DEV_MODE: "true"   # open API, local only
 ```
 
-For a real deployment, set `EDGEQUAKE_DEV_MODE: "false"`, `JWT_SECRET`, `EDGEQUAKE_CORS_ORIGINS`, and the bootstrap admin password (see [Enable login](auth-quickstart.md)). Docker Compose picks up `docker-compose.override.yml` automatically. With `-f` you must list it: `-f docker-compose.prebuilt.yml -f docker-compose.override.yml`.
+For a real deployment, set `EDGEQUAKE_DEV_MODE: "false"`, `JWT_SECRET`, `EDGEQUAKE_CORS_ORIGINS`, and the bootstrap admin password (see [Enable login](auth-quickstart.md)). Docker Compose reads `docker-compose.override.yml` automatically. With `-f`, you must list it: `-f docker-compose.prebuilt.yml -f docker-compose.override.yml`.
 
 ## Option A: API only (your own PostgreSQL)
 
-Your database needs the `vector` (pgvector 0.8.5 or newer) and `age` (Apache AGE) extensions. Run migrate once, then start the API.
+Your database needs the `vector` (pgvector 0.8.5 or newer) and `age` (Apache AGE) extensions. Run `migrate` once, then start the API.
 
 ```bash
 IMAGE=ghcr.io/raphaelmansuy/edgequake:0.32.2
@@ -76,7 +76,7 @@ docker run -d --name edgequake -p 8080:8080 \
   "$IMAGE"
 ```
 
-The mock provider variables only let the one-shot migrate container start without LLM keys. They are the same ones the quickstart `migrate` service uses. Without step 1 the API exits with code 78 (schema pending). Set `EDGEQUAKE_SCHEMA_GATE=wait` if you run migrate in parallel from another job. The Compose version is `make docker-api-only`, which reads `edgequake/docker/.env`.
+The mock provider variables only let the one-shot `migrate` container start without LLM keys. The quickstart `migrate` service uses the same variables. Without step 1, the API exits with code 78 (schema pending). If you run `migrate` in parallel from another job, set `EDGEQUAKE_SCHEMA_GATE=wait`. The Compose version is `make docker-api-only`, which reads `edgequake/docker/.env`.
 
 ## Option B: prebuilt full stack
 
@@ -92,7 +92,7 @@ docker compose -f docker-compose.prebuilt.yml up -d
 | Frontend | 3000 | `ghcr.io/raphaelmansuy/edgequake-frontend:X.Y.Z` |
 | PostgreSQL | 5432 | `ghcr.io/raphaelmansuy/edgequake-postgres:X.Y.Z` (PG18 by default) |
 
-Unlike the quickstart, these ports bind to all interfaces. Do not expose 5432 beyond a trusted network. `make docker-prebuilt` is the Makefile shortcut.
+Unlike the quickstart, these ports bind to all interfaces. Do not expose port 5432 beyond a trusted network. `make docker-prebuilt` is the Makefile shortcut.
 
 PostgreSQL tags (multi-arch):
 
@@ -102,8 +102,9 @@ PostgreSQL tags (multi-arch):
 | `X.Y.Z-pg17`, `latest-pg17` | 17 |
 | `X.Y.Z-pg16`, `latest-pg16` | 16 |
 
+Pin the stack to a release and to a PostgreSQL major:
+
 ```bash
-# Pin the stack to a release and the PostgreSQL major
 EDGEQUAKE_VERSION=0.32.2 EDGEQUAKE_POSTGRES_TAG=0.32.2-pg16 \
   docker compose -f docker-compose.prebuilt.yml up -d
 ```
@@ -114,33 +115,24 @@ EDGEQUAKE_VERSION=0.32.2 EDGEQUAKE_POSTGRES_TAG=0.32.2-pg16 \
 cd edgequake/docker && docker compose up -d      # or: make docker-up
 ```
 
-This builds the API and web UI locally. It sets a 4 GB memory cap on the API (`EDGEQUAKE_MEM_LIMIT`). PostgreSQL data uses one volume per major (`postgres-data-pg16`, `-pg17`, `-pg18`). Jaeger starts only with `--profile observability`.
+This builds the API and the web UI locally. The API container has a 4 GB memory cap by default (`EDGEQUAKE_MEM_LIMIT`). The Compose file declares one PostgreSQL volume per major (`postgres-data-pg16`, `-pg17`, `-pg18`). The default service uses `postgres-data-pg18`. Jaeger starts only with `--profile observability`.
 
 ## Settings that matter most
 
-This is a short list. Every variable and default is in [Configuration](configuration.md) and the generated [env reference](env-reference.md).
+This is a short list. Every variable and its default are in [Configuration](configuration.md) and the [env reference](env-reference.md).
 
 | Variable | Default in the compose files | Purpose |
 |----------|------------------------------|---------|
-| `EDGEQUAKE_LLM_PROVIDER` | `ollama` | `openai`, `anthropic`, `gemini`, `mistral`, `ollama`, `azure`, `vertexai`, ... See [Providers](../providers/index.md). |
-| `EDGEQUAKE_EMBEDDING_PROVIDER` | follows the LLM | Use a different embedding provider (hybrid mode). |
-| `EDGEQUAKE_MODELS_CONFIG` | none | Path to a custom `models.toml`. |
+| `EDGEQUAKE_LLM_PROVIDER` | `ollama` | Provider ID, for example `openai`, `anthropic`, `gemini`, `mistral`, `ollama`, `azure` or `vertexai`. See [Providers](../providers/index.md). |
+| `EDGEQUAKE_EMBEDDING_PROVIDER` | follows the LLM | A different embedding provider (hybrid mode). |
 | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MISTRAL_API_KEY` | empty | Provider keys. |
 | `OLLAMA_HOST` | `http://host.docker.internal:11434` | Ollama address from inside a container. |
 | `EDGEQUAKE_VERSION` | `latest` | Image tag. Pin it. |
-| `EDGEQUAKE_SCHEMA_GATE` | `wait` (Compose) | Wait for migrate instead of exit 78. |
-| `RUST_LOG` | `info` | Log filter. |
+| `EDGEQUAKE_SCHEMA_GATE` | `wait` (Compose) | Wait for `migrate` instead of exiting with code 78. |
+| `RUST_LOG` | `info` (quickstart and prebuilt) | Log filter. The source-build file uses a longer per-crate filter. |
 
-### Vertex AI
+### Google models
 
-`gemini` uses an API key (`GEMINI_API_KEY`). `vertexai` uses Google identity (ADC or a service account), not a key.
+`gemini` uses `GEMINI_API_KEY`. For Vertex AI (`vertexai`), set `GOOGLE_CLOUD_REGION` (default `us-central1`) and follow [Configuration: Google Vertex AI](configuration.md#google-vertex-ai-enterprise) for credentials.
 
-```bash
-gcloud auth application-default login
-export GOOGLE_CLOUD_PROJECT=your-gcp-project
-export GOOGLE_CLOUD_REGION=europe-west1   # optional; default us-central1
-```
-
-If your `models.toml` omits `vertexai`, point at the bundled catalog: `export EDGEQUAKE_MODELS_CONFIG=edgequake/models.toml`. See [Configuration: Google Vertex AI](configuration.md#google-vertex-ai-enterprise).
-
-`X.Y.Z` is a published release (see the [changelog](../../CHANGELOG.md)). `latest` tracks the newest release.
+Release history and version notes are in the [changelog](../../CHANGELOG.md).

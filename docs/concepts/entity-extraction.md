@@ -37,7 +37,7 @@ A model is used because it works on any domain without training data and writes 
 
 ## Entity types
 
-If you set nothing, the model may use these 12 types:
+The default list has 12 types:
 
 | Type | Use for |
 |------|---------|
@@ -54,7 +54,12 @@ If you set nothing, the model may use these 12 types:
 | `NATURALOBJECT` | Natural objects and substances |
 | `OTHER` | Anything that fits no other type |
 
-You can replace this list for a workspace with `entity_types`, up to 20 entries. Use domain terms such as `PROTEIN` or `LEGAL_TERM`. By default the list is strict: a type outside it is remapped to a listed type. Set `entity_types_strict` to `false` to let new types through. A workspace can also restrict relation types. PDF figures can become entity nodes too; see [PDF processing](../deep-dives/pdf-processing.md).
+A workspace can replace this list with `entity_types`, up to 20 entries. Use domain terms such as `PROTEIN` or `LEGAL_TERM`.
+
+- `entity_types_strict` defaults to `true`. An unknown type is remapped to a listed type.
+- Set `entity_types_strict` to `false` to keep new types as they are.
+- A workspace can also restrict relation types.
+- PDF figures can become entity nodes too. See [PDF processing](../deep-dives/pdf-processing.md).
 
 ## Name normalization
 
@@ -67,7 +72,14 @@ Before storage, every name is normalized to upper case with underscores. This ma
 | `the Company` | `COMPANY` |
 | `John's team` | `JOHN_TEAM` |
 
-The rules: trim, Unicode NFC, lower-case, drop a leading "the", "a" or "an", drop possessive endings, then join words with `_`. Very short numbers and opaque IDs (UUIDs, long hashes) are rejected as names. The single implementation is `normalize_entity_name` in the storage crate.
+The rules, in order:
+
+1. Trim the name and apply Unicode NFC.
+2. Lower-case it and drop a leading "the", "a" or "an".
+3. Drop possessive endings such as `'s`.
+4. Join the words with `_` and upper-case the result.
+
+Very short numbers and opaque IDs (UUIDs, long hashes) are rejected as names. The canonical implementation is `normalize_entity_name` in `edgequake-storage`; the API calls it.
 
 ## Output format
 
@@ -84,11 +96,43 @@ flowchart TD
     A["Pass 1: extract"] --> B{"More passes allowed?"}
     B -->|yes| C["Pass 2: what did you miss?"]
     C --> D["Merge new entities"]
+    D --> B
     B -->|no| E["Done"]
-    D --> E
 ```
 
-Read the chart from the top. Gleaning is on by default with `max_gleaning` set to 1, and the number of extra passes is capped. Local providers (Ollama, LM Studio and similar) have gleaning off by default, because each pass costs time on a small machine. Set it per upload with `enable_gleaning` and `max_gleaning`. This page makes no claim about how much recall gleaning adds; measure it on your own data. See [Gleaning](../deep-dives/gleaning.md).
+Read the chart from the top. Each extra pass merges what it finds, and the loop stops at the pass limit.
+
+- Gleaning is on by default, with `max_gleaning` set to 1. The cap is 2 extra passes.
+- Local providers (Ollama, LM Studio and similar) have gleaning off by default, because each pass is slow on a small machine.
+- Set both per upload with `enable_gleaning` and `max_gleaning`.
+- This page makes no claim about how much recall gleaning adds. Measure it on your own data.
+
+See [Gleaning](../deep-dives/gleaning.md).
+
+## Resilience: timeouts, retries, concurrency
+
+Each chunk is one extraction job. Its failures are handled per chunk.
+
+- **Timeout.** A chunk gets 180 seconds with a cloud provider and 600 seconds with a local one.
+- **Retries.** A failed chunk is retried up to 3 times, starting with a 1 second delay.
+- **Concurrency.** Up to 16 chunks run at once with a cloud provider, and 1 with a local one. `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` overrides the count, up to a hard cap of 32.
+- **Failed chunks.** A chunk that still fails is stored in the `failed_chunks` table. You can list and retry it.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    A["Chunk attempt"] --> B{"Succeeded within timeout?"}
+    B -->|yes| C["Entities and relations"]
+    B -->|no| D{"Retries left?"}
+    D -->|yes| A
+    D -->|no| E["Stored in failed_chunks"]
+%% eq-classes
+classDef eqBad fill:#FEE2E2,stroke:#EF4444,color:#7F1D1D
+class B,E eqBad
+```
+
+Read the chart from the top. A chunk either finishes or is parked for a manual retry. Chunks themselves run in parallel, as described above.
 
 ## Limits per reply
 

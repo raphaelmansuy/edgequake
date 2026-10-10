@@ -1,51 +1,63 @@
 ---
 title: 'Metadata Debugging Guide'
-description: "Debug workspace and document metadata."
+description: "Diagnose and fix missing or wrong document metadata, lineage, chunk positions and entity counts in EdgeQuake."
 ---
 
-> **Product: v0.26.5** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Product: v0.32.2** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
 
 # Metadata Debugging Guide
 
-> How to diagnose and fix lineage issues in EdgeQuake
+Use this guide when a document's metadata, lineage, chunks or entities look wrong. It gives the checks to run in order, the common failure modes, and how to repair each one. It is written for operators and developers who debug the ingestion pipeline.
 
----
+## Diagnostic checklist
 
-## Overview
+Work through these checks in order. Stop at the first one that fails.
 
-This guide helps operators troubleshoot common lineage and metadata issues in the EdgeQuake pipeline. It covers diagnostic commands, common failure modes, and repair strategies.
+1. Read `display_status` and `ui_phase`, not the raw `status` alone.
+2. Confirm the document is terminal (`completed`, `failed` or `cancelled`).
+3. For PDFs, separate convert (`pdf_processing`) from ingest (`insert`).
+4. Confirm the metadata KV entry exists.
+5. Confirm chunks are stored with position data.
+6. Confirm the lineage KV entry is populated.
+7. Confirm entities reference valid chunk IDs.
+8. Confirm model names are recorded.
 
----
+The decision tree below maps the first checks to the API calls in the sections that follow.
 
-## Diagnostic Checklist
-
-When metadata or lineage appears incorrect, work through these checks in order:
-
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["Metadata or lineage looks wrong"] --> B{"ui_phase is terminal?"}
+  B -->|No| C["Wait for the pipeline to finish"]
+  B -->|Yes| D{"Lineage returns chunks?"}
+  D -->|No| E["Chunking failed: re-ingest the document"]
+  D -->|Yes| F{"extraction_stats.total_entities above 0?"}
+  F -->|No| G["Check the LLM provider, then re-ingest"]
+  F -->|Yes| H["Check start_line and end_line on chunks"]
+%% eq-classes
+classDef eqBad fill:#FEE2E2,stroke:#EF4444,color:#7F1D1D
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class E eqBad
+class G eqLlm
 ```
-1. ✅ Check display_status / ui_phase (not raw status alone)
-2. ✅ Is the document terminal (completed / failed / cancelled)?
-3. ✅ For PDFs: distinguish convert (pdf_processing) vs ingest (insert)
-4. ✅ Does the metadata KV entry exist?
-5. ✅ Are chunks stored with position data?
-6. ✅ Is the lineage KV entry populated?
-7. ✅ Do entities reference valid chunk IDs?
-8. ✅ Are model names recorded?
-```
 
----
+Each leaf names the next check. Only the terminal state is safe to debug, because a running document still changes.
 
-## Document Status SSOT (SPEC-057 P4)
+## Document status SSOT (SPEC-057 P4)
 
-Document list/detail JSON includes presentation fields from `IngestionStatusMapper`. Prefer these over re-deriving from legacy `status` / `current_stage`:
+The document list and detail JSON include presentation fields from `IngestionStatusMapper`. Use these fields instead of re-deriving state from the legacy `status` and `current_stage` fields.
 
 | Field | Meaning |
 | ----- | ------- |
-| `display_status` | Badge key: `cancelled`, `failed`, `completed`, `converting`, `extracting`, … |
-| `ui_phase` | `idle` \| `running` \| `stopping` \| `terminal` — show **Stopping…** when `stopping` |
+| `display_status` | Badge key, for example `cancelled`, `failed`, `completed`, `converting` or `extracting`. |
+| `ui_phase` | `idle`, `running`, `stopping` or `terminal`. Show **Stopping…** when the value is `stopping`. |
 
 ### Convert vs ingest
 
-PDF admission runs **convert only** (`TaskType::PdfProcessing`). After durable markdown + PDF row `Completed`, a separate **insert** task runs KG extraction. PDF `Completed` means convert artifact only — doc KV may still show `extracting` during ingest.
+PDF admission runs convert only (`TaskType::PdfProcessing`). After the markdown is stored and the PDF row is `Completed`, a separate insert task runs knowledge-graph extraction.
+
+So a PDF that shows `Completed` has finished conversion only. The document KV may still show `extracting` while ingest runs.
 
 ### Cancel terminals
 
@@ -57,86 +69,80 @@ PDF admission runs **convert only** (`TaskType::PdfProcessing`). After durable m
 
 Cancel API: `POST /api/v1/tasks/{track_id}/cancel`. Full semantics: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md).
 
----
+## Quick diagnostics
 
-## Quick Diagnostics
-
-### Check Document Status
+### Check document status
 
 ```bash
-curl -s http://localhost:8080/api/v1/documents/{document_id} | jq '.status'
+curl -s http://localhost:8080/api/v1/documents/{document_id} | jq '.display_status'
 ```
 
-Expected: `"completed"`. If `"failed"` or `"processing"`, the pipeline didn't finish.
+Expected: `"completed"`. `"failed"` means the pipeline stopped with an error. If `ui_phase` is still `running`, wait and check again.
 
-### Check Metadata Exists
+### Check metadata exists
 
 ```bash
 curl -s http://localhost:8080/api/v1/documents/{document_id}/metadata | jq 'keys'
 ```
 
-Expected: Array of metadata keys including `document_type`, `sha256_checksum`, etc.
+Expected: an array of keys that includes `document_type` and `sha256_checksum` for uploaded PDFs.
 
-### Check Chunk Count
+### Check chunk count
 
 ```bash
 curl -s http://localhost:8080/api/v1/documents/{document_id}/lineage | jq '.chunks | length'
 ```
 
-Expected: Number > 0. If 0, chunking failed or chunks weren't stored.
+Expected: a number above 0. If it is 0, chunking failed or the chunks were not stored.
 
-### Check Entity Count
+### Check entity count
 
 ```bash
 curl -s http://localhost:8080/api/v1/lineage/documents/{document_id} | jq '.extraction_stats'
 ```
 
-Expected: `total_entities` > 0. If 0, entity extraction failed (check LLM provider).
+Expected: `total_entities` above 0. If it is 0, entity extraction failed. Check the LLM provider.
 
----
+## Common issues
 
-## Common Issues
+### Issue 1: Missing metadata fields
 
-### Issue 1: Missing Metadata Fields
+**Symptom**: `/api/v1/documents/{id}/metadata` returns empty or minimal fields.
 
-**Symptom**: `/documents/{id}/metadata` returns empty or minimal fields.
-
-**Cause**: Document was ingested before lineage enhancement (OODA-01 through OODA-06).
+**Cause**: The document was ingested by an older build, before the lineage fields were written.
 
 **Diagnosis**:
+
 ```bash
-# Check what fields are present
 curl -s http://localhost:8080/api/v1/documents/{document_id}/metadata | jq 'keys'
 ```
 
-**Fix**: Re-ingest the document. New ingestion will populate all lineage fields:
-- `document_type`, `file_size`, `sha256_checksum`
-- `llm_model`, `embedding_model`
-- `processed_at`
+**Fix**: Re-ingest the document. New ingestion writes `document_type` and `sha256_checksum`. PDFs also get `pdf_id`.
 
-### Issue 2: Chunks Without Line Numbers
+### Issue 2: Chunks without line numbers
 
-**Symptom**: `start_line` and `end_line` are `null` in chunk lineage response.
+**Symptom**: `start_line` and `end_line` are `null` in the chunk lineage response.
 
-**Cause**: Chunk was created before position tracking was added, or chunking strategy doesn't support line tracking.
+**Cause**: The chunk was created before position tracking existed, or the chunking strategy does not track lines.
 
 **Diagnosis**:
+
 ```bash
-# Check a specific chunk
 curl -s http://localhost:8080/api/v1/chunks/{chunk_id}/lineage | jq '{start_line, end_line}'
 ```
 
-**Fix**: Re-ingest the document. Position metadata is computed during chunking and stored in KV storage.
+**Fix**: Re-ingest the document. Position data is set during chunking.
 
-### Issue 3: Entity Extraction Failed
+### Issue 3: Entity extraction failed
 
-**Symptom**: Document shows "Completed" but has 0 entities.
+**Symptom**: The document shows `Completed` but has 0 entities.
 
-**Cause**: LLM provider was unavailable during processing.
+**Cause**: The LLM provider was unavailable during processing.
 
 **Diagnosis**:
+
 ```bash
-# Check if Ollama is running
+# Check if Ollama is running and which models it has
 curl -s http://localhost:11434/api/tags | jq '.models[].name'
 
 # Check backend logs for extraction errors
@@ -144,59 +150,68 @@ grep -i "entity.*error\|extraction.*fail" /tmp/edgequake-backend.log
 ```
 
 **Fix**:
-1. Ensure LLM provider is running:
+
+1. Make sure the LLM provider is running:
+
    ```bash
    ollama serve &
    ollama pull gemma4:latest
    ```
-2. Re-upload or re-process the document
 
-### Issue 4: Missing LLM/Embedding Model Names
+2. Re-upload the document, or call `POST /api/v1/documents/reprocess` for documents that failed.
 
-**Symptom**: `llm_model` and `embedding_model` are `null` in chunk lineage.
+### Issue 4: Missing model name in extraction metadata
 
-**Cause**: Pipeline didn't propagate model info to chunks (pre-OODA-02/OODA-05).
+**Symptom**: `extraction_metadata.model` is `null` or missing in the chunk lineage response.
+
+**Cause**: Likely an older build, or an extraction that did not complete (see Issue 3).
 
 **Diagnosis**:
+
 ```bash
-curl -s http://localhost:8080/api/v1/chunks/{chunk_id}/lineage | jq '{llm_model, embedding_model}'
+curl -s http://localhost:8080/api/v1/chunks/{chunk_id}/lineage | jq '.extraction_metadata'
 ```
 
-**Fix**: Re-ingest. Since OODA-05, the processor stamps model names on each chunk during storage.
+The chunk lineage response has no top-level `llm_model` or `embedding_model` fields. Read the model from `extraction_metadata.model`.
 
-### Issue 5: Broken PDF → Document Link
+**Fix**: Re-ingest the document.
 
-**Symptom**: Document has no `pdf_id` even though it was uploaded as PDF.
+### Issue 5: Broken PDF to document link
 
-**Cause**: Document was processed before bidirectional linking (OODA-04).
+**Symptom**: The document has no `pdf_id`, although it was uploaded as a PDF.
+
+**Cause**: The document was processed before the PDF and document were linked.
 
 **Diagnosis**:
+
 ```bash
 curl -s http://localhost:8080/api/v1/documents/{document_id}/metadata | jq '.pdf_id'
 ```
 
-**Fix**: Re-upload the PDF. Since OODA-04, `pdf_id` is set during `process_task()`.
+**Fix**: Re-upload the PDF. Admission writes `pdf_id` into the document metadata.
 
-### Issue 6: Lineage Not Persisted
+### Issue 6: Lineage not persisted
 
-**Symptom**: `/documents/{id}/lineage` returns data but lineage KV key doesn't exist.
+**Symptom**: `/api/v1/documents/{id}/lineage` returns no lineage, or the lineage KV entry does not exist.
 
-**Cause**: `enable_lineage_tracking` was `false` (pre-OODA-06).
+**Cause**: `enable_lineage_tracking` was `false` when the document was processed.
 
-**Note**: Since OODA-06, lineage tracking defaults to `true`. The `/documents/{id}/lineage` endpoint constructs lineage from chunk and entity data even without the KV entry.
+**Note**: The pipeline default is `enable_lineage_tracking: true`. Check the value in your configuration if you turned it off.
 
 ---
 
-## Backend Logs
+## Backend logs
 
-### Log Locations
+### Log locations
 
 | Service  | Location                       |
 | -------- | ------------------------------ |
 | Backend  | `/tmp/edgequake-backend.log`   |
 | Frontend | `/tmp/edgequake-frontend.log`  |
 
-### Useful Log Searches
+These paths apply when you start the stack with `make dev-bg`.
+
+### Useful log searches
 
 ```bash
 # Find extraction errors
@@ -215,7 +230,7 @@ grep -i "lineage.*persist\|lineage.*store" /tmp/edgequake-backend.log
 grep -i "processing.*complete\|pipeline.*finish" /tmp/edgequake-backend.log
 ```
 
-### Enable Debug Logging
+### Enable debug logging
 
 ```bash
 export RUST_LOG=debug
@@ -223,27 +238,28 @@ make dev
 ```
 
 For more granular control:
+
 ```bash
 export RUST_LOG="edgequake_api=debug,edgequake_pipeline=debug,edgequake_core=info"
 ```
 
 ---
 
-## Verification Commands
+## Verification commands
 
-### Verify Full Lineage Chain
+### Verify the full lineage chain
 
-Use this script to validate a document's complete lineage:
+Use this script to check a document's complete lineage:
 
 ```bash
 #!/bin/bash
 DOC_ID=$1
 
 echo "=== Document Status ==="
-curl -s "http://localhost:8080/api/v1/documents/$DOC_ID" | jq '.status'
+curl -s "http://localhost:8080/api/v1/documents/$DOC_ID" | jq '{display_status, ui_phase}'
 
 echo -e "\n=== Metadata ==="
-curl -s "http://localhost:8080/api/v1/documents/$DOC_ID/metadata" | jq '{document_type, sha256_checksum, llm_model, embedding_model}'
+curl -s "http://localhost:8080/api/v1/documents/$DOC_ID/metadata" | jq '{document_type, sha256_checksum, pdf_id}'
 
 echo -e "\n=== Lineage Summary ==="
 curl -s "http://localhost:8080/api/v1/documents/$DOC_ID/lineage" | jq '{chunks: (.chunks | length), entities: (.entities | length)}'
@@ -253,16 +269,19 @@ curl -s "http://localhost:8080/api/v1/lineage/documents/$DOC_ID" | jq '.extracti
 
 echo -e "\n=== First Chunk Lineage ==="
 CHUNK_ID="${DOC_ID}-chunk-0"
-curl -s "http://localhost:8080/api/v1/chunks/$CHUNK_ID/lineage" | jq '{start_line, end_line, llm_model, embedding_model, entity_count}'
+curl -s "http://localhost:8080/api/v1/chunks/$CHUNK_ID/lineage" | jq '{start_line, end_line, entity_count, extraction_model: .extraction_metadata.model}'
 ```
 
-### Validate API Health
+The first chunk ID follows the pattern `{document_id}-chunk-0`.
+
+### Validate API health
 
 ```bash
 curl -s http://localhost:8080/health | jq
 ```
 
 Expected:
+
 ```json
 {
   "status": "healthy",
@@ -278,52 +297,52 @@ Expected:
 
 ---
 
-## Repair Strategies
+## Repair strategies
 
-### Strategy 1: Re-ingest Document
+### Strategy 1: Re-ingest the document
 
-The simplest fix for missing metadata — delete and re-upload:
+Delete the document and upload it again. This is the simplest fix for missing metadata.
 
 ```bash
-# Delete document
+# Delete the document
 curl -X DELETE http://localhost:8080/api/v1/documents/{document_id}
 
-# Re-upload
+# Upload it again
 curl -X POST http://localhost:8080/api/v1/documents/upload \
   -F "file=@/path/to/document.pdf"
 ```
 
-### Strategy 2: Check Provider Configuration
+### Strategy 2: Check provider configuration
 
 ```bash
-# Verify LLM provider
+# Verify the active LLM provider
 curl http://localhost:8080/health | jq '.llm_provider_name'
 
-# Verify Ollama models available
+# Verify Ollama models are available
 curl http://localhost:11434/api/tags | jq '.models[].name'
 
-# If using OpenAI, verify key
-echo $OPENAI_API_KEY | head -c 10
+# If you use OpenAI, confirm the key is set (do not print it)
+[ -n "$OPENAI_API_KEY" ] && echo "OPENAI_API_KEY is set"
 ```
 
-### Strategy 3: Database Verification
+### Strategy 3: Check the database
 
 ```bash
-# Check PostgreSQL is running
+# Check that the PostgreSQL container is running
 docker ps | grep edgequake-postgres
 
-# Restart database if needed
-make postgres-stop && make db-start && sleep 5
+# Restart the database if needed
+make db-stop && make db-start && sleep 5
 
-# Restart backend
+# Restart the stack
 make stop && make dev-bg
 ```
 
 ---
 
-## Performance Monitoring
+## Performance monitoring
 
-### Query Latency
+### Query latency
 
 Track lineage query performance:
 
@@ -332,25 +351,26 @@ Track lineage query performance:
 time curl -s http://localhost:8080/api/v1/documents/{document_id}/lineage > /dev/null
 ```
 
-Target: < 200ms for P95. If slower, check:
-- Number of chunks in document
-- Number of entities in graph
+As a rule of thumb, aim for a P95 under 200 ms. This is a guideline, not an enforced limit. If queries are slower, check:
+
+- The number of chunks in the document
+- The number of entities in the graph
 - PostgreSQL connection pool utilization
 
-### Storage Size
+### Storage size
 
 ```bash
-# Check document count
+# Count documents
 curl -s http://localhost:8080/api/v1/documents | jq '.total'
 
-# Check entity count
-curl -s http://localhost:8080/api/v1/graph/stats | jq '.node_count'
+# Count entities and chunks in one workspace
+curl -s http://localhost:8080/api/v1/workspaces/{workspace_id}/stats | jq '{entity_count, relationship_count, chunk_count}'
 ```
 
 ---
 
-## Related Documentation
+## Related documentation
 
-- [Architecture: Lineage Tracking](/docs/architecture/lineage-tracking/)
-- [API Reference: Lineage Endpoints](/docs/api-reference/lineage-endpoints/)
-- [Tutorial: Tracing Entity Sources](/docs/tutorials/tracing-entity-sources/)
+- [Architecture: Lineage Tracking](../architecture/lineage-tracking.md)
+- [API Reference: Lineage Endpoints](../api-reference/lineage-endpoints.md)
+- [Tutorial: Tracing Entity Sources](../tutorials/tracing-entity-sources.md)

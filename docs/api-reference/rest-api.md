@@ -15,7 +15,7 @@ The server publishes its full contract at `/api-docs/openapi.json` and a Try-it-
 
 ### Authentication
 
-Authentication is controlled by `EDGEQUAKE_AUTH_ENABLED`. When it is off (the local default), requests run as a built-in default user and no credentials are needed. When it is on, send one of:
+Authentication is **on by default**. Set `EDGEQUAKE_DEV_MODE=true` (or `EDGEQUAKE_AUTH_ENABLED=false`) to run without credentials as the built-in default user. `EDGEQUAKE_AUTH_ENABLED` takes precedence over dev mode. When auth is on, send one of:
 
 | Credential | How to send it |
 |------------|----------------|
@@ -40,9 +40,20 @@ curl -s -X POST http://localhost:8080/api/v1/auth/login \
 }
 ```
 
-Refresh with `POST /api/v1/auth/refresh` and log out with `POST /api/v1/auth/logout` (both take a `refresh_token` body). `GET /api/v1/auth/me` returns the current user. When the browser flow sets an HttpOnly cookie, `refresh_token` is omitted from the login body.
+Refresh with `POST /api/v1/auth/refresh`, log out with `POST /api/v1/auth/logout`, and read the current user with `GET /api/v1/auth/me`. In the browser flow the refresh token is set as an HttpOnly cookie and is omitted from the login body.
 
-These paths need no credentials: `/health`, `/ready`, `/live`, `/swagger-ui`, `/api-docs`, `/api/v1/auth/login`, `/auth/refresh`, `/auth/oidc/login`, `/auth/oidc/callback`, `/auth/handoff`, `/auth/sso/providers`, `/setup/status`, `/setup/initialize`, `POST /mcp`, and `POST /api/v1/users` when self-registration is allowed. The MCP gateway checks credentials itself.
+These paths need no credentials:
+
+| Path | Method |
+|------|--------|
+| `/health`, `/ready`, `/live` | any |
+| `/swagger-ui`, `/api-docs` | any |
+| `/api/v1/auth/login`, `/api/v1/auth/refresh` | POST |
+| `/api/v1/auth/oidc/login`, `/api/v1/auth/oidc/callback`, `/api/v1/auth/handoff`, `/api/v1/auth/sso/providers` | any |
+| `/api/v1/auth/oidc/backchannel-logout` | POST |
+| `/api/v1/setup/status`, `/api/v1/setup/initialize` | any |
+| `/mcp` | POST (the MCP gateway checks credentials itself) |
+| `/api/v1/users` | POST, only when self-registration is allowed |
 
 WebSockets cannot set headers in a browser. Send the token as `Sec-WebSocket-Protocol: edgequake.bearer, <token>` or as a `?token=` query parameter.
 
@@ -57,6 +68,30 @@ Data belongs to a **tenant** (an organisation) and a **workspace** (a separate k
 | `X-User-ID` | User UUID (ignored when a JWT or API key identifies the user) |
 
 When auth succeeds, the server takes tenant and user from your credentials, not from spoofable headers. If you send no workspace, the default workspace is used.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    R["Incoming request"] --> O{"Auth on?"}
+    O -->|no| D["Built-in default user"]
+    O -->|yes| A{"JWT or API key valid?"}
+    A -->|yes| U["Tenant and user come from credentials"]
+    A -->|no| X["401 UNAUTHORIZED"]
+    U --> W{"X-Workspace-ID sent?"}
+    D --> W
+    W -->|yes| S["Use that workspace"]
+    W -->|no| F["Use the default workspace"]
+    S --> H["Handler runs in this scope"]
+    F --> H
+%% eq-classes
+classDef eqActor fill:#FCE7F3,stroke:#EC4899,color:#500724
+classDef eqBad fill:#FEE2E2,stroke:#EF4444,color:#7F1D1D
+class D,U eqActor
+class X eqBad
+```
+
+Read it top to bottom: credentials decide who you are, and the workspace header (or the default) decides which knowledge base the handler reads and writes.
 
 ### Errors
 
@@ -84,6 +119,7 @@ Errors use JSON with RFC 7807 fields added. The content type is `application/pro
 | 422 | `VALIDATION_ERROR` | Valid JSON, invalid values |
 | 423 | `ACCOUNT_LOCKED` | Too many failed logins |
 | 429 | `RATE_LIMITED` | Rate limit hit (only when enabled) |
+| 500 | `INTERNAL_ERROR` | Unexpected server error. Quote the `request_id` when you report it. |
 | 502 | `LLM_ERROR` | Upstream model provider failed |
 | 503 | `SERVICE_UNAVAILABLE`, `read_path_busy` | Dependency down, or reads are shed under heavy ingest. Retry. |
 
@@ -124,7 +160,7 @@ These three routes need no auth. They are for operators and orchestrators.
 
 | Route | Purpose | Success | Failure |
 |-------|---------|---------|---------|
-| `GET /health` | Detailed status of storage, providers, schema and queue | 200 | n/a (degraded still returns 200) |
+| `GET /health` | Detailed status of storage, providers, schema and queue | 200 (degraded is reported in the body) | n/a |
 | `GET /ready` | Can this node take traffic? | 200 `{"ready":true,"blockers":[]}` | 503 with `blockers` and `operator_action` |
 | `GET /live` | Is the process alive? | 200, plain text `OK` | n/a |
 
@@ -164,7 +200,7 @@ curl -s http://localhost:8080/health
 
 ## Documents
 
-A document is a unit of source text. Uploading creates a background task that chunks the text, extracts entities and relationships, embeds the chunks and stores everything. The [upload guide](document-upload-quick-reference.md) explains which endpoint to pick. Summary:
+A document is a unit of source text. Uploading creates a background task that chunks the text, extracts entities and relationships, embeds the chunks and stores everything. The [upload guide](document-upload-quick-reference.md) explains which endpoint to pick.
 
 | Endpoint | Use it for | Success |
 |----------|------------|---------|
@@ -189,7 +225,7 @@ curl -s -X POST http://localhost:8080/api/v1/documents \
 ```json
 {
   "document_id": "5b1f...",
-  "track_id": "track-1f2e...",
+  "track_id": "9c7a...",
   "task_id": "9c7a...",
   "status": "pending",
   "queue_position": 1,
@@ -205,7 +241,7 @@ curl -s -X POST http://localhost:8080/api/v1/documents \
 | `content` | string, required | Document text |
 | `title` | string | Display title |
 | `metadata` | object | Free-form metadata |
-| `track_id` | string | Your own grouping id. For correlation only; progress and cancel use `task_id`. |
+| `track_id` | string | Optional label you send. The response's `track_id` always equals `task_id`; use either one with `GET /api/v1/tasks/{track_id}`. |
 | `async_processing` | boolean | Kept for compatibility. Uploads are always queued, so you always get a `task_id`. |
 | `chunk_strategy` | string | `fixed`, `recursive` or `markdown` |
 | `chunk_options` | object | Chunk size, overlap and separator overrides |
@@ -378,7 +414,7 @@ curl -s -X POST http://localhost:8080/api/v1/query \
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `query` | string, required | Up to 10,000 characters |
+| `query` | string, required | The question text |
 | `mode` | string | `naive`, `local`, `global`, `hybrid`, `mix` or `bypass`. Default `mix`. |
 | `llm_provider`, `llm_model` | string | Override the workspace model for this call |
 | `document_filter` | object | Limit scope: `document_ids`, `document_pattern`, `date_from`, `date_to` |
@@ -394,7 +430,7 @@ curl -s -X POST http://localhost:8080/api/v1/query \
 | `hl_keywords`, `ll_keywords` | array | Pre-supplied keywords; skips keyword extraction |
 | `reasoning_effort` | string | `none`, `minimal`, `low`, and so on |
 
-The API has no `top_k` or `rerank` field on this endpoint; unknown fields are ignored. Use `max_results` and `enable_rerank`.
+This endpoint has no `top_k` or `rerank` field; use `max_results` and `enable_rerank` instead.
 
 Related retrieval routes: `POST /api/v1/query/context` (retrieve without answering), `POST /api/v1/query/context/search`, `GET /api/v1/query/context/{retrieval_id}` (410 when expired) and `GET /api/v1/query/context/artifacts/{artifact_type}/{artifact_id}`.
 
@@ -427,7 +463,7 @@ Read it as one request and many small events. Each `data:` line is a JSON object
 | `done` | `stats`, `llm_provider`, `llm_model`, `answer` (verified Markdown; replace the streamed text with it) |
 | `error` | `message`, `code` |
 
-`stream_format` is `v2` by default (JSON events). `v1` sends raw text chunks instead.
+`stream_format` selects the wire format. `v2` (the default) sends the JSON events above. `v1` sends raw text chunks instead. `v3` adds a full structured bundle (SPEC-028).
 
 ```bash
 curl -N -X POST http://localhost:8080/api/v1/query/stream \
@@ -466,9 +502,9 @@ curl -s -X POST http://localhost:8080/api/v1/chat/completions \
 | `message` | Required user text |
 | `conversation_id` | Existing conversation. Omit to create one. |
 | `parent_id` | Parent message for threading |
-| `mode`, `provider`, `model`, `top_k`, `temperature`, `max_tokens` | Retrieval and generation options |
+| `mode`, `provider`, `model`, `top_k`, `temperature`, `max_tokens` | Retrieval and generation options. `mode` defaults to `hybrid`. `chat` is accepted as an alias for `bypass`. |
 | `language` | Preferred answer language (ISO 639-1) |
-| `images` | Base64 images for vision models (up to 20 MiB each) |
+| `images` | Base64 images for vision models (at most 4 per message) |
 | `document_filter`, `seed_entity_ids`, `system_prompt`, `reasoning_effort` | Scope and prompt options |
 
 Stream event `type` values: `conversation`, `context`, `token`, `thinking`, `stage` (`retrieving`, `reading`, `generating`), `done`, `title_update`, `error`.
@@ -494,7 +530,7 @@ The knowledge graph holds entities (nodes) and relationships (edges). Entity nam
 | `GET /api/v1/graph/entities/{entity_name}/neighborhood?depth=` | Connected nodes |
 | `GET`, `POST /api/v1/graph/relationships`; `GET`, `PUT`, `DELETE .../{relationship_id}` | Relationship CRUD |
 
-There is no `/graph/stats` route. For counts use `GET /api/v1/workspaces/{id}/stats`.
+For counts use `GET /api/v1/workspaces/{id}/stats`.
 
 ```bash
 curl -s "http://localhost:8080/api/v1/graph?depth=2&max_nodes=50" \
@@ -545,7 +581,7 @@ curl -s -X POST http://localhost:8080/api/v1/graph/relationships \
   -d '{"src_id":"ADA_LOVELACE","tgt_id":"ANALYTICAL_ENGINE","keywords":"wrote programs","description":"Wrote the first program","source_id":"manual_entry","weight":0.9}'
 ```
 
-Delete an entity: `DELETE /api/v1/graph/entities/{name}?confirm=true`. `confirm=true` is required; `delete_relationships` defaults to `true`. Merge body: `{"source_entity","target_entity","merge_strategy"}` where strategy is `prefer_source`, `prefer_target` or `merge`.
+Delete an entity with `DELETE /api/v1/graph/entities/{name}?confirm=true`. `confirm=true` is required; `delete_relationships` defaults to `true`. Merge body: `{"source_entity","target_entity","merge_strategy"}`, where `merge_strategy` is `prefer_source`, `prefer_target` or `merge`.
 
 An entity response has `id`, `entity_name`, `entity_type`, `description`, `source_id`, `degree`, `metadata`, `created_at`, `updated_at`. `GET .../entities/{name}` wraps it as `{ "entity", "relationships": {"incoming","outgoing"}, "statistics" }`.
 
@@ -604,7 +640,7 @@ Errors: 400 (invalid), 413 (over 100 KiB), 404 (unknown id).
 | `GET /api/v1/settings/providers` | Providers you can switch to, with `active_llm_provider` and `active_embedding_provider` |
 | `GET /api/v1/settings/provider/status` | Active provider, embedding and storage status |
 | `GET`, `PATCH /api/v1/settings/llm-defaults` | Server-wide default models. PATCH needs admin and PostgreSQL. |
-| `GET`, `PATCH /api/v1/settings/app-attribution`, `GET /settings/attribution` | Application attribution headers sent to providers (PATCH needs admin) |
+| `GET`, `PATCH /api/v1/settings/app-attribution`, `GET /api/v1/settings/attribution` | Application attribution headers sent to providers (PATCH needs admin) |
 | `GET /api/v1/config/effective` | The effective configuration and where each value came from |
 
 Model entries come from `edgequake/models.toml`. Provider setup is described in [Providers](../providers/index.md).

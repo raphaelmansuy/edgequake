@@ -1,204 +1,118 @@
 ---
 title: Docker deployment verification
-description: Incident note from 2026-02-09: checks used after the frontend-backend Docker fix.
+description: Incident note from 2026-02-09: the manual and scripted checks used after the frontend-backend Docker fix, and how to run them on v0.32.2.
 ---
 
-> Historical note, 2026-02-09; may not match current code.
-> Prefer: [Docker quick start](DOCKER_QUICK_START.md) · [Troubleshooting](../troubleshooting/common-issues.md)
+> Historical note, 2026-02-09; may not match current code. Prefer: [Docker quick reference](DOCKER_QUICK_START.md) · [Troubleshooting](../troubleshooting/common-issues.md)
 
-## ✅ Fixes Applied
+This page shows how to confirm that the stack works. The fixes themselves are described in the [Docker deployment summary](DOCKER_DEPLOYMENT_SUMMARY.md).
 
-### 1. Frontend-Backend Connectivity
-**Problem**: Frontend showed "API Status: Disconnected" even though backend was running.
+## Status today (v0.32.2)
 
-**Root Cause**: `NEXT_PUBLIC_API_URL` environment variable must be set at **build time** for Next.js, not just runtime.
+- Use `scripts/verify-docker-setup.sh` for local setup checks.
+- Use the health and port checks below against the current stack.
+- The checks that used `docker exec edgequake env` no longer work. The API image is distroless (`gcr.io/distroless/cc-debian12:nonroot`), so it has no shell and no `env` binary. Use `docker inspect` instead, as shown in Step 4.
+- The root `verify_docker.sh` still uses `docker exec edgequake env`. Treat it as out of date.
 
-**Solution**:
-- Added `NEXT_PUBLIC_API_URL` as build ARG in `edgequake_webui/Dockerfile`
-- Passed build arg in `edgequake/docker/docker-compose.yml`
-- Frontend bundle now has correct backend URL baked in at build time
+## Decision tree
 
-### 2. OpenAI API Key Inheritance
-**Problem**: Backend needs to inherit OPENAI_API_KEY from host environment.
+Run the checks in this order. Stop at the first "no" and follow its fix.
 
-**Solution**:
-- Updated docker-compose.yml: `OPENAI_API_KEY=${OPENAI_API_KEY:-}`
-- Backend now inherits from host with fallback to empty string
-- No need to rebuild - just restart with `make docker-up`
-
-## 🧪 How to Test
-
-### Step 1: Verify Services are Running
-```bash
-# Check all services status
-cd /Users/raphaelmansuy/Github/03-working/edgequake && make docker-up
-
-# Wait for services to start (20 seconds)
-sleep 20
-
-# Verify backend health
-curl http://localhost:8080/health | python3 -m json.tool
-
-# Expected output:
-# {
-#   "status": "healthy",
-#   "llm_provider_name": "openai",
-#   ...
-# }
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TB
+  H["curl localhost:8080/health"] --> Q1{"status is healthy?"}
+  Q1 -->|no| L["docker compose logs edgequake"]
+  Q1 -->|yes| Q2{"UI shows API Status Connected?"}
+  Q2 -->|no| R["Hard refresh and check the Network tab"]
+  Q2 -->|yes| Q3{"llm_provider_name is as expected?"}
+  Q3 -->|no| E["Set EDGEQUAKE_LLM_PROVIDER and OPENAI_API_KEY, then make docker-down and make docker-up"]
+  Q3 -->|yes| D["Upload a document and run a query"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class Q3,E eqLlm
 ```
 
-### Step 2: Access Frontend
-1. **Open browser** to http://localhost:3000
-2. **Refresh the page** (Cmd+Shift+R on macOS) to clear cache
-3. **Verify** you see:
-   - ✅ "API Status: Connected" (green)
-   - ✅ "LLM Provider: OpenAI" (or the configured provider)
+Caption: most failures show up at the first two checks, so start there.
 
-### Step 3: Create a Tenant and Test Query
+## How to test
 
-#### 3.1 Create New Tenant
-1. Click **"Create New Tenant"** button in the left sidebar
-2. Enter tenant name (e.g., "test-tenant")
-3. Click **Create**
-
-#### 3.2 Upload a Document
-1. Select the new tenant from the sidebar
-2. Click **"Upload Documents"** in the Quick Actions section
-3. Choose a PDF file (e.g., from `zz_test_docs/`)
-4. Wait for processing to complete (status should show "Completed")
-
-#### 3.3 Test Query with OpenAI
-1. Navigate to **Query Knowledge** page
-2. Enter a query related to your uploaded document
-3. Submit the query
-4. Verify:
-   - Query response is generated using OpenAI
-   - Entities are extracted and linked
-   - Graph visualization shows relationships
-
-### Step 4: Verify Environment Variables
+### Step 1: Check the services
 
 ```bash
-# Check backend has OPENAI_API_KEY
-docker exec edgequake env | grep OPENAI_API_KEY
-
-# Should output your API key (first few characters)
+make docker-up
+sleep 20   # give the API time to start
+curl -s http://localhost:8080/health | python3 -m json.tool
 ```
 
-## 🐛 Troubleshooting
+Expected: `"status": "healthy"`, and `llm_provider_name` shows the provider you configured.
 
-### Frontend Still Shows "Disconnected"
-**Solution**: Hard refresh the browser (Cmd+Shift+R) to clear cached JavaScript bundle.
+### Step 2: Open the UI
 
-### Backend Shows "llm_provider_name": "mock"
-**Solution**: 
+1. Open `http://localhost:3000`.
+2. Hard-refresh the page (Cmd+Shift+R on macOS) to clear cached JavaScript.
+3. Check the status panel. It should show **API Status: Connected** and **LLM Provider: <name>**.
+
+### Step 3: Create a tenant and run a query
+
+1. Click **Create New Tenant** in the sidebar. Enter a name and click **Create**.
+2. Select the tenant. Under **Quick Actions**, click **Upload Documents**. Choose a PDF, for example from `zz_test_docs/`, and wait for the status **Completed**.
+3. Open **Query Knowledge**. Ask a question about the document, then check:
+   - the answer comes from the configured provider,
+   - entities were extracted and linked,
+   - the graph view shows the relationships.
+
+### Step 4: Check the API environment without exec
+
+The API image has no shell, so `docker exec` cannot print its environment. Read the container config instead. This prints only the variable names:
+
 ```bash
-# Ensure OPENAI_API_KEY is set in your shell
+docker inspect edgequake --format '{{range .Config.Env}}{{println .}}{{end}}' | cut -d= -f1 | grep -E '^(OPENAI_API_KEY|EDGEQUAKE_LLM_PROVIDER)$'
+```
+
+Expected: both names are listed. The values stay out of your terminal.
+
+## Scripted checks
+
+- `scripts/verify-docker-setup.sh` checks the local setup.
+- The root `verify_docker.sh` and `test_docker_e2e.py` are the 2026-02-09 scripts. Read Step 4 above before you reuse them.
+
+## Troubleshooting
+
+### The UI still shows "Disconnected"
+
+Hard-refresh the browser. In the Network tab, check that the page calls the API URL you expect (`http://localhost:8080` by default).
+
+### The health check shows the wrong provider
+
+Compose defaults `EDGEQUAKE_LLM_PROVIDER` to `ollama`. An `OPENAI_API_KEY` alone does not switch the provider. Set both variables in your shell, then restart the stack:
+
+```bash
+export EDGEQUAKE_LLM_PROVIDER=openai
 export OPENAI_API_KEY="sk-your-key-here"
-
-# Restart Docker stack
 make docker-down && make docker-up
 ```
 
-### CORS Errors in Browser Console
-**Solution**: Backend CORS is already configured. If you see errors:
-1. Check backend logs: `docker compose logs edgequake --tail=50`
-2. Verify frontend is using correct API URL in Network tab (should be http://localhost:8080)
+### CORS errors in the browser console
 
-## 📊 What Changed
-
-### Files Modified
-1. **edgequake_webui/Dockerfile**
-   - Added `ARG NEXT_PUBLIC_API_URL=http://localhost:8080` in builder stage
-   - Set `ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}` before build
-
-2. **edgequake/docker/docker-compose.yml**
-   - Added build args for frontend service:
-     ```yaml
-     frontend:
-       build:
-         args:
-           NEXT_PUBLIC_API_URL: http://localhost:8080
-     ```
-   - Updated backend environment:
-     ```yaml
-     environment:
-       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-     ```
-
-## ✨ Expected Behavior
-
-### Before Fix
-- ❌ Frontend: "API Status: Disconnected"
-- ❌ Frontend: "LLM Provider: Unavailable"
-- ❌ API calls failing silently
-- ❌ No query functionality
-
-### After Fix
-- ✅ Frontend: "API Status: Connected" (green)
-- ✅ Frontend: "LLM Provider: OpenAI" or configured provider
-- ✅ All API endpoints accessible
-- ✅ Document upload works
-- ✅ Query with OpenAI works
-- ✅ Entity extraction works
-- ✅ Graph visualization works
-
-## 🔍 Quick Verification Script
-
-Save this as `verify_docker.sh` and run it:
+Check the browser console and the backend logs for the failing request:
 
 ```bash
-#!/bin/bash
-
-echo "🔍 EdgeQuake Docker Verification"
-echo "================================"
-echo ""
-
-# 1. Check frontend
-echo "1️⃣ Checking frontend..."
-FRONTEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000)
-if [ "$FRONTEND_STATUS" = "200" ]; then
-  echo "   ✅ Frontend responding (HTTP 200)"
-else
-  echo "   ❌ Frontend not accessible (HTTP $FRONTEND_STATUS)"
-  exit 1
-fi
-
-# 2. Check backend
-echo "2️⃣ Checking backend..."
-BACKEND_STATUS=$(curl -s http://localhost:8080/health | python3 -c "import sys, json; print(json.load(sys.stdin)['status'])")
-if [ "$BACKEND_STATUS" = "healthy" ]; then
-  echo "   ✅ Backend healthy"
-else
-  echo "   ❌ Backend not healthy"
-  exit 1
-fi
-
-# 3. Check LLM provider
-echo "3️⃣ Checking LLM provider..."
-LLM_PROVIDER=$(curl -s http://localhost:8080/health | python3 -c "import sys, json; print(json.load(sys.stdin)['llm_provider_name'])")
-echo "   ℹ️  Provider: $LLM_PROVIDER"
-
-# 4. Check OPENAI_API_KEY in backend
-echo "4️⃣ Checking OPENAI_API_KEY in backend..."
-if docker exec edgequake env | grep -q OPENAI_API_KEY; then
-  echo "   ✅ OPENAI_API_KEY is set"
-else
-  echo "   ⚠️  OPENAI_API_KEY not set (using default provider)"
-fi
-
-echo ""
-echo "================================"
-echo "✅ All basic checks passed!"
-echo ""
-echo "📝 Next steps:"
-echo "   1. Open http://localhost:3000 in your browser"
-echo "   2. Refresh the page (Cmd+Shift+R)"
-echo "   3. Create a new tenant"
-echo "   4. Upload a document"
-echo "   5. Test queries"
+docker compose -f edgequake/docker/docker-compose.yml logs edgequake --tail=50
 ```
 
-## 📅 Date: February 9, 2026
+## Expected behavior
 
-**Status**: ✅ VERIFIED - All services running correctly with proper connectivity.
+| Check | Before the fix (2026-02-09) | After the fix |
+|-------|-----------------------------|---------------|
+| UI API status | Disconnected (red) | Connected (green) |
+| UI LLM provider | Unavailable (red) | OpenAI, or the configured provider |
+| API calls from the UI | Failing silently | Working |
+| Document upload | Not reachable | Working |
+| Query and entity extraction | Not reachable | Working |
+| Graph visualization | Not reachable | Working |
+
+## Date and status
+
+**Date**: February 9, 2026. **Status on that date**: verified, with all services running and connected. Re-run the steps above before you rely on that result for a newer version.

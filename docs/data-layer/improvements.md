@@ -13,7 +13,7 @@ description: "Historical record of the SPEC-088 performance work (2026-07-25): i
 > |---|---|
 > | Key-value keys such as `wsdoc:` and `{id}-metadata`, staging and final KV, the IMP-075 round-trip work | The `eq_*_kv` tables were drained and dropped by migration 125. Typed tables replaced them. See [postgres.md](./postgres.md#legacy-key-value-store). The IMP-075 entries describe code paths that now run on relational tables. |
 > | Partial HNSW by workspace (IMP-001-01), `eq_*_vectors` | These belong to the older per-workspace vector adapter. Typed embedding tables use fixed per-dimension partial indexes. See [pgvector.md](./pgvector.md). |
-> | Claim index `idx_tasks_claim_workspace_created` (migration 098) | A database built from all migrations does not have an index with this name. The test creates it itself. Current task indexes are in [indexes.md](./indexes.md#task-indexes). |
+> | Claim index `idx_tasks_claim_workspace_created` (migration 098) | Migration 098 creates this index. The IMP-140 test also runs `CREATE INDEX IF NOT EXISTS` for it before it checks the plan. Current task indexes are in [indexes.md](./indexes.md#task-indexes). |
 > | Migration rules and counts ("97 files", "next free version 099", `EDGEQUAKE_DEV_MODE`) | See [Migration and checksum safety](#migration-and-checksum-safety) below. |
 
 **Status:** Phase 6 **complete** for recommended request-path work (2026-07-25).  
@@ -125,7 +125,7 @@ docs reappear as **Completed** (e.g. areal `*.md`).
 ### Solution (DRY / SOLID)
 
 Single responsibility: **list-surface purge** is one function used by cascade
-completion, batch orphan, re-ingest, and wipe. Graph/vector stay on the cascade
+completion, the BatchDeletion orphan path, and re-ingest. An earlier workspace-wipe caller is no longer in the code. Graph/vector stay on the cascade
 order; list identity cleanup is never best-effort.
 
 ```text
@@ -134,6 +134,24 @@ purge_document_list_surfaces(doc, workspace, tenant):
   delete wsdoc:{ws}:{id} and wsdoc:{ws}:{prefix}
   delete content-hash (+ staging hash) when known
   DELETE FROM documents WHERE id AND workspace AND tenant  -- fail-closed
+```
+
+Three production callers share the purge function. The diagram shows the list surfaces that one call cleans.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    D["perform_document_deletion"] --> P["purge_document_list_surfaces"]
+    B["BatchDeletion orphan path"] --> P
+    R["delete_document_for_reingestion"] --> P
+    P --> M["Metadata and content records"]
+    P --> W["wsdoc index keys"]
+    P --> H["Content-hash records"]
+    P --> T[("documents table, fail-closed")]
+%% eq-classes
+classDef eqBad fill:#FEE2E2,stroke:#EF4444,color:#7F1D1D
+class T eqBad
 ```
 
 ### Tests

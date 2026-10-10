@@ -1,1210 +1,242 @@
 ---
 title: 'PDF Processing Deep Dive'
-description: "PDF convert and vision pipeline internals."
+description: "How EdgeQuake converts PDFs to Markdown with a vision LLM or EdgeParse, stores page and figure assets, and then runs graph ingestion. Covers backends, configuration, cancel and progress."
 ---
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Product: v0.32.2** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
 
 # PDF Processing Deep Dive
 
-**Crate:** `edgequake-pdf` · **Orchestration:** `edgequake-api` processor + task worker (SPEC-047 / SPEC-057)
+**What this page explains:** how a PDF becomes Markdown and then a knowledge graph, which settings control each step, and how cancel and progress work.
+**Who it is for:** operators who configure vision models, and developers who call the PDF API or the `edgequake-pdf` crate.
+**What you should know first:** PDF ingestion runs in the background. [Pipeline Progress](pipeline-progress.md) explains the task states used here.
 
----
+**Crate:** `edgequake-pdf` · **Orchestration:** `edgequake-api` processor and task worker (SPEC-047 / SPEC-057)
 
-## Current path (v0.23.0)
+> **Note:** Earlier versions of this page described a lopdf processor chain (spatial table detection, XY-cut column detection). That code is no longer in `edgequake-pdf`. This page covers only the current path.
 
-PDF ingestion is a **two-phase pipeline** separated at the task layer. Vision conversion and KG ingest run under different leases, timeouts, and cancel semantics.
+## Contents
 
+1. [How it works](#how-it-works)
+2. [Choose a parser backend](#choose-a-parser-backend)
+3. [Configure the vision model](#configure-the-vision-model)
+4. [Multimodal assets](#multimodal-assets)
+5. [Status, cancel and progress](#status-cancel-and-progress)
+6. [Rust and HTTP entry points](#rust-and-http-entry-points)
+7. [Troubleshooting](#troubleshooting)
+8. [References](#references)
+
+## How it works
+
+PDF ingestion is a **two-phase pipeline**. The convert phase turns pages into Markdown. The ingest phase then runs the same chunk, extract, embed and graph steps as a text upload. Each phase is its own task, so each has its own timeout and cancel behavior.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TB
+    Upload["POST /api/v1/documents/pdf"] --> Convert["TaskType::PdfProcessing<br/>(convert only)"]
+    Convert --> Render["Render pages<br/>(bundled PDFium)"]
+    Render --> Vision["Vision LLM per page<br/>(EDGEQUAKE_VISION_*)"]
+    Vision --> Assets["mm-assets<br/>page PNGs, charts, figures, tables"]
+    Vision --> Markdown["PostgreSQL pdf_documents row<br/>status: completed"]
+    Markdown --> Insert["TaskType::Insert<br/>(KG ingest, separate task)"]
+    Insert --> Graph["Chunk, extract, embed, graph"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class Vision eqLlm
+class Assets,Markdown eqStore
 ```
-Upload ──▶ TaskType::PdfProcessing (convert only)
-              │
-              ├─ Render pages (pdfium embedded, no external lib)
-              ├─ Vision LLM per page (EDGEQUAKE_VISION_*)
-              ├─ mm-assets: page PNGs, chart crops, figure/table regions (SPEC-047)
-              └─ Durable markdown in pdf_documents + PdfProcessingStatus::Completed
-              │
-              ▼
-         TaskType::Insert (KG ingest — separate lease/timeout)
-              │
-              └─ Chunk → extract → embed → graph (same as text upload)
+
+*The convert task stops once the Markdown is saved. The insert task never changes the PDF row, so a failed or cancelled ingest keeps the converted Markdown.*
+
+| Phase | Task type | PDF row on success | On cancel |
+| --- | --- | --- | --- |
+| Convert | `pdf_processing` | `completed`, Markdown saved | `cancelled` (not `failed`) |
+| Ingest | `insert` | unchanged | Task and document are cancelled. The PDF row keeps its status. |
+
+## Choose a parser backend
+
+Each upload uses one backend. The first value that is set wins:
+
+1. `pdf_parser_backend` on the upload request (multipart field)
+2. The workspace setting
+3. The tenant setting
+4. `EDGEQUAKE_PDF_PARSER_BACKEND`
+5. The default, `vision`
+
+| Backend | What it does | Needs |
+| --- | --- | --- |
+| `vision` | Renders each page and sends it to the vision model. This is the default. | A vision provider |
+| `edgeparse` | CPU-only extraction of born-digital text. No LLM call. | Nothing extra |
+| `edgeparse-ocr` | Like `edgeparse`, plus OCR of raster tables with the Tesseract CLI. | Tesseract on the server |
+| `auto` | Starts as `vision`. May fall back to `edgeparse` (see below). | A vision provider |
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    Choice["First set value wins<br/>upload, workspace, tenant, env"] -->|none set| Vision["vision (default)"]
+    Choice -->|vision| Vision
+    Choice -->|edgeparse| EdgeParse["edgeparse"]
+    Choice -->|edgeparse-ocr| Ocr["edgeparse-ocr"]
+    Choice -->|auto| Auto["auto (starts as vision)"]
+    Auto -->|timeout, provider down, conversion failure| EdgeParse
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class Vision,Auto eqLlm
 ```
 
-| Phase | Task type | PDF row on success | Cancel terminal |
-| ----- | --------- | ------------------ | --------------- |
-| **Convert** | `pdf_processing` | `Completed` + markdown | `Cancelled` (not `Failed`) |
-| **Ingest** | `insert` | unchanged (markdown barrier kept) | task + doc KV cancelled; PDF stays `Completed` if convert already finished |
+*Only `auto` takes the fallback edge. Explicit `vision` and `edgeparse` never switch backends silently.*
 
-**Vision + multimodal assets (SPEC-047):** Each page is rendered and sent to the configured vision provider. Chart/table/figure regions are written as durable **mm-assets** (`has_mm_assets` in document metadata, viewer URLs in markdown). Multimodal entity nodes are injected after LLM extraction when assets exist.
+**Fallback rules:** `should_fallback_to_edgeparse` in `edgequake-pdf/src/fallback.rs` returns `false` for any explicit choice. When the vision call times out, the provider is unavailable, or conversion fails under `auto`, the processor switches to EdgeParse and stores a warning on the document. The warning starts with "Vision extraction via ... was unavailable".
 
-**Environment (see `.env.example`):**
+## Configure the vision model
+
+The provider and model are resolved from the first variable that is set. Uploads can override both with the `vision_provider` and `vision_model` form fields.
+
+**Provider order:** `EDGEQUAKE_VISION_PROVIDER`, then `EDGEQUAKE_VISION_LLM_PROVIDER`, then `EDGEQUAKE_DEFAULT_LLM_PROVIDER`, then `EDGEQUAKE_LLM_PROVIDER`. Set the provider to `none` to turn vision off.
+
+**Model order:** `EDGEQUAKE_VISION_MODEL`, then `EDGEQUAKE_VISION_LLM_MODEL`, then `EDGEQUAKE_DEFAULT_LLM_MODEL`, then `EDGEQUAKE_LLM_MODEL`. If none is set, a built-in default is used for the provider: `gpt-4.1-nano` for OpenAI, `gemma4:latest` for other providers. A model that does not match the provider is skipped with a warning.
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `EDGEQUAKE_VISION_PROVIDER` | Vision provider id, for example `openai` or `ollama` | Chat LLM provider |
+| `EDGEQUAKE_VISION_MODEL` | Vision model name | Built-in per provider |
+| `EDGEQUAKE_VISION_MAX_IMAGE_BYTES` | Size budget per image sent to the model. Larger PNGs are re-encoded as JPEG. `0` disables the guard. | `3500000` |
+| `EDGEQUAKE_PDF_EMPTY_PAGE_RETRY` | Re-runs OCR on pages that returned an empty placeholder | On (`0` or `false` disables) |
+| `EDGEQUAKE_PDF_PAGE_MODALITY` | Forces the page type: `print`, `manuscript` or `mixed` | Detected automatically |
 
 ```bash
 EDGEQUAKE_VISION_PROVIDER=openai
 EDGEQUAKE_VISION_MODEL=gpt-4.1-nano
-# Fallback when vision unavailable: edgeparse CPU backend inside PdfConverter
 ```
 
-**Cancel:** `POST /api/v1/tasks/{track_id}/cancel` aborts cooperative vision/LLM calls and sets `PdfProcessingStatus::Cancelled`. See [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md).
+The full list of options is in `.env.example`.
 
-**Progress:** PDF phases stream on `ws://…/ws/progress/{track_id}` and `GET /api/v1/documents/pdf/progress/{track_id}`. See [Pipeline Progress](/docs/deep-dives/pipeline-progress/).
+## Multimodal assets
 
-**Public API:** `create_pdf_converter()`, `PdfConverter`, `PdfParserBackend`, `assemble_vision_markdown*`, `page_assets`, `region_assets` — [`edgequake/crates/edgequake-pdf/src/lib.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/lib.rs).
+The convert step writes visual assets next to the Markdown (SPEC-047):
 
----
+- **Page PNGs** from `write_page_png_assets`, used by the viewer.
+- **Chart crops** from `chart_crop.rs`.
+- **Figure regions** from `embedded_images.rs` and **table and caption regions** from `region_assets.rs`.
 
-## Table of Contents
+When assets exist, the document metadata gets `has_mm_assets: true`, and the Markdown links to the viewer URLs. During ingest, a multimodal analyze stage can add figure and chart entities to the graph.
 
-1. [Introduction](#introduction)
-2. [Architecture](#architecture)
-3. [Basic Usage](#basic-usage)
-4. [Table Detection](#table-detection)
-5. [Layout Analysis](#layout-analysis)
-6. [Processing Pipeline](#processing-pipeline)
-7. [Advanced Topics](#advanced-topics)
-8. [Troubleshooting](#troubleshooting)
-9. [Comparison](#comparison)
-10. [References](#references)
+## Status, cancel and progress
 
----
+The convert task sets the PDF row to one of five values. They are stored in lowercase.
 
-## Introduction
-
-### What Problem Does EdgeQuake PDF Solve?
-
-**The Challenge**: Most RAG systems require clean, structured text input. However, real-world knowledge often exists in PDF documents with:
-
-- Complex table structures
-- Multi-column layouts
-- Mixed text encodings
-- Embedded formulas and images
-- Inconsistent reading order
-
-**Why Existing Tools Fail**:
-
-- **PyPDF2**: Simple text extraction, no structure preservation
-- **pdfplumber**: Good for tables but slow, Python-only
-- **Camelot**: Requires exact table borders, brittle
-- **Marker**: Excellent but lacks customization, black-box LLM calls
-
-**EdgeQuake's Approach**:
-
-1. **Block-Based Representation**: Inspired by Marker's schema
-2. **Spatial Analysis**: Y-coordinate clustering for rows, X-coordinate for columns
-3. **Graceful Degradation**: Extract partial content when pages fail
-4. **LLM Enhancement**: Optional AI-powered cleanup and formatting
-5. **Pipeline Architecture**: Pluggable processors for customization
-
-### When to Use PDF Extraction
-
-**Use EdgeQuake PDF when**:
-
-- ✅ You need structured Markdown from academic papers
-- ✅ Your PDFs contain tables (financial reports, research data)
-- ✅ Multi-column layouts must preserve reading order
-- ✅ You want quality metrics to filter bad extractions
-- ✅ Integration with EdgeQuake's RAG pipeline
-
-**Alternatives**:
-
-- ⚠️ **Pre-extracted text available**: Skip PDF processing entirely
-- ⚠️ **Scanned documents (images)**: Use Vision models or OCR first
-- ⚠️ **Highly complex layouts**: May require manual review
-
----
-
-## Legacy: lopdf processor chain (historical)
-
-> The sections below describe an **earlier lopdf + processor-chain design** that is no longer the production PDF path. Production uses vision + mm-assets (above). Kept for background on spatial table detection and layout algorithms that informed later vision prompts.
-
-### Processing Pipeline (legacy)
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                    PDF PROCESSING PIPELINE                       │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  INPUT                                                           │
-│  ┌────────────┐                                                  │
-│  │ PDF File   │                                                  │
-│  │ (bytes)    │                                                  │
-│  └──────┬─────┘                                                  │
-│         │                                                        │
-│         ▼                                                        │
-│  ┌───────────────────────────────────────────────────────────┐   │
-│  │ STAGE 1: Backend Extraction                               │   │
-│  │                                                           │   │
-│  │ Backend: Vision LLM (default) or EdgeParse (fallback)     │   │
-│  │ • Load PDF structure (pages, fonts, metadata)             │   │
-│  │ • Extract raw text blocks with bounding boxes             │   │
-│  │ • Parse content streams (Tj, TJ operators)                │   │
-│  │ • Track fonts, styles, positions                          │   │
-│  │                                                           │   │
-│  │ Output: Document { pages: [Page] }                        │   │
-│  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                         │
-│                        ▼                                         │
-│  ┌───────────────────────────────────────────────────────────┐   │
-│  │ STAGE 2: Layout Analysis                                  │   │
-│  │                                                           │   │
-│  │ ColumnDetector:                                           │   │
-│  │   • Detect multi-column layouts (XY-Cut algorithm)        │   │
-│  │   • Split text blocks by columns                          │   │
-│  │                                                           │   │
-│  │ ReadingOrderDetector:                                     │   │
-│  │   • Establish top-to-bottom, left-to-right order          │   │
-│  │   • Handle zig-zag patterns in multi-column docs          │   │
-│  │                                                           │   │
-│  │ Output: Page { blocks: [Block], columns: [BBox] }         │   │
-│  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                         │
-│                        ▼                                         │
-│  ┌───────────────────────────────────────────────────────────┐   │
-│  │ STAGE 3: Structure Detection (Processor Chain)            │   │
-│  │                                                           │   │
-│  │ 1. MarginFilterProcessor                                  │   │
-│  │    • Remove headers/footers (top/bottom 10% of page)      │   │
-│  │                                                           │   │
-│  │ 2. StyleDetectionProcessor                                │   │
-│  │    • Detect bold, italic, font sizes                      │   │
-│  │                                                           │   │
-│  │ 3. HeaderDetectionProcessor                               │   │
-│  │    • Identify section headers (font > avg + 2pt)          │   │
-│  │                                                           │   │
-│  │ 4. ListDetectionProcessor                                 │   │
-│  │    • Detect bullets (•, -, *, numbers)                    │   │
-│  │                                                           │   │
-│  │ 5. TableDetectionProcessor                                │   │
-│  │    • Group blocks by Y-coordinate (rows)                  │   │
-│  │    • Detect columnar structure (X-alignment)              │   │
-│  │    • Create Table blocks with TableCell children          │   │
-│  │                                                           │   │
-│  │ 6. CaptionDetectionProcessor                              │   │
-│  │    • Detect "Table 1.", "Figure 2." patterns              │   │
-│  │                                                           │   │
-│  │ 7. CodeBlockDetectionProcessor                            │   │
-│  │    • Identify monospace fonts                             │   │
-│  │                                                           │   │
-│  │ 8. BlockMergeProcessor                                    │   │
-│  │    • Merge adjacent paragraphs                            │   │
-│  │                                                           │   │
-│  │ 9. GarbledTextFilterProcessor                             │   │
-│  │    • Remove non-printable, control characters             │   │
-│  │                                                           │   │
-│  │ 10. HyphenContinuationProcessor                           │   │
-│  │     • Join hyphenated words across lines                  │   │
-│  │                                                           │   │
-│  │ Output: Document with structured BlockType annotations    │   │
-│  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                         │
-│                        ▼                                         │
-│  ┌───────────────────────────────────────────────────────────┐   │
-│  │ STAGE 4: LLM Enhancement (Optional)                       │   │
-│  │                                                           │   │
-│  │ LlmEnhanceProcessor:                                      │   │
-│  │   • Clean garbled text                                    │   │
-│  │   • Fix OCR errors                                        │   │
-│  │   • Normalize formatting                                  │   │
-│  │                                                           │   │
-│  │ Requires: LLM provider (OpenAI, Ollama, etc.)             │   │
-│  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                         │
-│                        ▼                                         │
-│  ┌───────────────────────────────────────────────────────────┐   │
-│  │ STAGE 5: Markdown Rendering                               │   │
-│  │                                                           │   │
-│  │ MarkdownRenderer:                                         │   │
-│  │   • Convert blocks to Markdown                            │   │
-│  │   • Format tables as | Col1 | Col2 |                      │   │
-│  │   • Add headings (#, ##, ###)                             │   │
-│  │   • Preserve lists and code blocks                        │   │
-│  │                                                           │   │
-│  │ Styles: Standard, GitHub, Custom                          │   │
-│  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                         │
-│                        ▼                                         │
-│  OUTPUT                                                          │
-│  ┌────────────────────────────────────────────────────────┐      │
-│  │ ExtractionResult {                                     │      │
-│  │   markdown: String,                                    │      │
-│  │   pages: Vec<PageContent>,                             │      │
-│  │   images: Vec<ExtractedImage>,                         │      │
-│  │   metadata: DocumentMetadata,                          │      │
-│  │   page_errors: Vec<(usize, String)>                    │      │
-│  │ }                                                      │      │
-│  └────────────────────────────────────────────────────────┘      │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
-
-WHY THIS DESIGN:
-1. **Staged pipeline**: Early failure detection, modular processing
-2. **Block-based schema**: Semantic units (table, header, code) not raw text
-3. **Spatial analysis**: Leverages PDF coordinates, not just text order
-4. **Processor chain**: Each processor has single responsibility
-5. **Graceful degradation**: Failed pages don't break entire document
-6. **Optional LLM**: Quality improvement without mandatory cloud costs
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+stateDiagram-v2
+    [*] --> pending
+    pending --> processing: convert task starts
+    processing --> completed: Markdown saved
+    processing --> failed: error
+    processing --> cancelled: user or system cancel
+    completed --> [*]
+    failed --> [*]
+    cancelled --> [*]
 ```
 
-### Key Components
+*Only the convert task writes these values. Ingest results are reported on the document, not on the PDF row.*
 
-#### 1. PdfBackend
+**Cancel** is cooperative. `POST /api/v1/tasks/{track_id}/cancel` fires the cancel token for the task, which stops vision and LLM calls. The cancel chain also cancels the linked convert and insert tasks. A cancelled convert task sets the PDF row to `cancelled`. The processor records a cancel as `cancelled`, never as `failed` (SPEC-057).
 
-**Purpose**: Abstract PDF parsing library (currently `lopdf`)
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+sequenceDiagram
+    participant Client as Client (UI or SDK)
+    participant API as REST API
+    participant Registry as CancellationRegistry
+    participant Worker as Convert worker
+    participant DB as PostgreSQL
+    Client->>API: POST /api/v1/tasks/{track_id}/cancel
+    API->>DB: mark task and linked PDF tasks cancelled
+    API->>Registry: cancel(track_id)
+    Registry-->>Worker: cancel token fires
+    Worker->>DB: PDF row status = cancelled
+    API-->>Client: task response
+```
 
-**Trait**:
+*The API returns once the task is marked. The worker stops on its next cancel check, so the PDF row can still show `processing` for a moment.*
+
+**Progress** is available in three forms:
+
+| Channel | Endpoint |
+| --- | --- |
+| WebSocket | `ws://<host>/ws/progress/{track_id}` |
+| Polling | `GET /api/v1/documents/pdf/progress/{track_id}` |
+| Server-sent events | `GET /api/v1/documents/pdf/progress/stream/{track_id}` |
+
+The payload and the document stages are described in [Pipeline Progress](pipeline-progress.md).
+
+## Rust and HTTP entry points
+
+The `edgequake-pdf` crate re-exports the main types from `lib.rs`:
+
+- `create_pdf_converter(backend)` returns an `Arc<dyn PdfConverter>`.
+- `PdfConverter::convert(pdf_bytes, &PdfConversionConfig)` returns the Markdown as a `String`.
+- `PdfParserBackend` selects the backend. `VisionConversionConfig` holds the vision options, such as `provider_name`, `model` and `dpi`.
+- `vision_markdown::assemble_vision_markdown*` builds the final Markdown from page results.
 
 ```rust
-pub trait PdfBackend {
-    fn extract_document(&self, pdf_bytes: &[u8]) -> Result<Document>;
+use edgequake_pdf::{create_pdf_converter, PdfConversionConfig, PdfParserBackend};
+
+async fn to_markdown(pdf_bytes: &[u8]) -> Result<String, Box<dyn std::error::Error>> {
+    // EdgeParse needs no LLM, so this works without a provider.
+    let converter = create_pdf_converter(PdfParserBackend::EdgeParse);
+    let markdown = converter
+        .convert(pdf_bytes, &PdfConversionConfig::default())
+        .await?;
+    Ok(markdown)
 }
 ```
 
-**Implementations**:
-
-- `LopdfBackend`: Production backend using lopdf crate
-- `MockBackend`: Testing backend with deterministic output
-
-**Why abstraction?** Future-proofing for alternative backends (pdfium, poppler)
-
-#### 2. Document Schema
-
-**Block-Based Representation** (inspired by Marker):
-
-```rust
-pub struct Document {
-    pub pages: Vec<Page>,
-    pub metadata: DocumentMetadata,
-    pub toc: Vec<TocEntry>, // Table of contents
-}
-
-pub struct Page {
-    pub number: usize,
-    pub width: f32,  // points
-    pub height: f32, // points
-    pub blocks: Vec<Block>,
-    pub columns: Vec<BoundingBox>,
-    pub stats: PageStats,
-}
-
-pub struct Block {
-    pub id: BlockId,
-    pub block_type: BlockType,
-    pub text: String,
-    pub bbox: BoundingBox, // x1, y1, x2, y2
-    pub font_size: f32,
-    pub font_name: String,
-    pub confidence: f32,   // 0.0-1.0
-    pub children: Vec<Block>, // For tables, lists
-}
-
-pub enum BlockType {
-    Text,
-    Paragraph,
-    SectionHeader,
-    Title,
-    Table,
-    TableCell,
-    Figure,
-    Caption,
-    List,
-    ListItem,
-    Code,
-    Equation,
-    // ...
-}
-```
-
-**Why blocks?**
-
-- **Semantic meaning**: Not just "text at (x,y)" but "this is a table header"
-- **Hierarchical**: Tables contain cells, lists contain items
-- **Metadata-rich**: Confidence scores, fonts, bounding boxes
-- **LLM-friendly**: Structured input for enhancement
-
-#### 3. Processor Chain
-
-**Pattern**: Chain of Responsibility
-
-```rust
-pub trait Processor {
-    fn process(&self, document: Document) -> Result<Document>;
-    fn name(&self) -> &str;
-}
-
-impl ProcessorChain {
-    pub fn builder() -> ProcessorBuilder;
-    pub fn process(&self, document: Document) -> Result<Document> {
-        let mut doc = document;
-        for processor in &self.processors {
-            doc = processor.process(doc)?;
-        }
-        Ok(doc)
-    }
-}
-```
-
-**Why chain?**
-
-- **Composable**: Enable/disable processors via config
-- **Testable**: Each processor isolated
-- **Debuggable**: Inspect document state between stages
-
----
-
-## Basic Usage
-
-### Quick Start
-
-```rust
-use edgequake_pdf::{PdfExtractor, PdfConfig};
-use edgequake_llm::providers::mock::MockProvider;
-use std::sync::Arc;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create LLM provider (required for optional enhancement)
-    let provider = Arc::new(MockProvider::new());
-
-    // Initialize extractor
-    let extractor = PdfExtractor::new(provider);
-
-    // Load PDF bytes
-    let pdf_bytes = std::fs::read("research-paper.pdf")?;
-
-    // Extract to Markdown
-    let markdown = extractor.extract_to_markdown(&pdf_bytes).await?;
-
-    println!("Extracted Markdown:\n{}", markdown);
-    Ok(())
-}
-```
-
-**Source**: [`edgequake-pdf/src/lib.rs:52-67`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/lib.rs#L52-L67)
-
-### Get Detailed Results
-
-```rust
-use edgequake_pdf::{PdfExtractor, PdfConfig};
-use edgequake_llm::providers::mock::MockProvider;
-use std::sync::Arc;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let provider = Arc::new(MockProvider::new());
-    let extractor = PdfExtractor::new(provider);
-
-    let pdf_bytes = std::fs::read("document.pdf")?;
-
-    // Get full extraction result
-    let result = extractor.extract_full(&pdf_bytes).await?;
-
-    // Access metadata
-    println!("Pages: {}", result.page_count);
-    println!("Title: {}", result.metadata.title);
-    println!("Status: {}", result.status_summary());
-
-    // Access per-page content
-    for page in &result.pages {
-        println!("Page {}: {} chars", page.page_number + 1, page.text.len());
-    }
-
-    // Access extracted images
-    for img in &result.images {
-        println!("Image {}: {} ({})", img.id, img.mime_type, img.description.as_deref().unwrap_or("no description"));
-    }
-
-    // Check for errors (graceful degradation)
-    for error in &result.page_errors {
-        eprintln!("Warning: Page {} failed - {}", error.page, error.error);
-    }
-
-    Ok(())
-}
-```
-
-**Source**: [`edgequake-pdf/src/extractor.rs:308-340`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/extractor.rs#L308-L340)
-
-### Custom Configuration
-
-```rust
-use edgequake_pdf::{PdfExtractor, PdfConfig, ExtractionMode, OutputFormat};
-use edgequake_llm::providers::mock::MockProvider;
-use std::sync::Arc;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let provider = Arc::new(MockProvider::new());
-
-    // Customize extraction config
-    let config = PdfConfig {
-        mode: ExtractionMode::Text, // vs Vision, Hybrid
-        output_format: OutputFormat::Markdown,
-        enhance_tables: false, // Disable LLM for speed
-        enhance_readability: false,
-        max_pages: Some(100), // Limit pages
-        include_page_numbers: true,
-        ..Default::default()
-    };
-
-    let extractor = PdfExtractor::with_config(provider, config);
-
-    let pdf_bytes = std::fs::read("document.pdf")?;
-    let markdown = extractor.extract_to_markdown(&pdf_bytes).await?;
-
-    println!("{}", markdown);
-    Ok(())
-}
-```
-
-**Source**: [`edgequake-pdf/src/config.rs:189-260`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/config.rs#L189-L260)
-
----
-
-## Table Detection
-
-### How It Works
-
-EdgeQuake uses **spatial clustering** to detect tables from text block positions:
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                    TABLE DETECTION ALGORITHM                     │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  INPUT: Text blocks with bounding boxes                          │
-│  ┌───────────────────────────────────────────────────────────┐   │
-│  │ Block("Name",  bbox=(50, 100, 100, 110), font_size=10)    │   │
-│  │ Block("Age",   bbox=(200, 100, 240, 110), font_size=10)   │   │
-│  │ Block("City",  bbox=(350, 100, 400, 110), font_size=10)   │   │
-│  │ Block("Alice", bbox=(50, 85, 100, 95), font_size=10)      │   │
-│  │ Block("25",    bbox=(200, 85, 220, 95), font_size=10)     │   │
-│  │ Block("NYC",   bbox=(350, 85, 380, 95), font_size=10)     │   │
-│  └───────────────────────────────────────────────────────────┘   │
-│                        │                                         │
-│                        ▼                                         │
-│  ┌───────────────────────────────────────────────────────────┐   │
-│  │ STEP 1: Group Blocks by Y-Coordinate (ROWS)               │   │
-│  │                                                           │   │
-│  │ Algorithm:                                                │   │
-│  │   for each block in sorted_by_y1(blocks):                 │   │
-│  │     for each existing row:                                │   │
-│  │       if vertical_overlap(block, row[0]) > 0.5 * min_height: 
-│  │         row.add(block)                                    │   │
-│  │         break                                             │   │
-│  │     if not added:                                         │   │
-│  │       create new_row([block])                             │   │
-│  │                                                           │   │
-│  │ Result:                                                   │   │
-│  │   Row 0 (y≈100): [Name, Age, City]                        │   │
-│  │   Row 1 (y≈85):  [Alice, 25, NYC]                         │   │
-│  │                                                           │   │
-│  │ WHY 0.5 overlap: Blocks on same row have >50% vertical    │   │
-│  │ overlap. Handles slight misalignment from PDF extraction. │   │
-│  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                         │
-│                        ▼                                         │
-│  ┌───────────────────────────────────────────────────────────┐   │
-│  │ STEP 2: Sort Each Row by X-Coordinate (LEFT-TO-RIGHT)     │   │
-│  │                                                           │   │
-│  │ for each row in rows:                                     │   │
-│  │   row.sort_by_x1()                                        │   │
-│  │                                                           │   │
-│  │ Result:                                                   │   │
-│  │   Row 0: [Name@x=50, Age@x=200, City@x=350]               │   │
-│  │   Row 1: [Alice@x=50, 25@x=200, NYC@x=350]                │   │
-│  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                         │
-│                        ▼                                         │
-│  ┌───────────────────────────────────────────────────────────┐   │
-│  │ STEP 3: Find Table Extent (Consecutive Multi-Block Rows)  │   │
-│  │                                                           │   │
-│  │ Starting from first row with >1 blocks:                   │   │
-│  │   Extend table while:                                     │   │
-│  │     • Next row has >1 blocks, AND                         │   │
-│  │     • Max gap between blocks < 150pt (not columns)        │   │
-│  │   OR:                                                     │   │
-│  │     • Next row is single block aligned with table columns │   │
-│  │       (merged cell or spanning header)                    │   │
-│  │                                                           │   │
-│  │ WHY 150pt threshold: Typical table cell gap is 10-50pt,   │   │
-│  │ multi-column layout gap is 150-300pt. This distinguishes  │   │
-│  │ tables from two-column text.                              │   │
-│  │                                                           │   │
-│  │ WHY 0.8 alignment: Single-block rows must have 80%        │   │
-│  │ X-overlap with existing columns to be part of table.      │   │
-│  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                         │
-│                        ▼                                         │
-│  ┌───────────────────────────────────────────────────────────┐   │
-│  │ STEP 4: Validate Table Likelihood                         │   │
-│  │                                                           │   │
-│  │ Requirements (OODA fix 2026-01-04):                       │   │
-│  │   • At least 3 rows total                                 │   │
-│  │   • At least one row with >1 blocks                       │   │
-│  │                                                           │   │
-│  │ WHY 3 rows minimum: Avoid false positives from short      │   │
-│  │ multi-line phrases. Real tables have multiple data rows.  │   │
-│  │                                                           │   │
-│  │ REJECTED: Prior threshold was 6 rows, missed small tables.│   │
-│  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                         │
-│                        ▼                                         │
-│  ┌───────────────────────────────────────────────────────────┐   │
-│  │ STEP 5: Create Table Block                                │   │
-│  │                                                           │   │
-│  │ table_block = Block {                                     │   │
-│  │   block_type: Table,                                      │   │
-│  │   bbox: union_of_all_cells,                               │   │
-│  │   children: [                                             │   │
-│  │     Cell("Name"), Cell("Age"), Cell("City"),              │   │
-│  │     Cell("Alice"), Cell("25"), Cell("NYC")                │   │
-│  │   ]                                                       │   │
-│  │ }                                                         │   │
-│  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                         │
-│                        ▼                                         │
-│  OUTPUT: Table Block                                             │
-│  ┌────────────────────────────────────────────────────────┐      │
-│  │ | Name  | Age | City |                                 │      │
-│  │ |-------|-----|------|                                 │      │
-│  │ | Alice | 25  | NYC  |                                 │      │
-│  └────────────────────────────────────────────────────────┘      │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
-
-EDGE CASES HANDLED:
-1. **Ragged tables** (uneven columns): Accepted, aligned best-effort
-2. **Merged cells**: Single block spanning multiple columns detected
-3. **Multi-column layouts**: Skipped via page.columns.len() > 1 check
-4. **Complex merged cells**: May produce incorrect structure
-5. **Nested tables**: Not supported (children flattened)
-```
-
-**Source**: [`edgequake-pdf/src/processors/table_detection.rs:20-300`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/processors/table_detection.rs#L20-L300)
-
-### Code Example: Accessing Tables
-
-```rust
-use edgequake_pdf::{PdfExtractor, BlockType};
-use edgequake_llm::providers::mock::MockProvider;
-use std::sync::Arc;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let provider = Arc::new(MockProvider::new());
-    let extractor = PdfExtractor::new(provider);
-
-    let pdf_bytes = std::fs::read("financial-report.pdf")?;
-
-    // Extract Document for block-level access
-    let doc = extractor.extract_document(&pdf_bytes).await?;
-
-    // Find all tables
-    for page in &doc.pages {
-        for block in &page.blocks {
-            if block.block_type == BlockType::Table {
-                println!("Table on page {}", page.number);
-                println!("  Cells: {}", block.children.len());
-                println!("  Bounding box: {:?}", block.bbox);
-
-                // Access cells
-                for cell in &block.children {
-                    println!("    Cell: {}", cell.text);
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-```
-
-**Source**: [`edgequake-pdf/src/extractor.rs:224-240`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/extractor.rs#L224-L240)
-
-### When Table Detection Fails
-
-**Scenario 1: Multi-Column Layout Detected as Table**
-
-**Problem**: Two-column academic paper with side-by-side text looks like table rows.
-
-**Solution**: `TableDetectionProcessor` skips pages with `page.columns.len() > 1`
-
-```rust
-// In table_detection.rs:
-if page.columns.len() > 1 {
-    tracing::info!("Skipping multi-column page ({} columns)", page.columns.len());
-    continue;
-}
-```
-
-**Source**: [`edgequake-pdf/src/processors/table_detection.rs:63-68`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/processors/table_detection.rs#L63-L68)
-
-**Scenario 2: Complex Merged Cells**
-
-**Problem**: Table with cells spanning multiple rows/columns produces incorrect structure.
-
-**Workaround**: Use `TextTableReconstructionProcessor` to parse text-based tables:
-
-```rust
-use edgequake_pdf::processors::TextTableReconstructionProcessor;
-
-let processor = TextTableReconstructionProcessor::new();
-let doc = processor.process(doc)?;
-```
-
-**Source**: [`edgequake-pdf/src/processors/table_detection.rs:300-450`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/processors/table_detection.rs#L300-L450)
-
----
-
-## Layout Analysis
-
-### Multi-Column Detection
-
-EdgeQuake uses the **XY-Cut algorithm** to detect columns:
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                        XY-CUT ALGORITHM                          │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  PURPOSE: Recursively split page into columns/regions            │
-│                                                                  │
-│  INPUT: Page with text blocks                                    │
-│  ┌────────────────────────────────────────────────────────────┐  │
-│  │  Page (8.5" x 11")                                         │  │
-│  │  ┌─────────────────────┐  ┌─────────────────────┐          │  │
-│  │  │ Column 1            │  │ Column 2            │          │  │
-│  │  │ Text blocks here... │  │ Text blocks here... │          │  │
-│  │  └─────────────────────┘  └─────────────────────┘          │  │
-│  └────────────────────────────────────────────────────────────┘  │
-│                        │                                         │
-│                        ▼                                         │
-│  ┌───────────────────────────────────────────────────────────┐   │
-│  │ STEP 1: Project Blocks onto X-Axis                        │   │
-│  │                                                           │   │
-│  │ Create histogram of horizontal positions:                 │   │
-│  │                                                           │   │
-│  │   X-axis: 0     100    200    300    400    500    600    │   │
-│  │           │      │      │      │      │      │      │     │   │
-│  │   Density: ████ ____ ████ ____ ████ ██████ ████ ____ ████ │   │
-│  │           (Col1)     (Gap)    (Col2)                      │   │
-│  │                                                           │   │
-│  │ WHY: Large gaps in X-projection indicate column boundaries│   │
-│  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                         │
-│                        ▼                                         │
-│  ┌───────────────────────────────────────────────────────────┐   │
-│  │ STEP 2: Find Vertical Cut (Largest Gap)                   │   │
-│  │                                                           │   │
-│  │ Scan histogram for widest gap:                            │   │
-│  │   gap_threshold = page_width * 0.1  // 10% of page        │   │
-│  │   if max_gap_width > gap_threshold:                       │   │
-│  │     cut_x = gap_center                                    │   │
-│  │                                                           │   │
-│  │ WHY 10%: Column gap is typically 5-15% of page width.     │   │
-│  │ Smaller gaps are whitespace within paragraphs.            │   │
-│  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                         │
-│                        ▼                                         │
-│  ┌───────────────────────────────────────────────────────────┐   │
-│  │ STEP 3: Split Page at Cut                                 │   │
-│  │                                                           │   │
-│  │ Left region:  blocks where bbox.x2 < cut_x                │   │
-│  │ Right region: blocks where bbox.x1 > cut_x                │   │
-│  │                                                           │   │
-│  │ Recursively apply XY-Cut to each region:                  │   │
-│  │   • Try vertical cuts first (columns)                     │   │
-│  │   • Try horizontal cuts (sections) if no vertical gap     │   │
-│  │   • Stop when no gaps > threshold                         │   │
-│  └─────────────────────┬─────────────────────────────────────┘   │
-│                        │                                         │
-│                        ▼                                         │
-│  OUTPUT: Column Bounding Boxes                                   │
-│  ┌────────────────────────────────────────────────────────┐      │
-│  │ columns = [                                            │      │
-│  │   BBox { x1: 50, x2: 280, y1: 50, y2: 750 },           │      │
-│  │   BBox { x1: 320, x2: 550, y1: 50, y2: 750 }           │      │
-│  │ ]                                                      │      │
-│  └────────────────────────────────────────────────────────┘      │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
-```
-
-**Source**: [`edgequake-pdf/src/layout/xy_cut.rs:1-200`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/layout/xy_cut.rs#L1-L200)
-
-### Reading Order Detection
-
-Once columns are detected, `ReadingOrderDetector` establishes block sequence:
-
-**Algorithm**:
-
-1. **Single column**: Top-to-bottom by Y1-coordinate
-2. **Multi-column**: Process each column top-to-bottom, left-to-right column order
-
-```rust
-impl ReadingOrderDetector {
-    pub fn detect_order(&self, page: &Page) -> Vec<usize> {
-        if page.columns.len() <= 1 {
-            // Single column: sort by Y
-            self.sort_by_y(&page.blocks)
-        } else {
-            // Multi-column: process column-by-column
-            let mut order = Vec::new();
-            for column in &page.columns {
-                let blocks_in_column = self.blocks_in_bbox(&page.blocks, column);
-                order.extend(self.sort_by_y(&blocks_in_column));
-            }
-            order
-        }
-    }
-}
-```
-
-**Source**: [`edgequake-pdf/src/layout/reading_order.rs:50-100`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/layout/reading_order.rs#L50-L100)
-
----
-
-## Processing Pipeline
-
-### Processor Chain Example
-
-```rust
-use edgequake_pdf::processors::*;
-
-// Build custom processor chain
-let chain = ProcessorChain::builder()
-    .add(MarginFilterProcessor::new())
-    .add(StyleDetectionProcessor::new())
-    .add(HeaderDetectionProcessor::new())
-    .add(ListDetectionProcessor::new())
-    .add(TableDetectionProcessor::new())
-    .add(BlockMergeProcessor::new())
-    .build();
-
-// Process document
-let processed_doc = chain.process(raw_doc)?;
-```
-
-**Source**: [`edgequake-pdf/src/processors/builder.rs:20-60`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/processors/builder.rs#L20-L60)
-
-### Available Processors
-
-| Processor                     | Purpose                    | Configuration                                  |
-| ----------------------------- | -------------------------- | ---------------------------------------------- |
-| `MarginFilterProcessor`       | Remove headers/footers     | `top_margin: 0.1, bottom_margin: 0.1`          |
-| `StyleDetectionProcessor`     | Detect bold/italic/fonts   | None                                           |
-| `HeaderDetectionProcessor`    | Identify section headers   | `font_size_threshold: 2.0` (2pt above average) |
-| `ListDetectionProcessor`      | Detect bullets/numbers     | `patterns: ["•", "-", "*", r"\d+\."]`          |
-| `TableDetectionProcessor`     | Detect spatial tables      | `min_rows: 3, max_gap: 150.0`                  |
-| `CaptionDetectionProcessor`   | Find "Table 1", "Figure 2" | `patterns: ["Table", "Figure", "Fig"]`         |
-| `CodeBlockDetectionProcessor` | Identify code (monospace)  | `monospace_fonts: ["Courier", "Monaco"]`       |
-| `BlockMergeProcessor`         | Merge adjacent paragraphs  | `max_gap: 20.0`                                |
-| `GarbledTextFilterProcessor`  | Remove non-printable chars | None                                           |
-| `HyphenContinuationProcessor` | Join hyphenated words      | None                                           |
-| `LlmEnhanceProcessor`         | LLM-powered cleanup        | `provider: Arc<dyn LLMProvider>`               |
-
-### Graceful Degradation
-
-**Problem**: A single corrupted page shouldn't fail entire document extraction.
-
-**Solution**: `ExtractionResult` tracks per-page errors:
-
-```rust
-pub struct ExtractionResult {
-    pub page_count: usize,
-    pub markdown: String,        // Only successful pages
-    pub pages: Vec<PageContent>, // Only successful pages
-    pub page_errors: Vec<(usize, String)>, // Failed pages
-    // ...
-}
-```
-
-**Usage**:
-
-```rust
-let result = extractor.extract(&pdf_bytes).await?;
-
-if !result.page_errors.is_empty() {
-    eprintln!("Warning: {} pages failed extraction", result.page_errors.len());
-    for (page_num, error) in &result.page_errors {
-        eprintln!("  Page {}: {}", page_num, error);
-    }
-}
-
-// Still use successfully extracted pages
-println!("Extracted {} / {} pages", result.pages.len(), result.page_count);
-```
-
-**Source**: [`edgequake-pdf/src/extractor.rs:90-110`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/extractor.rs#L90-L110)
-
-**Why this design?**
-
-- **Real-world PDFs are messy**: Corrupt fonts, bad encodings, malformed content
-- **Partial data better than none**: 9/10 pages extracted > complete failure
-- **User choice**: Application decides acceptable failure rate
-
----
-
-## Advanced Topics
-
-### LLM Enhancement
-
-Enable LLM-powered text cleanup:
-
-```rust
-use edgequake_pdf::{PdfExtractor, PdfConfig};
-use edgequake_llm::providers::openai::OpenAIProvider;
-use std::sync::Arc;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Use real LLM provider
-    let provider = Arc::new(OpenAIProvider::new("your-api-key")?);
-
-    // Enable LLM enhancement
-    let mut config = PdfConfig::default();
-    config.enable_llm_enhance = true;
-
-    let extractor = PdfExtractor::with_config(provider, config);
-
-    let pdf_bytes = std::fs::read("noisy-scan.pdf")?;
-    let markdown = extractor.extract_to_markdown(&pdf_bytes).await?;
-
-    // LLM cleaned up OCR errors, normalized formatting
-    println!("{}", markdown);
-    Ok(())
-}
-```
-
-**What LLM Enhancement Does**:
-
-- Fix OCR errors (common character misrecognitions)
-- Normalize formatting (inconsistent spacing, capitalization)
-- Clean garbled text (encoding issues)
-- **Not used for**: Content generation or summarization (violation of extraction principle)
-
-**Source**: [`edgequake-pdf/src/processors/llm_enhance.rs:1-100`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/processors/llm_enhance.rs#L1-L100)
-
-### Vision Model Extraction
-
-For image-heavy or complex layouts, use vision models:
-
-```rust
-let mut config = PdfConfig::default();
-config.mode = ExtractionMode::Vision;
-
-let extractor = PdfExtractor::with_config(provider, config);
-```
-
-**How it works**:
-
-1. Render PDF pages to images (150 DPI by default)
-2. Send images to vision model (GPT-4V, Claude-3, etc.)
-3. Extract structured content from model response
-4. Fall back to text extraction if vision fails (Hybrid mode)
-
-**Use cases**:
-
-- Forms with complex layouts
-- Documents with significant graphical elements
-- Scanned documents (low-quality OCR)
-
-**Source**: [`edgequake-pdf/src/vision.rs:1-200`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/vision.rs#L1-L200)
-
-### Performance Tuning
-
-#### Text Mode (Fast)
-
-```rust
-let config = PdfConfig {
-    mode: ExtractionMode::Text,
-    enhance_tables: false,
-    enhance_readability: false,
-    ..Default::default()
-};
-```
-
-**Trade-offs**:
-
-- ✅ 3-5x faster extraction
-- ✅ No LLM costs
-- ❌ Lower quality structure detection
-- ❌ May miss complex tables
-
-#### Hybrid Mode (Balanced)
-
-```rust
-let config = PdfConfig {
-    mode: ExtractionMode::Hybrid,
-    quality_threshold: 0.5, // Switch to vision if quality < 50%
-    enhance_tables: true,
-    ..Default::default()
-};
-```
-
-**Trade-offs**:
-
-- ✅ Best structure preservation
-- ✅ Automatic fallback to vision
-- ✅ Only uses LLM when needed
-- ❌ Variable cost (depends on PDF quality)
-
-#### Batch Processing
-
-Process multiple PDFs in parallel:
-
-```rust
-use tokio::task::JoinSet;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let provider = Arc::new(MockProvider::new());
-    let extractor = Arc::new(PdfExtractor::new(provider));
-
-    let pdf_files = vec!["doc1.pdf", "doc2.pdf", "doc3.pdf"];
-    let mut tasks = JoinSet::new();
-
-    for pdf_file in pdf_files {
-        let extractor = Arc::clone(&extractor);
-        let pdf_file = pdf_file.to_string();
-
-        tasks.spawn(async move {
-            let bytes = std::fs::read(&pdf_file)?;
-            extractor.extract_to_markdown(&bytes).await
-        });
-    }
-
-    while let Some(result) = tasks.join_next().await {
-        match result? {
-            Ok(markdown) => println!("Success: {} chars", markdown.len()),
-            Err(e) => eprintln!("Error: {}", e),
-        }
-    }
-
-    Ok(())
-}
-```
-
-**Concurrency considerations**:
-
-- CPU-bound: PDF parsing (lopdf)
-- IO-bound: LLM API calls
-- **Recommended**: Parallelize at document level, not page level (reduces LLM call overhead)
-
----
+Over HTTP, `POST /api/v1/parse` converts a PDF to Markdown without ingesting it. `GET /api/v1/parse/backends` lists the backends the server can use.
 
 ## Troubleshooting
 
-### Common Issues
-
-#### 1. No Text Extracted
-
-**Symptoms**:
-
-```rust
-let result = extractor.extract_full(&pdf_bytes).await?;
-assert!(result.markdown.is_empty()); // Empty!
-```
-
-**Causes**:
-
-- PDF contains only images (scanned document)
-- PDF uses unsupported font encoding
-- PDF content stream is corrupted
-
-**Solutions**:
-
-1. Enable vision mode:
-
-   ```rust
-   config.mode = ExtractionMode::Vision;
-   ```
-
-2. Enable image OCR:
-
-   ```rust
-   config.image_ocr.enabled = true;
-   ```
-
-3. Check page errors:
-   ```rust
-   for error in &result.page_errors {
-       eprintln!("Page {}: {}", error.page, error.error);
-   }
-   ```
-
-#### 2. Table Not Detected
-
-**Symptoms**: Table content extracted as plain text, not Markdown table.
-
-**Causes**:
-
-- Multi-column page (detector skips these)
-- Table has <3 rows (below threshold)
-- Large gap between columns (>150pt, detected as multi-column layout)
-
-**Solutions**:
-
-1. Check column count:
-
-   ```rust
-   let doc = extractor.extract_document(&pdf_bytes)?;
-   for page in &doc.pages {
-       if page.columns.len() > 1 {
-           println!("Page {}: {} columns detected", page.number, page.columns.len());
-       }
-   }
-   ```
-
-2. Use `TextTableReconstructionProcessor` (parses text patterns):
-
-   ```rust
-   use edgequake_pdf::processors::TextTableReconstructionProcessor;
-
-   let mut chain = ProcessorChain::builder()
-       .add(TableDetectionProcessor::new())
-       .add(TextTableReconstructionProcessor::new()) // Fallback
-       .build();
-   ```
-
-3. Lower row threshold (custom processor):
-   ```rust
-   // Requires forking the crate - consider contributing!
-   ```
-
-#### 3. Encoding Issues (Garbled Text)
-
-**Symptoms**: Text contains � or mojibake (incorrect characters).
-
-**Causes**:
-
-- PDF uses custom font encoding without ToUnicode map
-- Encoding detection heuristics failed
-
-**Solutions**:
-
-1. Enable LLM enhancement (can fix common errors):
-
-   ```rust
-   config.enhance_readability = true;
-   ```
-
-2. Use vision model (bypasses text extraction):
-
-   ```rust
-   config.mode = ExtractionMode::Vision;
-   ```
-
-3. Manual encoding fix (post-processing):
-   ```rust
-   let markdown = result.markdown
-       .replace("ï¬", "fi")  // Common ligature error
-       .replace("â€™", "'"); // Smart quote error
-   ```
-
-#### 4. Performance Issues
-
-**Symptoms**: Extraction takes >30 seconds for 100-page document.
-
-**Causes**:
-
-- LLM enhancement enabled (slow API calls)
-- Vision model enabled (image rendering + API calls)
-- Complex layout with many tables
-
-**Solutions**:
-
-1. Disable enhancements:
-
-   ```rust
-   config.enhance_readability = false;
-   config.enhance_tables = false;
-   ```
-
-2. Use Text mode:
-
-   ```rust
-   config.mode = ExtractionMode::Text;
-   ```
-
-3. Limit pages:
-   ```rust
-   config.max_pages = Some(50);
-   ```
-
-**Benchmarks**:
-
-- Text mode: ~1 page/sec (CPU-bound)
-- Hybrid mode: ~0.3-0.5 pages/sec (depends on quality)
-- Vision mode: ~0.1 pages/sec (rendering + API)
-
----
-
-## Comparison
-
-### EdgeQuake vs Alternatives
-
-| Feature                | EdgeQuake          | PyPDF2      | pdfplumber   | Camelot        | Marker       |
-| ---------------------- | ------------------ | ----------- | ------------ | -------------- | ------------ |
-| Language               | Rust               | Python      | Python       | Python         | Python       |
-| Structure Preservation | ✅ Block-based     | ❌ Raw text | ⚠️ Basic     | ❌ Tables only | ✅ Excellent |
-| Table Detection        | ✅ Spatial + Text  | ❌          | ✅           | ✅             | ✅           |
-| Multi-Column           | ✅ XY-Cut          | ❌          | ⚠️ Heuristic | ❌             | ✅           |
-| Graceful Degradation   | ✅ Per-page errors | ❌          | ❌           | ❌             | ⚠️           |
-| LLM Enhancement        | ✅ Optional        | ❌          | ❌           | ❌             | ✅ Required  |
-| Vision Models          | ✅ Optional        | ❌          | ❌           | ❌             | ✅           |
-| Speed (100 pages)      | ~100 sec           | ~10 sec     | ~300 sec     | ~200 sec       | ~150 sec     |
-| Memory (100 pages)     | ~200 MB            | ~50 MB      | ~400 MB      | ~300 MB        | ~500 MB      |
-| API Costs (100 pages)  | $0-5               | $0          | $0           | $0             | $2-10        |
-| Customization          | ✅ Processor chain | ❌          | ⚠️ Limited   | ❌             | ❌ Black box |
-
-**When to use EdgeQuake**:
-
-- ✅ Need structure preservation (tables, headers, lists)
-- ✅ Multi-column academic papers
-- ✅ Graceful degradation required
-- ✅ Integration with Rust-based RAG pipeline
-- ✅ Want LLM enhancement but not required
-
-**When to use alternatives**:
-
-- **PyPDF2**: Simple text extraction, speed critical, Python ecosystem
-- **pdfplumber**: Complex table extraction, willing to wait
-- **Camelot**: Table-only extraction, bordered tables
-- **Marker**: Don't need customization, willing to pay LLM costs
-
----
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Document shows "Vision extraction via ... was unavailable ... Falling back to EdgeParse" | Vision timed out or the provider was down, under `auto`. Or vision was disabled for the upload. | Check `EDGEQUAKE_VISION_*` and `GET /health`. Set `pdf_parser_backend` to `vision` to fail instead of falling back. |
+| Scanned pages come out empty with `edgeparse` | EdgeParse reads born-digital text only | Use `vision`, or `edgeparse-ocr` with Tesseract installed |
+| Pages contain only an empty placeholder | The vision call returned no text for that page | Keep `EDGEQUAKE_PDF_EMPTY_PAGE_RETRY` on. It re-runs OCR when a page render exists. |
+| Vision requests are slow or very large | Page images exceed the per-image budget | Tune `EDGEQUAKE_VISION_MAX_IMAGE_BYTES`. Oversized PNGs are re-encoded as JPEG. |
+| Figures or charts are missing from the graph | No mm-assets were written, or the multimodal stage did not run | Check `has_mm_assets` in the document metadata |
+| PDF shows `cancelled`, not `failed` | Expected after a user or system cancel (SPEC-057) | None needed |
+| PDF shows `completed` but the document is still processing | Convert and ingest are separate tasks | Follow the document stage in [Pipeline Progress](pipeline-progress.md) |
 
 ## References
 
-### Source Code
+### Source code
 
-- **Main crate**: [`edgequake/crates/edgequake-pdf/`](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-pdf/)
-- **Extractor**: [`src/extractor.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/extractor.rs)
-- **Table detection**: [`src/processors/table_detection.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/processors/table_detection.rs)
-- **Layout analysis**: [`src/layout/`](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-pdf/src/layout/)
-- **Schema**: [`src/schema/`](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-pdf/src/schema/)
+- **Crate:** [`edgequake/crates/edgequake-pdf/`](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-pdf/)
+- **Backends and factory:** [`src/backend/mod.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/backend/mod.rs), [`src/backend/vision.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/backend/vision.rs), [`src/backend/edgeparse.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/backend/edgeparse.rs)
+- **Fallback policy:** [`src/fallback.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/fallback.rs)
+- **Assets:** [`src/page_assets.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/page_assets.rs), [`src/chart_crop.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/chart_crop.rs), [`src/region_assets.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/region_assets.rs), [`src/embedded_images.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/src/embedded_images.rs)
+- **Orchestration:** [`edgequake-api/src/processor/pdf_processing.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-api/src/processor/pdf_processing.rs), [`src/services/task_cancel.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-api/src/services/task_cancel.rs)
+- **Status enum:** [`edgequake-storage/src/pdf_storage.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-storage/src/pdf_storage.rs)
 
-### Test Examples
+### Tests
 
-- **Basic tests**: [`tests/basic_tests.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/tests/basic_tests.rs)
-- **Table tests**: [`tests/table_tests.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/tests/table_tests.rs)
-- **Layout tests**: [`tests/layout_tests.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-pdf/tests/layout_tests.rs)
-- **Test data**: [`test-data/`](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-pdf/test-data/)
+- [`edgequake-pdf/tests/`](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-pdf/tests)
+- [`edgequake-pdf/test-data/`](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-pdf/test-data)
 
-### Related Documentation
+### Related documentation
 
+- [Pipeline Progress](pipeline-progress.md)
+- [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
 - [Architecture Overview](/docs/architecture/overview/)
 - [Document Ingestion Tutorial](/docs/tutorials/document-ingestion/)
+- [PDF Ingestion Tutorial](/docs/tutorials/pdf-ingestion/)
 - [API Reference: Extended API](/docs/api-reference/extended-api/)
 - [Troubleshooting Common Issues](/docs/troubleshooting/common-issues/)
 
-### External Resources
-
-- [lopdf crate](https://crates.io/crates/lopdf): PDF parsing library
-- [Marker project](https://github.com/VikParuchuri/marker): Inspiration for block schema
-- [XY-Cut algorithm paper](https://ieeexplore.ieee.org/document/568477): Layout detection
-- [PDF Reference 1.7](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/PDF32000_2008.pdf): PDF specification
-
 ---
 
-**Product:** v0.23.0 · **Last updated:** 2026-07-18
+**Product:** v0.32.2 · **Last updated:** 2026-10-10

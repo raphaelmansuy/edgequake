@@ -5,13 +5,13 @@ description: "v0.33.0 API for saved LLM provider Connections, POST /api/v1/provi
 
 # Connections and provider test
 
-This page covers the **v0.33.0** (SPEC-163) endpoints that store LLM provider endpoints, probe them before you save a key, and route workspace roles through a saved Connection. It is for operators and admins who configure providers. Product pin is still **v0.32.2**; these routes ship with **v0.33.0**. Upgrade notes: [Upgrade to 0.33.0](../operations/upgrade-to-0.33.0.md).
+This page covers the **v0.33.0** (SPEC-163) endpoints that store LLM provider endpoints, probe them before you save a key, and route workspace roles through a saved Connection. It is for operators and admins who configure providers. The product pin is still **v0.32.2**; these routes ship with **v0.33.0**. Upgrade notes: [Upgrade to 0.33.0](../operations/upgrade-to-0.33.0.md).
 
 Auth: every Connections and probe route requires an **admin** JWT or API key (`ApiRequireAdmin`). Send `Authorization: Bearer <token>`. See [Provider security](../providers/security.md).
 
 ## What a Connection is
 
-A Connection is a named provider endpoint stored in PostgreSQL (migration 169, table `provider_connections`). The API key is encrypted with `EDGEQUAKE_SECRETS_KEY`. The list endpoint also shows env-backed rows (for example from `OLLAMA_HOST`) with `source: "env"` and a nil UUID; those are read-only.
+A Connection is a named provider endpoint stored in PostgreSQL (migration 169, table `provider_connections`). The API key is encrypted with `EDGEQUAKE_SECRETS_KEY`. The list endpoint also shows env-backed rows (for example from `OLLAMA_HOST`) with `source: "env"` and a nil UUID. Those rows are read-only.
 
 | Field | Description |
 |-------|-------------|
@@ -19,12 +19,13 @@ A Connection is a named provider endpoint stored in PostgreSQL (migration 169, t
 | `display_name` | Label for the UI |
 | `api_shape` | Wire format: `ollama`, `openai_chat`, `anthropic_messages`, or a native provider id |
 | `base_url` | Provider base URL (http or https) |
-| `locality` | `local` or `cloud`. Default: `local` when `api_shape` looks like a local provider, else `cloud` |
+| `locality` | `local` or `cloud`. Default: derived from the host in `base_url`. |
 | `auth_scheme` | `none`, `bearer` or `x_api_key` (default `none`) |
-| `api_key` | Write-only. Never returned. Requires `EDGEQUAKE_SECRETS_KEY` |
+| `api_key` | Write-only. Never returned. Requires `EDGEQUAKE_SECRETS_KEY`. |
 | `timeout_secs` | Default 120 |
-| `allow_private_network` | Allow loopback and private IPs. Defaults to true when `locality` is `local` |
-| `tenant_id` | Optional UUID. Omit for a server-wide row |
+| `allow_private_network` | Allow loopback and private IPs. Defaults to true when `locality` is `local`. |
+
+The tenant is not a body field. It comes from the `X-Tenant-ID` header. Without that header the row is server-wide (`tenant_id` is `null`).
 
 Response view (never includes the key): `id`, `tenant_id`, `slug`, `display_name`, `api_shape`, `locality`, `base_url`, `auth_scheme`, `key_fingerprint`, `key_configured`, `timeout_secs`, `allow_private_network`, `source` (`db` or `env`), `last_test_ok`, `last_test_error`.
 
@@ -39,7 +40,7 @@ Response view (never includes the key): `id`, `tenant_id`, `slug`, `display_name
 | POST | `/api/v1/connections/{id}/test` | 200 probe result (updates `last_test_*`) |
 | POST | `/api/v1/providers/test` | 200 probe result (no storage) |
 
-All of these need PostgreSQL except `GET /connections` (env rows still appear) and `POST /providers/test`. Without PostgreSQL, create/update/delete/test-stored return 503.
+All of these need PostgreSQL except `GET /connections` (env rows still appear) and `POST /providers/test`. Without PostgreSQL, create, update, delete and stored-test return 503.
 
 ```bash
 # Create
@@ -75,13 +76,15 @@ curl -s -X POST http://localhost:8080/api/v1/connections \
 }
 ```
 
-Omit `api_key` on PUT to keep the stored key. Send a new value to replace it. Empty string is ignored. Storing a key without `EDGEQUAKE_SECRETS_KEY` returns 400.
+Omit `api_key` on PUT to keep the stored key. Send a new value to replace it. An empty string is ignored. Storing a key without `EDGEQUAKE_SECRETS_KEY` returns 400.
 
 ## Probe a provider
 
 `POST /api/v1/providers/test` checks reachability, lists models, and optionally tries chat and embed. It does not save anything. Use it from the first-run wizard or before creating a Connection.
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
 sequenceDiagram
     participant A as Admin
     participant S as EdgeQuake
@@ -137,15 +140,17 @@ curl -s -X POST http://localhost:8080/api/v1/providers/test \
 
 Every create, update and probe validates `base_url`:
 
-- Scheme must be `http` or `https`.
+- The scheme must be `http` or `https`.
 - Blocked hosts and obfuscated IPs are rejected.
-- Private and loopback addresses need `locality=local` (or `allow_private_network=true`). Cloud connections to `127.0.0.1` fail with `ssrf_denied`.
+- Private and loopback addresses need `locality=local` (or `allow_private_network=true`).
+
+A violation is rejected with 400 on create and update. On the probe routes it returns `kind: "ssrf_denied"`. For example, a cloud Connection that points at `127.0.0.1` cannot be saved.
 
 See [Provider security](../providers/security.md).
 
 ## Per-role routing
 
-Point a workspace role at a Connection by setting `connection_id` in `llm_roles`. Only some roles use Connections today (`extract` and `query`). Details: [Model roles](../providers/roles.md).
+Point a workspace role at a Connection by setting `connection_id` in that role's `llm_roles` entry. The roles that read `connection_id` are `extract`, `query` and `vlm`. Details: [Model roles](../providers/roles.md).
 
 ```bash
 curl -s -X PUT http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID \
@@ -162,7 +167,27 @@ curl -s -X PUT http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID \
   }'
 ```
 
-If `connection_id` is invalid, the row is missing, PostgreSQL is down, or the client cannot be built, EdgeQuake falls back silently to the next provider choice. Check `/health` and **Test connection** when answers come from the wrong model.
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    R["Role has connection_id"] --> V{"Valid UUID?"}
+    V -->|no| N["Next provider choice (silent)"]
+    V -->|yes| L{"Row found in PostgreSQL?"}
+    L -->|no| N
+    L -->|yes| B{"Client built from row?"}
+    B -->|no| N
+    B -->|yes| C["Call the saved Connection"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+classDef eqActor fill:#FCE7F3,stroke:#EC4899,color:#500724
+class R,N,C eqLlm
+class L eqStore
+class B eqActor
+```
+
+Read it top to bottom. Every failure path ends at the next provider choice rather than an error. If `connection_id` is invalid, the row is missing, PostgreSQL is down, or the client cannot be built, EdgeQuake falls back silently. Check `/health` and **Test connection** when answers come from the wrong model.
 
 ## Health and doctor
 
@@ -192,17 +217,18 @@ edgequake doctor
 edgequake doctor --json
 ```
 
-Exit codes: `0` all required checks passed, `1` database check failed, `2` other failures (warnings). Checks include `DATABASE_URL`, secrets key, JWT secret and related env.
+Exit codes: `0` when all required checks pass, `1` when the database check fails, and `2` for other failures (warnings). Check IDs include `database`, `llm_provider`, `secrets_key`, `jwt_secret` and `bind`.
 
 ## Known behaviour to watch
 
-These are implementation facts, not documentation workarounds:
+These are implementation facts to plan around:
 
-- `GET /connections` and `POST /providers/test` are not filtered by the caller's tenant. Scope with care in multi-tenant installs.
-- Omitting `tenant_id` on PUT writes `null` (it does not leave the previous value).
-- A duplicate `(tenant_id, slug)` currently surfaces as a 500 from the database unique constraint rather than a clean 409.
-- `locality` default is keyed on `api_shape`, not on the provider slug.
+- Without an `X-Tenant-ID` header, `GET /connections`, `PUT /connections/{id}` and `DELETE /connections/{id}` are not filtered by tenant. Send the header in multi-tenant installs.
+- With the header, list, update and delete see server-wide rows (`tenant_id` is `null`) plus rows for that tenant.
+- A duplicate `(tenant_id, slug)` returns 409 Conflict.
+- `locality` defaults from the host in `base_url`, not from `api_shape` or the slug.
+- `POST /providers/test` stores nothing, so tenant scope does not apply to it.
 
-None of the published SDKs wrap these routes yet. Call them with raw HTTP (see [Custom clients](../integrations/custom-clients.md)).
+If your SDK does not wrap these routes, call them with raw HTTP (see [Custom clients](../integrations/custom-clients.md)).
 
 Related: [Providers](../providers/index.md), [Environment reference](../operations/env-reference.md), [Upgrade to 0.33.0](../operations/upgrade-to-0.33.0.md).

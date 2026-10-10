@@ -3,7 +3,7 @@ title: Security
 description: The EdgeQuake threat model, the controls that defend against each threat, and where to configure them.
 ---
 
-This section explains what EdgeQuake protects, from whom, and how to turn each control on. Start here for the overview, then follow the links for setup steps.
+This section explains what EdgeQuake protects, from whom, and how to turn each control on. Start here for the overview, then follow the links for setup steps. It is written for operators who deploy EdgeQuake and for developers who integrate with it.
 
 > Product release: v0.32.2. Provider Connections, the SSRF check and `edgequake doctor` ship in v0.33.0.
 
@@ -18,7 +18,7 @@ This section explains what EdgeQuake protects, from whom, and how to turn each c
 | Your deployment | Insecure defaults go live | Startup posture checks, `edgequake doctor` | [Startup checks](best-practices.md#startup-posture-checks) |
 | Accountability | No record of who did what | Audit log in PostgreSQL | [Audit log](best-practices.md#audit-log) |
 
-Out of scope: TLS termination (use a reverse proxy), virus scanning of uploads, and prompt-injection defense beyond what your model provider offers. EdgeQuake does not redact personal data before it sends text to a model; use a local provider when data must not leave your network.
+Out of scope: TLS termination (use a reverse proxy), virus scanning of uploads, and prompt-injection defense beyond what your model provider offers. EdgeQuake does not redact personal data before it sends text to a model. Use a local provider when data must not leave your network.
 
 ## Which auth mode applies?
 
@@ -40,7 +40,7 @@ flowchart TD
   G -- "No" --> I["Password and API key"]
 ```
 
-Read it from the top: an explicit `EDGEQUAKE_AUTH_ENABLED` always wins, even over `EDGEQUAKE_DEV_MODE`. If it is unset, dev mode turns auth off; otherwise auth is on. The older name `AUTH_ENABLED` and `EDGEQUAKE_AUTH_DISABLED=true` also work (checked in that order, after the explicit variable).
+Read it from the top: an explicit `EDGEQUAKE_AUTH_ENABLED` always wins, even over `EDGEQUAKE_DEV_MODE`. If it is unset, dev mode turns auth off; otherwise auth is on. Two legacy names are read in this order after the explicit variable: `AUTH_ENABLED`, then `EDGEQUAKE_AUTH_DISABLED=true`. Both are checked before dev mode.
 
 ## Pages
 

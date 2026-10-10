@@ -3,13 +3,15 @@ title: "Tutorial: Trace entities to their sources"
 description: Follow an answer, an entity or a relationship in EdgeQuake back to the exact chunk, line range and document it came from, using the lineage and provenance endpoints.
 ---
 
-In this tutorial you trace facts back to their origin. You start from a query answer, an entity or a document, and end at the chunk and line range that support it. Use this to audit answers and to find bad extractions.
+This tutorial shows how to trace facts back to their origin. You start from a query answer, an entity or a document, and end at the chunk and line range that support it. Use it to audit answers and to find bad extractions.
 
-**Prerequisites:** a workspace with at least one completed document (see [First RAG app](first-rag-app.md)) and the variables `EQ_API` and `WORKSPACE_ID`.
+> **You will build:** a trace from a query answer to the source lines behind it.
+>
+> **You need:** a workspace with at least one completed document (see [First RAG app](first-rag-app.md)), `curl`, `jq`, and the variables `EQ_API` and `WORKSPACE_ID`.
 
 ## The lineage chain
 
-Every fact in the graph keeps a link to the text it came from. The diagram shows the chain from a document down to an entity, and the three ways to walk it.
+Every extracted entity and relationship keeps a link to the chunks it came from. Each chunk belongs to one document. The diagram shows the chain.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
@@ -27,18 +29,18 @@ Pick the endpoint for your starting point:
 
 | You have | Call | You get |
 |----------|------|---------|
-| A document ID | `GET /api/v1/lineage/documents/{document_id}` | All entities and relationships of the document, each with its source chunks. |
-| An entity name | `GET /api/v1/lineage/entities/{entity_name}` | Every document, chunk and line range that mentions it, and its description history. |
-| An entity name | `GET /api/v1/entities/{entity_id}/provenance` | Sources with the source text, plus related entities. The ID is the uppercase entity name. |
+| A document ID | `GET /api/v1/lineage/documents/{document_id}` | The entities and relationships of the document, each with its source chunks. |
+| An entity name | `GET /api/v1/lineage/entities/{entity_name}` | Every document, chunk and line range that mentions it. |
+| An entity name or graph node ID | `GET /api/v1/entities/{entity_id}/provenance` | Sources with the source text, plus related entities. |
 | A chunk ID | `GET /api/v1/chunks/{chunk_id}` | The chunk text, line range, entities, relationships and extraction metadata. |
 | A chunk ID | `GET /api/v1/chunks/{chunk_id}/lineage` | The parent document, position and entity names. |
-| A document ID | `GET /api/v1/documents/{document_id}/lineage` | The chunk tree of the document with entity links. |
+| A document ID | `GET /api/v1/documents/{document_id}/lineage` | The full lineage tree of the document: chunks, entities and relationships. |
 
 Send `X-Workspace-ID` on every call. Chunk IDs have the form `{document_id}-chunk-{N}`.
 
 ## 1. Start from an answer
 
-Run a query and read the `sources` array. Each source has a `source_type` and an `id`. For chunk sources, the `id` is a chunk ID.
+Run a query with `include_references` and read the `sources` array. Each source has a `source_type` and an `id`. For chunk sources, the `id` is a chunk ID.
 
 ```bash
 curl -s -X POST "$EQ_API/api/v1/query" \
@@ -62,10 +64,11 @@ Expected output (values vary):
 }
 ```
 
-Pick a chunk ID for the next step:
+Pick a chunk ID and its document ID for the next steps:
 
 ```bash
 export CHUNK_ID=$(jq -r '[.sources[] | select(.source_type=="chunk")][0].id' answer.json)
+export DOC_ID=$(jq -r '[.sources[] | select(.source_type=="chunk")][0].document_id' answer.json)
 ```
 
 ## 2. Read the chunk
@@ -90,11 +93,11 @@ Expected output:
 }
 ```
 
-The `extraction_metadata` block, when present, names the model that extracted the chunk. It shows whether gleaning ran and whether the result came from cache. Use it to compare extraction quality between models. Chunks from PDFs can also carry `page_start` and `page_end`.
+The `extraction_metadata` block names the model that extracted the chunk. It shows whether gleaning ran and whether the result came from cache. Use it to compare extraction quality between models. Chunks from PDFs also carry `page_start` and `page_end`.
 
 ## 3. Trace an entity
 
-Ask where an entity appears. The name is the uppercase form shown in the graph.
+Ask where an entity appears. Use the uppercase name shown in the graph.
 
 ```bash
 curl -s "$EQ_API/api/v1/lineage/entities/SARAH_CHEN" -H "X-Workspace-ID: $WORKSPACE_ID" \
@@ -114,14 +117,14 @@ Expected output:
 }
 ```
 
-The response also has `description_versions`. When an entity appears in several chunks, EdgeQuake merges the descriptions. Each version lists its `source_chunk_id`, so you can see which text added which detail.
-
-For the source text itself and for related entities, use the provenance route:
+The response also has a `description_versions` field. The server currently returns it as an empty list, so do not rely on it. To see the text behind an entity, use the provenance route, which returns the source text of each chunk:
 
 ```bash
 curl -s "$EQ_API/api/v1/entities/SARAH_CHEN/provenance" -H "X-Workspace-ID: $WORKSPACE_ID" \
   | jq '{total_extraction_count, sources: [.sources[] | {document_name, chunks: [.chunks[] | {chunk_id, source_text}]}], related: [.related_entities[].entity_name]}'
 ```
+
+The `id` in the provenance route is the normalized entity name (uppercase) or the graph node ID.
 
 ## 4. Trace a document
 
@@ -132,13 +135,13 @@ curl -s "$EQ_API/api/v1/lineage/documents/$DOC_ID" -H "X-Workspace-ID: $WORKSPAC
   | jq '{chunk_count, extraction_stats, entities: [.entities[] | {name, entity_type, is_shared, source_chunks}]}'
 ```
 
-The field `is_shared` is `true` when the entity also appears in another document. The numbers in `extraction_stats` compare raw extractions with unique ones, so they show how much merging happened.
+`is_shared` is `true` when the entity also appears in another document. `extraction_stats` compares raw extractions with unique ones (`total_entities` and `unique_entities`), so it shows how much merging happened.
 
-To export a document's lineage, call `GET /api/v1/documents/{document_id}/lineage/export`.
+To export the lineage as a file, call `GET /api/v1/documents/{document_id}/lineage/export?format=json` or `format=csv`.
 
 ## 5. Audit a suspicious answer
 
-Follow this loop when an answer looks wrong:
+When an answer looks wrong, follow this loop:
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
@@ -161,10 +164,17 @@ Common findings:
 
 | Finding | Meaning | Action |
 |---------|---------|--------|
-| The source path is `injection` | The text came from [knowledge injection](knowledge-injection.md), not from a document. | Check the injection list. |
+| The source path is `injection` | The text came from [knowledge injection](knowledge-injection.md), not from a document. | Check the entry in `GET /api/v1/workspaces/{workspace_id}/injections`. |
 | The same real-world thing has two entity names | Names did not normalize to the same ID. | See [Entity normalization](../deep-dives/entity-normalization.md); merge with `POST /api/v1/graph/entities/merge`. |
-| The description mixes unrelated facts | Two things share one name. | Read `description_versions` and split the sources. |
+| The description mixes unrelated facts | Two things share one name. | Read the provenance `sources` and split the entity. |
 | Extraction metadata shows `cached: true` for a bad result | A cached extraction was reused. | Reprocess the document after you fix the cause. |
+
+## What you learned
+
+- Each query source carries a chunk ID, and the chunk ID leads to the document and line range.
+- `lineage/entities` and `entities/{id}/provenance` show where an entity came from. Provenance also returns the source text.
+- `description_versions` is not populated yet, so the source text is the reliable evidence.
+- A `cached: true` extraction can repeat a bad result until you reprocess the document.
 
 ## Next steps
 

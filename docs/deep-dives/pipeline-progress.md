@@ -15,7 +15,7 @@ The examples use `http://localhost:8080`. The full schema is in the OpenAPI snap
 
 ## 1. The id you follow
 
-Every upload, PDF job or reprocess returns a **`task_id`**. Use it as `{track_id}` in every path below. The server also accepts an optional `track_id` from the client for batch labeling. That client value is echoed back but is **not** a progress key.
+Every upload, PDF job or reprocess returns a **`task_id`**. Use it as `{track_id}` in every path below. A `track_id` that the client sends with an upload is only a label. Progress is always keyed by the server-generated id.
 
 | Upload | Endpoint | Returns |
 | --- | --- | --- |
@@ -92,7 +92,7 @@ The diagram shows why a PDF can read "Completed" while the document is still wor
 | Convert | `pdf_processing` | `LargeDocumentProfile::convert_timeout_secs` | `Completed`, with markdown |
 | Ingest | `insert` | `LargeDocumentProfile::ingest_timeout_secs` | unchanged |
 
-**For UIs:** a `Completed` PDF row means *convert finished*, not *ingest finished*. Show the **document** stage instead (section 4). Cancelling either linked task cancels both while they are pending or processing. See [PDF Processing](pdf-processing.md).
+**For UIs:** a `Completed` PDF row means *convert finished*, not *ingest finished*. Show the **document** stage instead (section 4). Cancelling the PDF with `DELETE /api/v1/documents/pdf/{pdf_id}/cancel` cancels both linked tasks while they are pending or processing. See [PDF Processing](pdf-processing.md).
 
 ## 4. Document status for badges
 
@@ -290,7 +290,7 @@ The diagram shows the order of delete phases. Read it left to right; the first s
 | `removing_kv` | Chunks, content and metadata |
 | `finalizing` | Content-hash key and relational rows |
 
-The event order is `DeletionStarted`, then repeated `DeletionPhase`, then `DeletionCompleted` (or `DeletionFailed`). Preview the impact first with `GET /api/v1/documents/{document_id}/deletion-impact`. The delete response is a `200` with counts (`chunks_deleted`, `entities_affected`, `relationships_affected`, `embeddings_deleted`, `partial_failure`), not a `204`. Bulk delete emits `BulkDeletionStarted`, `BulkDeletionItemProgress` and `BulkDeletionCompleted`.
+The event order is `DeletionStarted`, then repeated `DeletionPhase`, then `DeletionCompleted` (or `DeletionFailed`). Preview the impact first with `GET /api/v1/documents/{document_id}/deletion-impact`. The delete endpoint returns a `202 Accepted` with a `track_id` when the cascade runs in the background. It returns `200` with the final counts when it finishes inline. Both use the same body, `DeleteDocumentResponse`, which holds `chunks_deleted`, `entities_affected`, `relationships_affected`, `embeddings_deleted` and `partial_failure`. Bulk delete emits `BulkDeletionStarted`, `BulkDeletionItemProgress` and `BulkDeletionCompleted`.
 
 ## 8. Which channel to pick
 

@@ -192,7 +192,7 @@ Lineage powers citations and cascade delete: deleting a document removes the IDs
 
 | Symptom | Likely cause | What to do |
 | --- | --- | --- |
-| `Sarah Chen` and `Dr. Sarah Chen` are two nodes | Titles are not stripped | Enable fuzzy matching, or merge the nodes by hand in the graph UI. |
+| `Sarah Chen` and `Dr. Sarah Chen` are two nodes | Titles are not stripped | Enable fuzzy matching, or merge the nodes manually. |
 | Two different things merged | Fuzzy matching is on and the threshold is low | Raise `EDGEQUAKE_ENTITY_FUZZY_THRESHOLD` or turn fuzzy off. |
 | An entity is missing | Its name was a number or an opaque ID | Check the log for `opaque_entity_name_rejected`. |
 | Descriptions look like `A<SEP>B` | Few fragments, joined without the LLM | Expected. Lower the force threshold to summarize sooner. |

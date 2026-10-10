@@ -1,14 +1,19 @@
 ---
 title: EdgeQuake — Guide d'intégration IT
-description: Dossier client v0.26.4 : exploitation, supervision, sauvegarde, mise à jour et rollback (historique).
+description: Guide d'exploitation d'EdgeQuake (dossier client v0.26.4, historique) — supervision, sauvegarde, mise à jour, rollback et runbooks.
 ---
 
 > Historical note, 2026-08-30 (produit v0.26.4); may not match current code.
 > Prefer: [Deployment](../operations/deployment.md) · [Troubleshooting](../troubleshooting/index.md) · [Security](../security/index.md)
 
-Ce guide s'adresse aux équipes IT qui **exploitent** EdgeQuake au quotidien. Il
-couvre les procédures d'exploitation, la supervision, la sauvegarde, la mise à jour et
-le rollback.
+> **État actuel (v0.32.2, fichier `VERSION`)** : la version se lit sur `GET /health`
+> (la route `/version` n'existe pas ; `/api/version` renvoie la version de l'émulation
+> Ollama). La file se lit via `pending_count`. Avec Langfuse 3.1.x, l'export bascule
+> automatiquement sur l'API d'ingestion (§3.5).
+
+Ce guide s'adresse aux équipes IT qui **exploitent** EdgeQuake au quotidien. Il décrit
+les procédures d'exploitation, la supervision, la sauvegarde, la mise à jour et le
+rollback. Chaque procédure donne les commandes à exécuter et les critères de décision.
 
 ---
 
@@ -38,6 +43,33 @@ Trois faits structurent toute l'exploitation d'EdgeQuake :
 | **2** | **L'API ne migre jamais la base.**                                    | La migration est un acte d'exploitation explicite et ordonnancé. Ne jamais compter sur un auto-upgrade. |
 | **3** | **Certaines migrations sont irréversibles.**                          | Après application, le rollback n'existe plus : seule la restauration de sauvegarde ramène en arrière.   |
 
+Le schéma ci-dessous montre les composants que l'exploitation surveille et sauvegarde.
+Seul PostgreSQL porte un état : c'est lui qu'il faut sauvegarder.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  U["Utilisateurs<br/>navigateur"] --> RP["Reverse proxy TLS"]
+  RP --> UI["Web UI (frontend)"]
+  RP --> API["API Axum :8080"]
+  UI --> API
+  API --> PG[("PostgreSQL<br/>pgvector + Apache AGE")]
+  API --> LLM["Fournisseur LLM et embeddings<br/>(Ollama, OpenAI)"]
+  PROM["Prometheus"] -->|"GET /metrics"| API
+  API -->|"traces OTLP ou Langfuse"| LF["Langfuse"]
+  API -->|"événements d'audit"| SIEM["SIEM"]
+%% eq-classes
+classDef eqActor fill:#FCE7F3,stroke:#EC4899,color:#500724
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class UI eqActor
+class PG eqStore
+class LLM eqLlm
+```
+
+*Les conteneurs API et UI sont remplaçables ; PostgreSQL contient tout l'état.*
+
 ### 1.2 Répartition indicative des responsabilités
 
 | Activité                            | Exploitation | DBA   | Sécurité | Métier |
@@ -60,10 +92,13 @@ _R = réalise, A = approuve, C = consulté, I = informé._
 ### 2.1 Démarrage
 
 ```bash
-# Ordre imposé par les conditions de santé : PostgreSQL → API → Web UI
+# Ordre imposé par les conditions de santé : PostgreSQL → migrate → API → Web UI
 docker compose -f docker-compose.prod.yml up -d
 docker compose -f docker-compose.prod.yml ps
 ```
+
+Dans le modèle `docker-compose.quickstart.yml`, le service `migrate` s'exécute une
+fois avant `api` et bloque son démarrage tant que la migration n'a pas abouti.
 
 > `docker-compose.prod.yml` désigne, dans tout ce guide, le fichier de production
 > de l'exploitant — dérivé du modèle `docker-compose.quickstart.yml` avec les
@@ -79,7 +114,7 @@ curl -s  http://API:8080/health | jq '.status, .version'
 
 > **`/ready` renvoie 503 au démarrage ?** Ce n'est pas nécessairement une anomalie :
 > la sonde couvre la migration, l'état du stockage, la présence des index ANN et la
-> pression de la file. Consulter `/health` pour connaître la cause exacte
+> pression de la file. Le champ `blockers` de `/ready` donne la cause exacte
 > (§ [7.1](#71-ready-répond-503)).
 
 ### 2.2 Arrêt
@@ -114,7 +149,7 @@ curl -s http://API:8080/api/v1/pipeline/queue-metrics | jq
 
 | Besoin                                  | Commande                                                               |
 | --------------------------------------- | ---------------------------------------------------------------------- |
-| Version en service                      | `curl -s http://API:8080/version`                                      |
+| Version en service                      | `curl -s http://API:8080/health \| jq .version`                        |
 | Santé détaillée                         | `curl -s http://API:8080/health \| jq`                                 |
 | File de tâches                          | `curl -s http://API:8080/api/v1/pipeline/queue-metrics \| jq`          |
 | Activité du pipeline                    | `curl -s http://API:8080/api/v1/pipeline/status \| jq`                 |
@@ -127,10 +162,10 @@ curl -s http://API:8080/api/v1/pipeline/queue-metrics | jq
 ### 2.5 Gestion de la file d'ingestion
 
 ```bash
-# Lister les tâches
-curl -s http://API:8080/api/v1/tasks | jq
+# Lister les tâches (réponse : { "tasks": [...], "pagination": {...} })
+curl -s http://API:8080/api/v1/tasks | jq '.tasks[] | {track_id, status}'
 
-# Annuler une ingestion (annulation durable — état terminal « Cancelled »)
+# Annuler une ingestion (annulation durable — état terminal `cancelled`)
 curl -X POST http://API:8080/api/v1/tasks/{track_id}/cancel
 
 # Relancer une tâche en échec
@@ -140,9 +175,26 @@ curl -X POST http://API:8080/api/v1/tasks/{track_id}/retry
 curl -X POST http://API:8080/api/v1/documents/recover-stuck
 ```
 
-L'annulation est durable : l'interface affiche **Stopping…** jusqu'à l'état terminal
-`Cancelled` (et non `Failed`). Les tâches `Pending` survivent au redémarrage du
-processus grâce au mécanisme claim/lease PostgreSQL.
+L'annulation est durable : elle aboutit à l'état terminal `cancelled` (et non
+`failed`). Les tâches `pending` survivent au redémarrage du processus grâce au
+mécanisme de bail (`lease_owner`, `lease_expires_at`) stocké dans PostgreSQL.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+stateDiagram-v2
+  [*] --> pending: ingestion admise
+  pending --> processing: worker réclame la tâche
+  processing --> indexed: succès
+  processing --> failed: erreur
+  pending --> cancelled: annulation
+  processing --> cancelled: annulation
+  failed --> pending: retry (si max non atteint)
+  indexed --> [*]
+  cancelled --> [*]
+```
+
+*Une tâche `processing` dont le bail expire (worker arrêté) est reprise par un autre worker.*
 
 ### 2.6 Purge et rétention
 
@@ -195,7 +247,7 @@ Ce qui fait basculer `/ready` en 503 :
 - pression excessive de la file de tâches.
 
 Ce qui fait basculer `/health` en `degraded` : un composant de stockage en défaut, une
-migration en état dégradé, ou une file saturée.
+migration en état dégradé, une file saturée, ou un fournisseur LLM local injoignable.
 
 > **Règle d'astreinte** : un `503` sur `/ready` avec un `/live` à 200 n'est **pas** un
 > plantage. Redémarrer ne corrige rien et fait perdre le diagnostic. Lire `/health`
@@ -268,7 +320,7 @@ authentification — **à filtrer au réseau**, cf. [01 §7.5](01-deploiement-te
 | `HighErrorRate`     | ratio HTTP 5xx > 5 % sur 5 min                          | Majeure      | Analyser les journaux                              |
 | `LlmErrorRate`      | erreurs `edgequake_llm_requests_total` > 10 %           | Majeure      | Vérifier le fournisseur, le quota, la clé          |
 | `HighQueryLatency`  | p95 `edgequake_query_duration_seconds` > 5 s            | Mineure      | Ajuster le mode, vérifier les index                |
-| `DbPoolSaturation`  | `edgequake_db_pool_connections` > 90 % de la taille max | Majeure      | Élargir le pool ou réduire la concurrence          |
+| `DbPoolSaturation`  | `edgequake_db_pool_connections{state="active"}` > 90 % de `{state="max"}` | Majeure | Élargir le pool ou réduire la concurrence |
 | `StorageDrift`      | `edgequake_storage_drift_critical > 0`                  | **Critique** | `admin/storage/inspect` puis `repair`              |
 | `GraphOrphanRate`   | `edgequake_graph_quality_orphan_rate > 0.3`             | Mineure      | Qualité d'extraction à revoir                      |
 | `BackupTooOld`      | dernière sauvegarde > 24 h                              | **Critique** | Voir §4                                            |
@@ -297,26 +349,38 @@ Sur Loki/ELK, indexer a minima : `trace_id`, `tenant_id`, `workspace_id`, `track
 
 ### 3.5 Traçage distribué
 
-EdgeQuake émet des traces OpenTelemetry (OTLP/HTTP), avec des spans GenAI dédiés
-(`rag.retrieval`) permettant d'analyser chaque branche de récupération.
+EdgeQuake émet des traces OpenTelemetry (feature `otel`, active par défaut) avec des
+spans dédiés, dont `rag.retrieval`, pour analyser chaque branche de récupération.
+Deux destinations sont possibles :
+
+| Destination | Variables principales | Transport |
+| --- | --- | --- |
+| Collecteur OTLP générique | `OTEL_EXPORTER_OTLP_ENDPOINT` (ex. `http://collecteur:4317`) | OTLP/gRPC |
+| Langfuse (SPEC-124) | `EDGEQUAKE_LANGFUSE_ENABLED`, `LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `EDGEQUAKE_LANGFUSE_API` (défaut `auto`) | OTLP/HTTP ou API d'ingestion |
 
 ```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=http://collecteur:4318
-# Ou vers Langfuse (SPEC-124)
-EDGEQUAKE_LANGFUSE_ENABLED=true
+# Collecteur OTLP générique
+OTEL_EXPORTER_OTLP_ENDPOINT=http://collecteur:4317
+
+# Langfuse
+EDGEQUAKE_LANGFUSE_ENABLED=1
 LANGFUSE_BASE_URL=https://langfuse.intra.{client}
 LANGFUSE_PUBLIC_KEY=...
 LANGFUSE_SECRET_KEY=...
+EDGEQUAKE_LANGFUSE_API=auto   # auto | otlp | ingestion
 ```
 
 Détail : [../OBSERVABILITY.md](../OBSERVABILITY.md) et
 [../operations/monitoring.md](../operations/monitoring.md).
 
-> ⚠️ **Langfuse — compatibilité de version** : l'export exige l'endpoint OTLP
-> `/api/public/otel/v1/traces`, **absent des Langfuse antérieurs à la 3.22x**
-> (404 constaté en 3.1). `export_active: true` n'atteste que de la présence des
-> clés, jamais de l'arrivée des traces. Procédure et diagnostic :
-> [04-langfuse-kubernetes.md](04-langfuse-kubernetes.md).
+> ⚠️ **Langfuse — compatibilité de version** : l'endpoint OTLP
+> `/api/public/otel/v1/traces` n'existe que dans Langfuse ≥ 3.22 (404 constaté en
+> 3.1.1). Avec `EDGEQUAKE_LANGFUSE_API=auto` (défaut), EdgeQuake sonde cet endpoint
+> une fois au démarrage et bascule sur l'API d'ingestion native **uniquement** en cas
+> de 404. Le choix est visible dans `api_resolved` de `GET /api/v1/settings/langfuse`.
+> `export_active: true` n'atteste que de la présence des clés, jamais de l'arrivée des
+> traces. Procédure et diagnostic : [04-langfuse-kubernetes.md](04-langfuse-kubernetes.md)
+> et [../operations/langfuse-3.1.md](../operations/langfuse-3.1.md).
 
 ### 3.6 Supervision PostgreSQL
 
@@ -376,7 +440,7 @@ restreindre le dump à `--schema=public` — le graphe serait perdu.
 
 ```bash
 # Sauvegarde de base + archivage WAL continu → PITR
-pg_basebackup -D /backup/base -Ft -z -P --dbname="$ADMIN_DATABASE_URL"
+pg_basebackup -D /backup/base -Ft -z -P --dbname="$ADMIN_DATABASE_URL"   # rôle avec privilège REPLICATION
 ```
 
 Configuration PostgreSQL : `archive_mode = on`, `archive_command` vers un stockage
@@ -450,7 +514,7 @@ nouveaux binaires**.
 ```bash
 # 1. Fenêtre de maintenance ouverte, trafic dérouté
 # 2. Attendre le vidage de la file d'ingestion
-curl -s http://API:8080/api/v1/pipeline/queue-metrics | jq '.pending'
+curl -s http://API:8080/api/v1/pipeline/queue-metrics | jq '.pending_count'
 
 # 3. Arrêter les applicatifs (la base reste en service)
 docker compose stop api frontend
@@ -475,11 +539,34 @@ docker run --rm -e DATABASE_URL="$DATABASE_URL" \
 docker compose up -d
 
 # 9. Recette (cf. §9.2)
-curl -sf http://API:8080/ready && curl -s http://API:8080/version
+curl -sf http://API:8080/ready && curl -s http://API:8080/health | jq .version
 ```
 
 **Ne jamais démarrer la nouvelle API avant l'étape 7.** Elle sortirait en 78, sans
 dommage mais sans service.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+sequenceDiagram
+  participant OPS as Exploitant
+  participant DC as Docker Compose
+  participant DB as PostgreSQL
+  participant MIG as Conteneur migrate
+  participant NEW as Nouvelle API
+  OPS->>DC: stop api frontend
+  OPS->>DB: pg_dump -Fc (sauvegarde)
+  OPS->>MIG: migrate dry-run
+  MIG->>DB: liste les migrations en attente
+  OPS->>MIG: migrate (après contrôle)
+  MIG->>DB: applique le schéma
+  OPS->>DC: up -d api frontend
+  DC->>NEW: démarrage
+  NEW->>DB: vérifie l'alignement du schéma
+  OPS->>NEW: /ready = 200, /health
+```
+
+*Le `migrate` s'exécute une seule fois, avant le démarrage des nouveaux conteneurs API.*
 
 ### 5.3 Migrations irréversibles
 
@@ -561,7 +648,7 @@ sans migration de schéma (`migrate dry-run` renvoie « aucune migration en atte
 
 | Version cible            | Document                                                                                                                                              |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-|  **0.26.4** _(courante)_  | [../operations/upgrade-to-0.26.4.md](../operations/upgrade-to-0.26.4.md) — SPEC-144 Next 16.3.3, listes, distroless, **sans nouvelle migration** |
+| **0.26.4** _(version de ce dossier)_ | [../operations/upgrade-to-0.26.4.md](../operations/upgrade-to-0.26.4.md) — SPEC-144 Next 16.3.3, listes, distroless, **sans nouvelle migration** |
 | **0.26.3**  | [../operations/upgrade-to-0.26.3.md](../operations/upgrade-to-0.26.3.md) — SPEC-139 moteur mid-cutover, **sans nouvelle migration** |
 | 0.26.2                   | [../operations/upgrade-to-0.26.2.md](../operations/upgrade-to-0.26.2.md) — Langfuse 3.1, K8s, SSE, **sans nouvelle migration**                         |
 | 0.26.1                   | [../operations/upgrade-to-0.26.1.md](../operations/upgrade-to-0.26.1.md) — patch CLI migrate, **sans nouvelle migration**                             |
@@ -590,7 +677,7 @@ sans migration de schéma (`migrate dry-run` renvoie « aucune migration en atte
 docker compose stop api frontend
 # Repositionner le tag précédent dans le fichier compose
 docker compose up -d
-curl -sf http://API:8080/ready && curl -s http://API:8080/version
+curl -sf http://API:8080/ready && curl -s http://API:8080/health | jq .version
 ```
 
 Durée typique : quelques minutes.
@@ -636,19 +723,37 @@ rollback. D'où l'exigence d'un gel des écritures pendant la fenêtre de mise �
 
 ### 7.1 `/ready` répond 503
 
+Le corps de `/ready` liste les causes (`blockers`) et l'action suggérée
+(`operator_action`). `/health` donne le détail par composant.
+
 ```bash
-curl -s http://API:8080/health | jq
+curl -s http://API:8080/ready  | jq '.blockers, .operator_action'
+curl -s http://API:8080/health | jq '.components, .schema'
 ```
 
-| Cause dans `/health`                               | Action                                               |
-| -------------------------------------------------- | ---------------------------------------------------- |
-| Migration requise / bootstrap non prêt             | `edgequake migrate` puis redémarrage                 |
-| Composant de stockage KO (`kv`, `vector`, `graph`) | Vérifier PostgreSQL, les extensions, la connectivité |
-| Index ANN manquant                                 | §7.4                                                 |
-| Pression de la file                                | §7.3                                                 |
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+  A["/ready répond 503"] --> B["Lire blockers dans /ready"]
+  B --> C{"Type de blocage"}
+  C -->|"Schéma en retard"| D["edgequake migrate<br/>puis redémarrage"]
+  C -->|"storage_ping_failed"| E["Vérifier PostgreSQL,<br/>extensions, connectivité"]
+  C -->|"Index ANN absent"| F["Préchauffage ANN<br/>(§7.4)"]
+  C -->|"task_queue_critical"| G["Analyser la file<br/>(§7.3)"]
+  C -->|"store_contention_critical"| H["Pool saturé : réduire la<br/>concurrence ou élargir le pool"]
+%% eq-classes
+classDef eqBad fill:#FEE2E2,stroke:#EF4444,color:#7F1D1D
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class A eqBad
+class E eqStore
+```
+
+*Un `/ready` en 503 avec `/live` à 200 est un blocage à corriger, pas un plantage à redémarrer.*
 
 Si le processus est sorti au démarrage : vérifier le code de sortie.
-**78** = configuration ou schéma (`docker inspect --format='{{.State.ExitCode}}' edgequake-api`).
+**78** = configuration ou schéma (`docker inspect --format='{{.State.ExitCode}}' <conteneur-api>`,
+le nom est donné par `docker ps -a`).
 **1** = contrôle de sécurité au démarrage bloquant (`JWT_SECRET`, CORS — cf.
 [01 §7.1](01-deploiement-technique.md#71-contrôles-bloquants-au-démarrage)).
 
@@ -656,8 +761,8 @@ Si le processus est sorti au démarrage : vérifier le code de sortie.
 
 ```bash
 curl -s http://API:8080/api/v1/models/health | jq        # fournisseur LLM joignable ?
-curl -s http://API:8080/api/v1/tasks | jq '.[] | select(.status=="failed")'   # statuts en minuscules
-docker logs edgequake-api --tail 200 | grep -iE 'error|timeout'
+curl -s http://API:8080/api/v1/tasks | jq '.tasks[] | select(.status=="failed")'   # statuts en minuscules
+docker compose -f docker-compose.prod.yml logs api --tail 200 | grep -iE 'error|timeout'
 ```
 
 Causes fréquentes :
@@ -666,9 +771,9 @@ Causes fréquentes :
 | ----------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------- |
 | Fournisseur LLM injoignable / quota | `edgequake_llm_requests_total` en erreur  | Vérifier clé, quota, réseau sortant                                               |
 | Délai LLM dépassé                   | `edgequake_extract_retry_total` en hausse | Augmenter `EDGEQUAKE_CHUNK_TIMEOUT_SECS` (défaut 180 s ; 600 s pour un LLM local) |
-| Contexte Ollama insuffisant         | Extractions vides ou tronquées            | Relever `OLLAMA_CONTEXT_LENGTH`                                                   |
-| Documents bloqués après incident    | tâches `Processing` sans progression      | `POST /api/v1/documents/recover-stuck`                                            |
-| Chunks en échec isolés              | —                                         | `GET /documents/{id}/failed-chunks` puis `POST /documents/{id}/retry-chunks`      |
+| Contexte Ollama insuffisant         | Extractions vides ou tronquées            | Relever `OLLAMA_CONTEXT_LENGTH` côté serveur Ollama (EdgeQuake la journalise au démarrage) |
+| Documents bloqués après incident    | tâches `processing` sans progression      | `POST /api/v1/documents/recover-stuck`                                            |
+| Chunks en échec isolés              | —                                         | `GET /api/v1/documents/{id}/failed-chunks` puis `POST /api/v1/documents/{id}/retry-chunks` |
 
 ### 7.3 File saturée ou à l'arrêt
 
@@ -678,9 +783,9 @@ curl -s http://API:8080/api/v1/pipeline/queue-metrics | jq
 
 | Diagnostic                        | Action                                                                                                                                           |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pending` élevé, `processing` > 0 | Fonctionnement nominal sous charge — augmenter `EDGEQUAKE_TASK_MAX_WORKERS` (défaut **4**) ou `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` (défaut 16) |
-| `pending` > 0, `processing` = 0   | Workers bloqués — redémarrer l'API ; les baux expirés seront repris                                                                              |
-| `failed` en hausse continue       | Cause systémique — voir §7.2                                                                                                                     |
+| `pending_count` élevé, `processing_count` > 0 | Fonctionnement nominal sous charge — augmenter `EDGEQUAKE_TASK_MAX_WORKERS` (défaut **4**) ou `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` (défaut 16 ; 1 pour un fournisseur local) |
+| `pending_count` > 0, `processing_count` = 0   | Workers bloqués — redémarrer l'API ; les baux expirés seront repris                                                                              |
+| Tâches `failed` en hausse continue (`GET /api/v1/tasks`) | Cause systémique — voir §7.2                                                                                                                     |
 
 Attention : augmenter les workers accroît la pression sur le fournisseur LLM et sur
 le pool PostgreSQL. Monter par paliers en surveillant
@@ -728,17 +833,17 @@ Ne lancer `repair` qu'après lecture du rapport d'inspection et sauvegarde réce
 
 ### 8.1 Leviers de réglage
 
-| Variable                               | Défaut | Effet                           | Contrainte                     |
-| -------------------------------------- | ------ | ------------------------------- | ------------------------------ |
-| `EDGEQUAKE_TASK_MAX_WORKERS`           | **4**  | Tâches d'ingestion en parallèle | Pression LLM et pool PG        |
-| `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` | 16     | Appels LLM simultanés           | Quota fournisseur              |
-| `EDGEQUAKE_CHUNK_TIMEOUT_SECS`         | 180    | Délai LLM par chunk             | Monter à 600 pour un LLM local |
-| `EDGEQUAKE_PDF_CONCURRENCY`            | —      | Conversions PDF simultanées     | CPU                            |
-| `EDGEQUAKE_PDF_VISION_JOBS`            | —      | Tâches vision simultanées       | Coût et quota                  |
-| `EDGEQUAKE_MAX_UPLOAD_BYTES`           | —      | Taille maximale d'un dépôt      | Aligner avec le reverse proxy  |
-| `EDGEQUAKE_MAX_BATCH_UPLOAD_FILES`     | —      | Fichiers par lot                | —                              |
-| `EDGEQUAKE_TASK_RETENTION_DAYS`        | **30** | Rétention des tâches terminales | Volumétrie                     |
-| `EDGEQUAKE_GRAPH_QUERY_TIMEOUT_SECS`   | —      | Délai des requêtes de graphe    | —                              |
+| Variable                               | Défaut                          | Effet                           | Contrainte                                  |
+| -------------------------------------- | ------------------------------- | ------------------------------- | ------------------------------------------- |
+| `EDGEQUAKE_TASK_MAX_WORKERS`           | **4** (min. 1)                  | Tâches d'ingestion en parallèle | Pression LLM et pool PG                     |
+| `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` | 16 (1 pour un fournisseur local) | Appels LLM simultanés          | Quota fournisseur ; plafond 32              |
+| `EDGEQUAKE_CHUNK_TIMEOUT_SECS`         | 180 s (600 s pour un LLM local) | Délai LLM par chunk             | Ajuster selon la vitesse du modèle          |
+| `EDGEQUAKE_PDF_CONCURRENCY`            | calculé selon la charge PDF     | Conversions PDF simultanées     | CPU et mémoire                              |
+| `EDGEQUAKE_PDF_VISION_JOBS`            | 2 (plage 1 à 8)                 | Tâches vision simultanées       | Coût et quota                               |
+| `EDGEQUAKE_MAX_UPLOAD_BYTES`           | 50 MiB (min. 1 MiB)             | Taille maximale d'un dépôt      | Aligner avec le reverse proxy               |
+| `EDGEQUAKE_MAX_BATCH_UPLOAD_FILES`     | 20                              | Fichiers par lot                | —                                           |
+| `EDGEQUAKE_TASK_RETENTION_DAYS`        | **30** (min. 1)                 | Rétention des tâches terminales | Volumétrie                                  |
+| `EDGEQUAKE_GRAPH_QUERY_TIMEOUT_SECS`   | 15 s (plage 1 à 120)            | Délai des requêtes de graphe    | —                                           |
 
 ### 8.2 Ordre de réglage recommandé
 
@@ -783,11 +888,11 @@ plus dynamique est le couple embeddings + index HNSW.
 
 ### 9.2 Après chaque mise à jour
 
-- [ ] `curl /version` → version attendue
+- [ ] `curl /health | jq .version` → version attendue
 - [ ] `curl /ready` → 200
 - [ ] `curl /health | jq .status` → `healthy`
 - [ ] `edgequake migrate status` → aucune migration en attente
-- [ ] Ingestion de bout en bout d'un document de test → `completed`
+- [ ] Ingestion de bout en bout d'un document de test → tâche `indexed`
 - [ ] Interrogation de contrôle → réponse avec sources
 - [ ] Contrôle d'accès : appel non authentifié → **401**
 - [ ] Volumétrie documents / nœuds / arêtes cohérente avec l'avant-mise-à-jour

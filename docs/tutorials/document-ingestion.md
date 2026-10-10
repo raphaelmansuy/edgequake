@@ -3,29 +3,34 @@ title: "Tutorial: Document ingestion"
 description: Upload documents to EdgeQuake, follow them through the pipeline, tune chunking, entity types and gleaning, and recover from failures.
 ---
 
-In this tutorial you upload documents in three ways, watch them move through the ingestion pipeline and tune the options that matter most. You also learn how to retry failures.
+In this tutorial you upload documents in three ways, watch them move through the ingestion pipeline and tune the options that matter most. You also learn how to retry failed documents.
 
-**Prerequisites:** the setup from [First RAG app](first-rag-app.md): a running server, a workspace, and the shell variables `EQ_API` and `WORKSPACE_ID`.
+> **You will build:** a workspace that ingests text, PDFs and files with tuned chunking and entity types, plus a recovery routine for failures.
+>
+> **You need:** the setup from [First RAG app](first-rag-app.md): a running server, a workspace, and the shell variables `EQ_API` and `WORKSPACE_ID`. Allow about 20 minutes.
 
 ## The pipeline
 
-Ingestion turns a document into a searchable knowledge graph. The flowchart shows the stages. PDFs take one extra step at the start.
+Ingestion turns a document into a searchable knowledge graph. The flowchart shows the stages. PDFs take one extra conversion step at the start.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
 %% eq-theme:v1
 flowchart LR
   A["Upload"] --> B["Convert PDF to Markdown"]
-  A --> C["Chunk"]
+  A --> C["Chunk (chunking)"]
   B --> C
-  C --> D["Extract entities and relationships"]
-  D --> E["Glean missed items"]
-  E --> F["Merge and normalize"]
-  F --> G["Embed"]
-  G --> H["Store graph and vectors"]
+  C --> D["Extract (extracting)"]
+  D --> E["Glean (gleaning)"]
+  E --> F["Merge (merging)"]
+  F --> G["Embed (embedding)"]
+  G --> H["Store (storing)"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class G eqLlm
 ```
 
-Read it left to right. Plain text and Markdown skip the PDF step. Gleaning (a second pass that asks the model for missed items) is optional. See [Pipeline progress](../deep-dives/pipeline-progress.md) for the exact stage names and [LightRAG algorithm](../deep-dives/lightrag-algorithm.md) for the theory.
+Read it left to right. Plain text and Markdown skip the PDF step. Gleaning (a second pass that asks the model for missed items) is optional. The labels in brackets are the stage names that the API reports. See [Pipeline progress](../deep-dives/pipeline-progress.md) for the full list and [LightRAG algorithm](../deep-dives/lightrag-algorithm.md) for the theory.
 
 ## 1. Upload a document
 
@@ -52,20 +57,20 @@ curl -s -X POST "$EQ_API/api/v1/documents" \
   }' | jq '{document_id, status, track_id, duplicate_of}'
 ```
 
-Expected output:
+Expected output (HTTP `202 Accepted`):
 
 ```json
 {
   "document_id": "6a0d4b0e-...",
-  "status": "processing",
-  "track_id": "track-...",
+  "status": "pending",
+  "track_id": "<track-id>",
   "duplicate_of": null
 }
 ```
 
-The JSON route always processes in the background. The field `async_processing` is accepted but has no effect today.
+The JSON route always processes in the background. The field `async_processing` is accepted for compatibility, but the server queues the document either way.
 
-If you upload the same content twice, `duplicate_of` holds the ID of the first copy and no new work starts.
+If you upload the same content twice, `duplicate_of` holds the ID of the existing copy and no new work starts. The status then reads `duplicate_processing`.
 
 ### Upload a file
 
@@ -76,7 +81,7 @@ curl -s -X POST "$EQ_API/api/v1/documents/upload" \
   | jq '{document_id, filename, status, is_duplicate, track_id}'
 ```
 
-Upload several files in one call with `POST /api/v1/documents/upload/batch` and repeat the `files` field.
+To upload several files in one call, use `POST /api/v1/documents/upload/batch` and repeat the `files` field.
 
 ### Upload options
 
@@ -84,16 +89,18 @@ Send these as JSON fields, or as extra multipart text fields where marked.
 
 | Option | JSON | Multipart | Default | Effect |
 |--------|:----:|:---------:|---------|--------|
-| `title` | yes | no | file name | Display name. |
+| `title` | yes | no | `Untitled` | Display name. |
 | `metadata` | yes | yes (JSON string) | none | Free-form data stored with the document. |
 | `chunk_strategy` | yes | yes | chosen from the file type | `recursive`, `fixed`, `markdown`, `pdf` or `semantic`. |
 | `chunk_options` | yes | yes (JSON string) | workspace policy | For example `{"chunk_token_size": 1200, "chunk_overlap_token_size": 100}`. |
 | `enable_gleaning` | yes | no | `true` | Run the second extraction pass. |
-| `max_gleaning` | yes | no | `1` (cap `2`) | Number of extra passes. |
+| `max_gleaning` | yes | no | `1` (capped at `2`) | Number of extra passes. |
 | `use_llm_summarization` | yes | no | `true` | Merge long entity descriptions with the LLM. |
-| `extract_max_entities` | yes | yes | `40` | Cap on entities per chunk response. |
-| `extract_max_records` | yes | yes | `100` | Cap on total rows per chunk response. |
+| `extract_max_entities` | yes | yes | `40` (server default) | Cap on entities per chunk response. |
+| `extract_max_records` | yes | yes | `100` (server default) | Cap on total rows per chunk response. |
 | `extraction_mode` | yes | yes | `llm` | `llm` or `decision`. See [Decision extraction](../concepts/decision-extraction.md). |
+
+The two `extract_max_*` defaults come from `EDGEQUAKE_MAX_EXTRACTION_ENTITIES` and `EDGEQUAKE_MAX_EXTRACTION_RECORDS`.
 
 Example with options:
 
@@ -122,14 +129,14 @@ curl -s "$EQ_API/api/v1/documents/track/$TRACK_ID" \
   | jq '{is_complete, total_count, status_summary, latest_message}'
 ```
 
-To follow one document, read it by ID. The field `display_status` is the current stage and `ui_phase` is `idle`, `running`, `stopping` or `terminal`:
+To follow one document, read it by ID. `ui_phase` is `idle`, `running`, `stopping` or `terminal`. While a document runs, `display_status` shows the current stage name:
 
 ```bash
 curl -s "$EQ_API/api/v1/documents/$DOC_ID" -H "X-Workspace-ID: $WORKSPACE_ID" \
   | jq '{display_status, ui_phase, chunk_count, entity_count, relationship_count, error_message}'
 ```
 
-The pipeline moves each document through these stages:
+The document moves through these states:
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
@@ -142,12 +149,12 @@ stateDiagram-v2
   processing --> failed
   processing --> cancelled
   failed --> pending: reprocess
-  partial_failure --> pending: retry chunks
+  partial_failure --> processing: retry-chunks
   completed --> [*]
   cancelled --> [*]
 ```
 
-Read it from the start dot. `processing` covers several fine-grained stages (chunking, extracting, gleaning, merging, embedding, storing) that `display_status` reports while the document runs. `failed` and `partial_failure` can go back to `pending` when you retry.
+Read it from the start dot. `processing` stands for every running stage (chunking, extracting, gleaning, merging, embedding and storing). `failed` goes back to `pending` when you reprocess it. `partial_failure` re-runs its failed chunks with `retry-chunks`.
 
 Other ways to watch progress:
 
@@ -161,7 +168,7 @@ A **chunk** is a slice of text sized in tokens. The chunker has three layers of 
 
 1. The upload (`chunk_strategy`, `chunk_options`).
 2. The workspace (`chunking_mode`, `chunk_token_size`, `chunk_overlap_token_size`).
-3. The server (`EDGEQUAKE_CHUNK_SIZE`, `EDGEQUAKE_CHUNK_OVERLAP`).
+3. The server (`EDGEQUAKE_CHUNK_SIZE`, `EDGEQUAKE_CHUNK_OVERLAP`, used when adaptive sizing is off).
 
 Set a workspace policy once, and every upload inherits it:
 
@@ -177,7 +184,7 @@ Smaller chunks give more precise retrieval and more LLM calls. Larger chunks kee
 
 The extractor labels each entity with a type. The default types are `PERSON`, `CREATURE`, `ORGANIZATION`, `LOCATION`, `EVENT`, `CONCEPT`, `METHOD`, `CONTENT`, `DATA`, `ARTIFACT`, `NATURALOBJECT` and `OTHER`.
 
-Replace them for your domain on the workspace. Types are uppercased and capped at 50.
+Replace them for your domain on the workspace. Types are uppercased and the list is capped at 50 entries.
 
 ```bash
 curl -s -X PUT "$EQ_API/api/v1/workspaces/$WORKSPACE_ID" \
@@ -186,7 +193,7 @@ curl -s -X PUT "$EQ_API/api/v1/workspaces/$WORKSPACE_ID" \
   | jq '.id'
 ```
 
-With `entity_types_strict` on (the default), a type outside your list is remapped to a catch-all such as `OTHER`. Set it to `false` to let the model invent labels. The setting applies to documents ingested after the change. Reprocess older documents to apply it to them.
+With `entity_types_strict` on (the default), a type outside your list is remapped to a fallback type such as `OTHER`. Set it to `false` to let the model invent labels. The setting applies to documents ingested after the change. Reprocess older documents to apply it to them.
 
 The workspace also accepts `extraction_language` (for example `"French"`) to set the language of extracted descriptions. See [Entity extraction](../deep-dives/entity-extraction.md).
 
@@ -224,7 +231,7 @@ Common causes of failure:
 |----------------------------|-------|-----|
 | Network error to the model server | Ollama, LM Studio or the cloud API is unreachable. | Start or fix the provider, then reprocess. |
 | Embedding input too long | Chunks exceed the embedding model limit. | Lower `chunk_token_size` to about 600. |
-| Rate limit or quota | Cloud provider limit. | Retry later, or lower `MAX_TASKS_PER_TENANT` on the server. |
+| Rate limit or quota | Cloud provider limit. | Retry later, or lower `MAX_TASKS_PER_TENANT` to send fewer tasks at once. |
 | `partial_failure` | Some chunks failed, the rest succeeded. | Use `retry-chunks`. |
 
 For server-wide concurrency and rate settings, see the [environment reference](../operations/env-reference.md) and [Performance tuning](../operations/performance-tuning.md).
@@ -241,6 +248,12 @@ curl -s "$EQ_API/api/v1/graph/entities?page_size=10&search=acme" \
 ```
 
 To see which chunks and entities one document produced, read `GET /api/v1/documents/<id>/lineage`. [Tracing entity sources](tracing-entity-sources.md) shows how.
+
+## What you learned
+
+- Three upload routes feed one pipeline; all of them queue work and return at once.
+- Chunking, entity types and gleaning are set per upload, per workspace or per server, with the most specific setting winning.
+- Failed documents and chunks have their own retry routes, so you rarely need to re-upload.
 
 ## Next steps
 

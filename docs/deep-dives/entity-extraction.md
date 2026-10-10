@@ -50,7 +50,7 @@ All extractors implement the `EntityExtractor` trait (`extract`, `extract_batch`
 | `SimpleExtractor` | Regex patterns | Tests and demos only. |
 | Decision extractor | Closed questions | Optional mode (SPEC-160). See below. |
 
-**Doc correction:** earlier versions of this page said `SOTAExtractor` was the production extractor. The code builds `LLMExtractor` (`ingestion_pipeline.rs`, `edgequake-api/src/state/query_bootstrap.rs`).
+`LLMExtractor` is the production extractor. `ingestion_pipeline.rs` and `edgequake-api/src/state/query_bootstrap.rs` both build it.
 
 ### Extraction modes
 

@@ -127,16 +127,7 @@ EdgeQuake fits when:
 - You want to trace an answer back to its sources.
 - You need tenants, workspaces, and a managed ingestion queue.
 
-You do not have to choose once. `mix` mode (the default) runs graph and vector retrieval together, and `naive` mode gives you plain vector search.
-
-| Mode | Strategy |
-| ---- | -------- |
-| `naive` | Vector search over chunks |
-| `local` | Entities from the question, then the graph around them |
-| `global` | Relationship vector search for themes |
-| `hybrid` | Local, global, and naive interleaved |
-| `mix` | The same three arms, blended by weight or rank fusion (default) |
-| `bypass` | No retrieval |
+You do not have to choose once. `mix` mode (the default) runs graph and vector retrieval together, and `naive` mode gives you plain vector search. The full list of six modes is in [Hybrid retrieval](../concepts/hybrid-retrieval.md).
 
 ## See also
 

@@ -39,7 +39,7 @@ The diagram shows two cost sources that feed one job total. Read it top to botto
 - The LLM response reports prompt and completion tokens. The pipeline sums them per chunk.
 - Gleaning passes add their tokens to the same chunk total (see [Gleaning](gleaning.md)), so gleaning cost is included but **not reported separately**.
 - The price comes from the model name, using the table in `edgequake-pipeline/src/progress/cost.rs`.
-- Progress events carry `chunk_cost_usd` and `cumulative_cost_usd`, so a UI can show cost as the job runs.
+- Pipeline progress events carry `chunk_cost_usd` and `cumulative_cost_usd`. The WebSocket `ChunkProgress` event reports the chunk cost as `cost_usd`, so a UI can show cost as the job runs.
 
 ### Embedding cost
 
@@ -73,7 +73,7 @@ Model names must match exactly. A model that is not in the table is priced with 
 | Decision-extraction backend (provider name starts with `decision:`) | $0, because it runs on your hardware |
 | Any other model, **including local Ollama and LM Studio models** | Fallback estimate: `gpt-4.1-nano` priced at $0.00015 input and $0.0006 output per 1K tokens |
 
-So a job on a local model shows a **non-zero** estimated cost. Treat it as "what a small cloud model would have cost", not as money spent. This replaces the old claim that local providers report $0.00.
+So a job on a local model shows a **non-zero** estimated cost. Treat it as "what a small cloud model would have cost", not as money spent.
 
 ## API endpoints
 
@@ -147,7 +147,7 @@ EdgeQuake does not publish a cost-per-megabyte figure. Costs depend on the model
 - Budgets are not stored or enforced (placeholder endpoints).
 - `by_operation` uses a fixed 90/10 split.
 - Query and chat costs are not tracked by the `/costs/*` endpoints.
-- Unknown models fall back to a `gpt-4.1-nano` price. The fallback used in the pipeline ($0.00015 and $0.0006) differs from the listed `gpt-4.1-nano` entry ($0.0001 and $0.0004), and the handler source comments mention a `gpt-4o-mini` fallback. The code, not the comment, decides.
+- Unknown models use a fallback price of $0.00015 input and $0.0006 output per 1K tokens. The listed `gpt-4.1-nano` entry is cheaper ($0.0001 and $0.0004), so the two do not match.
 
 ## Related pages
 

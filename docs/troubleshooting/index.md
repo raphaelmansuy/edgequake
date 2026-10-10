@@ -3,9 +3,9 @@ title: Troubleshooting
 description: Where to start when EdgeQuake does not start, ingest or answer, with links to the symptom tables for each area.
 ---
 
-This section helps you find and fix problems with a running EdgeQuake. Start with the checks below, then open the matching section of the [troubleshooting guide](common-issues.md).
+This section helps you find and fix problems with a running EdgeQuake. Run the first checks below, then open the matching section of the [troubleshooting guide](common-issues.md). Each check takes a few seconds and tells you which area to look at.
 
-> Product release: v0.32.2. `edgequake doctor` and the provider test endpoint arrive in v0.33.0.
+> Product release: v0.32.2 (see `VERSION`). `edgequake doctor` and the provider test endpoint are in the source tree but not yet in a released changelog entry, so this guide marks them v0.33.0.
 
 ## First checks
 
@@ -30,7 +30,7 @@ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/ready
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
 %% eq-theme:v1
 flowchart TD
-  A["What is wrong?"] --> B{"Server up?"}
+  A["What is wrong?"] --> B{"Does the server start?"}
   B -->|No| C["Boot errors and exit codes"]
   B -->|Yes| D{"What fails?"}
   D -->|Upload| E["Upload and PDF"]
@@ -44,7 +44,7 @@ class C,D,G eqBad
 class F eqStore
 ```
 
-Follow the branch that matches what you see. Each leaf is a section in the guide.
+Follow the branch that matches what you see. Each leaf names a topic in the guide.
 
 ## Pipeline reliability
 
@@ -54,7 +54,7 @@ Follow the branch that matches what you see. Each leaf is a section in the guide
 | Interrupted, then Reprocess, after a restart or lease expiry | [Guide 3.1](common-issues.md#31-interrupted--reprocess) |
 | Lease stuck in Processing | [Guide 3.2](common-issues.md#32-lease-stuck-in-processing) |
 | Boot fails with `EDGEQUAKE_REPLICAS` above 1 | [Guide 3.4](common-issues.md#34-multi-replica-boot-failure-edgequake_replicas1) |
-| Queue pressure and quarantine | [Observability](../OBSERVABILITY.md#queue-pressure--store-contention-v019) |
+| Queue pressure and store contention | [Observability](../OBSERVABILITY.md#queue-pressure--store-contention-v023) |
 | Documents page shows Read path busy | [Guide 10](common-issues.md#10-documents-page-read-path-busy) |
 | Provider Connection and Test failures | [Guide 5.2 and 5.3](common-issues.md#52-test-a-connection-before-you-use-it-v0330) |
 

@@ -1,366 +1,174 @@
 ---
 title: Docker setup implementation
-description: Incident note from 2026-02-09: how make docker-up and the frontend Dockerfile were wired.
+description: Incident note from 2026-02-09: how make docker-up and the frontend Dockerfile were wired, and what has changed since (v0.32.2).
 ---
 
-> Historical note, 2026-02-09; may not match current code.
-> Prefer: [Docker quick start](DOCKER_QUICK_START.md) · [Docker deployment options](../operations/docker-deployment-options.md)
+> Historical note, 2026-02-09. The wiring below is the 2026-02-09 design. For the current stack, read the [Docker quick reference](DOCKER_QUICK_START.md) first.
 
 ## Overview
 
-Successfully implemented a complete Docker-based deployment for EdgeQuake with proper frontend integration, resulting in a fully-functional full-stack deployment via `make docker-up` with clear user instructions and access URLs.
+On 2026-02-09, the Docker stack gained a web UI container. From then on, `make docker-up` started the database, the API and the UI together, and printed the access URLs. This page records that change.
 
-## What Was Implemented
+## Status today (v0.32.2)
+
+Still true:
+
+- `make docker-up`, `make docker-down`, `make docker-logs`, `make docker-ps` and `make docker-build` drive `edgequake/docker/docker-compose.yml`.
+- The UI image is built from `edgequake_webui/Dockerfile`. It runs as the non-root `nextjs` user (uid 1001) on port 3000.
+- Host ports: API 8080, web UI 3000, PostgreSQL 5432.
+
+Changed since then:
+
+- A `migrate` service applies the schema once, before the API starts.
+- PostgreSQL uses `edgequake/docker/Dockerfile.postgres.pg18` by default. The choice is set by `EQ_POSTGRES_DOCKERFILE`.
+- The API image is distroless and runs as the `nonroot` user.
+- `make docker-up` reuses existing images. Run `make docker-build` after code changes.
+- The web UI reads `EDGEQUAKE_API_URL` at request time. `NEXT_PUBLIC_API_URL` is fixed at build time.
+- The compose file does not set `JWT_SECRET`. See the [startup caveat](DOCKER_QUICK_START.md#startup-caveat).
+
+## What was implemented
 
 ### 1. Frontend Dockerfile
 
-**File**: `edgequake_webui/Dockerfile`
+`edgequake_webui/Dockerfile` has three stages:
 
-A multi-stage optimized Dockerfile for the Next.js frontend application:
+- **deps**: installs dependencies from the lockfile with `--frozen-lockfile`.
+- **builder**: runs `next build --webpack`. It takes `NEXT_PUBLIC_API_URL` as a build argument (default `http://localhost:8080`).
+- **runtime**: runs `pnpm start` as the non-root `nextjs` user, with a `wget` health check on port 3000.
 
-- **Stage 1 (deps)**: Install dependencies with pnpm
-- **Stage 2 (builder)**: Build the Next.js application
-- **Stage 3 (runtime)**: Run the production server with non-root user
-- **Health Check**: Automated health monitoring via wget
-- **Base Image**: Node.js 20 Alpine (minimal, ~170MB final image)
+The base image is `node:20-alpine`. The current file pins pnpm to 10.13.1 so that builds use a known version.
 
-**Key Features**:
+`next.config.ts` sets `output: "standalone"`. The runtime stage does not use that output. It copies `.next` and runs `pnpm start`.
 
-- Uses pnpm for faster, more reliable dependency management
-- Multi-stage build reduces final image size
-- Non-root user execution for security
-- Production-ready with standalone output
+### 2. Compose service
 
-### 2. Updated Docker Compose Configuration
-
-**File**: `edgequake/docker/docker-compose.yml`
-
-Added frontend service alongside existing backend and database services:
+`edgequake/docker/docker-compose.yml` builds the frontend from the repo root:
 
 ```yaml
 frontend:
   build:
     context: ../../
     dockerfile: edgequake_webui/Dockerfile
+    args:
+      NEXT_PUBLIC_API_URL: http://localhost:8080
   container_name: edgequake-frontend
   ports:
-    - "3000:3000"
+    - "${FRONTEND_PORT:-3000}:3000"
   environment:
     - NEXT_PUBLIC_API_URL=http://localhost:8080
     - NODE_ENV=production
   depends_on:
     - edgequake
-  healthcheck: ...
 ```
 
-**Services Configuration**:
+The services are:
 
-- **Backend (edgequake)**: Port 8080, REST API
-- **Frontend (edgequake-frontend)**: Port 3000, Next.js UI
-- **Database (edgequake-postgres)**: Port 5432, PostgreSQL with extensions
+| Service | Container | Host port | Built from |
+|---------|-----------|-----------|------------|
+| `postgres` | `edgequake-postgres` | 5432 | `Dockerfile.postgres.pg18` (default) |
+| `migrate` | `edgequake-migrate` | none | `edgequake/docker/Dockerfile` |
+| `edgequake` | `edgequake` | 8080 | `edgequake/docker/Dockerfile` |
+| `frontend` | `edgequake-frontend` | 3000 | `edgequake_webui/Dockerfile` |
 
-### 3. Enhanced Makefile Docker Commands
+Caption: the arrows show the compose condition each service waits for. The UI waits only for the API container to start.
 
-#### Updated `make docker-up` Target
-
-**File**: `Makefile` (lines 578-617)
-
-The command now displays a comprehensive startup message with:
-
-- ✅ Clear service status indication
-- 📍 All access points with URLs
-- 📝 First-time user instructions
-- 🔧 Management commands
-
-**Output Example**:
-
-```
-🐳 Starting EdgeQuake Full Stack via Docker
-
-✅ EdgeQuake Docker Stack is Running
-
-📍 Access Points:
-
-  Frontend (Web UI)
-    🌐 URL: http://localhost:3000
-    📝 Navigate here to upload documents...
-
-  Backend API
-    🔗 URL: http://localhost:8080
-    📚 Swagger UI: http://localhost:8080/swagger-ui
-    🏥 Health: http://localhost:8080/health
-
-  Database
-    🗄️ PostgreSQL on port 5432
-
-→ First Time:
-  1. Open http://localhost:3000 in your browser
-  2. Upload a PDF document
-  3. Wait for entity extraction to complete
-  4. View the knowledge graph and entities
-
-→ Management:
-  See logs: make docker-logs
-  Stop stack: make docker-down
-  Check status: make docker-ps
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TB
+  P["PostgreSQL 5432<br/>pgvector + AGE"] -->|"healthy"| M["migrate (runs once)"]
+  M -->|"completed"| A["API (edgequake)<br/>port 8080"]
+  A -->|"started"| F["Web UI (frontend)<br/>port 3000"]
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+classDef eqActor fill:#FCE7F3,stroke:#EC4899,color:#500724
+class P eqStore
+class F eqActor
 ```
 
-#### Updated Help Text
+### 3. Makefile targets
 
-**File**: `Makefile` (line 112)
+- `make docker-up` runs `docker compose up -d`, waits 5 seconds, and then prints the access points. The output lists the web UI, the API, Swagger UI at `/swagger-ui`, health at `/health`, and PostgreSQL on port 5432.
+- `make help` describes `docker-up` as "Start full stack via Docker (build from source)".
 
-Enhanced help description to indicate full-stack deployment:
+## Files changed on 2026-02-09
 
-```makefile
-make docker-up    Start full stack via Docker (frontend + backend + DB)
-```
+| File | Change |
+|------|--------|
+| `edgequake_webui/Dockerfile` | Created (frontend image) |
+| `edgequake/docker/docker-compose.yml` | Added the `frontend` service |
+| `Makefile` | Richer `docker-up` output and help text |
+| `scripts/verify-docker-setup.sh` | Created (local setup checks) |
+| `edgequake/docker/Dockerfile.frontend` | Older copy, kept. Compose does not use it |
 
-### 4. Documentation
+The backend `edgequake/docker/Dockerfile` was not changed that day.
 
-#### Docker Deployment Guide
+## Verification (2026-02-09)
 
-**File**: `DOCKER_DEPLOYMENT.md`
+The 2026-02-09 notes list checks such as compose config validation, make help output and health-check definitions. They were not re-run for this page. For a current check, use `scripts/verify-docker-setup.sh` and the steps in [Docker verification](DOCKER_VERIFICATION.md).
 
-Comprehensive guide including:
+## How it works
 
-- Quick start instructions
-- Service descriptions (frontend, backend, database)
-- Complete usage instructions
-- Configuration options
-- Troubleshooting guide
-- Performance considerations
-- Security notes
-- Quick reference commands
+1. **Build**: builds the API and UI images. The first build takes several minutes.
+2. **Start**: PostgreSQL starts and passes its `pg_isready` check. `migrate` applies the schema and exits. The API starts after that.
+3. **Health**: the API container runs `edgequake healthcheck`, which calls `GET /live`. The UI container runs `wget` against port 3000. To check the API from the host, use `curl http://localhost:8080/health`.
+4. **Output**: `make docker-up` prints the access URLs and the management commands.
 
-### 5. Verification Script
+## Next steps for users
 
-**File**: `scripts/verify-docker-setup.sh`
+1. Make sure Docker is running (`docker ps` should work).
+2. Run `make docker-up`.
+3. Open `http://localhost:3000` for the UI. The API is at `http://localhost:8080`, and Swagger UI is at `http://localhost:8080/swagger-ui`.
+4. Use `make docker-logs`, `make docker-ps` and `make docker-down`. Run `make docker-build` after code changes.
 
-Automated verification script that checks:
+## Requirements
 
-- ✓ Docker installation
-- ✓ Docker Compose availability
-- ✓ Docker daemon status
-- ✓ All Dockerfiles present
-- ✓ docker-compose.yml validity
-- ✓ Frontend dependencies (package.json, pnpm-lock.yaml)
-- ✓ Required ports availability
-- ✓ Makefile configuration
-- ✓ Docker Compose services
+- Docker with the Compose v2 plugin (`docker compose`).
+- The API container memory cap defaults to `4g` (`EDGEQUAKE_MEM_LIMIT`).
+- Enough disk for the images and the PostgreSQL volume.
+- The first build downloads dependencies and can take several minutes. Later builds use the cache.
 
-## Files Modified
+## Security notes
 
-### Created:
+- The API image runs as the distroless `nonroot` user. The UI runs as `nextjs` (uid 1001).
+- The containers share the private `edgequake-network` bridge network.
+- PostgreSQL is also published on the host (`POSTGRES_PORT`, default 5432). It uses the default password `edgequake_secret` unless `POSTGRES_PASSWORD` is set. Change both outside a laptop.
+- The OpenAI key is read from the host environment at run time. It is not baked into an image.
 
-- `edgequake_webui/Dockerfile` - Frontend containerization
-- `DOCKER_DEPLOYMENT.md` - Complete deployment documentation
-- `scripts/verify-docker-setup.sh` - Automated setup verification
+## Troubleshooting
 
-### Modified:
+### Docker is not running
 
-- `edgequake/docker/docker-compose.yml` - Added frontend service
-- `Makefile` - Enhanced docker-up output and help text
+- macOS: start Docker Desktop or OrbStack from Applications.
+- Linux: `sudo systemctl start docker`.
 
-### Retained:
-
-- `edgequake/docker/Dockerfile` - Backend (unchanged)
-- `edgequake/docker/Dockerfile.postgres` - Database (unchanged)
-- `edgequake/docker/Dockerfile.frontend` - Also created (copy in docker/)
-
-## Verification
-
-### Configuration Validation
+### A port is in use
 
 ```bash
-✓ Docker Compose configuration is valid
-✓ All container names properly configured:
-  - edgequake (backend)
-  - edgequake-frontend (frontend)
-  - edgequake-postgres (database)
-✓ All required Dockerfiles present:
-  - Backend: edgequake/docker/Dockerfile (1.4K)
-  - Frontend: edgequake_webui/Dockerfile (1.8K)
-  - Database: edgequake/docker/Dockerfile.postgres (954B)
-  - Archived: edgequake/docker/Dockerfile.frontend (1.8K)
-✓ Help text updated correctly
-✓ Docker-up output preview shows all URLs
+lsof -i :3000   # or :8080, :5432
 ```
 
-## How It Works
+Stop the program that owns the port. If `docker-proxy` or the Docker app owns it, run `make docker-down` instead of killing the process. The Makefile never kills OrbStack, Docker Desktop or `docker-proxy`.
 
-### Startup Flow (make docker-up)
-
-1. **Build Phase** (first time only)
-   - Builds backend Rust application
-   - Builds frontend Next.js application
-   - Prepares PostgreSQL with extensions
-
-2. **Container Startup**
-   - PostgreSQL starts first (health-checked)
-   - Backend API waits for database readiness
-   - Frontend waits for backend to be available
-
-3. **Health Verification**
-   - Backend: `curl http://localhost:8080/health`
-   - Frontend: `wget http://localhost:3000`
-   - Database: `pg_isready`
-
-4. **Display Information**
-   - Shows all access URLs
-   - Provides quick start instructions
-   - Lists management commands
-
-### Service Dependencies
-
-```
-┌─────────────────────┐
-│   PostgreSQL        │ ← Database
-│   (port 5432)       │
-└──────────┬──────────┘
-           │
-    ┌──────▼──────┐
-    │  Backend    │ ← REST API & Swagger UI
-    │ (port 8080) │
-    └──────┬──────┘
-           │
-    ┌──────▼───────┐
-    │  Frontend    │ ← Web UI
-    │ (port 3000)  │
-    └──────────────┘
-```
-
-## Next Steps for Users
-
-### Immediate (First Run)
-
-1. **Ensure Docker is Running**
-
-   ```bash
-   docker --version
-   docker ps
-   ```
-
-2. **Start the Stack**
-
-   ```bash
-   make docker-up
-   ```
-
-3. **Access Services**
-   - Frontend: http://localhost:3000
-   - Backend: http://localhost:8080
-   - API Docs: http://localhost:8080/swagger-ui
-
-### Common Operations
-
-- **View Logs**: `make docker-logs`
-- **Check Status**: `make docker-ps`
-- **Stop Stack**: `make docker-down`
-- **Rebuild Images**: `make docker-build`
-
-## Performance Characteristics
-
-### Build Time
-
-- **First build**: 5-15 minutes (downloads dependencies)
-- **Cached builds**: 30-60 seconds
-- **Subsequent starts**: 10-30 seconds
-
-### Runtime
-
-- **Startup to healthy**: ~30 seconds
-- **Frontend page load**: <1 second
-- **API response time**: <500ms
-- **Document processing**: 2-10 minutes (LLM dependent)
-
-## System Requirements
-
-### Hardware
-
-- **CPU**: 2+ cores recommended
-- **RAM**: 4GB minimum, 8GB recommended
-- **Disk**: 10GB for images and container storage
-
-### Software
-
-- Docker 29.1.2 or later
-- Docker Compose (included in Docker Desktop)
-- No additional dependencies required (all containerized)
-
-## Security Features
-
-### Container Security
-
-- Frontend runs as non-root user (nextjs:1001)
-- Backend runs as non-root user (edgequake)
-- Private Docker network (edgequake-network)
-- No services exposed beyond configured ports
-
-### Data Security
-
-- PostgreSQL uses default credentials (change for production)
-- All internal communication via private network
-- OpenAI API key passed via environment (never in images)
-- Volume-based persistent storage with Docker-managed volumes
-
-## Testing Verification
-
-All components have been verified:
+### The build fails
 
 ```bash
-✓ Dockerfile syntax validation
-✓ Docker Compose configuration validation
-✓ Make target syntax verification
-✓ Help text display confirmation
-✓ Service dependency configuration
-✓ Health check definitions
-✓ Port configuration
-✓ Environment variable setup
-✓ Volume mounting
-✓ Container naming
-```
-
-## Troubleshooting Guide
-
-### If Docker Daemon Not Running
-
-```bash
-# macOS with OrbStack
-orbstack --boot
-
-# macOS with Docker Desktop
-open /Applications/Docker.app
-
-# Linux
-sudo systemctl start docker
-```
-
-### If Ports Are In Use
-
-```bash
-lsof -ti:3000 | xargs kill -9
-lsof -ti:8080 | xargs kill -9
-lsof -ti:5432 | xargs kill -9
-```
-
-### If Build Fails
-
-```bash
-# Clean and rebuild
 make docker-down
-docker system prune -a
 make docker-build
 make docker-up
 ```
 
+To rebuild without the cache, run `cd edgequake/docker && docker compose build --no-cache`, then `make docker-up`.
+
 ## References
 
-- **Main Documentation**: `DOCKER_DEPLOYMENT.md`
-- **Makefile**: `Makefile` (docker-related targets)
-- **Docker Config**: `edgequake/docker/docker-compose.yml`
-- **Verification Script**: `scripts/verify-docker-setup.sh`
+- [Docker quick reference](DOCKER_QUICK_START.md)
+- [Docker deployment summary](DOCKER_DEPLOYMENT_SUMMARY.md)
+- [Docker verification](DOCKER_VERIFICATION.md)
+- [Docker quickstart](../operations/docker-quickstart.md)
+- Compose file: `edgequake/docker/docker-compose.yml`
+- Setup check: `scripts/verify-docker-setup.sh`
 
 ---
 
-**Implementation Date**: February 9, 2026  
-**Status**: ✅ Complete and Verified
+**Implementation date**: February 9, 2026. **Status on that date**: complete. See "Status today" above for what has changed.

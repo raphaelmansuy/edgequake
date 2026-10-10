@@ -9,13 +9,17 @@ This page describes the endpoints that show where a fact came from. It is for de
 
 **Convert then ingest.** A PDF is first converted to Markdown, then ingested. Lineage appears after the ingest step finishes. A PDF row can say `Completed` while the linked document is still `extracting`. That is expected. See [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md).
 
+## Data model
+
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
 flowchart LR
     D["Document"] --> C["Chunks"]
     C --> E["Entities"]
     C --> R["Relationships"]
     E --> S["Source documents"]
-    D --> A["Assets images"]
+    D --> A["Assets and images"]
 ```
 
 Read it left to right: a document splits into chunks; chunks produce entities and relationships; an entity can point back to every document that mentioned it. Assets are figures extracted from PDF pages.
@@ -37,6 +41,24 @@ Read it left to right: a document splits into chunks; chunks produce entities an
 | GET | `/lineage/documents/{document_id}` | Graph summary of a document |
 
 All of these return 404 when the id is unknown or belongs to another workspace.
+
+## Trace from an answer to a source
+
+A query answer lists sources with a chunk or document id. Use the chunk endpoint to read the text, then the entity endpoint to see every document that supports a fact.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+sequenceDiagram
+    participant C as Client
+    participant A as EdgeQuake API
+    C->>A: GET /api/v1/chunks/{chunk_id}
+    A-->>C: chunk text, document_id, entities, relationships
+    C->>A: GET /api/v1/entities/{entity_id}/provenance
+    A-->>C: sources per document and chunk
+```
+
+Read it top to bottom. The first call gives you the passage and its parent document. The second shows every chunk, across documents, that produced the entity.
 
 ## Document lineage
 
@@ -100,7 +122,7 @@ curl -s http://localhost:8080/api/v1/documents/$DOC_ID/lineage \
 }
 ```
 
-`page_start` and `page_end` are filled for PDF-sourced documents when available. Older lineage records may lack them; the server adds them on the fly from chunk storage when it can. Export with `GET .../lineage/export?format=csv` (or `json`) for a downloadable file.
+`page_start` and `page_end` are filled for PDF-sourced documents. Older lineage records may not have them. Export with `GET .../lineage/export?format=csv` (or `json`) for a downloadable file.
 
 ## Document metadata
 
@@ -204,7 +226,7 @@ curl -s http://localhost:8080/api/v1/entities/MARIE_CURIE/provenance
 
 ## Entity lineage
 
-`GET /api/v1/lineage/entities/{entity_name}` lists every source document for an entity, plus description history.
+`GET /api/v1/lineage/entities/{entity_name}` lists every source document for an entity. The response also has a `description_versions` field, but the server currently always returns it as an empty list (see the note below the sample).
 
 ```json
 {
@@ -218,16 +240,11 @@ curl -s http://localhost:8080/api/v1/entities/MARIE_CURIE/provenance
       "line_ranges": [{ "start_line": 1, "end_line": 20 }]
     }
   ],
-  "description_versions": [
-    {
-      "version": 1,
-      "description": "Physicist and chemist",
-      "created_at": "2026-10-09T10:00:30Z",
-      "source_chunk_id": "5b1f...-chunk-0"
-    }
-  ]
+  "description_versions": []
 }
 ```
+
+> **Note.** `description_versions` is reserved for a future release. The handler sets it to `[]` (`edgequake/crates/edgequake-api/src/handlers/lineage/queries.rs`). To read the text behind an entity, use the provenance route, which returns the source text of each chunk.
 
 ## Document graph lineage
 

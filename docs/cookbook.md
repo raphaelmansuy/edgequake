@@ -7,7 +7,7 @@ description: Copy-paste recipes for uploading documents, querying, exploring the
 
 # Cookbook
 
-This page holds short, tested-by-reading recipes for common EdgeQuake tasks. It is for developers who already have a stack running. If you do not, start with the [Quick Start](getting-started/quick-start.md).
+This page holds short recipes for common EdgeQuake tasks. Endpoints and response fields were checked against the source code. Run the commands on your own stack before you rely on them. It is for developers who already have a stack running. If you do not, start with the [Quick Start](getting-started/quick-start.md).
 
 ## Set up your shell
 
@@ -187,7 +187,7 @@ curl -s -X POST "$API/api/v1/query" \
 
 ### Stream a chat reply
 
-The stream sends server-sent events. Each event is JSON with a `type` field: `conversation`, `context`, `stage`, `thinking`, `token`, `done`.
+The stream sends server-sent events. Each event is JSON with a `type` field: `conversation`, `context`, `stage`, `thinking`, `token`, `title_update`, `done`, or `error`. Read `token` events as they arrive, and treat `done` as the end of the answer.
 
 ```python
 import json
@@ -351,7 +351,7 @@ curl -s "$API/api/v1/pipeline/queue-metrics" -H "$H_AUTH" \
   | jq '{pending_count, processing_count, active_workers, max_workers, pressure}'
 ```
 
-`/ready` returns 503 when the schema is behind, storage is down, or the task queue is at critical pressure. The reason is in the response body. Queue metrics carry no `readiness_blockers` field.
+`/ready` returns 503 when the schema is behind, storage is down, or the task queue is at critical pressure. The reason is in the response body.
 
 ### Read cost totals
 

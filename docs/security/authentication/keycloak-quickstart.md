@@ -3,87 +3,111 @@ title: Keycloak quickstart
 description: Run EdgeQuake with the shipped Keycloak on one machine, create tenants, sign in, then move to a production HTTPS setup.
 ---
 
-This page runs EdgeQuake and the shipped Keycloak (realm `edgequake`, Keycloak 26.8.0 or later) on one machine, then lists the settings for a production HTTPS setup.
+This page runs EdgeQuake and the shipped Keycloak on one machine. The realm is `edgequake`, and the image is Keycloak 26.8.0 or later. The last section lists the settings for a production HTTPS setup.
+
+## Topology
+
+The browser and the API must reach Keycloak under the same host name, because EdgeQuake compares the issuer string exactly.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  B["Browser"] -- "http://keycloak:8081 via hosts file" --> K["Keycloak realm edgequake"]
+  B -- "http://localhost:8080" --> A["EdgeQuake API"]
+  A -- "Issuer discovery and token exchange" --> K
+  K -- "Back-channel logout via EQ_API_INTERNAL_URL" --> A
+  K --> KD[("Keycloak database")]
+  A --> P[("PostgreSQL with pgvector and AGE")]
+%% eq-classes
+classDef eqActor fill:#FCE7F3,stroke:#EC4899,color:#500724
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class B eqActor
+class KD,P eqStore
+```
+
+Read it as two paths. The browser reaches Keycloak through the host name `keycloak`. Keycloak calls back into the API at its internal URL when a session ends.
 
 ## 1. One-time host setup
 
-The browser and the API container must resolve the **same issuer host** (the issuer string is
-compared byte-for-byte):
+The browser must resolve the same issuer host as the API container. Add this line once:
 
 ```bash
 echo "127.0.0.1 keycloak" | sudo tee -a /etc/hosts
 ```
 
-## 2. Start
+## 2. Start the stack and run the smoke test
 
 ```bash
-make dev-sso            # docker-compose.quickstart.yml + docker-compose.keycloak.yml
-make keycloak-smoke     # headless auth-code + PKCE login, org claim, roles, API handoff
+make dev-sso           # docker-compose.quickstart.yml + docker-compose.keycloak.yml
+make keycloak-smoke    # headless auth-code + PKCE login, org claim, roles, API handoff
 ```
 
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| Keycloak admin | http://keycloak:8081 | `admin` / `$KC_ADMIN_PASSWORD` (dev default in the overlay) |
-| EdgeQuake API | http://localhost:8080 | break-glass `admin` / `$EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD` |
-| Demo users | realm `edgequake` | `alice` (acme, admin), `bob` (globex), `carol` (acme + globex) / `$EQ_KC_DEMO_PASSWORD` |
+With no overrides, `make keycloak-smoke` targets the isolated proof stack (Keycloak on port 18081, API on 18080, web UI on 13010). For the `dev-sso` stack, set the endpoints explicitly:
 
-All defaults in the overlay are **dev-only**; override every `EQ_*` / `KC_*` secret outside a laptop.
+```bash
+EQ_SSO_KC=http://keycloak:8081 \
+EQ_SSO_API=http://localhost:8080 \
+EQ_SSO_REDIRECT=http://localhost:8080/api/v1/auth/oidc/callback \
+EQ_WEB_PUBLIC_URL=http://localhost:3000 \
+make keycloak-smoke
+```
 
-`KEYCLOAK_SMOKE_DEEP=1 make keycloak-smoke` also proves **back-channel logout** (Keycloak admin
-logout → signed logout token → EdgeQuake access and refresh 401). The Keycloak container must
-reach the API at `EQ_API_INTERNAL_URL` (`http://api:8080` on the overlay network, or
-`http://host.docker.internal:18080` for the isolated proof stack). Admin REST is called at
-`http://127.0.0.1:<port>` so HTTP is allowed without editing `sslRequired` on master.
-When `:8080` is another product, use `make spec158-proof-e2e` (Keycloak `:18081`, API `:18080`,
-WebUI `:13010`).
+To also prove back-channel logout, run `KEYCLOAK_SMOKE_DEEP=1 make keycloak-smoke`. Keycloak must be able to reach the API at `EQ_API_INTERNAL_URL`.
+
+| Service | URL | Credentials (dev defaults) |
+|---------|-----|----------------------------|
+| Keycloak admin | http://keycloak:8081 | `admin` / `KC_ADMIN_PASSWORD` (default `admin_dev_only`) |
+| EdgeQuake API | http://localhost:8080 | Bootstrap admin: username `admin` unless `EDGEQUAKE_BOOTSTRAP_ADMIN_USERNAME` is set; password `EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD` (default `Admin-dev-only-change-me-1`) |
+| Demo users | `alice`, `bob`, `carol` | `EQ_KC_DEMO_PASSWORD` (default `demo-password-change-me`) |
+
+Every default in the overlay is for development only. Set your own values before you share the stack.
 
 ## 3. Create the tenants
 
-Organizations map to `tenants.slug` and are **never auto-created** (an unknown org is denied with
-`org_unknown`). Create them with the break-glass admin (the smoke target does this for you):
+Organization aliases in Keycloak must match tenant slugs in EdgeQuake. EdgeQuake never creates a tenant from a claim, so an unknown organization is denied with `org_unknown`. Create the tenants with the bootstrap admin first:
 
 ```bash
-TOKEN=$(curl -s localhost:8080/api/v1/auth/login -H 'content-type: application/json' \
-  -d '{"username":"admin","password":"'"$EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD"'"}' | jq -r .access_token)
+TOKEN=$(curl -s http://localhost:8080/api/v1/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"username":"'"${EDGEQUAKE_BOOTSTRAP_ADMIN_USERNAME:-admin}"'","password":"'"$EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD"'"}' \
+  | jq -r .access_token)
+
 for org in acme globex; do
-  curl -s localhost:8080/api/v1/tenants -H "authorization: Bearer $TOKEN" \
-    -H 'content-type: application/json' -d '{"name":"'$org'","slug":"'$org'"}'
+  curl -s http://localhost:8080/api/v1/tenants \
+    -H "authorization: Bearer $TOKEN" \
+    -H 'content-type: application/json' \
+    -d "{\"name\":\"$org\",\"slug\":\"$org\"}"
 done
 ```
 
 ## 4. Sign in
 
-Open the web UI login page: **Continue with Single sign-on**, optionally typing the organization
-alias (`acme`). Users in several organizations without a hint get a picker (`org_ambiguous`).
+Open the web UI login page and choose **Continue with Single sign-on**. Type the organization alias, for example `acme`, if the login page asks for one. A user who belongs to several organizations and gives no hint gets a picker (`org_ambiguous`).
+
+The realm has three demo users:
+
+| User | Organizations | Realm roles |
+|------|---------------|-------------|
+| `alice` | acme | `eq-user`, `eq-admin` |
+| `bob` | globex | `eq-user` |
+| `carol` | acme and globex | `eq-user` |
 
 ## What the realm contains
 
-- Organizations enabled; confidential client `edgequake-web` with PKCE `S256`.
-- Realm roles `eq-user`, `eq-admin`, `eq-owner` exposed as `realm_access.roles` in the ID token.
-- Back-channel logout to `/api/v1/auth/oidc/backchannel-logout` (session required).
-- Realm import is **create-only**: an existing realm is skipped, so edit live realms in the Admin
-  console or via `kcadm`, not by changing the JSON.
+- Organizations `acme` and `globex`, and the confidential client `edgequake-web` with PKCE `S256`.
+- Realm roles `eq-user`, `eq-admin` and `eq-owner`. Map them with `EDGEQUAKE_OIDC_ROLE_MAP`.
+- Back-channel logout to `${EQ_API_INTERNAL_URL}/api/v1/auth/oidc/backchannel-logout`.
+- Brute-force protection on.
+- Realm import is **create-only**. An existing realm is skipped, so edit a live realm in the Admin console (or with `kcadm`) instead of changing the JSON.
 
-## Same-origin note
+## Production configuration
 
-The OIDC state cookie is set by the API on the host used to start login, so the login URL host
-must equal the host of `EDGEQUAKE_OIDC_REDIRECT_URI`. With the dev web UI proxying `/api` on
-`:3000`, set `EQ_API_PUBLIC_URL=http://localhost:3000`; with a direct API URL, use that URL.
+Use this section when Keycloak and EdgeQuake have public HTTPS names. The laptop overlay (`EQ_KC_SSL_REQUIRED=none` and the demo users) must not ship.
 
-## Production configuration (HTTPS hostname)
-
-Use this when Keycloak and EdgeQuake have public names. The laptop overlay
-(`EQ_KC_SSL_REQUIRED=none`, demo users `alice`/`bob`/`carol`) must not ship.
-
-1. Run Keycloak >= 26.8.0 with `KC_HOSTNAME` set to the public host. Pin
-   `ghcr.io/raphaelmansuy/edgequake-keycloak:<version>` (or your own realm).
-   Realm import is **create-only**; edit a live realm in the Admin console or
-   with `kcadm`.
-2. Set `sslRequired=external` (`EQ_KC_SSL_REQUIRED=external` on the overlay).
-3. Create EdgeQuake tenants whose **slugs match Keycloak Organization aliases**
-   before anyone signs in. An unknown org is `org_unknown`; tenants are never
-   created from a claim.
-4. Point the API at the issuer **byte-for-byte** (discovery `issuer` string):
+1. Run Keycloak 26.8.0 or later with `KC_HOSTNAME` set to the public host. Set `sslRequired=external` on the realm, or `EQ_KC_SSL_REQUIRED=external` on the overlay.
+2. Create EdgeQuake tenants whose **slugs match the Keycloak organization aliases** before anyone signs in.
+3. Point the API at the issuer exactly as Keycloak reports it in discovery:
 
 ```bash
 EDGEQUAKE_AUTH_ENABLED=true
@@ -98,11 +122,11 @@ EDGEQUAKE_OIDC_CLIENT_SECRET=<from secret manager>
 EDGEQUAKE_OIDC_REDIRECT_URI=https://app.example.com/api/v1/auth/oidc/callback
 EDGEQUAKE_OIDC_SUCCESS_REDIRECT_URL=https://app.example.com/auth/callback
 EDGEQUAKE_OIDC_ROLE_MAP='{"eq-owner":"owner","eq-admin":"admin","eq-user":"member"}'
+EDGEQUAKE_OIDC_MAX_ROLE=owner   # only if the IdP may grant owners
 ```
 
-`REDIRECT_URI` and `SUCCESS_REDIRECT_URL` must share the **same public host**
-as the page that starts `GET /api/v1/auth/oidc/login`. Allow Keycloak to
-`POST /api/v1/auth/oidc/backchannel-logout`.
+The default `EDGEQUAKE_OIDC_MAX_ROLE` is `admin`. An `eq-owner` user is capped at `admin` unless you set `EDGEQUAKE_OIDC_MAX_ROLE=owner` deliberately. The role rules are in [Tenants, organizations and roles](tenant-and-roles.md#roles).
 
-Helm overlay: [values-sso-keycloak.yaml.example](../../../deploy/kubernetes/helm/edgequake/values-sso-keycloak.yaml.example).
-Env table: [env-reference.md](env-reference.md). Gates: [production-hardening.md](production-hardening.md).
+Allow Keycloak to reach `POST /api/v1/auth/oidc/backchannel-logout` through the ingress or a NetworkPolicy.
+
+For the Kubernetes overlay, see [values-sso-keycloak.yaml.example](../../../deploy/kubernetes/helm/edgequake/values-sso-keycloak.yaml.example). For every variable, see [env-reference.md](env-reference.md). For the startup gates and the full checklist, see [production-hardening.md](production-hardening.md).

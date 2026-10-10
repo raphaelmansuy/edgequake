@@ -7,7 +7,7 @@ description: Upload one document, wait for it to be indexed, explore the graph, 
 
 # Quick Start
 
-This guide takes you from a running EdgeQuake to your first answer in about 10 minutes. It is for developers who want to see the REST API work end to end. You need a running stack first; see [Installation](installation.md).
+This guide takes you from a running EdgeQuake to your first answer. It is for developers who want to see the REST API work end to end. You need a running stack first; see [Installation](installation.md).
 
 ## What you will do
 
@@ -64,7 +64,7 @@ AUTH="Authorization: Bearer $TOKEN"
 # Or use an API key:  AUTH="X-API-Key: $EDGEQUAKE_MASTER_API_KEY"
 ```
 
-When dev mode is on, set `AUTH="Accept: application/json"` so the commands below still work. See [Runtime auth hardening](../operations/runtime-auth-hardening.md).
+When dev mode is on you can skip login. Set `AUTH="Accept: application/json"` so the `-H "$AUTH"` flags in the commands below stay valid. See [Runtime auth hardening](../operations/runtime-auth-hardening.md).
 
 ## Step 1: Upload a document
 
@@ -233,7 +233,7 @@ flowchart LR
     E --> F["Task: indexed"]
 ```
 
-A worker claims the task, splits the text into chunks, and asks the model to list entities and relationships. EdgeQuake then embeds the results, merges near-duplicate entities, and writes everything to PostgreSQL. PDFs run in two tasks: convert to Markdown first, then ingest. Chunk size adapts to document length; see [Entity extraction](../concepts/entity-extraction.md).
+A worker claims the task, splits the text into chunks, and asks the model to list entities and relationships. EdgeQuake then embeds the results, merges near-duplicate entities, and writes everything to PostgreSQL. PDFs run in two tasks: convert to Markdown first, then ingest. See [Entity extraction](../concepts/entity-extraction.md) for how chunks and entities are produced.
 
 ## Quick reference
 

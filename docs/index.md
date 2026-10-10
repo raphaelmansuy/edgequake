@@ -37,7 +37,7 @@ classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
 class C eqLlm
 ```
 
-Follow the arrows from the top. Operators can branch from Getting Started to Operations.
+Follow the arrows from the top; operators can branch from Getting Started to Operations.
 
 ## Explore the documentation
 

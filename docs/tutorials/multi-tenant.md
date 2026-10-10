@@ -3,13 +3,15 @@ title: "Tutorial: Multi-tenant deployment"
 description: Isolate customers or teams in EdgeQuake with tenants and workspaces, set quotas, understand membership and strict tenant binding, and put your own backend in front.
 ---
 
-In this tutorial you split one EdgeQuake server between two customers. You create tenants and workspaces, upload data for each, prove that the data is isolated, and learn how access control works when authentication is on.
+In this tutorial you split one EdgeQuake server between two customers. You create tenants and workspaces, load data for each, prove that the data is isolated, and learn how access control works when authentication is on.
 
-**Prerequisites:** a running server (see [Getting started](../getting-started/index.md)), `curl` and `jq`. To create tenants with authentication on, you need an admin account; see [Auth quickstart](../operations/auth-quickstart.md).
+> **You will build:** two isolated customer tenants on one server, with quotas and a backend that picks the scope for each customer.
+>
+> **You need:** a running server (see [Getting started](../getting-started/index.md)), `curl` and `jq`. To create tenants with authentication on, you need an admin account; see [Auth quickstart](../operations/auth-quickstart.md). Allow about 25 minutes.
 
 ## The model
 
-A **tenant** is an organization. A **workspace** is an isolated knowledge base inside a tenant. A **user** reaches a workspace through a **membership**. Documents, chunks, vectors and the knowledge graph all belong to exactly one workspace.
+A **tenant** is an organization. A **workspace** is an isolated knowledge base inside a tenant. A **user** reaches a workspace through a **membership**, which can cover a whole tenant or one workspace. Documents, chunks, vectors and the knowledge graph all belong to exactly one workspace.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
@@ -18,12 +20,13 @@ erDiagram
   TENANT ||--o{ WORKSPACE : contains
   TENANT ||--o{ MEMBERSHIP : grants
   USER ||--o{ MEMBERSHIP : holds
+  WORKSPACE |o--o{ MEMBERSHIP : scopes
   WORKSPACE ||--o{ DOCUMENT : stores
   WORKSPACE ||--o{ ENTITY : stores
   DOCUMENT ||--o{ CHUNK : splits_into
 ```
 
-Read it as "one TENANT has many WORKSPACEs". A membership links a user to a tenant (and so to its workspaces). Nothing is shared between workspaces.
+Read it as "one TENANT has many WORKSPACEs". A membership links a user to a tenant, and optionally to one workspace. Nothing is shared between workspaces.
 
 Pick a layout for your product:
 
@@ -48,19 +51,20 @@ Headers select a scope. They never grant access. With authentication on, the ser
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
 %% eq-theme:v1
 sequenceDiagram
-  participant C as "Client"
-  participant A as "API"
-  participant D as "PostgreSQL"
-  C->>A: "Request with token and scope headers"
-  A->>A: "Check token"
-  A->>A: "Check membership for tenant and workspace"
-  A->>D: "Run query inside the scope"
-  D-->>C: "Rows for this workspace only"
+  participant C as Client
+  participant A as REST API
+  participant D as PostgreSQL
+  C->>A: Request with token and scope headers
+  A->>A: Check token
+  A->>A: Check membership for tenant and workspace
+  A->>D: Run query inside the scope
+  D-->>A: Rows for this workspace only
+  A-->>C: Response
 ```
 
 Read it top to bottom. A failed check returns `401` or `403` before the database is touched. The full chain, including rate limits, is in [Security best practices](../security/best-practices.md).
 
-The server enforces membership when authentication is on and dev mode is off, or when `EDGEQUAKE_STRICT_TENANT_BIND=true`. In plain dev mode (the Docker quickstart default) there is no check. Never rely on dev mode to separate customers.
+Membership checks run when `EDGEQUAKE_STRICT_TENANT_BIND=true`, when SSO is active, or when auth is on and `EDGEQUAKE_DEV_MODE` is off. The Docker quickstart runs with auth off and dev mode on, so it does no membership check. Never rely on dev mode to separate customers.
 
 ## 1. Create two tenants
 
@@ -80,7 +84,7 @@ export GLOBEX_TENANT=$(create_tenant "Globex" globex)
 echo "$ACME_TENANT $GLOBEX_TENANT"
 ```
 
-Expected output: two UUIDs. The route is idempotent by slug: sending the same slug again returns the existing tenant with status `200`.
+Expected output: two UUIDs. The route is idempotent by slug: the first call returns `201 Created`, and sending the same slug again returns the existing tenant with `200 OK`.
 
 Tenant fields:
 
@@ -88,7 +92,7 @@ Tenant fields:
 |-------|---------|
 | `name` | Display name (required). |
 | `slug` | URL-safe name. Generated from `name` if omitted. |
-| `plan` | `free`, `basic`, `pro` or `enterprise`. |
+| `plan` | `free`, `basic`, `pro` or `enterprise`. Unknown values fall back to `free`. |
 | `default_llm_provider`, `default_llm_model` | Default chat model for new workspaces. |
 | `default_embedding_provider`, `default_embedding_model` | Default embedding model for new workspaces. |
 
@@ -143,10 +147,10 @@ ask() {   # $1 tenant, $2 workspace, $3 question
 }
 
 ask "$ACME_TENANT" "$ACME_WS" "Who is the CEO?"        # Jane Park
-ask "$ACME_TENANT" "$ACME_WS" "Who is Hank Scorpio?"   # no information
+ask "$ACME_TENANT" "$ACME_WS" "Who is Hank Scorpio?"   # should say it has no information
 ```
 
-Expected: the first answer names Jane Park. The second says it has no information about Hank Scorpio. Entity lists are also separate: `GET /api/v1/graph/entities` with the Acme headers never returns Globex entities.
+Expected: the first answer names Jane Park. The second should say the data has no information about Hank Scorpio; the exact wording varies. Entity lists are also separate: `GET /api/v1/graph/entities` with the Acme headers never returns Globex entities.
 
 ## 5. Set quotas
 
@@ -158,7 +162,7 @@ curl -s -X PATCH "$EQ_API/api/v1/admin/tenants/$ACME_TENANT/quota" \
   -d '{"max_workspaces": 5}' | jq '.'
 ```
 
-The value must be between 1 and 10000 and not below the tenant's current workspace count. Per-workspace caps use `max_documents`. Read usage with `GET /api/v1/workspaces/{id}/stats`, which returns `document_count`, `chunk_count`, `entity_count`, `relationship_count` and `storage_bytes`.
+The value must be between 1 and 10000 and not below the tenant's current workspace count. A bad value returns `400`. Per-workspace caps use `max_documents`, set when you create or update the workspace. Read usage with `GET /api/v1/workspaces/{id}/stats`, which returns `document_count`, `chunk_count`, `entity_count`, `relationship_count` and `storage_bytes`.
 
 ## 6. Turn on access control
 
@@ -169,7 +173,7 @@ With authentication on and dev mode off, every non-admin call is checked against
 | Account role | `admin`, `user`, `readonly` | Platform-wide ability. `readonly` cannot write. `admin` can create tenants and use `/api/v1/admin/*`. |
 | Membership role | `owner`, `admin`, `member`, `readonly` | Ability inside one tenant. |
 
-Create users with `POST /api/v1/users` (admin only) and machine credentials with `POST /api/v1/api-keys`. Send an API key as `X-API-Key`, or a login token as `Authorization: Bearer`.
+Create users with `POST /api/v1/users`. Only an admin can choose a user's role; self-registration depends on the `ALLOW_REGISTRATION` setting. Create machine credentials with `POST /api/v1/api-keys`. Send an API key as `X-API-Key`, or a login token as `Authorization: Bearer`.
 
 What the server does for a non-admin request:
 
@@ -193,7 +197,7 @@ class C,E eqBad
 
 Read it top to bottom. Only a request that passes every diamond runs. Platform admins skip the membership check.
 
-> **Known gap.** This release has no REST endpoint that adds a membership. Memberships are created when a user signs in through SSO (OIDC) with the right policy. Without SSO, only platform admins can reach workspaces when binding is on. See [Runtime auth hardening](../operations/runtime-auth-hardening.md) and [Tenancy and providers](../architecture/tenancy-and-providers.md).
+> **Known gap.** This release has no REST endpoint that adds a membership. Memberships are created when a user signs in through SSO (OIDC) with the right policy. Without SSO, regular users cannot get a membership through the API, so with binding on, only platform admins can use the workspaces. See [Runtime auth hardening](../operations/runtime-auth-hardening.md) and [Tenancy and providers](../architecture/tenancy-and-providers.md).
 
 ## 7. Put your own backend in front
 
@@ -203,14 +207,14 @@ A SaaS product usually does not expose EdgeQuake to browsers. Your backend authe
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
 %% eq-theme:v1
 sequenceDiagram
-  participant U as "Customer browser"
-  participant B as "Your backend"
-  participant E as "EdgeQuake"
-  U->>B: "Question with customer session"
-  B->>B: "Look up tenant and workspace for this customer"
-  B->>E: "POST /api/v1/query with X-API-Key and scope headers"
-  E-->>B: "Answer and sources"
-  B-->>U: "Answer"
+  participant U as Customer browser
+  participant B as Your backend
+  participant E as EdgeQuake
+  U->>B: Question with customer session
+  B->>B: Look up tenant and workspace for this customer
+  B->>E: POST /api/v1/query with X-API-Key and scope headers
+  E-->>B: Answer and sources
+  B-->>U: Answer
 ```
 
 Read it left to right. The browser never sees the API key or the UUIDs, and your backend decides the scope, never the client.
@@ -245,16 +249,23 @@ curl -s -X DELETE "$EQ_API/api/v1/tenants/$ACME_TENANT" -H "$AUTH_HEADER"
 curl -s -X DELETE "$EQ_API/api/v1/tenants/$GLOBEX_TENANT" -H "$AUTH_HEADER"
 ```
 
-Deleting a workspace removes its documents, graph and vectors. Deleting a tenant needs the admin role.
+Deleting a workspace removes its row, and related data goes through foreign-key cascades. Deleting a tenant needs the admin role.
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `403` with a valid token | No membership, or headers disagree with the token's tenant. | Check the tenant and workspace IDs; use an admin token for setup. |
-| `409` on tenant or workspace create | The slug exists. | Choose another slug. |
+| `409` on workspace create | The workspace slug already exists in the tenant. | Choose another slug. |
+| Tenant create returns `200` instead of `201` | The slug already exists, so the existing tenant came back. | This is expected. Use the returned `id`. |
 | Quota update returns `400` | Value is below the current workspace count, zero, or above 10000. | Send a value in range. |
-| Data from another customer appears | Dev mode is on, or you sent the wrong headers. | Turn auth on with dev mode off, or set `EDGEQUAKE_STRICT_TENANT_BIND=true`. |
+| Data from another customer appears | Dev mode is on and binding is off, or you sent the wrong headers. | Turn auth on with `EDGEQUAKE_DEV_MODE` off, or set `EDGEQUAKE_STRICT_TENANT_BIND=true`. |
+
+## What you learned
+
+- A tenant holds workspaces, and every data call selects one with `X-Tenant-ID` and `X-Workspace-ID`.
+- Headers pick a scope but grant nothing; membership and role checks decide access.
+- Your backend, not the browser, should choose the tenant and workspace for each request.
 
 ## Next steps
 

@@ -104,7 +104,7 @@ For relationships, the key is the pair of normalized source and target names. Af
 
 The local-provider rule applies to Ollama, LM Studio, and similar single-machine servers. Gleaning doubles their load. Opt in with `EDGEQUAKE_LOCAL_ENABLE_GLEANING=1`.
 
-The text-upload JSON body accepts `enable_gleaning` and `max_gleaning`. The worker reads them from the task metadata and applies the defaults in the table when they are missing. File uploads send no gleaning fields, so they use the defaults. There is no `EDGEQUAKE_GLEANING_ITERATIONS` or `EDGEQUAKE_ENABLE_GLEANING` variable in the code; earlier versions of this page named them by mistake.
+The text-upload JSON body accepts `enable_gleaning` and `max_gleaning`. Requests that omit them use the defaults in the table above. No environment variable sets the pass count. Set `max_gleaning` in the request or in library code.
 
 ### Library use
 
@@ -115,7 +115,7 @@ let extractor = GleaningExtractor::new(llm, base_extractor)
     .with_config(GleaningConfig { max_gleaning: 2 });
 ```
 
-`GleaningConfig` has one field, `max_gleaning`. Earlier docs listed an `always_glean` flag; it does not exist.
+`GleaningConfig` has one field, `max_gleaning`.
 
 ## Cost and latency
 
@@ -135,7 +135,7 @@ Passes run one after another inside a chunk. Different chunks still run in paral
 | --- | --- | --- |
 | `gleaning_iterations` is 0 for every chunk | Local provider, or a 500+ page PDF | Set `EDGEQUAKE_LOCAL_ENABLE_GLEANING=1` for local models. |
 | Ingestion is much slower | Extra LLM calls | Lower `max_gleaning` to 0 or 1. |
-| Warning "Gleaning LLM failed - keeping base extraction" | Timeout or provider error in the extra call | Normal; the base result is kept. Check provider health. |
+| Warning "Gleaning LLM failed — keeping base extraction (fail-open)" | Timeout or provider error in the extra call | Normal; the base result is kept. Check provider health. |
 
 ## See also
 

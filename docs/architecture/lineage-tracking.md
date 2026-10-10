@@ -55,7 +55,7 @@ Rules the pipeline keeps:
 - A document made from a PDF links back to its `pdf_id`.
 - Ids do not change once created. Document ids look like `doc-` followed by a hash of the content.
 
-Entity names are stored as `UPPERCASE_WITH_UNDERSCORES`. When two chunks describe the same entity, the entity gains another source, and its **description history** records each version with its origin: extraction, merge, or summary.
+Entity names are stored as `UPPERCASE_WITH_UNDERSCORES`. When two chunks describe the same entity, the entity gains another source, and its **description history** records each version with its origin: extraction, merge, or summary. The lineage API does not return this history yet; it always sends `description_versions: []` (see [lineage endpoints](../api-reference/lineage-endpoints.md)).
 
 ---
 
@@ -88,7 +88,7 @@ Identity rules:
 | Storage | One row per `document_id` and asset path in `document_mm_assets` |
 | Chunk link | A chunk may mention `assets/...`. Trace it to the PDF page through `pdf_id` and the asset path. |
 
-Assets are served by `GET /api/v1/documents/{document_id}/assets/{asset_id}` and `GET /api/v1/documents/{document_id}/mm-assets/{*asset_path}`. See [mm-assets in the API reference](../api-reference/lineage-endpoints.md#multimodal-assets-mm-assets).
+Assets are served by `GET /api/v1/documents/{document_id}/assets/{asset_id}` and `GET /api/v1/documents/{document_id}/mm-assets/{*asset_path}`. See [multimodal assets in the API reference](../api-reference/lineage-endpoints.md#multimodal-assets).
 
 **Convert versus ingest.** Chunk and entity lineage is written during the Insert task, not during PDF conversion. A PDF row can be `Completed` while its document is still extracting. See [Convert then ingest](../ingestion-cancel-and-fairness.md#convert-then-ingest-spec-057-p2).
 

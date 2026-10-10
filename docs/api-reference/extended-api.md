@@ -13,6 +13,8 @@ All paths are under `/api/v1` unless noted. Examples use `http://localhost:8080`
 
 A **task** is a unit of background work (an upload, a PDF conversion, a delete). A **document** has its own status that follows the task through the pipeline stages.
 
+### Task states
+
 Task states, from `TaskStatus` in the task crate:
 
 ```mermaid
@@ -30,7 +32,9 @@ stateDiagram-v2
     cancelled --> [*]
 ```
 
-Read it left to right. A task starts `pending`, a worker moves it to `processing`, and it ends as `indexed`, `failed` or `cancelled`. Only `failed` tasks can be retried, and a retry puts the task back to `pending`. Cancel works on `pending` and `processing` tasks.
+A task starts `pending`, a worker moves it to `processing`, and it ends as `indexed`, `failed` or `cancelled`. Only `failed` tasks can be retried, and a retry puts the task back to `pending`. Cancel works on `pending` and `processing` tasks.
+
+### Document statuses
 
 Document statuses show finer steps. The stage names below are what `current_stage` and `status` report.
 
@@ -57,7 +61,7 @@ stateDiagram-v2
     cancelled --> [*]
 ```
 
-Read it as the usual path (pending to completed) with failures and cancels branching off. The diagram shows the common transitions. Cancel can also happen from other active stages. `partial_failure` means the document was processed but with problems (for example, no entities were found). Terminal states are `completed` (also reported as `indexed`), `partial_failure`, `failed` and `cancelled`. For badges, prefer the server-computed `display_status` and `ui_phase` on each document.
+Read it as the usual path (pending to completed) with failures and cancels branching off. The diagram shows the main transitions only. Terminal states are `completed` (also reported as `indexed`), `partial_failure`, `failed` and `cancelled`. `partial_failure` means the document finished with some problems. For badges, prefer the server-computed `display_status` and `ui_phase` on each document.
 
 PDF ingestion has two tasks. First `pdf_processing` converts pages to Markdown (PDF progress phases: `upload`, `pdf_conversion`, `chunking`, `embedding`, `extraction`, `graph_storage`; each phase is `pending`, `active`, `complete`, `failed` or `skipped`). Then an `insert` task ingests the Markdown.
 
@@ -129,7 +133,7 @@ sequenceDiagram
     C->>S: subscribe track_ids
     loop while working
         S-->>C: StageTransition, ChunkProgress
-        S-->>C: Heartbeat every 30 s
+        S-->>C: Heartbeat
     end
     S-->>C: JobFinished or DeletionCompleted
     C->>S: unsubscribe
@@ -177,7 +181,7 @@ Server events are JSON objects shaped `{"type": "<Name>", "data": {...}}`. The n
 }
 ```
 
-`queue-metrics` returns `pending_count`, `processing_count`, `active_workers`, `max_workers`, `worker_utilization`, `throughput_per_minute`, `avg_wait_time_seconds`, `max_wait_time_seconds`, `estimated_queue_time_seconds`, `pressure` (`normal`, `elevated`, `critical`), `pending_warn_threshold`, `pending_critical_threshold`, `rate_limited`, per-tenant limits and `operator_action` guidance. When pressure is `critical`, `/ready` returns 503.
+`queue-metrics` returns `pending_count`, `processing_count`, `active_workers`, `max_workers`, `worker_utilization`, `throughput_per_minute`, `avg_wait_time_seconds`, `max_wait_time_seconds`, `estimated_queue_time_seconds`, `pressure` (`normal`, `elevated`, `critical`), `pending_warn_threshold`, `pending_critical_threshold`, `rate_limited`, per-tenant limits and `operator_action` guidance. When pressure is `critical`, check `/ready` for blockers.
 
 ## Costs
 
@@ -287,7 +291,7 @@ The v2 API exposes a few operations as workspace-scoped job resources. Submit re
 | `GET /api/v2/workspaces/{workspace_id}/jobs/{job_id}` | Status |
 | `DELETE /api/v2/workspaces/{workspace_id}/jobs/{job_id}` | Cancel a pending job. 409 if not cancellable. |
 
-Creatable `job_type` values: `upload`, `insert`, `pdf_processing`, `knowledge_injection`, `rebuild_embeddings`, `rebuild_knowledge_graph`, `reprocess_all`, `reprocess_failed`, `recover_stuck`, `reanalyze_multimodal`. `scan` and `reindex` appear in the catalog but cannot be created through v2. A job response has `job_id`, `job_type`, `status`, `tenant_id`, `workspace_id`, timestamps and `links` (`self_link`, `cancel`, `catalog`, `v1_task`).
+Creatable `job_type` values: `upload`, `insert`, `pdf_processing`, `knowledge_injection`, `rebuild_embeddings`, `rebuild_knowledge_graph`, `reprocess_all`, `reprocess_failed`, `recover_stuck`, `reanalyze_multimodal`. `scan` and `reindex` appear in the catalog, but submitting either returns 501 Not Implemented. A job response has `job_id`, `job_type`, `status`, `tenant_id`, `workspace_id`, timestamps and `links` (`self_link`, `cancel`, `catalog`, `v1_task`).
 
 ## Users, API keys and setup
 
@@ -298,7 +302,8 @@ Creatable `job_type` values: `upload`, `insert`, `pdf_processing`, `knowledge_in
 | `GET`, `POST /users`; `GET`, `PATCH`, `DELETE /users/{user_id}` | User admin (admin only) |
 | `GET`, `POST /api-keys`; `DELETE /api-keys/{key_id}` | Your API keys. The secret is shown once, in `api_key`. |
 | `GET /auth/sso/providers`, `GET /auth/oidc/login`, `GET /auth/oidc/callback`, `POST /auth/handoff` | Single sign-on |
-| `GET`, `PUT`, `DELETE /admin/identity-providers/{slug}` | Manage SSO providers (admin) |
+| `GET /admin/identity-providers` | List SSO providers (admin) |
+| `PUT`, `DELETE /admin/identity-providers/{slug}` | Create or update, and delete, one SSO provider by `slug` (admin) |
 | `GET /admin/migration-jobs`, `.../{job_id}`, `POST .../cancel`, `.../pause`, `.../resume` | Data migration jobs (admin) |
 | `GET /admin/storage/inspect`, `POST /admin/storage/repair` | Storage diagnostics (admin) |
 | `GET`, `PATCH /admin/config/defaults` | Server default `max_workspaces` (admin) |
@@ -309,7 +314,7 @@ Single sign-on setup is in [Authentication](../security/authentication/index.md)
 
 ## Ollama emulation
 
-EdgeQuake answers a subset of the Ollama API so tools such as Open WebUI can use it as a model. The routes are under `/api` (not `/api/v1`). They are enabled by default; set `EDGEQUAKE_OLLAMA_COMPAT_ENABLED=false` to turn them off (they then return 503).
+EdgeQuake answers a subset of the Ollama API so tools such as Open WebUI can use it as a model. The routes are under `/api` (not `/api/v1`). They are enabled by default. Set `EDGEQUAKE_OLLAMA_COMPAT_ENABLED=false` to turn them off; they then return 503.
 
 | Route | Behaviour |
 |-------|-----------|

@@ -1,168 +1,371 @@
 ---
 title: "Schema entity-relationship diagrams"
-description: "Full Mermaid E/R diagrams of the EdgeQuake PostgreSQL schema, grouped by domain, generated from the migrations through schema train 169."
+description: "Mermaid E/R diagrams of the EdgeQuake PostgreSQL schema, built up step by step by topic, ending with the full data model of every base table at migration 169."
 ---
 
 # Schema entity-relationship diagrams
 
-This page is the full picture of the EdgeQuake relational schema. It is for operators who inspect the database and for developers who add columns or foreign keys.
+This page maps the EdgeQuake PostgreSQL schema as Mermaid E/R diagrams. Read the **build-up path** first. It goes in steps, from tenant scope to the audit tables. Each step is one topic, and it shows only the tables that topic needs, plus the context tables it connects to. The **full data model** at the end shows all 84 base tables in one diagram, for reference.
 
-Every diagram below was built from `edgequake/migrations/` through migration **169** (SPEC-163 provider connections). Column types are simplified for Mermaid (for example `TIMESTAMP WITH TIME ZONE` becomes `timestamptz`, and size arguments like `VARCHAR(64)` become `varchar`). Primary keys are marked `PK` and declared foreign keys are marked `FK`.
+## Build-up path
 
-> How to read the diagrams: boxes are tables, lines are foreign keys, and `|o` / `}o` mean "zero or one / zero or many". Attributes inside a box are a representative subset when a table has many columns; the migration SQL is the authority for the full list.
-
-Related pages: [PostgreSQL overview](./postgres.md) · [pgvector](./pgvector.md) · [Apache AGE](./age.md) · [Storage model](../architecture/storage-model.md) · [Upgrading](../operations/upgrading.md)
-
-## Domain map
+Follow the steps in order. Each arrow means "then read about".
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
 %% eq-theme:v1
 flowchart LR
-  T["Tenancy and identity"] --> D["Documents and chunks"]
-  T --> S["SSO"]
-  D --> P["PDF pipeline"]
-  D --> G["Graph read models"]
-  D --> E["Embeddings"]
-  D --> J["Tasks"]
-  J --> W["Durable writes"]
-  T --> C["Conversations"]
-  T --> O["Caches and ops"]
+    S1["1. Tenants and workspaces"]
+    S2["2. Store an uploaded document"]
+    S3["3. Extract entities and relationships"]
+    S4["4. Search by meaning"]
+    S5["5. Track and recover ingestion"]
+    S6["6. Convert PDFs and keep page layouts"]
+    S7["7. Write durably and project to the stores"]
+    S8["8. Users, memberships and API keys"]
+    S9["9. Single sign-on"]
+    S10["10. Chat with saved conversations"]
+    S11["11. Caches, provider settings and metrics"]
+    S12["12. Audit and schema migrations"]
+    S1 --> S2
+    S2 --> S3
+    S3 --> S4
+    S4 --> S5
+    S5 --> S6
+    S6 --> S7
+    S7 --> S8
+    S8 --> S9
+    S9 --> S10
+    S10 --> S11
+    S11 --> S12
 %% eq-classes
 classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
 classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
-class G,E eqLlm
-class O eqStore
+class S11 eqLlm
+class S12 eqStore
 ```
 
-Start at **Tenancy and identity**. Everything else is scoped by a tenant and usually by a workspace.
 
+## Step 1: Tenants and workspaces
 
-## Tenancy and identity
+Most data tables carry a tenant and an optional workspace reference. Start here, because later steps repeat these two tables as context.
 
-Who owns what, and how a person signs in. Start at `tenants`: every other row in this diagram hangs off a tenant or a user.
+**New tables in this step:** `tenants`, `workspaces`
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
 %% eq-theme:v1
 erDiagram
-    workspaces }o--|| tenants : "tenant_id"
-    users }o--|| tenants : "tenant_id"
-    memberships }o--|| tenants : "tenant_id"
-    memberships }o--|| workspaces : "workspace_id"
-    memberships }o--|| users : "user_id"
-    api_keys }o--|| users : "user_id"
-    refresh_tokens }o--|| users : "user_id"
     tenants {
         uuid tenant_id PK
         varchar name
-        varchar slug
-        jsonb settings
-        jsonb metadata
         boolean is_active
-        timestamp created_at
-        timestamp updated_at
-        text description
-        varchar plan
-        int max_workspaces
-        int max_users
     }
     workspaces {
         uuid workspace_id PK
-        uuid tenant_id FK
+        uuid tenant_id FK "tenant scope"
         varchar name
-        varchar slug
-        text description
-        jsonb settings
-        jsonb metadata
-        boolean is_active
-        timestamp created_at
-        timestamp updated_at
     }
-    users {
-        uuid user_id PK
-        uuid tenant_id FK
-        varchar email
-        varchar username
-        varchar display_name
-        text password_hash
-        varchar role
-        boolean is_active
-        timestamp last_login_at
-        jsonb metadata
-        timestamp created_at
-        timestamp updated_at
-        int failed_login_attempts
-        timestamp locked_until
+    workspaces }o--|| tenants : "belongs to"
+```
+
+Everything else hangs off these two tables, so the later steps show them as context.
+
+## Step 2: Store an uploaded document
+
+A text upload creates a document, keeps the original bytes, and is split into chunks. The `tasks` table tracks background work for the workspace.
+
+**New tables in this step:** `documents`, `document_originals`, `chunks`, `chunk_serving_state`, `tasks`
+
+**Context tables:** `tenants`, `workspaces`
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+erDiagram
+    documents {
+        uuid id PK
+        uuid tenant_id FK "nullable"
+        uuid workspace_id FK "nullable"
+        varchar status
     }
-    memberships {
-        uuid membership_id PK
-        uuid tenant_id FK
+    chunks {
+        uuid id PK
+        uuid document_id FK
+        uuid workspace_id FK "nullable"
+        int chunk_index
+    }
+    chunk_serving_state {
+        uuid chunk_id PK, FK
+        text state
+        int attempt_count
+    }
+    document_originals {
+        uuid document_id PK, FK
         uuid workspace_id FK
-        uuid user_id FK
-        varchar role
-        boolean is_active
-        timestamp joined_at
-        jsonb metadata
+        varchar filename
     }
-    api_keys {
-        uuid key_id PK
-        uuid user_id FK
-        text key_hash
-        varchar key_prefix
+    tasks {
+        uuid id PK
+        timestamptz created_at PK "monthly partition key"
+        uuid workspace_id FK "nullable"
+        varchar status
+    }
+    tenants {
+        uuid tenant_id PK
         varchar name
-        text scopes
-        varchar rate_limit_tier
         boolean is_active
-        timestamp created_at
-        timestamp last_used_at
-        timestamp expires_at
-        jsonb metadata
     }
-    refresh_tokens {
-        uuid token_id PK
-        uuid user_id FK
-        text token_hash
-        timestamp expires_at
-        boolean revoked
-        timestamp revoked_at
-        timestamp created_at
-        text user_agent
-        INET ip_address
-        uuid family_id
+    workspaces {
+        uuid workspace_id PK
+        uuid tenant_id FK "tenant scope"
+        varchar name
+    }
+    documents }o--o| tenants : "belongs to"
+    documents }o--o| workspaces : "scoped to"
+    chunks }o--|| documents : "split from"
+    chunks }o--o| tenants : "belongs to"
+    chunks }o--o| workspaces : "scoped to"
+    chunk_serving_state |o--|| chunks : "state of"
+    document_originals |o--|| documents : "original of"
+    document_originals }o--|| workspaces : "scoped to"
+    tasks }o--o| tenants : "belongs to"
+    tasks }o--o| workspaces : "scoped to"
+```
+
+`chunk_serving_state` is the serving fence (migration 109). It controls when a chunk can be served to queries.
+
+## Step 3: Extract entities and relationships
+
+The model reads each chunk and records entities (nodes) and relationships (edges). Link tables record which chunk produced each one.
+
+**New tables in this step:** `entities`, `relationships`, `chunk_entity_links`, `chunk_relation_links`, `graph_contributions`, `graph_nodes`, `graph_edges`
+
+**Context tables:** `chunks`, `tenants`, `workspaces`
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+erDiagram
+    entities {
+        uuid id PK
+        uuid tenant_id FK "nullable"
+        uuid workspace_id FK "nullable"
+        text name
+    }
+    relationships {
+        uuid id PK
+        uuid source_id FK
+        uuid target_id FK
+        text relation_type
+    }
+    chunk_entity_links {
+        text chunk_id PK
+        text entity_name PK
+        text workspace_id PK "no FK"
+    }
+    chunk_relation_links {
+        text chunk_id PK
+        text source_entity PK
+        text target_entity PK "composite PK with workspace_id; no FK"
+    }
+    graph_contributions {
+        uuid contribution_id PK "composite PK with tenant_id, workspace_id, source_document_id, source_generation"
+        uuid source_document_id "no FK"
+        bigint source_generation
+        jsonb payload
+    }
+    graph_nodes {
+        uuid id PK
+        varchar graph_name
+        text node_id
+        varchar label
+    }
+    graph_edges {
+        uuid id PK
+        varchar graph_name
+        text source_node_id
+        varchar label
+    }
+    tenants {
+        uuid tenant_id PK
+        varchar name
+        boolean is_active
+    }
+    workspaces {
+        uuid workspace_id PK
+        uuid tenant_id FK "tenant scope"
+        varchar name
+    }
+    chunks {
+        uuid id PK
+        uuid document_id FK
+        uuid workspace_id FK "nullable"
+        int chunk_index
+    }
+    entities }o--o| tenants : "belongs to"
+    entities }o--o| workspaces : "scoped to"
+    relationships }o--|| entities : "starts at"
+    relationships }o--|| entities : "ends at"
+    relationships }o--o| tenants : "belongs to"
+    relationships }o--o| workspaces : "scoped to"
+    chunks |o..o{ chunk_entity_links : "logical link, no FK"
+    chunks |o..o{ chunk_relation_links : "logical link, no FK"
+```
+
+`chunk_entity_links` and `chunk_relation_links` are dashed because they have no foreign key. `graph_nodes` and `graph_edges` are the fallback storage used when Apache AGE is not available, and they have no foreign keys.
+
+## Step 4: Search by meaning
+
+Chunks, entities and relationships each get a vector. Embedding rows record which model made the vector.
+
+**New tables in this step:** `embedding_models`, `chunk_embeddings`, `entity_embeddings`, `relationship_embeddings`, `report_embeddings`, `embedding_manifests`, `embedding_projections`
+
+**Context tables:** `chunks`, `entities`, `relationships`, `workspaces`
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+erDiagram
+    embedding_models {
+        uuid id PK
+        text name
+        int dimensions
+    }
+    chunk_embeddings {
+        uuid model_id PK, FK
+        uuid chunk_id PK, FK
+        uuid workspace_id FK
+        halfvec embedding
+    }
+    entity_embeddings {
+        uuid model_id PK, FK
+        uuid entity_id PK, FK
+        uuid workspace_id FK
+        halfvec embedding
+    }
+    relationship_embeddings {
+        uuid model_id PK, FK
+        uuid relationship_id PK, FK
+        uuid workspace_id FK
+        halfvec embedding
+    }
+    report_embeddings {
+        uuid model_id PK, FK
+        text report_id PK
+        uuid workspace_id FK
+        halfvec embedding
+    }
+    embedding_manifests {
+        uuid subject_id PK "composite PK with tenant_id, workspace_id"
+        text family PK
+        text model_revision PK
+        bigint content_revision PK
+    }
+    embedding_projections {
+        uuid subject_id PK "composite PK with tenant_id, workspace_id, family, model_revision, content_revision"
+        text family PK
+        text model_revision PK
+        halfvec embedding
+    }
+    workspaces {
+        uuid workspace_id PK
+        uuid tenant_id FK "tenant scope"
+        varchar name
+    }
+    chunks {
+        uuid id PK
+        uuid document_id FK
+        uuid workspace_id FK "nullable"
+        int chunk_index
+    }
+    entities {
+        uuid id PK
+        uuid tenant_id FK "nullable"
+        uuid workspace_id FK "nullable"
+        text name
+    }
+    relationships {
+        uuid id PK
+        uuid source_id FK
+        uuid target_id FK
+        text relation_type
+    }
+    chunk_embeddings }o--|| embedding_models : "uses model"
+    chunk_embeddings }o--|| chunks : "embeds"
+    chunk_embeddings }o--|| workspaces : "scoped to"
+    entity_embeddings }o--|| embedding_models : "uses model"
+    entity_embeddings }o--|| entities : "embeds"
+    entity_embeddings }o--|| workspaces : "scoped to"
+    relationship_embeddings }o--|| embedding_models : "uses model"
+    relationship_embeddings }o--|| relationships : "embeds"
+    relationship_embeddings }o--|| workspaces : "scoped to"
+    report_embeddings }o--|| embedding_models : "uses model"
+    report_embeddings }o--|| workspaces : "scoped to"
+```
+
+The vector columns themselves are described in [vector storage](../deep-dives/vector-storage.md).
+
+## Step 5: Track and recover ingestion
+
+A long ingestion runs as jobs and attempts. `pipeline_checkpoints` records each stage per document, `failed_chunks` stores chunks to retry, and `ingestion_dedup` avoids reprocessing.
+
+**New tables in this step:** `jobs`, `attempts`, `task_events`, `ingest_batches`, `tenant_lane_quota`, `tenant_vruntime`, `pipeline_checkpoints`, `document_artifacts`, `ingestion_dedup`, `failed_chunks`, `compensation_quarantine`
+
+**Context tables:** `documents`, `tasks`, `workspaces`
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+erDiagram
+    document_artifacts {
+        uuid document_id PK, FK
+        text kind PK
+        jsonb payload
+    }
+    pipeline_checkpoints {
+        uuid document_id PK, FK
+        text kind PK
+        jsonb payload
+    }
+    ingestion_dedup {
+        uuid id PK
+        uuid workspace_id FK
+        uuid document_id FK "nullable"
+        varchar content_hash
+    }
+    compensation_quarantine {
+        uuid entry_id PK
+        uuid document_id FK
+        uuid workspace_id FK "nullable"
         text status
     }
-    jwt_jti_denylist {
-        text jti PK
-        timestamp expires_at
-        timestamp revoked_at
-        text reason
+    failed_chunks {
+        uuid id PK
+        varchar document_id "text id, no FK"
+        varchar status
     }
-    oauth_refresh_grants {
-        text token_hash PK
-        uuid family_id
-        text client_id
-        text resource
-        text scope
-        text user_id
-        text role
-        text tenant_id
-        text workspace_id
-        text status
-        timestamp expires_at
-        timestamp created_at
-        timestamp updated_at
+    task_events {
+        bigint id PK
+        text task_id
+        text kind
     }
-    auth_handoff_codes {
-        text code_hash PK
-        uuid user_id
-        uuid family_id
-        text provider_slug
-        uuid tenant_id
-        uuid workspace_id
-        text redirect_after
-        timestamp expires_at
-        timestamp created_at
+    attempts {
+        uuid id PK
+        text task_track_id "no FK"
+        int attempt_no
+        text outcome
+    }
+    jobs {
+        uuid id PK
+        text operation
+        text state
+    }
+    ingest_batches {
+        uuid tenant_id PK "composite PK with workspace_id, document_id, generation, batch_ordinal"
+        text state
+        int expected_count
+        bytea digest
     }
     tenant_lane_quota {
         uuid tenant_id PK
@@ -175,721 +378,403 @@ erDiagram
         text fairness_class PK
         float8 vruntime
     }
-```
-
-Read the boxes as tables and the arrows as foreign keys that point toward the parent. Tables in this section: `tenants`, `workspaces`, `users`, `memberships`, `api_keys`, `refresh_tokens`, `jwt_jti_denylist`, `oauth_refresh_grants`, `auth_handoff_codes`, `tenant_lane_quota`, `tenant_vruntime`.
-
-## Single sign-on (OIDC)
-
-External identity providers and the sessions they create. Read left to right: a provider links to federated identities, which open sessions.
-
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
-%% eq-theme:v1
-erDiagram
-    federated_access_jti }o--|| federated_sessions : "family_id"
-    identity_providers {
-        uuid provider_id PK
-        text slug
-        text kind
-        text display_name
-        text issuer
-        text client_id
-        text client_secret_ref
-        text redirect_uri
-        text scopes
-        boolean trust_email
-        timestamp created_at
+    workspaces {
+        uuid workspace_id PK
+        uuid tenant_id FK "tenant scope"
+        varchar name
     }
-    federated_identities {
-        uuid federated_id PK
-        uuid user_id FK
-        text provider_slug
-        text issuer
-        text subject
-        text email_at_link
-        boolean email_verified_at_link
-        timestamp linked_at
-        timestamp last_login_at
-    }
-    federated_sessions {
-        uuid family_id PK
-        uuid user_id FK
-        text provider_slug
-        text issuer
-        text subject
-        text idp_sid
-        uuid tenant_id
-        uuid workspace_id
-        timestamp created_at
-        timestamp revoked_at
-    }
-    federated_access_jti {
-        text jti PK
-        uuid family_id FK
-        timestamp expires_at
-    }
-    oidc_login_attempts {
-        text state PK
-        text provider_slug
-        text pkce_verifier
-        text nonce
-        text organization_hint
-        text redirect_after
-        timestamp expires_at
-        timestamp created_at
-    }
-    oidc_logout_jti {
-        text issuer PK
-        text jti PK
-        timestamp expires_at
-    }
-```
-
-Read the boxes as tables and the arrows as foreign keys that point toward the parent. Tables in this section: `identity_providers`, `federated_identities`, `federated_sessions`, `federated_access_jti`, `oidc_login_attempts`, `oidc_logout_jti`.
-
-## Documents and chunks
-
-Uploaded content and how it is split for retrieval. A document owns its chunks; `chunk_serving_state` is the visibility fence.
-
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
-%% eq-theme:v1
-erDiagram
-    chunks }o--|| documents : "document_id"
-    chunk_serving_state }o--|| chunks : "chunk_id"
-    document_artifacts }o--|| documents : "document_id"
-    document_originals }o--|| documents : "document_id"
-    ingestion_dedup }o--|| documents : "document_id"
-    pipeline_checkpoints }o--|| documents : "document_id"
     documents {
         uuid id PK
-        uuid tenant_id FK
-        uuid workspace_id FK
-        text title
-        text content
-        varchar content_hash
-        jsonb metadata
-        text file_path
-        bigint file_size_bytes
-        varchar content_type
-        timestamp created_at
+        uuid tenant_id FK "nullable"
+        uuid workspace_id FK "nullable"
+        varchar status
     }
-    chunks {
+    tasks {
         uuid id PK
-        uuid document_id FK
-        uuid tenant_id FK
-        uuid workspace_id FK
-        text content
-        int chunk_index
-        int start_offset
-        int end_offset
-        int token_count
-        vector embedding
-        timestamp created_at
+        timestamptz created_at PK "monthly partition key"
+        uuid workspace_id FK "nullable"
+        varchar status
     }
-    chunk_serving_state {
-        uuid chunk_id PK
-        text state
-        int attempt_count
-        jsonb last_error
-        timestamp updated_at
-    }
-    document_artifacts {
-        uuid document_id PK
-        text kind PK
-        jsonb payload
-        timestamp created_at
-        timestamp updated_at
-    }
-    document_originals {
-        uuid document_id PK
-        uuid workspace_id FK
-        varchar filename
-        varchar content_type
-        bigint file_size_bytes
-        bytea original_data
-        timestamp created_at
-    }
-    ingestion_dedup {
-        uuid id PK
-        uuid workspace_id FK
-        varchar content_hash
-        text pipeline_version
-        uuid document_id FK
-        timestamp created_at
-    }
-    failed_chunks {
-        uuid id PK
-        varchar document_id
-        uuid workspace_id
-        uuid tenant_id
-        int chunk_index
-        varchar chunk_id
-        text error_message
-        boolean was_timeout
-        int retry_attempts
-        bigint processing_time_ms
-    }
-    pipeline_checkpoints {
-        uuid document_id PK
-        text kind PK
-        jsonb payload
-        timestamp created_at
-        timestamp updated_at
-    }
+    document_artifacts }o--|| documents : "derived from"
+    pipeline_checkpoints }o--|| documents : "checkpoints"
+    ingestion_dedup }o--|| workspaces : "scoped to"
+    ingestion_dedup }o--o| documents : "points to"
+    compensation_quarantine }o--|| documents : "holds"
+    compensation_quarantine }o--o| workspaces : "scoped to"
+    tasks }o..o| jobs : "grouped under"
+    task_events }o..o| jobs : "logs for"
+    attempts }o..o| tasks : "attempts of"
 ```
 
-Read the boxes as tables and the arrows as foreign keys that point toward the parent. Tables in this section: `documents`, `chunks`, `chunk_serving_state`, `document_artifacts`, `document_originals`, `ingestion_dedup`, `failed_chunks`, `pipeline_checkpoints`.
+Each task belongs to at most one job, and `attempts` records each run of a task.
 
-## PDF pipeline
+## Step 6: Convert PDFs and keep page layouts
 
-Binary PDFs, per-page geometry, layout regions, and rendered page images. Every PDF row points at a document.
+A PDF is stored as bytes, converted page by page, and its layout regions and figures are kept as assets.
+
+**New tables in this step:** `pdf_documents`, `pdf_document_blobs`, `document_pages`, `page_layout_regions`, `document_page_states`, `document_mm_assets`
+
+**Context tables:** `documents`, `workspaces`
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
 %% eq-theme:v1
 erDiagram
-    pdf_document_blobs }o--|| pdf_documents : "pdf_id"
-    page_layout_regions }o--|| document_pages : "page_id"
     pdf_documents {
         uuid pdf_id PK
         uuid workspace_id FK
-        uuid document_id FK
+        uuid document_id FK "nullable, unique"
         varchar filename
-        varchar content_type
-        bigint file_size_bytes
-        varchar sha256_checksum
-        int page_count
-        bytea pdf_data
-        varchar processing_status
-        timestamp created_at
     }
     pdf_document_blobs {
-        uuid pdf_id PK
+        uuid pdf_id PK, FK
         bytea pdf_data
         text markdown_content
-        timestamp created_at
-        timestamp updated_at
     }
     document_pages {
         uuid page_id PK
         uuid document_id FK
         uuid workspace_id FK
         int page_number
-        float8 width_pt
-        float8 height_pt
-        smallint rotation
-        jsonb cropbox_pdf
-        int raster_width_px
-        int raster_height_px
-        text layout_model
-        text layout_status
-        timestamp created_at
-        timestamp updated_at
-    }
-    document_page_states {
-        uuid page_state_id PK
-        uuid document_id FK
-        uuid workspace_id FK
-        int page_number
-        text parse_status
-        text parse_error
-        int parse_attempts
-        text parse_method
-        text parse_model
-        text raw_markdown
-        timestamp created_at
     }
     page_layout_regions {
         uuid region_id PK
         uuid page_id FK
         uuid document_id FK
-        uuid workspace_id FK
         text class
-        text source
-        jsonb bbox_pdf
-        float4 confidence
-        int reading_order
-        text asset_path
-        jsonb extra
-        timestamp created_at
+    }
+    document_page_states {
+        uuid page_state_id PK
+        uuid document_id FK
+        uuid workspace_id FK
+        text parse_status
     }
     document_mm_assets {
-        uuid document_id PK
-        uuid workspace_id FK
+        uuid document_id PK, FK
         varchar asset_path PK
-        varchar content_type
-        bigint file_size_bytes
-        bytea asset_data
+        uuid workspace_id FK
         varchar asset_kind
-        int page_num
-        timestamp created_at
-        varchar asset_id
     }
-```
-
-Read the boxes as tables and the arrows as foreign keys that point toward the parent. Tables in this section: `pdf_documents`, `pdf_document_blobs`, `document_pages`, `document_page_states`, `page_layout_regions`, `document_mm_assets`.
-
-## Graph read models and lineage
-
-Relational copies of the knowledge graph, plus the link tables that record which chunk produced which entity or relationship. The live graph itself lives in Apache AGE (see the AGE page).
-
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
-%% eq-theme:v1
-erDiagram
-    relationships }o--|| entities : "source_id"
-    relationships }o--|| entities : "target_id"
-    entities {
-        uuid id PK
-        uuid tenant_id FK
-        uuid workspace_id FK
-        text name
-        text entity_type
-        text description
-        vector embedding
-        uuid source_ids
-        boolean is_manual
-        timestamp manual_created_at
-        timestamp created_at
-    }
-    relationships {
-        uuid id PK
-        uuid source_id FK
-        uuid target_id FK
-        uuid tenant_id FK
-        uuid workspace_id FK
-        text relation_type
-        text description
-        FLOAT weight
-        text keywords
-        uuid source_chunk_ids
-        timestamp created_at
-    }
-    chunk_entity_links {
-        text chunk_id PK
-        text entity_name PK
-        text workspace_id PK
-        timestamp created_at
-    }
-    chunk_relation_links {
-        text chunk_id PK
-        text source_entity PK
-        text target_entity PK
-        text workspace_id PK
-        timestamp created_at
-    }
-    graph_contributions {
-        uuid tenant_id
-        uuid workspace_id
-        uuid fact_id
-        bigint fact_revision
-        uuid contribution_id PK
-        uuid source_document_id
-        bigint source_generation
-        uuid source_chunk_id
-        bytea payload_digest
-        jsonb payload
-    }
-    graph_nodes {
-        uuid id PK
-        varchar graph_name
-        text node_id
-        varchar label
-        jsonb properties
-        uuid tenant_id
-        uuid workspace_id
-        timestamp created_at
-        timestamp updated_at
-    }
-    graph_edges {
-        uuid id PK
-        varchar graph_name
-        text source_node_id
-        text target_node_id
-        varchar label
-        jsonb properties
-        uuid tenant_id
-        uuid workspace_id
-        timestamp created_at
-    }
-```
-
-Read the boxes as tables and the arrows as foreign keys that point toward the parent. Tables in this section: `entities`, `relationships`, `chunk_entity_links`, `chunk_relation_links`, `graph_contributions`, `graph_nodes`, `graph_edges`.
-
-## Embeddings (pgvector)
-
-Vectors for chunks, entities, relationships, and reports, keyed by embedding model. Manifests and projections track which model revision produced which vector.
-
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
-%% eq-theme:v1
-erDiagram
-    chunk_embeddings }o--|| embedding_models : "model_id"
-    entity_embeddings }o--|| embedding_models : "model_id"
-    relationship_embeddings }o--|| embedding_models : "model_id"
-    report_embeddings }o--|| embedding_models : "model_id"
-    embedding_models {
-        uuid id PK
-        text name
-        int dimensions
-        text metric
-        timestamp created_at
-    }
-    chunk_embeddings {
-        uuid model_id PK
-        uuid chunk_id PK
-        uuid workspace_id FK
-        halfvec embedding
-        int dimensions
-        timestamp created_at
-    }
-    entity_embeddings {
-        uuid model_id PK
-        uuid entity_id PK
-        uuid workspace_id FK
-        halfvec embedding
-        int dimensions
-        timestamp created_at
-        text legacy_vector_id
-    }
-    relationship_embeddings {
-        uuid model_id PK
-        uuid relationship_id PK
-        uuid workspace_id FK
-        halfvec embedding
-        int dimensions
-        timestamp created_at
-        text legacy_vector_id
-    }
-    report_embeddings {
-        uuid model_id PK
-        text report_id PK
-        uuid workspace_id FK
-        halfvec embedding
-        int dimensions
-        timestamp created_at
-        text legacy_vector_id
-    }
-    embedding_manifests {
-        uuid tenant_id PK
+    workspaces {
         uuid workspace_id PK
-        uuid subject_id PK
-        text family PK
-        text model_revision PK
-        bigint content_revision PK
-        uuid physical_id
-        int dimension
-        text metric
-        bytea digest
-        text payload_ref
-        bytea payload
+        uuid tenant_id FK "tenant scope"
+        varchar name
     }
-    embedding_projections {
-        uuid tenant_id PK
-        uuid workspace_id PK
-        text family PK
-        uuid subject_id PK
-        text model_revision PK
-        bigint content_revision PK
-        uuid physical_id
-        halfvec embedding
-        int dimensions
-        jsonb filter_payload
-        bytea digest
-    }
-```
-
-Read the boxes as tables and the arrows as foreign keys that point toward the parent. Tables in this section: `embedding_models`, `chunk_embeddings`, `entity_embeddings`, `relationship_embeddings`, `report_embeddings`, `embedding_manifests`, `embedding_projections`.
-
-## Background tasks and jobs
-
-Work the API queues for workers. `tasks` is partitioned by month; `task_events` and `attempts` are the audit trail.
-
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
-%% eq-theme:v1
-erDiagram
-    tasks {
+    documents {
         uuid id PK
-        uuid tenant_id FK
-        uuid workspace_id FK
-        varchar track_id PK
-        varchar task_type
+        uuid tenant_id FK "nullable"
+        uuid workspace_id FK "nullable"
         varchar status
-        int priority
-        jsonb payload
-        jsonb result
-        text error_message
-        timestamp created_at
     }
-    task_events {
-        BIGSERIAL id PK
-        text task_id
-        uuid job_id
-        bigint seq
-        text kind
-        jsonb payload
-        timestamp at
-    }
-    attempts {
-        uuid id PK
-        text task_track_id
-        int attempt_no
-        text worker_id
-        uuid lease_token
-        timestamp lease_expires_at
-        timestamp started_at
-        timestamp finished_at
-        text outcome
-        bigint fence_epoch
-    }
-    jobs {
-        uuid id PK
-        uuid tenant_id
-        uuid workspace_id
-        text operation
-        text subject_kind
-        text subject_id
-        text idempotency_key
-        text state
-        timestamp created_at
-    }
-    ingest_batches {
-        uuid tenant_id PK
-        uuid workspace_id PK
-        uuid document_id PK
-        bigint generation PK
-        int batch_ordinal PK
-        bytea digest
-        int expected_count
-        text state
-    }
+    pdf_documents }o--|| workspaces : "scoped to"
+    pdf_documents |o--o| documents : "converted to"
+    pdf_document_blobs |o--|| pdf_documents : "stores bytes of"
+    document_pages }o--|| documents : "pages of"
+    document_pages }o--|| workspaces : "scoped to"
+    page_layout_regions }o--|| document_pages : "regions on"
+    page_layout_regions }o--|| documents : "belongs to"
+    page_layout_regions }o--|| workspaces : "scoped to"
+    document_page_states }o--|| documents : "parse state of"
+    document_page_states }o--|| workspaces : "scoped to"
+    document_mm_assets }o--|| documents : "assets of"
+    document_mm_assets }o--|| workspaces : "scoped to"
 ```
 
-Read the boxes as tables and the arrows as foreign keys that point toward the parent. Tables in this section: `tasks`, `task_events`, `attempts`, `jobs`, `ingest_batches`.
+The PDF bytes live in `pdf_document_blobs`, not in `pdf_documents`.
 
-## Durable write path (SPEC-149)
+## Step 7: Write durably and project to the stores
 
-Idempotent commits, object revisions, and projection events that feed downstream stores. Start at `mutation_requests` and follow the arrows to deliveries.
+Each write is recorded as a mutation, then delivered to the graph and vector stores through projection events, with cutovers and cleanup tracked separately.
+
+**New tables in this step:** `mutation_requests`, `object_revisions`, `projection_events`, `projection_event_items`, `projection_event_role_proofs`, `projection_deliveries`, `projection_visibility`, `data_bindings`, `vector_provider_cutovers`, `projection_cleanup_intents`, `outbox_events`, `edgequake_schema_generation`
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
 %% eq-theme:v1
 erDiagram
-    projection_event_items }o--|| projection_events : "event_id"
-    projection_event_role_proofs }o--|| projection_events : "event_id"
-    projection_deliveries }o--|| projection_events : "event_id"
-    projection_deliveries }o--|| data_bindings : "binding_id"
-    projection_visibility }o--|| data_bindings : "binding_id"
-    projection_cleanup_intents }o--|| data_bindings : "binding_id"
-    vector_provider_cutovers }o--|| data_bindings : "old_binding_id"
-    vector_provider_cutovers }o--|| data_bindings : "new_binding_id"
+    edgequake_schema_generation {
+        text relation_name PK
+        int generation
+        timestamptz retired_at
+    }
     mutation_requests {
-        uuid tenant_id PK
-        uuid workspace_id PK
-        text operation PK
+        uuid tenant_id PK "composite PK with workspace_id, operation, idempotency_key"
         text idempotency_key PK
         bytea digest
-        bytea receipt
-        timestamp created_at
     }
     object_revisions {
-        uuid tenant_id PK
-        uuid workspace_id PK
-        text kind PK
-        uuid logical_id PK
+        uuid logical_id PK "composite PK with tenant_id, workspace_id, kind, revision"
         bigint revision PK
         text state
         uuid physical_id
-        bytea digest
-        text payload_ref
-        bytea payload
-        timestamp created_at
     }
     projection_events {
         uuid event_id PK
-        uuid tenant_id
-        uuid workspace_id
         text object_kind
-        uuid object_id
         bigint object_revision
-        int schema_version
         text operation
-        text manifest_ref
-        bytea digest
-        timestamp created_at
     }
     projection_event_items {
-        uuid event_id PK
+        uuid event_id PK, FK
         text role PK
         int ordinal PK
         text item_kind
-        uuid record_id
-        bigint record_revision
-        bytea digest
-        text logical_key
     }
     projection_event_role_proofs {
-        uuid event_id PK
+        uuid event_id PK, FK
         text role PK
         bytea expected_digest
     }
     projection_deliveries {
-        uuid event_id PK
-        uuid binding_id PK
+        uuid event_id PK, FK
+        uuid binding_id PK, FK
         text state
-        timestamp next_attempt_at
-        timestamp lease_until
-        uuid lease_owner
-        bigint epoch
         int attempts
-        bytea receipt
-        text provider_receipt
     }
     projection_visibility {
-        uuid tenant_id PK
-        uuid workspace_id PK
-        text object_kind PK
-        uuid object_id PK
-        bigint object_revision PK
-        uuid binding_id PK
-        bytea completion_receipt
+        uuid binding_id PK, FK
+        uuid object_id PK "composite PK with tenant_id, workspace_id, object_kind, object_revision"
         bigint verified_generation
-    }
-    projection_cleanup_intents {
-        uuid cleanup_manifest_id PK
-        uuid binding_id PK
-        uuid tenant_id
-        uuid workspace_id
-        uuid document_id
-        bigint tombstone_revision
-        text state
-        timestamp created_at
-    }
-    outbox_events {
-        uuid id PK
-        text aggregate_type
-        uuid aggregate_id
-        text event_type
-        jsonb payload
-        timestamp created_at
-        timestamp processed_at
-        uuid workspace_id
-        timestamp available_at
-        int attempt_count
     }
     data_bindings {
         uuid binding_id PK
-        uuid tenant_id
-        uuid workspace_id
         text role
         text provider
-        text config_ref
-        text layout
-        text physical_index
-        text model_descriptor
-        bigint generation
         text state
-        timestamp created_at
     }
     vector_provider_cutovers {
         uuid cutover_id PK
-        uuid tenant_id
-        uuid workspace_id
         uuid old_binding_id FK
         uuid new_binding_id FK
-        jsonb backfill_cursor
         text state
-        timestamp created_at
-        timestamp updated_at
     }
-    compensation_quarantine {
-        uuid entry_id PK
-        uuid document_id FK
-        uuid workspace_id FK
-        text status
-        timestamp next_attempt_at
-        int attempt_count
-        jsonb payload
-        jsonb last_error
-        timestamp created_at
-        timestamp updated_at
+    projection_cleanup_intents {
+        uuid cleanup_manifest_id PK "composite PK"
+        uuid binding_id PK, FK
+        bigint tombstone_revision
+        text state
     }
+    outbox_events {
+        uuid id PK
+        text event_type
+        uuid aggregate_id
+        timestamptz available_at
+    }
+    projection_event_items }o--|| projection_events : "items of"
+    projection_event_role_proofs }o--|| projection_events : "proof for"
+    projection_deliveries }o--|| projection_events : "delivers"
+    projection_deliveries }o--|| data_bindings : "targets"
+    projection_visibility }o--|| data_bindings : "visible via"
+    vector_provider_cutovers }o--|| data_bindings : "moves from"
+    vector_provider_cutovers }o--|| data_bindings : "moves to"
+    projection_cleanup_intents }o--|| data_bindings : "cleans up"
 ```
 
-Read the boxes as tables and the arrows as foreign keys that point toward the parent. Tables in this section: `mutation_requests`, `object_revisions`, `projection_events`, `projection_event_items`, `projection_event_role_proofs`, `projection_deliveries`, `projection_visibility`, `projection_cleanup_intents`, `outbox_events`, `data_bindings`, `vector_provider_cutovers`, `compensation_quarantine`.
+The outbox and projection tables implement the durable write path.
 
-## Conversations
+## Step 8: Users, memberships and API keys
 
-Chat history for the query UI. A conversation holds messages; folders group conversations.
+A user joins workspaces through memberships, and signs in with a refresh token or an API key.
+
+**New tables in this step:** `users`, `memberships`, `api_keys`, `refresh_tokens`
+
+**Context tables:** `tenants`, `workspaces`
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
 %% eq-theme:v1
 erDiagram
-    conversations }o--|| folders : "folder_id"
-    messages }o--|| conversations : "conversation_id"
-    messages }o--|| messages : "parent_id"
-    folders }o--|| folders : "parent_id"
+    users {
+        uuid user_id PK
+        uuid tenant_id FK "tenant scope"
+        varchar email
+        varchar role
+    }
+    memberships {
+        uuid membership_id PK
+        uuid user_id FK
+        uuid workspace_id FK "nullable"
+        varchar role
+    }
+    api_keys {
+        uuid key_id PK
+        uuid user_id FK
+        varchar key_prefix
+        boolean is_active
+    }
+    refresh_tokens {
+        uuid token_id PK
+        uuid user_id FK
+        timestamptz expires_at
+        boolean revoked
+    }
+    tenants {
+        uuid tenant_id PK
+        varchar name
+        boolean is_active
+    }
+    workspaces {
+        uuid workspace_id PK
+        uuid tenant_id FK "tenant scope"
+        varchar name
+    }
+    users }o--|| tenants : "belongs to"
+    memberships }o--|| tenants : "belongs to"
+    memberships }o--o| workspaces : "scoped to"
+    memberships }o--|| users : "grants role to"
+    api_keys }o--|| users : "owned by"
+    refresh_tokens }o--|| users : "issued to"
+```
+
+`memberships.workspace_id` is nullable. NULL means access to all workspaces in the tenant (migration 008).
+
+## Step 9: Single sign-on
+
+External identity providers link to users through federated identities and sessions. OIDC login, logout and handoff state is kept in short-lived tables.
+
+**New tables in this step:** `identity_providers`, `federated_identities`, `federated_sessions`, `federated_access_jti`, `oidc_login_attempts`, `oidc_logout_jti`, `auth_handoff_codes`, `oauth_refresh_grants`, `jwt_jti_denylist`
+
+**Context tables:** `users`
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+erDiagram
+    identity_providers {
+        uuid provider_id PK
+        text slug
+        text kind
+    }
+    federated_identities {
+        uuid federated_id PK
+        uuid user_id FK
+        text provider_slug
+        text subject
+    }
+    federated_sessions {
+        uuid family_id PK
+        uuid user_id FK
+        text provider_slug
+        timestamptz revoked_at
+    }
+    federated_access_jti {
+        text jti PK
+        uuid family_id FK
+        timestamptz expires_at
+    }
+    oidc_login_attempts {
+        text state PK
+        text provider_slug
+        timestamptz expires_at
+    }
+    oidc_logout_jti {
+        text issuer PK "composite PK with jti"
+        text jti PK
+        timestamptz expires_at
+    }
+    auth_handoff_codes {
+        text code_hash PK
+        uuid family_id
+        text provider_slug
+        timestamptz expires_at
+    }
+    oauth_refresh_grants {
+        text token_hash PK
+        uuid family_id
+        text status
+        timestamptz expires_at
+    }
+    jwt_jti_denylist {
+        text jti PK
+        timestamptz expires_at
+        text reason
+    }
+    users {
+        uuid user_id PK
+        uuid tenant_id FK "tenant scope"
+        varchar email
+        varchar role
+    }
+    federated_identities }o--|| users : "linked to"
+    federated_sessions }o--|| users : "signs in"
+    federated_access_jti }o--|| federated_sessions : "issued for"
+```
+
+Sessions and single-use token IDs (`federated_access_jti`, `oidc_logout_jti`) are recorded so they can be checked and revoked.
+
+## Step 10: Chat with saved conversations
+
+Conversations belong to a user and can be filed in folders. Messages form a tree through replies.
+
+**New tables in this step:** `folders`, `conversations`, `messages`, `conversation_history`
+
+**Context tables:** `tenants`, `users`, `workspaces`
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+erDiagram
+    folders {
+        uuid folder_id PK
+        uuid user_id FK
+        uuid parent_id FK "nullable"
+        varchar name
+    }
     conversations {
         uuid conversation_id PK
-        uuid tenant_id FK
-        uuid workspace_id FK
         uuid user_id FK
+        uuid folder_id FK "nullable"
         varchar title
-        varchar mode
-        boolean is_pinned
-        boolean is_archived
-        uuid folder_id FK
-        varchar share_id
-        jsonb meta
-        timestamp created_at
-        timestamp updated_at
     }
     messages {
         uuid message_id PK
         uuid conversation_id FK
-        uuid parent_id FK
+        uuid parent_id FK "nullable"
         varchar role
-        text content
-        varchar mode
-        int tokens_used
-        int duration_ms
-        int thinking_time_ms
-        jsonb context
-        timestamp created_at
     }
     conversation_history {
         uuid id PK
-        uuid conversation_id
+        uuid conversation_id "no FK"
         int message_index
         varchar role
-        text content
-        jsonb metadata
-        uuid tenant_id
-        uuid workspace_id
-        timestamp created_at
     }
-    folders {
-        uuid folder_id PK
-        uuid tenant_id FK
-        uuid workspace_id FK
-        uuid user_id FK
+    tenants {
+        uuid tenant_id PK
         varchar name
-        uuid parent_id FK
-        int position
-        timestamp created_at
-        timestamp updated_at
+        boolean is_active
     }
+    workspaces {
+        uuid workspace_id PK
+        uuid tenant_id FK "tenant scope"
+        varchar name
+    }
+    users {
+        uuid user_id PK
+        uuid tenant_id FK "tenant scope"
+        varchar email
+        varchar role
+    }
+    folders }o--|| tenants : "belongs to"
+    folders }o--o| workspaces : "scoped to"
+    folders }o--|| users : "owned by"
+    folders }o--o| folders : "nested in"
+    conversations }o--|| tenants : "belongs to"
+    conversations }o--o| workspaces : "scoped to"
+    conversations }o--|| users : "owned by"
+    conversations }o--o| folders : "filed in"
+    messages }o--|| conversations : "belongs to"
+    messages }o--o| messages : "replies to"
 ```
 
-Read the boxes as tables and the arrows as foreign keys that point toward the parent. Tables in this section: `conversations`, `messages`, `conversation_history`, `folders`.
+Folders can nest, so `folders` points at itself.
 
-## Caches, providers, and operations
+## Step 11: Caches, provider settings and metrics
 
-Recomputable results, encrypted provider connections (SPEC-163), audit logs, and migration bookkeeping.
+Caches store model answers and decisions. Provider connections and server settings are kept per tenant or workspace.
+
+**New tables in this step:** `llm_cache`, `decision_cache`, `decision_review`, `provider_connections`, `server_config`, `workspace_metrics_history`, `edgequake_reconcile_state`, `edgequake_provider_budget`, `edgequake_provider_slot`
+
+**Context tables:** `workspaces`
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
@@ -899,116 +784,741 @@ erDiagram
         text cache_key PK
         text namespace PK
         jsonb value
-        timestamp created_at
-        timestamp updated_at
-        timestamp expires_at
+        timestamptz expires_at
     }
     decision_cache {
         uuid workspace_id PK
         text key_hash PK
-        uuid tenant_id
         text contract
         text model
-        jsonb answer
-        timestamp created_at
-        timestamp last_used_at
     }
     decision_review {
         uuid review_id PK
-        uuid workspace_id
-        uuid document_id
-        uuid tenant_id
-        text chunk_id
+        uuid document_id "no FK"
         text kind
-        text subject
-        text label
-        text object
         float4 score
-        timestamp created_at
     }
     provider_connections {
         uuid id PK
-        uuid tenant_id
+        uuid tenant_id "no FK"
         text slug
-        text display_name
         text api_shape
-        text locality
-        text base_url
-        text auth_scheme
-        bytea api_key_ciphertext
-        bytea api_key_nonce
-        timestamp created_at
     }
     server_config {
         text key PK
         jsonb value
-        timestamp updated_at
-    }
-    audit_logs {
-        uuid id PK
-        timestamp timestamp PK
-        varchar tenant_id
-        varchar workspace_id
-        varchar user_id
-        audit_event_type event_type
-        varchar event_category
-        varchar event_action
-        varchar resource_type
-        varchar resource_id
-    }
-    rls_audit_log {
-        BIGSERIAL id PK
-        timestamp event_time
-        uuid tenant_id
-        uuid workspace_id
-        uuid user_id
-        varchar action
-        varchar table_name
-        text record_id
-        jsonb details
+        timestamptz updated_at
     }
     workspace_metrics_history {
         uuid id PK
         uuid workspace_id FK
-        timestamp recorded_at
-        text trigger_type
+        timestamptz recorded_at
         bigint document_count
-        bigint chunk_count
-        bigint entity_count
-        bigint relationship_count
-        bigint embedding_count
-        bigint storage_bytes
+    }
+    edgequake_reconcile_state {
+        text support_version PK
+        text outcome
+        timestamptz applied_at
+    }
+    edgequake_provider_budget {
+        text provider_key PK
+        int budget
+        text source
+    }
+    edgequake_provider_slot {
+        text provider_key PK
+        int slot_id PK
+        text lease_owner
+    }
+    workspaces {
+        uuid workspace_id PK
+        uuid tenant_id FK "tenant scope"
+        varchar name
+    }
+    workspace_metrics_history }o--|| workspaces : "samples"
+```
+
+`llm_cache` is the typed cache table that replaced the old KV cache (migration 124).
+
+## Step 12: Audit and schema migrations
+
+Security and audit events are logged, and the schema-migration tables record every migration job and run.
+
+**New tables in this step:** `audit_logs`, `rls_audit_log`, `edgequake_audit_log`, `edgequake_migration_job`, `edgequake_migration_batch`, `edgequake_migration_run`, `edgequake_migration_run_step`, `edgequake_schema_compat`
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+erDiagram
+    audit_logs {
+        uuid id PK
+        timestamptz timestamp PK "partitioned by timestamp"
+        varchar tenant_id
+        varchar event_action
+    }
+    rls_audit_log {
+        bigint id PK
+        timestamptz event_time
+        uuid tenant_id
+        varchar action
+    }
+    edgequake_audit_log {
+        uuid id PK
+        varchar action_type
+        varchar entity_id
+        timestamptz created_at
+    }
+    edgequake_migration_job {
+        uuid job_id PK
+        text step_id
+        text state
+    }
+    edgequake_migration_batch {
+        uuid job_id PK, FK
+        bigint batch_seq PK
+        int row_count
+    }
+    edgequake_migration_run {
+        uuid id PK
+        text binary_version
+        text outcome
+    }
+    edgequake_migration_run_step {
+        uuid run_id PK, FK
+        bigint version PK
+        text outcome
+    }
+    edgequake_schema_compat {
+        int id PK
+        bigint min_binary_schema
+    }
+    edgequake_migration_batch }o--|| edgequake_migration_job : "batch of"
+    edgequake_migration_run_step }o--|| edgequake_migration_run : "step of"
+```
+
+`audit_logs` is partitioned by month. The diagram shows the parent table only.
+
+## Full data model (reference)
+
+This diagram shows all 84 base tables at migration 169 in one view. Use it to find a table. The steps above explain each one in context.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+erDiagram
+    %% Tenancy
+    tenants {
+        uuid tenant_id PK
+        varchar name
+        boolean is_active
+    }
+    workspaces {
+        uuid workspace_id PK
+        uuid tenant_id FK "tenant scope"
+        varchar name
+    }
+    users {
+        uuid user_id PK
+        uuid tenant_id FK "tenant scope"
+        varchar email
+        varchar role
+    }
+    memberships {
+        uuid membership_id PK
+        uuid user_id FK
+        uuid workspace_id FK "nullable"
+        varchar role
+    }
+    api_keys {
+        uuid key_id PK
+        uuid user_id FK
+        varchar key_prefix
+        boolean is_active
+    }
+    refresh_tokens {
+        uuid token_id PK
+        uuid user_id FK
+        timestamptz expires_at
+        boolean revoked
+    }
+
+    %% Auth
+    identity_providers {
+        uuid provider_id PK
+        text slug
+        text kind
+    }
+    federated_identities {
+        uuid federated_id PK
+        uuid user_id FK
+        text provider_slug
+        text subject
+    }
+    federated_sessions {
+        uuid family_id PK
+        uuid user_id FK
+        text provider_slug
+        timestamptz revoked_at
+    }
+    federated_access_jti {
+        text jti PK
+        uuid family_id FK
+        timestamptz expires_at
+    }
+    oidc_login_attempts {
+        text state PK
+        text provider_slug
+        timestamptz expires_at
+    }
+    oidc_logout_jti {
+        text issuer PK "composite PK with jti"
+        text jti PK
+        timestamptz expires_at
+    }
+    auth_handoff_codes {
+        text code_hash PK
+        uuid family_id
+        text provider_slug
+        timestamptz expires_at
+    }
+    oauth_refresh_grants {
+        text token_hash PK
+        uuid family_id
+        text status
+        timestamptz expires_at
+    }
+    jwt_jti_denylist {
+        text jti PK
+        timestamptz expires_at
+        text reason
+    }
+
+    %% Documents and tasks
+    documents {
+        uuid id PK
+        uuid tenant_id FK "nullable"
+        uuid workspace_id FK "nullable"
+        varchar status
+    }
+    chunks {
+        uuid id PK
+        uuid document_id FK
+        uuid workspace_id FK "nullable"
+        int chunk_index
+    }
+    chunk_serving_state {
+        uuid chunk_id PK, FK
+        text state
+        int attempt_count
+    }
+    document_artifacts {
+        uuid document_id PK, FK
+        text kind PK
+        jsonb payload
+    }
+    document_originals {
+        uuid document_id PK, FK
+        uuid workspace_id FK
+        varchar filename
+    }
+    pipeline_checkpoints {
+        uuid document_id PK, FK
+        text kind PK
+        jsonb payload
+    }
+    ingestion_dedup {
+        uuid id PK
+        uuid workspace_id FK
+        uuid document_id FK "nullable"
+        varchar content_hash
+    }
+    compensation_quarantine {
+        uuid entry_id PK
+        uuid document_id FK
+        uuid workspace_id FK "nullable"
+        text status
+    }
+    failed_chunks {
+        uuid id PK
+        varchar document_id "text id, no FK"
+        varchar status
+    }
+    pdf_documents {
+        uuid pdf_id PK
+        uuid workspace_id FK
+        uuid document_id FK "nullable, unique"
+        varchar filename
+    }
+    pdf_document_blobs {
+        uuid pdf_id PK, FK
+        bytea pdf_data
+        text markdown_content
+    }
+    document_pages {
+        uuid page_id PK
+        uuid document_id FK
+        uuid workspace_id FK
+        int page_number
+    }
+    page_layout_regions {
+        uuid region_id PK
+        uuid page_id FK
+        uuid document_id FK
+        text class
+    }
+    document_page_states {
+        uuid page_state_id PK
+        uuid document_id FK
+        uuid workspace_id FK
+        text parse_status
+    }
+    document_mm_assets {
+        uuid document_id PK, FK
+        varchar asset_path PK
+        uuid workspace_id FK
+        varchar asset_kind
+    }
+    tasks {
+        uuid id PK
+        timestamptz created_at PK "monthly partition key"
+        uuid workspace_id FK "nullable"
+        varchar status
+    }
+    task_events {
+        bigint id PK
+        text task_id
+        text kind
+    }
+    attempts {
+        uuid id PK
+        text task_track_id "no FK"
+        int attempt_no
+        text outcome
+    }
+    jobs {
+        uuid id PK
+        text operation
+        text state
+    }
+    ingest_batches {
+        uuid tenant_id PK "composite PK with workspace_id, document_id, generation, batch_ordinal"
+        text state
+        int expected_count
+        bytea digest
+    }
+    tenant_lane_quota {
+        uuid tenant_id PK
+        text fairness_class PK
+        float8 weight
+        int max_concurrent
+    }
+    tenant_vruntime {
+        uuid tenant_id PK
+        text fairness_class PK
+        float8 vruntime
+    }
+
+    %% Graph
+    entities {
+        uuid id PK
+        uuid tenant_id FK "nullable"
+        uuid workspace_id FK "nullable"
+        text name
+    }
+    relationships {
+        uuid id PK
+        uuid source_id FK
+        uuid target_id FK
+        text relation_type
+    }
+    chunk_entity_links {
+        text chunk_id PK
+        text entity_name PK
+        text workspace_id PK "no FK"
+    }
+    chunk_relation_links {
+        text chunk_id PK
+        text source_entity PK
+        text target_entity PK "composite PK with workspace_id; no FK"
+    }
+    graph_contributions {
+        uuid contribution_id PK "composite PK with tenant_id, workspace_id, source_document_id, source_generation"
+        uuid source_document_id "no FK"
+        bigint source_generation
+        jsonb payload
+    }
+    graph_nodes {
+        uuid id PK
+        varchar graph_name
+        text node_id
+        varchar label
+    }
+    graph_edges {
+        uuid id PK
+        varchar graph_name
+        text source_node_id
+        varchar label
+    }
+
+    %% Vectors
+    embedding_models {
+        uuid id PK
+        text name
+        int dimensions
+    }
+    chunk_embeddings {
+        uuid model_id PK, FK
+        uuid chunk_id PK, FK
+        uuid workspace_id FK
+        halfvec embedding
+    }
+    entity_embeddings {
+        uuid model_id PK, FK
+        uuid entity_id PK, FK
+        uuid workspace_id FK
+        halfvec embedding
+    }
+    relationship_embeddings {
+        uuid model_id PK, FK
+        uuid relationship_id PK, FK
+        uuid workspace_id FK
+        halfvec embedding
+    }
+    report_embeddings {
+        uuid model_id PK, FK
+        text report_id PK
+        uuid workspace_id FK
+        halfvec embedding
+    }
+    embedding_manifests {
+        uuid subject_id PK "composite PK with tenant_id, workspace_id"
+        text family PK
+        text model_revision PK
+        bigint content_revision PK
+    }
+    embedding_projections {
+        uuid subject_id PK "composite PK with tenant_id, workspace_id, family, model_revision, content_revision"
+        text family PK
+        text model_revision PK
+        halfvec embedding
     }
     edgequake_schema_generation {
         text relation_name PK
         int generation
-        timestamp retired_at
-        text notes
-        timestamp updated_at
+        timestamptz retired_at
+    }
+
+    %% Durable writes
+    mutation_requests {
+        uuid tenant_id PK "composite PK with workspace_id, operation, idempotency_key"
+        text idempotency_key PK
+        bytea digest
+    }
+    object_revisions {
+        uuid logical_id PK "composite PK with tenant_id, workspace_id, kind, revision"
+        bigint revision PK
+        text state
+        uuid physical_id
+    }
+    projection_events {
+        uuid event_id PK
+        text object_kind
+        bigint object_revision
+        text operation
+    }
+    projection_event_items {
+        uuid event_id PK, FK
+        text role PK
+        int ordinal PK
+        text item_kind
+    }
+    projection_event_role_proofs {
+        uuid event_id PK, FK
+        text role PK
+        bytea expected_digest
+    }
+    projection_deliveries {
+        uuid event_id PK, FK
+        uuid binding_id PK, FK
+        text state
+        int attempts
+    }
+    projection_visibility {
+        uuid binding_id PK, FK
+        uuid object_id PK "composite PK with tenant_id, workspace_id, object_kind, object_revision"
+        bigint verified_generation
+    }
+    data_bindings {
+        uuid binding_id PK
+        text role
+        text provider
+        text state
+    }
+    vector_provider_cutovers {
+        uuid cutover_id PK
+        uuid old_binding_id FK
+        uuid new_binding_id FK
+        text state
+    }
+    projection_cleanup_intents {
+        uuid cleanup_manifest_id PK "composite PK"
+        uuid binding_id PK, FK
+        bigint tombstone_revision
+        text state
+    }
+    outbox_events {
+        uuid id PK
+        text event_type
+        uuid aggregate_id
+        timestamptz available_at
+    }
+
+    %% Conversations
+    folders {
+        uuid folder_id PK
+        uuid user_id FK
+        uuid parent_id FK "nullable"
+        varchar name
+    }
+    conversations {
+        uuid conversation_id PK
+        uuid user_id FK
+        uuid folder_id FK "nullable"
+        varchar title
+    }
+    messages {
+        uuid message_id PK
+        uuid conversation_id FK
+        uuid parent_id FK "nullable"
+        varchar role
+    }
+    conversation_history {
+        uuid id PK
+        uuid conversation_id "no FK"
+        int message_index
+        varchar role
+    }
+
+    %% Caches
+    llm_cache {
+        text cache_key PK
+        text namespace PK
+        jsonb value
+        timestamptz expires_at
+    }
+    decision_cache {
+        uuid workspace_id PK
+        text key_hash PK
+        text contract
+        text model
+    }
+    decision_review {
+        uuid review_id PK
+        uuid document_id "no FK"
+        text kind
+        float4 score
+    }
+
+    %% Providers and ops
+    provider_connections {
+        uuid id PK
+        uuid tenant_id "no FK"
+        text slug
+        text api_shape
+    }
+    server_config {
+        text key PK
+        jsonb value
+        timestamptz updated_at
+    }
+    workspace_metrics_history {
+        uuid id PK
+        uuid workspace_id FK
+        timestamptz recorded_at
+        bigint document_count
     }
     edgequake_reconcile_state {
         text support_version PK
-        text apply_sha384
-        timestamp applied_at
-        bigint duration_ms
+        text outcome
+        timestamptz applied_at
+    }
+
+    %% Audit
+    audit_logs {
+        uuid id PK
+        timestamptz timestamp PK "partitioned by timestamp"
+        varchar tenant_id
+        varchar event_action
+    }
+    rls_audit_log {
+        bigint id PK
+        timestamptz event_time
+        uuid tenant_id
+        varchar action
+    }
+    edgequake_audit_log {
+        uuid id PK
+        varchar action_type
+        varchar entity_id
+        timestamptz created_at
+    }
+
+    %% Migrations (edgequake schema)
+    edgequake_migration_job {
+        uuid job_id PK
+        text step_id
+        text state
+    }
+    edgequake_migration_batch {
+        uuid job_id PK, FK
+        bigint batch_seq PK
+        int row_count
+    }
+    edgequake_migration_run {
+        uuid id PK
+        text binary_version
         text outcome
     }
-    eq_hot_ann_workspaces {
-        text table_prefix PK
-        text workspace_id PK
-        timestamp created_at
+    edgequake_migration_run_step {
+        uuid run_id PK, FK
+        bigint version PK
+        text outcome
     }
+    edgequake_schema_compat {
+        int id PK
+        bigint min_binary_schema
+    }
+    edgequake_provider_budget {
+        text provider_key PK
+        int budget
+        text source
+    }
+    edgequake_provider_slot {
+        text provider_key PK
+        int slot_id PK
+        text lease_owner
+    }
+
+    %% Foreign keys: tenancy and identity
+    workspaces }o--|| tenants : "belongs to"
+    users }o--|| tenants : "belongs to"
+    memberships }o--|| tenants : "belongs to"
+    memberships }o--o| workspaces : "scoped to"
+    memberships }o--|| users : "grants role to"
+    api_keys }o--|| users : "owned by"
+    refresh_tokens }o--|| users : "issued to"
+
+    %% Foreign keys: SSO
+    federated_identities }o--|| users : "linked to"
+    federated_sessions }o--|| users : "signs in"
+    federated_access_jti }o--|| federated_sessions : "issued for"
+
+    %% Foreign keys: documents and tasks
+    documents }o--o| tenants : "belongs to"
+    documents }o--o| workspaces : "scoped to"
+    chunks }o--|| documents : "split from"
+    chunks }o--o| tenants : "belongs to"
+    chunks }o--o| workspaces : "scoped to"
+    chunk_serving_state |o--|| chunks : "state of"
+    document_artifacts }o--|| documents : "derived from"
+    pipeline_checkpoints }o--|| documents : "checkpoints"
+    document_originals |o--|| documents : "original of"
+    document_originals }o--|| workspaces : "scoped to"
+    ingestion_dedup }o--|| workspaces : "scoped to"
+    ingestion_dedup }o--o| documents : "points to"
+    compensation_quarantine }o--|| documents : "holds"
+    compensation_quarantine }o--o| workspaces : "scoped to"
+    pdf_documents }o--|| workspaces : "scoped to"
+    pdf_documents |o--o| documents : "converted to"
+    pdf_document_blobs |o--|| pdf_documents : "stores bytes of"
+    document_pages }o--|| documents : "pages of"
+    document_pages }o--|| workspaces : "scoped to"
+    page_layout_regions }o--|| document_pages : "regions on"
+    page_layout_regions }o--|| documents : "belongs to"
+    page_layout_regions }o--|| workspaces : "scoped to"
+    document_page_states }o--|| documents : "parse state of"
+    document_page_states }o--|| workspaces : "scoped to"
+    document_mm_assets }o--|| documents : "assets of"
+    document_mm_assets }o--|| workspaces : "scoped to"
+    tasks }o--o| tenants : "belongs to"
+    tasks }o--o| workspaces : "scoped to"
+    tasks }o..o| jobs : "grouped under"
+    task_events }o..o| jobs : "logs for"
+    attempts }o..o| tasks : "attempts of"
+
+    %% Foreign keys: graph
+    entities }o--o| tenants : "belongs to"
+    entities }o--o| workspaces : "scoped to"
+    relationships }o--|| entities : "starts at"
+    relationships }o--|| entities : "ends at"
+    relationships }o--o| tenants : "belongs to"
+    relationships }o--o| workspaces : "scoped to"
+
+    %% Foreign keys: vectors
+    chunk_embeddings }o--|| embedding_models : "uses model"
+    chunk_embeddings }o--|| chunks : "embeds"
+    chunk_embeddings }o--|| workspaces : "scoped to"
+    entity_embeddings }o--|| embedding_models : "uses model"
+    entity_embeddings }o--|| entities : "embeds"
+    entity_embeddings }o--|| workspaces : "scoped to"
+    relationship_embeddings }o--|| embedding_models : "uses model"
+    relationship_embeddings }o--|| relationships : "embeds"
+    relationship_embeddings }o--|| workspaces : "scoped to"
+    report_embeddings }o--|| embedding_models : "uses model"
+    report_embeddings }o--|| workspaces : "scoped to"
+
+    %% Foreign keys: durable writes
+    projection_event_items }o--|| projection_events : "items of"
+    projection_event_role_proofs }o--|| projection_events : "proof for"
+    projection_deliveries }o--|| projection_events : "delivers"
+    projection_deliveries }o--|| data_bindings : "targets"
+    projection_visibility }o--|| data_bindings : "visible via"
+    vector_provider_cutovers }o--|| data_bindings : "moves from"
+    vector_provider_cutovers }o--|| data_bindings : "moves to"
+    projection_cleanup_intents }o--|| data_bindings : "cleans up"
+
+    %% Foreign keys: conversations
+    folders }o--|| tenants : "belongs to"
+    folders }o--o| workspaces : "scoped to"
+    folders }o--|| users : "owned by"
+    folders }o--o| folders : "nested in"
+    conversations }o--|| tenants : "belongs to"
+    conversations }o--o| workspaces : "scoped to"
+    conversations }o--|| users : "owned by"
+    conversations }o--o| folders : "filed in"
+    messages }o--|| conversations : "belongs to"
+    messages }o--o| messages : "replies to"
+
+    %% Foreign keys: ops and migrations
+    workspace_metrics_history }o--|| workspaces : "samples"
+    edgequake_migration_batch }o--|| edgequake_migration_job : "batch of"
+    edgequake_migration_run_step }o--|| edgequake_migration_run : "step of"
+    chunks |o..o{ chunk_entity_links : "logical link, no FK"
+    chunks |o..o{ chunk_relation_links : "logical link, no FK"
 ```
 
-Read the boxes as tables and the arrows as foreign keys that point toward the parent. Tables in this section: `llm_cache`, `decision_cache`, `decision_review`, `provider_connections`, `server_config`, `audit_logs`, `rls_audit_log`, `workspace_metrics_history`, `edgequake_schema_generation`, `edgequake_reconcile_state`, `eq_hot_ann_workspaces`.
+**How to read this diagram**
+
+- `PK` marks a primary key column and `FK` marks a declared foreign key column. A composite key marks each key column, or says so in the comment. Dashed lines are logical links with no foreign key.
+- Cardinality follows the marker next to each table: `||` is exactly one, `o|` or `|o` is zero or one, and `}o` is zero or many. A nullable foreign key uses `o|` on the parent side. Relationship labels are verbs, and each foreign key column is named in the attribute list.
+- The 12 views and the Apache AGE graph are not base tables, so they are not drawn above. They are listed in the note below the bullets, and the AGE graph is described in [age.md](./age.md).
+
+**Not base tables, so not drawn above.** The schema also has 12 views. The public views are `recent_security_events`, `rate_limit_violations`, `tenant_activity_summary`, `tenant_document_stats`, and `tenant_entity_stats`. The `edgequake` schema views are `documents`, `chunks`, `entities`, `relationships`, `tasks`, `migration_progress`, and `provider_inflight`. The Apache AGE graph is created at run time by the storage adapter, not by a migration. See [age.md](./age.md). Table partitions are also not drawn: `audit_logs` has monthly children (`audit_logs_YYYY_MM`), and `tasks` has `tasks_history` plus monthly `tasks_p_YYYY_MM` children.
+
+The `edgequake` schema tables carry an `edgequake_` prefix in the diagram, because Mermaid names cannot contain a dot. For example, `edgequake.audit_log` is drawn as `edgequake_audit_log`.
+
 
 ## What these diagrams leave out
 
-- **Apache AGE graph.** Entities and relationships also exist as nodes and edges in the AGE graph (`ag_catalog`). Isolation there uses `tenant_id` / `workspace_id` properties, not foreign keys. See [age.md](./age.md).
-- **Per-workspace vector tables.** Hot workspaces can get dedicated ANN tables (`eq_hot_ann_workspaces`). Those tables are created at runtime and are not listed above.
-- **The `edgequake` schema.** Migration bookkeeping (`schema_compat`, `migration_run`, …) lives in a separate schema and is covered in [Upgrading](../operations/upgrading.md).
-- **Views.** Five reporting views (`rate_limit_violations`, `recent_security_events`, `tenant_activity_summary`, `tenant_document_stats`, `tenant_entity_stats`) are not drawn.
+- **Views and the Apache AGE graph.** The 12 views and the AGE graph are listed under the full diagram, not drawn. See [age.md](./age.md).
+- **Partitions.** `audit_logs` and `tasks` are partitioned. The diagrams show each parent once, and they omit the monthly child tables.
+- **Runtime and legacy tables.** The legacy `eq_*_kv`, `eq_*_vectors`, and `eq_*_stats` tables were dropped by migrations 125, 126, 131 and 142. The runtime adapter creates `eq_hot_ann_workspaces` only when legacy vector writes are still active, and migration 131 drops it, so it is not part of the head schema. See `edgequake/crates/edgequake-storage/src/adapters/postgres/vector/ddl.rs`.
+- **Migrator ledger.** `_sqlx_migrations` is created by the sqlx migrator, not by the SQL files, so it is not counted. Migration bookkeeping in the `edgequake` schema (`edgequake_migration_job`, `edgequake_migration_batch`, `edgequake_migration_run`, `edgequake_migration_run_step`, `edgequake_schema_compat`, `edgequake_provider_budget`, `edgequake_provider_slot`) is part of the full diagram, and it is covered in [Upgrading](../operations/upgrading.md).
 
 ## Regenerating
 
-When you add a migration, update this page so the diagrams stay honest. The column lists and foreign keys should match the SQL in `edgequake/migrations/`. Prefer several domain diagrams over one giant diagram: Mermaid stays readable with about a dozen tables per figure.
+When you add a migration, update the full diagram and the matching build-up step so they stay accurate.
+
+1. Find the latest migration that touches the table with `rg -n "<table>" edgequake/migrations/`. It defines the current shape.
+2. Remember that `CREATE TABLE IF NOT EXISTS` is skipped when the table already exists. For example, `008_add_multi_tenancy_tables.sql` repeats `tenants`, but `001_init_database.sql` creates it first, so the `plan` and `max_workspaces` columns from 008 never reach the table.
+3. Apply the shared palette and run the docs checks: `node scripts/style_docs_mermaid.mjs docs/data-layer/schema-er.md`, then `node scripts/check_docs_mermaid.mjs docs/data-layer/schema-er.md`.

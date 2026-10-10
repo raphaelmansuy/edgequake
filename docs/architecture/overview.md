@@ -49,7 +49,7 @@ Key facts:
 
 ## Deployment topology
 
-The quickstart Docker Compose file runs four containers.
+The quickstart Docker Compose file starts four services: PostgreSQL, a one-shot `migrate` job, the API, and the frontend.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
@@ -118,7 +118,7 @@ Read it left to right: authentication runs first, then the per-tenant rate limit
 - **Authentication** (`edgequake-auth`): JWT sessions, API keys, and OIDC single sign-on. It can be switched off with `EDGEQUAKE_AUTH_ENABLED=false` for local development.
 - **Tenant context:** the headers `X-Tenant-ID`, `X-Workspace-ID`, and `X-User-ID` select the scope. When a JWT carries tenant or workspace claims, they must match the headers. The authenticated user always replaces `X-User-ID`.
 - **Rate limit** (`edgequake-rate-limiter`): a token bucket per tenant. Over the limit returns HTTP 429.
-- **Other entry points:** `/mcp` (MCP over HTTP), `/api/*` (Ollama-compatible API, can be disabled), `/ws/progress/{track_id}` and `/ws/pipeline/progress` (WebSocket progress), `/metrics`, and the Swagger UI.
+- **Other entry points:** `/mcp` (MCP over HTTP), `/api/*` (Ollama-compatible API, disabled with `EDGEQUAKE_OLLAMA_COMPAT_ENABLED=false`), `/ws/progress/{track_id}` and `/ws/pipeline/progress` (WebSocket progress), `/metrics`, and the Swagger UI.
 
 See [Tenancy and providers](./tenancy-and-providers.md) for the full tenant model.
 

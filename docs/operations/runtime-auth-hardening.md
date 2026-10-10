@@ -5,11 +5,11 @@ description: "What the API checks at startup, the recommended production auth se
 
 # Runtime config and authentication hardening
 
-This page is for operators who put EdgeQuake on a shared or public network. It explains what the API refuses to start with, the settings to use in production, and how to create the first user. To turn login on for the first time, start with [Enable login](auth-quickstart.md). SSO providers (Keycloak, Entra, Google, GitHub) are covered in [Security: authentication](../security/authentication/index.md).
+This page is for operators who run EdgeQuake on a shared or public network. It covers what the API refuses to start with, the settings to use in production, and how to create the first user. To turn login on for the first time, start with [Enable login](auth-quickstart.md). SSO providers (Keycloak, Entra, Google, GitHub) are covered in [Security: authentication](../security/authentication/index.md).
 
 ## What the API checks at startup
 
-The API validates its security settings before it opens a port. Some problems stop the process (exit 1). Others only log a warning.
+The API validates its security settings before it opens a port. A fatal check stops the process with exit code 1. A warning is logged and startup continues, unless `EDGEQUAKE_STRICT_STARTUP=1` turns every warning into a fatal error.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
@@ -17,7 +17,7 @@ The API validates its security settings before it opens a port. Some problems st
 flowchart TD
   A["API starts"] --> B{"JWT_SECRET strong?"}
   B -->|No, dev mode off| X1["Exit 1"]
-  B -->|Yes, or dev mode on| C{"Auth off, remote DB, dev mode off?"}
+  B -->|Yes, or dev mode on| C{"Auth off on remote DB, dev mode off?"}
   C -->|Yes| X2["Exit 1"]
   C -->|No| D{"Remote DB, dev mode off, no CORS list?"}
   D -->|Yes| X3["Exit 1"]
@@ -29,7 +29,9 @@ classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
 class C,D eqStore
 ```
 
-How to read it: the checks run from top to bottom. The first failing check stops startup. A remote DB means any host other than `localhost` or a loopback address, so the Compose host `postgres` counts as remote.
+The checks run top to bottom, and the first failing check stops startup. Warnings only matter when strict startup is on.
+
+A **remote DB** is a `DATABASE_URL` whose host is not `localhost`, `127.0.0.1`, `::1`, or `host.docker.internal`. The Compose service host `postgres` therefore counts as remote.
 
 | Check | Fatal when | Warning when |
 |-------|-----------|--------------|
@@ -41,7 +43,7 @@ How to read it: the checks run from top to bottom. The first failing check stops
 | Rate limit | n/a | `EDGEQUAKE_RATE_LIMIT_ENABLED` is off and dev mode off. |
 | Secrets key | n/a | `EDGEQUAKE_SECRETS_KEY` is unset and dev mode off. Connection API keys cannot be saved. |
 
-Set `EDGEQUAKE_STRICT_STARTUP=1` to turn every warning into a fatal error. Use it in production once the warnings are clean.
+Set `EDGEQUAKE_STRICT_STARTUP=1` in production once the warnings are clean.
 
 ## Recommended production settings
 
@@ -60,13 +62,15 @@ export NEXT_PUBLIC_AUTH_ENABLED=true
 export NEXT_PUBLIC_DISABLE_DEMO_LOGIN=true
 ```
 
-The web UI reads `EDGEQUAKE_API_URL` at request time. `NEXT_PUBLIC_*` values are baked into the image at build time, so prefer the runtime variable for the API URL. Tokens last 15 minutes and refresh tokens last 30 days. Five failed logins lock an account for 15 minutes.
+The web UI reads `EDGEQUAKE_API_URL` at request time. `NEXT_PUBLIC_*` values are baked into the image at build time, so prefer the runtime variable for the API URL.
+
+Access tokens last 15 minutes by default (`JWT_EXPIRY_SECONDS`), and refresh tokens last 30 days (`REFRESH_TOKEN_EXPIRY_DAYS`). Five failed logins (`MAX_LOGIN_ATTEMPTS`) lock an account for 15 minutes (`LOCKOUT_DURATION_MINUTES`).
 
 For the full list of variables, see [Configuration](configuration.md). For key format and storage of provider secrets, see [Provider security](../providers/security.md).
 
 ## Local development (open API)
 
-`make dev` sets `EDGEQUAKE_DEV_MODE=true` when `DEV_AUTH_ENABLED=false` (the default). The [Docker quickstart](docker-quickstart.md) does the same for container demos. Do not use open mode on a shared network.
+`make dev` sets `EDGEQUAKE_DEV_MODE=true` when `DEV_AUTH_ENABLED=false`, which is the default. The [Docker quickstart](docker-quickstart.md) does the same for container demos. Do not use open mode on a shared network.
 
 ```bash
 export EDGEQUAKE_DEV_MODE=true   # explicit local open API
@@ -76,14 +80,14 @@ export EDGEQUAKE_DEV_MODE=true   # explicit local open API
 
 When several settings disagree, the API resolves them in this order:
 
-1. `EDGEQUAKE_AUTH_ENABLED` (or `AUTH_ENABLED`), when set.
+1. `EDGEQUAKE_AUTH_ENABLED`, or its alias `AUTH_ENABLED`, when set.
 2. `EDGEQUAKE_AUTH_DISABLED=true`.
 3. `EDGEQUAKE_DEV_MODE=true` (auth off).
 4. Default: auth on.
 
 ## Bootstrap an admin user
 
-The API creates one admin on startup when all three are true: auth is on, dev mode is off, and no user with a usable password exists. Set the credentials before the first start:
+The API creates one admin on startup when auth is on, dev mode is off, and no login-capable user exists. Set the credentials before the first start:
 
 ```bash
 export EDGEQUAKE_BOOTSTRAP_ADMIN_USERNAME=admin          # default: admin
@@ -91,7 +95,7 @@ export EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD='a-long-unique-password'
 export EDGEQUAKE_BOOTSTRAP_ADMIN_EMAIL=admin@example.com # default: <username>@localhost
 ```
 
-If the password is not set and no login-capable user exists, the API only logs a warning and nobody can sign in. If a user with that name exists but has no usable password hash, the bootstrap upgrades it to an admin. Upgrades from before v0.15 also import old `auth:user:*` identity rows into PostgreSQL.
+If the password is not set and no login-capable user exists, the API logs a warning and nobody can sign in. If a user with the bootstrap name exists but has no usable password hash, the bootstrap upgrades it to an admin. Upgrades from before v0.15 also import old `auth:user:*` identity rows into PostgreSQL.
 
 ### Create a user with the master key
 
@@ -109,7 +113,7 @@ curl -X POST http://localhost:8080/api/v1/users \
   }'
 ```
 
-Passwords must be 8 to 128 characters. You can send the key as `X-API-Key: <key>` or `Authorization: Bearer <key>`.
+The `role` field is optional and defaults to `user`. Passwords must be 8 to 128 characters. Send the key as `X-API-Key: <key>` or as `Authorization: Bearer <key>`.
 
 ## Expected behavior
 
@@ -118,8 +122,8 @@ Passwords must be 8 to 128 characters. You can send the key as `X-API-Key: <key>
 | Auth off | Dashboard loads without login. Demo flows work. |
 | Auth on | Dashboard routes redirect to the login page. The demo login is hidden when `NEXT_PUBLIC_DISABLE_DEMO_LOGIN=true`. Protected endpoints need a JWT or API key. |
 
-Anonymous chat is a separate switch: `EDGEQUAKE_ALLOW_ANONYMOUS` (default `true`) lets unauthenticated users share a guest user for chat. Set it to `false` to return 401 or 403 instead.
+Anonymous chat is a separate switch. `EDGEQUAKE_ALLOW_ANONYMOUS` (default `true`) lets unauthenticated users share a guest user for chat. Set it to `false` to return 401 or 403 instead.
 
 ## Troubleshooting
 
-See the table in [Enable login](auth-quickstart.md#troubleshooting). To see what the API decided at boot, run `edgequake doctor` and read the `security_posture` block of `GET /health` (see [Monitoring](monitoring.md)).
+See the table in [Enable login](auth-quickstart.md#troubleshooting). To see what the API decided at boot, run `edgequake doctor`. The `security_posture` block of `GET /health` shows the same signals at runtime (see [Monitoring](monitoring.md)).

@@ -14,7 +14,7 @@ The knowledge graph is where EdgeQuake keeps what it learned from your documents
 | Item | Meaning | Examples of fields |
 |------|---------|--------------------|
 | Node (entity) | A person, place, concept or other thing | `entity_name`, `entity_type`, `description`, `source_id`, `degree` |
-| Edge (relationship) | A link between two entities | `src_id`, `tgt_id`, `relation_type`, `keywords`, `weight`, `description` |
+| Edge (relationship) | A link between two entities | `src_id`, `tgt_id`, `relation_type`, `keywords`, `weight` (0.0 to 1.0, default 0.8), `description` |
 | Properties | Extra data on nodes and edges | Descriptions, weights, source chunk IDs |
 
 Entity names are normalized to upper case with underscores, for example `SARAH_CHEN`. Each node tracks the chunks it came from, so answers can cite their sources. You can read the graph through `GET /api/v1/graph/entities` and `GET /api/v1/graph/relationships`; both return `items`.
@@ -91,7 +91,9 @@ Send `X-Tenant-ID` and `X-Workspace-ID` headers to choose the scope. If you omit
 
 ## Communities
 
-EdgeQuake can group closely linked entities into communities with the Louvain algorithm. Detection is workspace-scoped, and it is skipped for graphs above 50,000 nodes. See [Community detection](../deep-dives/community-detection.md).
+EdgeQuake can group closely linked entities into communities. Louvain is the default algorithm. Detection is scoped to one workspace.
+
+Automatic runs (ingest refresh and backfill) skip any workspace above 50,000 nodes. The limit is set by `EDGEQUAKE_COMMUNITY_BACKFILL_MAX_NODES`. See [Community detection](../deep-dives/community-detection.md).
 
 ## Limits to know
 
@@ -99,7 +101,7 @@ EdgeQuake can group closely linked entities into communities with the Louvain al
 |-------|-------|
 | Nodes returned by one `GET /api/v1/graph` call | 500 |
 | Traversal depth for that call | 5 |
-| Page size on list endpoints | 100 |
+| Default page size on entity and relationship lists | 20 (max 100) |
 
 ## Learn more
 

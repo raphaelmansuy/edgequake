@@ -68,7 +68,7 @@ Both projects use the names naive, local, global, hybrid, and mix. The meanings 
 | `global` | Relationship vectors for broad themes | Relationship chains for broad themes |
 | `hybrid` | Local, global, and naive, interleaved | Local and global |
 | `mix` | Local, global, and naive, blended by weight or rank fusion | Graph and vector retrieval together (the default) |
-| `bypass` | Direct LLM call, no retrieval | Not listed in the README's mode list |
+| `bypass` | Direct LLM call, no retrieval | Not compared here |
 
 The main difference is `hybrid`: EdgeQuake includes the naive arm, LightRAG does not. When you compare the two, set `mode` explicitly and use `mix` on both sides.
 
@@ -80,12 +80,14 @@ Neither project's `global` mode is Microsoft GraphRAG's community-report search.
 
 | Store | EdgeQuake | LightRAG |
 | ----- | --------- | -------- |
-| Key-value | PostgreSQL | JSON files, PostgreSQL, Redis, MongoDB, and others |
-| Vectors | pgvector | Several, including PostgreSQL, Milvus, Qdrant, Faiss |
-| Graph | Apache AGE | Several, including NetworkX, Neo4j, PostgreSQL, Memgraph |
-| Default setup | PostgreSQL required | File and in-memory defaults |
+| Key-value | PostgreSQL | Several backends. See the LightRAG README for the list. |
+| Vectors | pgvector | Several backends. See the LightRAG README for the list. |
+| Graph | Apache AGE | Several backends. See the LightRAG README for the list. |
+| Default setup | PostgreSQL required | Check the LightRAG README |
 
-EdgeQuake requires PostgreSQL 16 to 18 with pgvector and Apache AGE (the project ships `ghcr.io/raphaelmansuy/edgequake-postgres`). There is no in-memory server mode. LightRAG gives you more choices; EdgeQuake gives you one stack to operate. EdgeQuake has optional SQLite, Qdrant, and Neo4j adapters in the code, but the server does not assemble them.
+EdgeQuake requires PostgreSQL 16 to 18 with pgvector and Apache AGE. The project ships the `ghcr.io/raphaelmansuy/edgequake-postgres` image. There is no in-memory server mode. LightRAG offers more backend choices; EdgeQuake gives you one stack to operate.
+
+EdgeQuake has Neo4j, Qdrant, and SQLite adapters in the code as prototypes. The product server does not select them, and its serving gate rejects any profile other than PostgreSQL with AGE and pgvector.
 
 ---
 
@@ -129,6 +131,8 @@ curl -X POST http://localhost:8080/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{"query": "What is the main topic?", "mode": "mix"}'
 ```
+
+The examples use port 8080. With `make dev`, EdgeQuake listens on port 8090, or on the next free port if 8090 is busy.
 
 The Rust crate `edgequake-core` also exposes `EdgeQuake::insert(content, document_id)` and `EdgeQuake::query(query, params)` for embedding in a Rust program.
 

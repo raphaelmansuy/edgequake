@@ -5,7 +5,9 @@ description: Which EdgeQuake upload endpoint to use for text, files, PDFs, batch
 
 # Document Upload Quick Reference
 
-This page helps you choose the right upload endpoint and shows how to follow a document from upload to "searchable". It is for developers who ingest content over HTTP. Examples assume `http://localhost:8080`, auth off, and a `WORKSPACE_ID` shell variable. With auth on, add `Authorization: Bearer <token>`. See [REST API conventions](rest-api.md#conventions).
+This page helps you choose the right upload endpoint and shows how to follow a document from upload to "searchable". It is for developers who ingest content over HTTP.
+
+Examples assume `http://localhost:8080`, `EDGEQUAKE_DEV_MODE=true` (auth off), and a `WORKSPACE_ID` shell variable. With auth on, add `Authorization: Bearer <token>`. See [REST API conventions](rest-api.md#conventions).
 
 ## Pick an endpoint
 
@@ -53,20 +55,22 @@ sequenceDiagram
     W->>W: queue insert task
     W->>W: chunk, extract, embed, store
     loop poll or subscribe
-        C->>A: GET /tasks/{task_id}
+        C->>A: GET /tasks/{track_id}
         A-->>C: status processing
     end
-    C->>A: GET /tasks/{task_id}
+    C->>A: GET /tasks/{track_id}
     A-->>C: status indexed
 ```
 
-Read it top to bottom. For a PDF the work has two parts: convert to Markdown, then ingest the text. Use the `task_id` from the upload response as the key for progress, cancel and retry. The `track_id` you may send is only a label for grouping.
+Read it top to bottom. For a PDF the work has two parts: convert to Markdown, then ingest the text.
+
+For text and file uploads, the response `track_id` and `task_id` hold the same value. Use it with `GET /api/v1/tasks/{track_id}`, and for cancel and retry. PDF uploads return `track_id: null`, so use the `task_id` (format `pdf-<uuid>`) and the PDF progress routes below. The `track_id` you send is only a label for grouping.
 
 Track progress with one of these:
 
 | Method | Route | Notes |
 |--------|-------|-------|
-| Poll task | `GET /api/v1/tasks/{task_id}` | `status`: `pending`, `processing`, `indexed`, `failed`, `cancelled` |
+| Poll task | `GET /api/v1/tasks/{track_id}` | `status`: `pending`, `processing`, `indexed`, `failed`, `cancelled` |
 | Poll ingest progress | `GET /api/v1/ingestion/{track_id}/progress` | Stage, percentage, counts |
 | Poll PDF progress | `GET /api/v1/documents/pdf/progress/{track_id}` | Per-phase progress for PDFs |
 | Server-Sent Events | `GET /api/v1/documents/pdf/progress/stream/{track_id}` | PDF progress stream |
@@ -87,7 +91,7 @@ curl -s -X POST http://localhost:8080/api/v1/documents \
 ```json
 {
   "document_id": "5b1f6c0e-...",
-  "track_id": "track-1f2e...",
+  "track_id": "9c7a41d2-...",
   "task_id": "9c7a41d2-...",
   "status": "pending",
   "queue_position": 1,
@@ -101,7 +105,7 @@ curl -s -X POST http://localhost:8080/api/v1/documents \
 | `content` | yes | Document text |
 | `title` | no | Display title |
 | `metadata` | no | Free-form object |
-| `track_id` | no | Your own grouping label |
+| `track_id` | no | Your own grouping label. The response `track_id` always equals `task_id`. |
 | `chunk_strategy` | no | `fixed`, `recursive` or `markdown` |
 | `chunk_options` | no | Size, overlap and separator overrides |
 | `enable_gleaning`, `max_gleaning` | no | Extra extraction passes |
@@ -111,7 +115,7 @@ curl -s -X POST http://localhost:8080/api/v1/documents \
 
 ## One file: POST /documents/upload
 
-Use it for `txt`, `md`, `json`, `csv`, `html`, `htm`, `xml`, `yaml` and `yml`, and for images (`png`, `jpg`, `jpeg`, `gif`, `webp`), which go through a vision model. The server also checks that the file content matches its extension. A PDF works here, but prefer `/documents/pdf`.
+Use it for `txt`, `md`, `json`, `csv`, `html`, `htm`, `xml`, `yaml` and `yml`, and for images (`png`, `jpg`, `jpeg`, `gif`, `webp`), which go through a vision model. A PDF works here, but prefer `/documents/pdf`.
 
 ```bash
 curl -s -X POST http://localhost:8080/api/v1/documents/upload \
@@ -122,7 +126,9 @@ curl -s -X POST http://localhost:8080/api/v1/documents/upload \
 
 Multipart fields: `file` (required), `metadata` (JSON string), `chunk_strategy`, `chunk_options` (JSON string), `extract_max_entities`, `extract_max_records`, `extraction_mode`, `decision_gate_preset`. The title is taken from the file name.
 
-Response fields include `document_id`, `filename`, `size`, `content_hash`, `is_duplicate`, `status`, `task_id`, `track_id`. Errors: 400 (no file or bad type), 409 (duplicate file already processed), 413.
+Response fields include `document_id`, `filename`, `size`, `content_hash`, `is_duplicate`, `status`, `task_id`, `track_id`.
+
+A file whose content is already stored returns **200** with `is_duplicate: true`, not 409. Errors: 400 (no file or unsupported type) and 413 (too large).
 
 ## Many files: POST /documents/upload/batch
 
@@ -190,7 +196,9 @@ curl -s -X POST http://localhost:8080/api/v1/documents/pdf \
 | `force_reindex` | Re-process a duplicate (`true`/`false`) |
 | `process_options` | Advanced options string |
 
-The `document_id` is reserved at upload time. A duplicate PDF returns `status: "duplicate"` with `duplicate_of`. Errors: 400, 409, 413, 500. The PDF routes do not read `extraction_mode`; they use the workspace or server setting.
+The `document_id` is reserved at upload time. A duplicate PDF returns 200 with `status: "duplicate"`. The `duplicate_of` field appears in batch results, not at the top level of a single upload.
+
+Errors: 400 (bad request), 413 (too large), 500 (server error). 409 is returned only for state conflicts, such as a PDF that is already being reprocessed. The PDF routes do not read a request `extraction_mode` field; they use the workspace or server setting, and the response reports which one applied.
 
 Batch version: `POST /documents/pdf/batch` with repeated `files` fields plus the same options. It returns `{ total_files, accepted, duplicates, failed, results[] }`, where each result has `filename`, `status` (`processing`, `duplicate`, `reindexing`, `failed`), `pdf_id`, `task_id`, `duplicate_of` and `error`.
 
@@ -217,11 +225,17 @@ curl -s -X POST http://localhost:8080/api/v1/documents/scan \
 }
 ```
 
-Errors: 400 (not a directory), 403 (path not allowed), 404 (directory not found).
+Errors:
+
+| Status | Cause |
+|--------|-------|
+| 400 | Invalid path (traversal pattern, symlink, too deep) or not a directory |
+| 403 | Path is outside the allowed directories |
+| 404 | Directory does not exist |
 
 ## Extraction mode
 
-`extraction_mode` chooses how entities are extracted: `llm` (default), `decision` (local decision model), or `inherit`. It is read on `POST /documents`, `/documents/upload` and `/documents/upload/batch`. Omit it and the document follows the workspace, then `EDGEQUAKE_EXTRACTION_MODE`, then `llm`. The response echoes `extraction_mode` and `extraction_mode_source`. A `decision` upload with no reachable decision backend returns 422 and stores nothing. See [Decision extraction](../concepts/decision-extraction.md).
+`extraction_mode` chooses how entities are extracted: `llm` (default), `decision` (local decision model), or `inherit`. It is read on `POST /documents`, `/documents/upload` and `/documents/upload/batch`. Omit it and the document follows the workspace, then `EDGEQUAKE_EXTRACTION_MODE`, then `llm`. The response echoes `extraction_mode` and `extraction_mode_source`. A `decision` upload with no reachable decision backend returns 422. See [Decision extraction](../concepts/decision-extraction.md).
 
 ## Common mistakes
 
@@ -230,13 +244,13 @@ Errors: 400 (not a directory), 403 (path not allowed), 404 (directory not found)
 | 415 or "Expected request with `Content-Type: application/json`" | You sent a file with `-F` to `/documents` | Use `/documents/upload` for files |
 | "Failed to parse the request body as JSON" | You sent form data to a JSON route | Use `-H "Content-Type: application/json" -d '{...}'` |
 | "missing field `content`" | JSON body without `content` | Add `content` |
-| 409 on upload | Same file already processed | Use `force_reindex=true` (PDF) or delete the old document |
+| Upload returns 200 with `is_duplicate: true` | Same content is already stored | Check `is_duplicate`. To reprocess a PDF use `force_reindex=true`, or delete the old document. |
 | PDF fails in `/upload/batch` | PDFs are rejected there | Use `/documents/pdf/batch` |
 
 ## Good habits
 
-1. Save the `task_id` from every upload. It is the only key for progress, cancel and retry.
-2. Cancel with `POST /api/v1/tasks/{task_id}/cancel`. See [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md).
+1. Save the task key from every upload. For text and file uploads it is `track_id` (equal to `task_id`). For PDFs it is `task_id`. It is the key for progress, cancel and retry.
+2. Cancel with `POST /api/v1/tasks/{track_id}/cancel`. See [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md).
 3. Subscribe to progress before long PDF conversions.
 4. Send the tenant and workspace headers on every call.
 

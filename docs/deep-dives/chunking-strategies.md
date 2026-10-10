@@ -115,7 +115,7 @@ See [PDF Processing](pdf-processing.md) for how the markers are produced.
 
 ### Semantic
 
-Semantic chunking is off unless you request it. It needs an embedding provider; without one it falls back to Recursive.
+Semantic chunking runs only when you request it, and it needs an embedding provider. Without one, the chunk step fails. Set `EDGEQUAKE_SEMANTIC_ALLOW_FALLBACK=true` to fall back to Recursive instead. Use that flag only for emergency recovery.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
@@ -171,7 +171,7 @@ Read it top to bottom: the workspace mode decides the base size, then per-docume
 | 50 KB to 100 KB | 800 | 66 |
 | over 100 KB | 600 | 49 |
 
-Overlap is 8.3 percent of the size, rounded down. For recursive, markdown, and PDF strategies, a document of 50 KB or less gets a size floor of 800.
+Overlap is 8.3 percent of the size, rounded down. With adaptive sizing, any strategy except `fixed` gets a floor of 800 tokens for documents of 50 KB or less.
 
 **Fixed sizing** uses `EDGEQUAKE_CHUNK_SIZE` (default 1200) and `EDGEQUAKE_CHUNK_OVERLAP` (default 100). Overlap must be smaller than size. A workspace `fixed` policy that breaks this rule falls back to 1200/100.
 
@@ -189,7 +189,9 @@ The aliases `chunk_size`, `chunk_overlap`, and `chunk_overlap_size` are also acc
 
 ## Overlap
 
-Overlap repeats the end of one chunk at the start of the next. It lets an entity or a pronoun reference that sits on a boundary appear whole in at least one chunk. The default of about 100 tokens costs about 8 percent extra processing. Raise it if answers lose context at boundaries.
+Overlap repeats the end of one chunk at the start of the next. An entity or pronoun that sits on a boundary then appears whole in at least one chunk.
+
+With the default 1,200-token chunks, 100 tokens of overlap adds about 8 percent more text. Raise the overlap if answers lose context at boundaries.
 
 ## What every chunk records
 
@@ -230,7 +232,7 @@ pub trait ChunkingStrategy: Send + Sync {
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| Embedding error "input length exceeds context length" | Dense text; chunks too large for the embedding model | Lower `chunk_token_size` (try 600). |
+| Embedding request fails with a context-length error | Dense text; chunks too large for the embedding model | Lower `chunk_token_size` (try 600). |
 | Answers miss facts at boundaries | Overlap too small | Raise overlap, keeping it below the size. |
 | Many tiny chunks | Many short paragraphs | Use `markdown` or raise `min_chunk_size` through the library config. |
 

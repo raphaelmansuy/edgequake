@@ -14,7 +14,7 @@ GAP-091-31 asked: do PostgreSQL 17 planner improvements, such as skip scan and b
 ## Method
 
 - Same corpus and test harness as IW1 (`perf_harness`): typed relational create, read, update, and delete on `documents`, `chunks`, and `chunk_embeddings`.
-- PG17 (`edgequake-postgres:pg17`) against a PG16 baseline. Both had the same migrations and extension pins at the time: pgvector 0.8.5 and AGE 1.7.0 on PG17.
+- PG17 (`edgequake-postgres:pg17`) against a PG16 baseline. Both had the same migrations. The extension pins were pgvector 0.8.5 and AGE 1.7.0 on PG17.
 - The adoption bar was a p95 improvement of at least 10% on list, delete, or search paths.
 
 ## Result
@@ -23,9 +23,22 @@ No operation met the bar. PG17 varied within noise on the indexed paths. The sha
 
 ## Decision
 
-- Keep one SQL path. Gate features by runtime capability probes (`capabilities.rs`), not by `server_version_num` checks.
+- Keep one SQL path. Gate features by runtime capability probes (`edgequake/crates/edgequake-storage/src/adapters/postgres/capabilities.rs`), not by hard-coded version branches.
 - Ship no PG17-only migrations in this release train.
-- Revisit only when a measured regression or a win of at least 10% appears on a named Ref ID in [version-matrix.md](./version-matrix.md).
+- Revisit only when a measured regression, or a win of at least 10% on a named Ref ID in [version-matrix.md](./version-matrix.md), appears.
+
+The flow below records how the decision was reached.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    q["Do PG17 planner changes justify PG17-only SQL?"] --> m["Measure list, delete, and search p95 with the same harness"]
+    m --> q1{"Is there a win of at least 10% on a named Ref ID?"}
+    q1 -- "yes" --> adopt["Add a probe-gated path"]
+    q1 -- "no" --> keep["Keep the shared SQL path"]
+    keep --> rev["Revisit on a measured regression or win"]
+```
 
 ## Related
 

@@ -41,12 +41,12 @@ Start at your goal. Each leaf is a section below, except the last box, which lin
 
 | Tool | Version | Check | Needed for |
 |------|---------|-------|------------|
-| Docker | 24 or newer | `docker --version` | All options (PostgreSQL runs in a container) |
+| Docker | A current Docker Engine or Docker Desktop | `docker --version` | All options (PostgreSQL runs in a container) |
 | Rust | 1.95 (pinned in `edgequake/rust-toolchain.toml`) | `rustc --version` | Options 1, 3, 4 |
-| Node.js | 20 or newer | `node --version` | Option 1 |
+| Node.js | A current LTS release | `node --version` | Option 1 |
 | pnpm (or Bun) | pnpm 10 | `pnpm --version` | Option 1 |
 
-Hardware: 4 GB RAM and 10 GB disk is the minimum. 16 GB RAM is more comfortable, especially with local models. Linux, macOS and Windows with WSL2 all work.
+Hardware: plan for enough disk for the container images and the database, and more RAM when you run local models.
 
 ### PostgreSQL
 
@@ -161,7 +161,7 @@ curl -s http://localhost:8080/health | jq '{status, llm_provider_name}'
 docker compose -f docker-compose.quickstart.yml ps
 ```
 
-The API image has no shell. Use `docker compose logs api`, not `docker exec`. For more detail see [Docker quickstart](../operations/docker-quickstart.md) and [Docker deployment options](../operations/docker-deployment-options.md).
+Read API logs with `docker compose logs api`. For more detail see [Docker quickstart](../operations/docker-quickstart.md) and [Docker deployment options](../operations/docker-deployment-options.md).
 
 ## Option 3: Backend only
 
@@ -231,14 +231,14 @@ export EDGEQUAKE_VISION_PROVIDER=ollama
 export EDGEQUAKE_VISION_MODEL=gemma4:latest
 ```
 
-If you set nothing, EdgeQuake falls back from the workspace vision setting, to the tenant setting, to the workspace chat model, to the server environment. A parser backend that needs no model, `edgeparse`, also exists. Check the result with `GET /api/v1/config/effective` and read `.vision` (look at `has_mismatch`).
+If you set nothing, EdgeQuake resolves the vision provider and model from several configuration levels (server config, inherited chat LLM settings and compiled defaults). A parser backend that needs no model, `edgeparse`, also exists. Check the result with `GET /api/v1/config/effective` and read the `vision` section.
 
 ## Authentication
 
 | Mode | Auth | How |
 |------|------|-----|
 | `make dev`, Docker quickstart | Off (dev mode) | Nothing to do |
-| `make dev-auth` | On | Also turns off the demo login. Set the admin credentials as in the production row |
+| `make dev-auth` | On | Starts the full stack with authentication enabled. Set credentials as in the production row |
 | Production | On | Set `JWT_SECRET` (32 or more characters), an admin password, and `EDGEQUAKE_DEV_MODE=false`. Details in [Runtime auth hardening](../operations/runtime-auth-hardening.md) |
 
 ## Verify the install

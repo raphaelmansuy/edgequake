@@ -6,73 +6,66 @@ description: "Per-release upgrade notes for EdgeQuake v0.26.0: what changed and 
 # Upgrade to EdgeQuake v0.26.0
 
 > **From:** v0.25.0 · **To:** v0.26.0 · **CD:** GHCR (`edgequake`, `edgequake-frontend`, `edgequake-postgres`)
->
-> **CLI honesty (SPEC-137) ships in [v0.26.1](upgrade-to-0.26.1.md).** Use the
-> 0.26.1+ binary for leftover DROP OLD (`--drop-confirm` alias). Schema train
-> stays **149** — 0.26.1 adds no migrations.
 
-Minor train: PDF pack-to-budget (SPEC-135), manuscript page-as-unit convert (SPEC-134),
-Langfuse dev sibling (SPEC-124), and partner reliability (#377, #383–#386, SPEC-101).
-**New migration: 149.** LD-15 still applies — the API never auto-migrates at boot.
+This minor release changes how PDFs are chunked, adds page-as-unit conversion for manuscripts and improves partner reliability. It adds migration 149, so run `edgequake migrate` before you start the API. The API never migrates at boot (LD-15).
 
-**crates.io deps:** pin `edgequake-llm` **0.10.8**, `edgequake-pdf2md` **0.9.11**, `edgeparse-core` **0.2.5**; `edgequake-sdk` **0.4.0** (no path patches).
+> **CLI honesty (SPEC-137) ships in [v0.26.1](upgrade-to-0.26.1.md).** Use the 0.26.1+ binary for leftover DROP OLD (`--drop-confirm` alias). The schema train stays at **149**, and 0.26.1 adds no migrations.
 
-Prior: [upgrade-to-0.25.0.md](upgrade-to-0.25.0.md) (SPEC-124…133 + mig 148).
+**Crates.io dependencies:** pin `edgequake-llm` **0.10.8**, `edgequake-pdf2md` **0.9.11**, `edgeparse-core` **0.2.5**, and `edgequake-sdk` **0.4.0** (no path patches).
 
-**SPEC-001 Acc:** this cut **attests** existing [`publish/latest`](../../specs/001-benchmark/e2e/artifacts/publish/latest/)
-(`valid: true`, medical-mid, `2026-08-15T11:02:18Z`) — no fresh n=200 Acc run; **PDF geometry not re-scored**.
+Previous release: [upgrade-to-0.25.0.md](upgrade-to-0.25.0.md) (SPEC-124 to 133 and migration 148).
+
+**SPEC-001 Acc:** this cut **attests** the existing [`publish/latest`](../../specs/001-benchmark/e2e/artifacts/publish/latest/) result (`valid: true`, medical-mid, `2026-08-15T11:02:18Z`). It does not include a fresh n=200 Acc run, and PDF geometry was not re-scored.
 
 ## Highlights
 
 | Area | What changed |
 |------|----------------|
-| Mig **149** | `tasks.document_id` column + index + backfill (#384) |
-| SPEC-135 | PDF pack-to-budget (default ON); page span `page_start`/`page_end`; MM index-once; citation `p.N–M` |
-| SPEC-134 | Manuscript page-as-unit convert; lift extract off disabled reasoning |
-| SPEC-124 | `make dev-langfuse` / `dev-bg-langfuse` + `make spec124-langfuse-e2e` |
+| Migration **149** | `tasks.document_id` column, index and backfill (#384) |
+| SPEC-135 | PDF pack-to-budget (on by default). Page span `page_start` and `page_end`; multimodal index once; citation `p.N–M` |
+| SPEC-134 | Manuscript page-as-unit conversion. Lifts extraction off disabled reasoning |
+| SPEC-124 | `make dev-langfuse` and `make dev-bg-langfuse`, plus `make spec124-langfuse-e2e` |
 | #377 / SPEC-136 | Absorb stamp-once `legacy_vector_id` unique violations |
-| #383–#386 | Saga compensation, in-flight task honesty, reprocess metadata rollback |
-| SPEC-101 | Wizard persist honesty (create/reconfigure embedding overrides) |
+| #383 to #386 | Saga compensation, in-flight task honesty, reprocess metadata rollback |
+| SPEC-101 | Wizard persist honesty (create and reconfigure embedding overrides) |
 
 ## Sequence
 
-```text
-1. Backup (recommended — schema train 149; required before any DROP OLD)
-2. Deploy v0.26.0 images (or binary) but do not start API replicas yet if schema is behind
-3. Run migrate against the target DB (LD-15):
+1. Take a backup. This is recommended because the schema changes, and it is required before any DROP OLD.
+2. Deploy the v0.26.0 images or binary, but hold the API replicas until migrate has run.
+3. Run migrate against the target database:
 
+   ```bash
    edgequake migrate dry-run
    edgequake migrate
-   # applies SAFE SCHEMA 149 if pending. No confirm required for 149.
+   # Applies safe schema 149 if pending. No confirmation is needed for 149.
+   ```
 
-4. Start API + frontend pinned to 0.26.0
-5. Verify health version + OpenAPI info.version + PDF ingest smoke
+4. Start the API and frontend, pinned to 0.26.0.
+5. Verify the health and OpenAPI versions, then run a PDF ingest smoke test.
+
+### Leftover SPEC-091 DROP OLD (125, 126, 131)
+
+Serving on 0.25 with pending KV or vector drops is **allowed**. Those migrations are not part of the 149 train. If `dry-run` or preflight still lists 125, 126 or 131, you are in the mid-cutover ladder. Follow the flow below. The steps reference [spec091-upgrade-from-v0.22.0.md](spec091-upgrade-from-v0.22.0.md) and [upgrade-to-0.24.2.md](upgrade-to-0.24.2.md) (engine jobs and a GREEN guard). Run the confirm step with a **v0.26.1+** binary ([upgrade-to-0.26.1.md](upgrade-to-0.26.1.md)).
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TB
+  A["Run migrate dry-run"] --> B{"125, 126 or 131 still pending?"}
+  B -->|No| C["Nothing to drop. Finish"]
+  B -->|Yes| D["Let the engine jobs finish (upgrade-to-0.24.2)"]
+  D --> E{"migrate guard GREEN?"}
+  E -->|No| D
+  E -->|Yes| F["Take a backup, then migrate --confirm-drop with a 0.26.1+ binary"]
+  F --> G["Run migrate again to clear the 142 assert"]
 ```
 
-### Leftover SPEC-091 DROP OLD (125 / 126 / 131)
+The guard must be green before any drop. SQL that finds uncovered rows aborts on purpose. Do not skip the guards. Details are in [`specs/137-issue-migration-25-to-26/09-ops-runbook.md`](../../specs/137-issue-migration-25-to-26/09-ops-runbook.md).
 
-Serving on 0.25 with pending KV/vector drops is **legal**. Those versions are
-**not** part of the 149 train. If `dry-run` / preflight still lists 125, 126, or
-131, you are on the mid-cutover ladder — follow
-[spec091-upgrade-from-v0.22.0.md](spec091-upgrade-from-v0.22.0.md) and
-[upgrade-to-0.24.2.md](upgrade-to-0.24.2.md) (engine jobs + guard GREEN), then
-run the confirm step with a **v0.26.1+** binary ([upgrade-to-0.26.1.md](upgrade-to-0.26.1.md)):
+Unknown apply flags fail closed (for example `--confirm-drp`). Do **not** set `EDGEQUAKE_MIGRATION_CONFIRM_DROP=1` in a shared env file.
 
-```text
-edgequake migrate guard
-# backup first
-edgequake migrate --confirm-drop
-# alias (SPEC-137, 0.26.1+): edgequake migrate --drop-confirm
-edgequake migrate          # deferred SPEC-105 assert 142
-```
-
-Unknown apply flags fail closed (e.g. `--confirm-drp`). Do **not** set
-`EDGEQUAKE_MIGRATION_CONFIRM_DROP=1` in a shared env file.
-
-SQL abort on uncovered rows is fail-closed safety (Wave D / W4 / IW2). Do not
-skip guards. Detail: [`specs/137-issue-migration-25-to-26/09-ops-runbook.md`](../../specs/137-issue-migration-25-to-26/09-ops-runbook.md).
-
-Compose / quickstart pin (prefer **0.26.4** for leftover 091 CLI):
+Compose or quickstart pin (0.26.4 is the preferred image for the leftover SPEC-091 CLI):
 
 ```bash
 EDGEQUAKE_VERSION=0.26.4 docker compose -f docker-compose.quickstart.yml up -d
@@ -82,42 +75,39 @@ EDGEQUAKE_VERSION=0.26.4 docker compose -f docker-compose.quickstart.yml up -d
 
 ### PDF chunking (SPEC-135)
 
-Product PDF ingest now **packs** converted markdown to the workspace tiktoken budget (default ON).
+Product PDF ingest now **packs** converted Markdown to the workspace tiktoken budget (on by default). Two kill switches are available:
 
-```bash
-# Roll back to pre-135 Recursive inner (ops kill switch)
-EDGEQUAKE_PDF_PACK=0
+| Variable | Set to | Effect |
+|----------|--------|--------|
+| `EDGEQUAKE_PDF_PACK` | `0` | Roll back to the pre-135 Recursive chunker |
+| `EDGEQUAKE_PDF_CROSS_PAGE_PACK` | `0` | Stop packing across pages (hard page boundaries only) |
 
-# Disable cross-page span packing (hard page emit only)
-EDGEQUAKE_PDF_CROSS_PAGE_PACK=0
-```
-
-- Applies to **future ingestions only** — no auto-rebuild of existing workspaces.
-- Historical `chunks.page_start`/`page_end` stay NULL until explicit **Rebuild KG**.
-- Acc PDF geometry was **not** re-scored for this cut.
+- The change applies to **future ingestions only**. Existing workspaces are not rebuilt automatically.
+- Historical `chunks.page_start` and `page_end` stay NULL until you run **Rebuild KG**.
+- PDF geometry (Acc) was **not** re-scored for this cut.
 
 ### Langfuse (SPEC-124)
 
-Unchanged from 0.25.0 for production. Local dev:
+Unchanged from 0.25.0 for production. For local development:
 
 ```bash
-make dev-langfuse          # isolated Langfuse v4 + EdgeQuake stack
-make spec124-langfuse-e2e  # one-command Settings + sessions proof
+make dev-langfuse          # isolated Langfuse v4 and EdgeQuake stack
+make spec124-langfuse-e2e  # one-command Settings and sessions proof
 ```
 
 ### Manuscript PDF (SPEC-134)
 
-Manuscript-class pages use page-as-unit convert. See [specs/134-manuscrit/](../../specs/134-manuscrit/).
+Manuscript-class pages use page-as-unit conversion. See [specs/134-manuscrit/](../../specs/134-manuscrit/).
 
 ## Verify
 
 ```bash
-curl -s http://localhost:8080/health | jq -r '.version'   # expect 0.26.0
+curl -s http://localhost:8080/health | jq -r '.version'                      # expect 0.26.0
 curl -s http://localhost:8080/api-docs/openapi.json | jq -r '.info.version'  # 0.26.0
 ```
 
 ## Out of scope
 
-- crates.io publish of EdgeQuake **workspace** crates (GHCR-only CD)
-- Auto-rebuild KG on upgrade
-- Fresh Acc n=200 medical-mid run
+- crates.io publish of the EdgeQuake workspace crates (GHCR-only CD)
+- Automatic rebuild of the KG on upgrade
+- A fresh Acc n=200 medical-mid run

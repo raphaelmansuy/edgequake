@@ -55,7 +55,7 @@ flowchart TD
     api --> manifest["edgequake-migrate-manifest"]
 ```
 
-Read it as the list of everything the API links in. `edgequake-pipeline`, `edgequake-query`, `edgequake-storage`, and `edgequake-tasks` also depend on `edgequake-observability` for metrics and tracing. `edgequake-auth`, `edgequake-audit`, `edgequake-rate-limiter`, and `edgequake-secrets` depend on no other workspace crate.
+Read it as the list of everything the API links in. `edgequake-pipeline`, `edgequake-query`, and `edgequake-tasks` also depend on `edgequake-observability` for metrics and tracing. `edgequake-storage` does too, behind its `observability` feature. `edgequake-auth`, `edgequake-audit`, `edgequake-rate-limiter`, and `edgequake-secrets` depend on no other workspace crate.
 
 External crates used by several workspace crates:
 

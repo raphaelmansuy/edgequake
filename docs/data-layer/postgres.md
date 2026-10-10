@@ -5,9 +5,9 @@ description: "The relational side of the EdgeQuake data layer: table catalog, ER
 
 # PostgreSQL: tables, tenancy, pools, and operations
 
-This page covers everything that is plain SQL in EdgeQuake: documents, chunks, tasks, tenants, users, conversations, and the settings around them. Vectors are on [pgvector.md](./pgvector.md). The graph is on [age.md](./age.md). The overview is in [README.md](./README.md).
+This page covers the relational (plain SQL) side of the EdgeQuake data layer: documents, chunks, tasks, tenants, users, conversations, and the settings around them. Operators and developers use it to find which table holds what, how tenant isolation and connection pools work, and how migrations run. Vectors are on [pgvector.md](./pgvector.md). The graph is on [age.md](./age.md). The overview is in [README.md](./README.md).
 
-The facts here were checked against the migrations in `edgequake/migrations/` (applied to a fresh PostgreSQL 18 database) and against the Rust code in `edgequake/crates/edgequake-storage` and `edgequake-tasks`.
+Facts on this page come from the migrations in `edgequake/migrations/` and the Rust code in `edgequake/crates/edgequake-storage` and `edgequake-tasks`.
 
 ## Table catalog
 
@@ -32,7 +32,7 @@ There are also five views: `rate_limit_violations`, `recent_security_events`, `t
 
 The `edgequake` schema holds migration and scheduling bookkeeping: `schema_compat`, `migration_run`, `migration_run_step`, `edgequake_migration_job`, `edgequake_migration_batch`, `provider_budget`, `provider_slot`, and `audit_log`.
 
-Tables that no longer exist: `eq_*_kv`, `eq_*_vectors`, and `edgequake_tasks`. Migrations 125, 126, and 131 dropped the first two families. See [Legacy key-value store](#legacy-key-value-store).
+Tables that no longer exist: `eq_*_kv` and `eq_*_vectors`. Migrations 125, 126, and 131 dropped them. No migration creates a table named `edgequake_tasks`. That name survives only in function names, and the `edgequake.tasks` view reads from `public.tasks`. See [Legacy key-value store](#legacy-key-value-store).
 
 ## Entity-relationship diagrams
 
@@ -58,7 +58,7 @@ erDiagram
 
 ### Documents and PDFs
 
-A document has chunks, optional PDF data, and optional original bytes. Solid lines are foreign keys with `ON DELETE CASCADE`. Dashed lines link by ID only: chunks and failed chunks point at a document by `document_id` without a foreign key, so their cleanup is done by application code.
+A document has chunks, optional PDF data, and optional original bytes. Solid lines are foreign keys with `ON DELETE CASCADE`. Dashed lines link by ID only. `failed_chunks` and the lineage tables (`chunk_entity_links`, `chunk_relation_links`) have no foreign key, so application code must clean up their rows.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
@@ -68,7 +68,7 @@ erDiagram
     documents ||--o{ document_pages : "page geometry"
     documents ||--o| document_originals : "raw bytes"
     documents ||--o{ document_mm_assets : "page images"
-    documents ||..o{ chunks : "split into"
+    documents ||--o{ chunks : "split into"
     chunks ||--o| chunk_serving_state : "visibility"
     chunks ||..o{ chunk_entity_links : "mentions"
     documents ||..o{ failed_chunks : "retries"
@@ -76,16 +76,16 @@ erDiagram
 
 ### Entities and relationships
 
-`entities` and `relationships` are relational copies of the graph. Solid lines are foreign keys; dashed lines link by ID only. `relationships` stores `source_id` and `target_id` as plain UUID columns with no foreign key. Entity names are unique per tenant and workspace.
+`entities` and `relationships` are relational copies of the graph. Solid lines are foreign keys; dashed lines link by ID only. `relationships.source_id` and `target_id` reference `entities(id)` with `ON DELETE CASCADE`. Entity names are unique per tenant and workspace.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
 %% eq-theme:v1
 erDiagram
     entities ||--o{ entity_embeddings : "has vector"
-    entities ||..o{ relationships : "source or target"
+    entities ||--o{ relationships : "source or target"
     entities ||..o{ chunk_entity_links : "found in"
-    relationships ||..o{ relationship_embeddings : "has vector"
+    relationships ||--o{ relationship_embeddings : "has vector"
     chunks ||..o{ chunk_relation_links : "evidence for"
 ```
 
@@ -138,6 +138,25 @@ SELECT public.set_tenant_context(:tenant, :workspace, :user);
 -- the query runs here; RLS filters rows
 ```
 
+The sequence below shows what a scoped transaction does before the first query. Each step runs inside the transaction, so a failed check leaves no tenant context behind.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+sequenceDiagram
+    participant API as REST API
+    participant Tx as Scoped transaction
+    participant PG as PostgreSQL
+    API->>Tx: Begin with tenant, workspace, user
+    opt workspace is set
+        Tx->>PG: Check workspace belongs to tenant
+    end
+    Tx->>PG: SET LOCAL ROLE edgequake_tenant_access
+    Tx->>PG: Fail if rolsuper or rolbypassrls, else set_tenant_context
+    API->>PG: Run query
+    PG-->>API: Rows allowed by tenant_access_guard
+```
+
 The helper functions are `current_tenant_id()`, `current_workspace_id()`, `set_tenant_context`, and `clear_tenant_context`. They read the settings `app.current_tenant_id`, `app.current_workspace_id`, and `app.current_user_id`. The Rust code in `rls.rs` first checks that the workspace belongs to the tenant, and it fails if the connected role is a superuser or has `BYPASSRLS`. Superusers skip RLS, so production must not connect as one. Administration and queue connections keep their privileged path, and not every query uses a scoped transaction, so the application layer filters by scope as well. Read [rls-superuser-acceptance.md](./rls-superuser-acceptance.md) for the decision history.
 
 The graph is outside RLS by default. See [age.md](./age.md#tenant-isolation-in-the-graph).
@@ -155,10 +174,32 @@ The API opens four separate pools so that one kind of work cannot starve another
 
 Sizes are clamped to 1 to 128. Each pool keeps at least one connection open. If `DATABASE_READ_URL` is set, the query pool connects there.
 
+The query pool can read from a replica. The ingest, queue, and admin pools always use the primary.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+    API["API server"] --> Q["Query pool<br/>default 16, acquire 5 s"]
+    API --> I["Ingest pool<br/>default 12, acquire 10 s"]
+    API --> QU["Queue pool<br/>default 4, acquire 5 s"]
+    API --> AD["Admin pool<br/>default 2, acquire 30 s"]
+    Q -->|"DATABASE_READ_URL set"| RR[("Read replica")]
+    Q -->|"not set"| PG[("PostgreSQL primary<br/>DATABASE_URL")]
+    I --> PG
+    QU --> PG
+    AD --> PG
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+classDef eqActor fill:#FCE7F3,stroke:#EC4899,color:#500724
+class QU,PG eqStore
+class AD eqActor
+```
+
 | Variable | Default | Meaning |
 |---|---|---|
 | `EDGEQUAKE_DB_POOL_BUDGET_MODE` | `warn` | `warn` or `fail` when pools times instances exceed what the server allows. |
-| `EDGEQUAKE_DB_POOL_INSTANCE_COUNT` | not set | How many API replicas share the database, used by the budget check. |
+| `EDGEQUAKE_DB_POOL_INSTANCE_COUNT` | 1 (clamped to 1 to 256) | How many API replicas share the database, used by the budget check. |
 | `EDGEQUAKE_DB_POOL_IDLE_TIMEOUT_SECS` | 600 | Close idle connections (30 to 86400). |
 | `EDGEQUAKE_DB_POOL_MAX_LIFETIME_SECS` | 1800 | Recycle connections (60 to 86400). |
 | `EDGEQUAKE_DB_IDLE_IN_XACT_TIMEOUT_SECS` | 60 | Kill sessions stuck in a transaction (5 to 3600). |
@@ -187,13 +228,13 @@ Only `edgequake migrate` changes the schema. The API never runs migrations. If t
 flowchart TD
     M["edgequake migrate"] --> M1["Repair known checksum variants"]
     M1 --> M2["Take advisory lock"]
-    M2 --> M3["Apply expand migrations"]
+    M2 --> M3["Apply expand migrations to PostgreSQL"]
     M3 --> M4["Drain data migrations"]
     M4 --> M5["Apply contract migrations"]
     S["edgequake serve"] --> S1{"Schema current?"}
     S1 -->|"yes"| S2["Serve traffic"]
     S1 -->|"no, mode wait"| S3["/live 200, /ready 503"]
-    S1 -->|"no, mode fail"| S4["Exit 78"]
+    S1 -->|"no, mode fail"| S4["Exit 78, schema error"]
 %% eq-classes
 classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
 classDef eqBad fill:#FEE2E2,stroke:#EF4444,color:#7F1D1D
@@ -213,7 +254,7 @@ class S3,S4 eqBad
 | Immutability | `checksums.lock` pins every file. Run `scripts/check_migration_checksums.sh`. |
 | Support scripts | `edgequake/migrations/support/NNN/`. Not scanned by sqlx. Migrations 083, 086, and 092 have reconcile scripts that run on every boot. |
 
-`docker/init.sql` is a legacy file and is not mounted. Do not rely on it.
+`edgequake/docker/init.sql` is a legacy file. No compose file mounts it. Do not rely on it.
 
 Related reading: [Upgrading](../operations/upgrading.md), [edgequake/docs/migrations.md](../../edgequake/docs/migrations.md), and the [SPEC-150 spec](../../specs/150-reliable-migration-system/README.md).
 
@@ -245,10 +286,10 @@ Table: `documents`. The list endpoint reads through `document_read_model.rs`.
 
 | Ref ID | Entry point | File | Type | Tx | Notes |
 |---|---|---|---|---|---|
-| `DATA-PG-DOCS-ENSURE-RECORD-101` | `ensure_document_record` | `storage/postgres/pdf_storage_impl.rs` | Write | Yes |  |
-| `DATA-PG-DOCS-UPDATE-STATS-102` | `update_document_stats` | `storage/postgres/pdf_storage_impl.rs` | Write | Yes |  |
-| `DATA-PG-DOCS-TOUCH-STATUS-103` | `touch_document_status` | `storage/postgres/pdf_storage_impl.rs` | Write | Yes |  |
-| `DATA-PG-DOCS-DELETE-RECORD-104` | `delete_document_record` | `storage/postgres/pdf_storage_impl.rs` | Write | Yes |  |
+| `DATA-PG-DOCS-ENSURE-RECORD-101` | `ensure_document_record` | `edgequake-storage/src/adapters/postgres/pdf_storage_impl.rs` | Write | Yes |  |
+| `DATA-PG-DOCS-UPDATE-STATS-102` | `update_document_stats` | `edgequake-storage/src/adapters/postgres/pdf_storage_impl.rs` | Write | Yes |  |
+| `DATA-PG-DOCS-TOUCH-STATUS-103` | `touch_document_status` | `edgequake-storage/src/adapters/postgres/pdf_storage_impl.rs` | Write | Yes |  |
+| `DATA-PG-DOCS-DELETE-RECORD-104` | `delete_document_record` | `edgequake-storage/src/adapters/postgres/pdf_storage_impl.rs` | Write | Yes |  |
 | `DATA-PG-DOCS-LIST-SUMMARIES-106` | `list_relational_document_summaries` | `edgequake-api/src/document_read_model.rs` | Read | Yes |  |
 | `DATA-PG-DOCS-DELETE-WORKSPACE-107` | `delete_relational_documents_for_workspace` | `edgequake-api/src/document_read_model.rs` | Write | Yes |  |
 
@@ -258,15 +299,15 @@ Tables: `pdf_documents`, `pdf_document_blobs`.
 
 | Ref ID | Entry point | File | Type | Tx | Notes |
 |---|---|---|---|---|---|
-| `DATA-PG-PDF-STORE-093` | `PdfStorage::store_pdf` | `storage/postgres/pdf_storage_impl.rs` | Write | Yes |  |
-| `DATA-PG-PDF-GET-094` | `PdfStorage::get_pdf` | `storage/postgres/pdf_storage_impl.rs` | Read | Yes |  |
-| `DATA-PG-PDF-UPDATE-MARKDOWN-095` | `PdfStorage::update_markdown` | `storage/postgres/pdf_storage_impl.rs` | Write | Yes |  |
-| `DATA-PG-PDF-UPDATE-STATUS-096` | `PdfStorage::update_pdf_processing` | `storage/postgres/pdf_storage_impl.rs` | Write | Yes |  |
-| `DATA-PG-PDF-LINK-TO-DOCUMENT-097` | `PdfStorage::link_pdf_to_document` | `storage/postgres/pdf_storage_impl.rs` | Write | Yes |  |
-| `DATA-PG-PDF-LIST-098` | `PdfStorage::list_pdfs` | `storage/postgres/pdf_storage_impl.rs` | Read | Yes |  |
-| `DATA-PG-PDF-DELETE-099` | `PdfStorage::delete_pdf` | `storage/postgres/pdf_storage_impl.rs` | Write | Yes |  |
-| `DATA-PG-PDF-CLEAR-MARKDOWN-100` | `PdfStorage::clear_markdown` | `storage/postgres/pdf_storage_impl.rs` | Write | Yes |  |
-| `DATA-PG-PDF-COUNT-105` | `count_pdfs` | `storage/postgres/pdf_storage_impl.rs` | Read | Yes |  |
+| `DATA-PG-PDF-STORE-093` | `PdfStorage::create_pdf` | `edgequake-storage/src/adapters/postgres/pdf_storage_impl.rs` | Write | Yes |  |
+| `DATA-PG-PDF-GET-094` | `PdfStorage::get_pdf` | `edgequake-storage/src/adapters/postgres/pdf_storage_impl.rs` | Read | Yes |  |
+| `DATA-PG-PDF-UPDATE-MARKDOWN-095` | `PdfStorage::update_pdf_processing` | `edgequake-storage/src/adapters/postgres/pdf_storage_impl.rs` | Write | Yes | Writes `markdown_content`. No separate `update_markdown` method exists. |
+| `DATA-PG-PDF-UPDATE-STATUS-096` | `PdfStorage::update_pdf_processing` | `edgequake-storage/src/adapters/postgres/pdf_storage_impl.rs` | Write | Yes |  |
+| `DATA-PG-PDF-LINK-TO-DOCUMENT-097` | `PdfStorage::link_pdf_to_document` | `edgequake-storage/src/adapters/postgres/pdf_storage_impl.rs` | Write | Yes |  |
+| `DATA-PG-PDF-LIST-098` | `PdfStorage::list_pdfs` | `edgequake-storage/src/adapters/postgres/pdf_storage_impl.rs` | Read | Yes |  |
+| `DATA-PG-PDF-DELETE-099` | `PdfStorage::delete_pdf` | `edgequake-storage/src/adapters/postgres/pdf_storage_impl.rs` | Write | Yes |  |
+| `DATA-PG-PDF-CLEAR-MARKDOWN-100` | `PdfStorage::clear_markdown` | `edgequake-storage/src/adapters/postgres/pdf_storage_impl.rs` | Write | Yes |  |
+| `DATA-PG-PDF-COUNT-105` | `count_pdfs` | `edgequake-storage/src/adapters/postgres/pdf_storage_impl.rs` | Read | Yes |  |
 
 ### Original uploads (`ORIGINAL`, 1)
 
@@ -274,7 +315,7 @@ Table: `document_originals`.
 
 | Ref ID | Entry point | File | Type | Tx | Notes |
 |---|---|---|---|---|---|
-| `DATA-PG-ORIGINAL-STORE-108` | `OriginalStorage store/get/delete` | `storage/postgres/original_storage_impl.rs` | Write | Yes |  |
+| `DATA-PG-ORIGINAL-STORE-108` | `OriginalStorage store/get/delete` | `edgequake-storage/src/adapters/postgres/original_storage_impl.rs` | Write | Yes |  |
 
 ### Multimodal assets (`MM-ASSET`, 1)
 
@@ -282,7 +323,7 @@ Table: `document_mm_assets`.
 
 | Ref ID | Entry point | File | Type | Tx | Notes |
 |---|---|---|---|---|---|
-| `DATA-PG-MM-ASSET-STORE-109` | `MmAssetStorage CRUD` | `storage/postgres/mm_asset_storage_impl.rs` | Write | Yes |  |
+| `DATA-PG-MM-ASSET-STORE-109` | `MmAssetStorage CRUD` | `edgequake-storage/src/adapters/postgres/mm_asset_storage_impl.rs` | Write | Yes |  |
 
 ### Failed chunks (`FAILED-CHUNKS`, 3)
 
@@ -290,9 +331,9 @@ Table: `failed_chunks`. Used for retry.
 
 | Ref ID | Entry point | File | Type | Tx | Notes |
 |---|---|---|---|---|---|
-| `DATA-PG-FAILED-CHUNKS-INSERT-192` | `insert_failed_chunks` | `storage/failed_chunks.rs` | Write | Yes |  |
-| `DATA-PG-FAILED-CHUNKS-LIST-193` | `list_failed_chunks` | `storage/failed_chunks.rs` | Read | Yes |  |
-| `DATA-PG-FAILED-CHUNKS-MARK-STATUS-194` | `mark_chunk_status` | `storage/failed_chunks.rs` | Write | Yes |  |
+| `DATA-PG-FAILED-CHUNKS-INSERT-192` | `insert_failed_chunks` | `edgequake-storage/src/failed_chunks.rs` | Write | Yes |  |
+| `DATA-PG-FAILED-CHUNKS-LIST-193` | `list_failed_chunks` | `edgequake-storage/src/failed_chunks.rs` | Read | Yes |  |
+| `DATA-PG-FAILED-CHUNKS-MARK-STATUS-194` | `mark_chunk_status` | `edgequake-storage/src/failed_chunks.rs` | Write | Yes |  |
 
 ### Entity read model (`ENTITY`, 2)
 
@@ -335,7 +376,7 @@ Table: `tasks`. Claims use `FOR UPDATE SKIP LOCKED` and a lease.
 | `DATA-PG-TASKS-REFRESH-LEASE-141` | `PostgresTaskStorage::refresh_lease` | `edgequake-tasks/src/postgres.rs` | Write | Yes |  |
 | `DATA-PG-TASKS-RELEASE-CLAIM-142` | `PostgresTaskStorage::release_claim` | `edgequake-tasks/src/postgres.rs` | Write | Yes |  |
 | `DATA-PG-TASKS-QUEUE-METRICS-143` | `PostgresTaskStorage::get_queue_metrics_filtered` | `edgequake-tasks/src/postgres.rs` | Read | Yes |  |
-| `DATA-PG-TASKS-TOTAL-COUNT-144` | `PostgresTaskStorage::get_total_count` | `edgequake-tasks/src/postgres.rs` | Read | Yes |  |
+| `DATA-PG-TASKS-TOTAL-COUNT-144` | `PostgresTaskStorage::get_total_count` | `edgequake-tasks/src/postgres.rs` | Read | Yes | No method with this name in code. Nearest: `get_estimated_count`. |
 
 ### Tenants (`TENANT`, 6)
 
@@ -430,27 +471,27 @@ Tables: `conversations`, `messages`, `folders`.
 
 | Ref ID | Entry point | File | Type | Tx | Notes |
 |---|---|---|---|---|---|
-| `DATA-PG-CONV-CREATE-110` | `ConversationStorage::create_conversation` | `storage/postgres/conversation.rs` | Write | Yes |  |
-| `DATA-PG-CONV-GET-111` | `ConversationStorage::get_conversation` | `storage/postgres/conversation.rs` | Read | Yes |  |
-| `DATA-PG-CONV-UPDATE-112` | `ConversationStorage::update_conversation` | `storage/postgres/conversation.rs` | Write | Yes |  |
-| `DATA-PG-CONV-DELETE-113` | `ConversationStorage::delete_conversation` | `storage/postgres/conversation.rs` | Write | Yes |  |
-| `DATA-PG-CONV-LIST-114` | `ConversationStorage::list_conversations` | `storage/postgres/conversation.rs` | Read | Yes |  |
-| `DATA-PG-CONV-SHARE-115` | `ConversationStorage::share_conversation` | `storage/postgres/conversation.rs` | Write | Yes |  |
-| `DATA-PG-CONV-UNSHARE-116` | `ConversationStorage::unshare_conversation` | `storage/postgres/conversation.rs` | Write | Yes |  |
-| `DATA-PG-CONV-GET-SHARED-117` | `ConversationStorage::get_shared_conversation` | `storage/postgres/conversation.rs` | Read | Yes |  |
-| `DATA-PG-CONV-MSG-CREATE-118` | `ConversationStorage::create_message` | `storage/postgres/conversation.rs` | Write | Yes |  |
-| `DATA-PG-CONV-MSG-UPDATE-119` | `ConversationStorage::update_message` | `storage/postgres/conversation.rs` | Write | Yes |  |
-| `DATA-PG-CONV-MSG-GET-120` | `ConversationStorage::get_message` | `storage/postgres/conversation.rs` | Read | Yes |  |
-| `DATA-PG-CONV-MSG-DELETE-121` | `ConversationStorage::delete_message` | `storage/postgres/conversation.rs` | Write | Yes |  |
-| `DATA-PG-CONV-MSG-LIST-122` | `ConversationStorage::list_messages` | `storage/postgres/conversation.rs` | Read | Yes |  |
-| `DATA-PG-CONV-FOLDER-CREATE-123` | `ConversationStorage::create_folder` | `storage/postgres/conversation.rs` | Write | Yes |  |
-| `DATA-PG-CONV-FOLDER-LIST-124` | `ConversationStorage::list_folders` | `storage/postgres/conversation.rs` | Read | Yes |  |
-| `DATA-PG-CONV-FOLDER-UPDATE-125` | `ConversationStorage::update_folder` | `storage/postgres/conversation.rs` | Write | Yes |  |
-| `DATA-PG-CONV-FOLDER-GET-126` | `ConversationStorage::get_folder` | `storage/postgres/conversation.rs` | Read | Yes |  |
-| `DATA-PG-CONV-FOLDER-DELETE-127` | `ConversationStorage::delete_folder` | `storage/postgres/conversation.rs` | Write | Yes |  |
-| `DATA-PG-CONV-BULK-DELETE-128` | `ConversationStorage::bulk_delete` | `storage/postgres/conversation.rs` | Write | Yes |  |
-| `DATA-PG-CONV-BULK-ARCHIVE-129` | `ConversationStorage::bulk_archive` | `storage/postgres/conversation.rs` | Write | Yes |  |
-| `DATA-PG-CONV-BULK-MOVE-130` | `ConversationStorage::bulk_move_to_folder` | `storage/postgres/conversation.rs` | Write | Yes |  |
+| `DATA-PG-CONV-CREATE-110` | `ConversationStorage::create_conversation` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Write | Yes |  |
+| `DATA-PG-CONV-GET-111` | `ConversationStorage::get_conversation` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Read | Yes |  |
+| `DATA-PG-CONV-UPDATE-112` | `ConversationStorage::update_conversation` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Write | Yes |  |
+| `DATA-PG-CONV-DELETE-113` | `ConversationStorage::delete_conversation` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Write | Yes |  |
+| `DATA-PG-CONV-LIST-114` | `ConversationStorage::list_conversations` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Read | Yes |  |
+| `DATA-PG-CONV-SHARE-115` | `ConversationStorage::share_conversation` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Write | Yes |  |
+| `DATA-PG-CONV-UNSHARE-116` | `ConversationStorage::unshare_conversation` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Write | Yes |  |
+| `DATA-PG-CONV-GET-SHARED-117` | `ConversationStorage::get_shared_conversation` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Read | Yes |  |
+| `DATA-PG-CONV-MSG-CREATE-118` | `ConversationStorage::create_message` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Write | Yes |  |
+| `DATA-PG-CONV-MSG-UPDATE-119` | `ConversationStorage::update_message` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Write | Yes |  |
+| `DATA-PG-CONV-MSG-GET-120` | `ConversationStorage::get_message` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Read | Yes |  |
+| `DATA-PG-CONV-MSG-DELETE-121` | `ConversationStorage::delete_message` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Write | Yes |  |
+| `DATA-PG-CONV-MSG-LIST-122` | `ConversationStorage::list_messages` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Read | Yes |  |
+| `DATA-PG-CONV-FOLDER-CREATE-123` | `ConversationStorage::create_folder` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Write | Yes |  |
+| `DATA-PG-CONV-FOLDER-LIST-124` | `ConversationStorage::list_folders` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Read | Yes |  |
+| `DATA-PG-CONV-FOLDER-UPDATE-125` | `ConversationStorage::update_folder` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Write | Yes |  |
+| `DATA-PG-CONV-FOLDER-GET-126` | `ConversationStorage::get_folder` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Read | Yes |  |
+| `DATA-PG-CONV-FOLDER-DELETE-127` | `ConversationStorage::delete_folder` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Write | Yes |  |
+| `DATA-PG-CONV-BULK-DELETE-128` | `ConversationStorage::bulk_delete` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Write | Yes |  |
+| `DATA-PG-CONV-BULK-ARCHIVE-129` | `ConversationStorage::bulk_archive` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Write | Yes |  |
+| `DATA-PG-CONV-BULK-MOVE-130` | `ConversationStorage::bulk_move_to_folder` | `edgequake-storage/src/adapters/postgres/conversation.rs` | Write | Yes |  |
 
 ### Server configuration (`CONFIG`, 4)
 
@@ -478,8 +519,8 @@ Functions `set_tenant_context` and `clear_tenant_context`.
 
 | Ref ID | Entry point | File | Type | Tx | Notes |
 |---|---|---|---|---|---|
-| `DATA-PG-RLS-SET-TENANT-CONTEXT-195` | `set_tenant_context_on_conn` | `storage/postgres/rls.rs` | Session | Yes |  |
-| `DATA-PG-RLS-CLEAR-TENANT-CONTEXT-196` | `clear_tenant_context_on_conn` | `storage/postgres/rls.rs` | Session | Yes |  |
+| `DATA-PG-RLS-SET-TENANT-CONTEXT-195` | `set_tenant_context_on_conn` | `edgequake-storage/src/adapters/postgres/rls.rs` | Session | Yes |  |
+| `DATA-PG-RLS-CLEAR-TENANT-CONTEXT-196` | `clear_tenant_context_on_conn` | `edgequake-storage/src/adapters/postgres/rls.rs` | Session | Yes |  |
 
 ### Pool (`POOL`, 1)
 
@@ -487,7 +528,7 @@ Connection setup in `connection.rs`.
 
 | Ref ID | Entry point | File | Type | Tx | Notes |
 |---|---|---|---|---|---|
-| `DATA-PG-POOL-ACQUIRE-CONNECT-197` | `PostgresPool connect/acquire` | `storage/postgres/connection.rs` | Session | No |  |
+| `DATA-PG-POOL-ACQUIRE-CONNECT-197` | `PostgresPool connect/acquire` | `edgequake-storage/src/adapters/postgres/connection.rs` | Session | No |  |
 
 ### Row-count statistics (`STATS`, 1)
 
@@ -495,7 +536,7 @@ Keeps cheap row counts.
 
 | Ref ID | Entry point | File | Type | Tx | Notes |
 |---|---|---|---|---|---|
-| `DATA-PG-STATS-ENSURE-ROW-COUNT-208` | `ensure_row_count_stats` | `storage/postgres/row_count_stats.rs` | DDL | Yes |  |
+| `DATA-PG-STATS-ENSURE-ROW-COUNT-208` | `ensure_row_count_stats` | `edgequake-storage/src/adapters/postgres/row_count_stats.rs` | DDL | Yes |  |
 
 ### ID allocation (`ID`, 1)
 
@@ -503,7 +544,7 @@ New document IDs use `uuidv7()` on PostgreSQL 18 and random v4 UUIDs on older ve
 
 | Ref ID | Entry point | File | Type | Tx | Notes |
 |---|---|---|---|---|---|
-| `DATA-PG-ID-ALLOCATE-DOCUMENT-209` | `allocate_document_id` | `storage/postgres/id_allocation.rs` | Write | Yes |  |
+| `DATA-PG-ID-ALLOCATE-DOCUMENT-209` | `allocate_document_id` | `edgequake-storage/src/adapters/postgres/id_allocation.rs` | Write | Yes |  |
 
 ### Storage inspector (`INSPECT`, 4)
 
@@ -562,21 +603,21 @@ Legacy. The `eq_*_kv` tables are gone after migration 125. Rollback only.
 
 | Ref ID | Entry point | File | Type | Tx | Notes |
 |---|---|---|---|---|---|
-| [`DATA-PG-KV-GET-BY-ID-075`](./benchmarks/075.md) | `KVStorage::get_by_id` | `storage/postgres/kv.rs` | Read | Yes |  |
-| [`DATA-PG-KV-GET-BY-IDS-076`](./benchmarks/076.md) | `KVStorage::get_by_ids` | `storage/postgres/kv.rs` | Read | Yes |  |
-| `DATA-PG-KV-GET-BY-IDS-ORDERED-077` | `KVStorage::get_by_ids_ordered` | `storage/postgres/kv.rs` | Read | Yes |  |
-| `DATA-PG-KV-FILTER-KEYS-078` | `KVStorage::filter_keys` | `storage/postgres/kv.rs` | Read | Yes |  |
-| [`DATA-PG-KV-UPSERT-079`](./benchmarks/079.md) | `KVStorage::upsert` | `storage/postgres/kv.rs` | Write | Yes |  |
-| `DATA-PG-KV-DELETE-080` | `KVStorage::delete` | `storage/postgres/kv.rs` | Write | Yes |  |
-| `DATA-PG-KV-COUNT-081` | `KVStorage::count` | `storage/postgres/kv.rs` | Read | Yes |  |
-| `DATA-PG-KV-IS-EMPTY-082` | `KVStorage::is_empty` | `storage/postgres/kv.rs` | Read | Yes |  |
-| `DATA-PG-KV-PING-083` | `KVStorage::ping` | `storage/postgres/kv.rs` | Read | No |  |
-| `DATA-PG-KV-COUNT-EMBEDDED-CHUNKS-084` | `KVStorage::count_embedded_chunks_for_docs` | `storage/postgres/kv.rs` | Read | Yes |  |
-| `DATA-PG-KV-KEYS-WITH-PREFIX-085` | `KVStorage::keys_with_prefix` | `storage/postgres/kv.rs` | Read | Yes |  |
-| `DATA-PG-KV-KEYS-WITH-PREFIX-LIMITED-086` | `KVStorage::keys_with_prefix_limited` | `storage/postgres/kv.rs` | Read | Yes |  |
-| `DATA-PG-KV-KEYS-WITH-SUFFIX-087` | `KVStorage::keys_with_suffix` | `storage/postgres/kv.rs` | Read | Yes |  |
-| `DATA-PG-KV-KEYS-WITH-SUFFIX-LIMITED-088` | `KVStorage::keys_with_suffix_limited` | `storage/postgres/kv.rs` | Read | Yes |  |
-| `DATA-PG-KV-KEYS-089` | `KVStorage::keys` | `storage/postgres/kv.rs` | Read | Yes | ADMIN mid-wildcard |
-| `DATA-PG-KV-CLEAR-090` | `KVStorage::clear` | `storage/postgres/kv.rs` | Write | Yes | ADMIN |
-| `DATA-PG-KV-TRANSITION-IF-STATUS-091` | `KVStorage::transition_if_status` | `storage/postgres/kv.rs` | Write | Yes |  |
-| `DATA-PG-KV-DDL-CREATE-TABLE-092` | `PostgresKVStorage::create_table` | `storage/postgres/kv.rs` | DDL | Yes |  |
+| [`DATA-PG-KV-GET-BY-ID-075`](./benchmarks/075.md) | `KVStorage::get_by_id` | `edgequake-storage/src/adapters/postgres/kv.rs` | Read | Yes |  |
+| [`DATA-PG-KV-GET-BY-IDS-076`](./benchmarks/076.md) | `KVStorage::get_by_ids` | `edgequake-storage/src/adapters/postgres/kv.rs` | Read | Yes |  |
+| `DATA-PG-KV-GET-BY-IDS-ORDERED-077` | `KVStorage::get_by_ids_ordered` | `edgequake-storage/src/adapters/postgres/kv.rs` | Read | Yes |  |
+| `DATA-PG-KV-FILTER-KEYS-078` | `KVStorage::filter_keys` | `edgequake-storage/src/adapters/postgres/kv.rs` | Read | Yes |  |
+| [`DATA-PG-KV-UPSERT-079`](./benchmarks/079.md) | `KVStorage::upsert` | `edgequake-storage/src/adapters/postgres/kv.rs` | Write | Yes |  |
+| `DATA-PG-KV-DELETE-080` | `KVStorage::delete` | `edgequake-storage/src/adapters/postgres/kv.rs` | Write | Yes |  |
+| `DATA-PG-KV-COUNT-081` | `KVStorage::count` | `edgequake-storage/src/adapters/postgres/kv.rs` | Read | Yes |  |
+| `DATA-PG-KV-IS-EMPTY-082` | `KVStorage::is_empty` | `edgequake-storage/src/adapters/postgres/kv.rs` | Read | Yes |  |
+| `DATA-PG-KV-PING-083` | `KVStorage::ping` | `edgequake-storage/src/adapters/postgres/kv.rs` | Read | No |  |
+| `DATA-PG-KV-COUNT-EMBEDDED-CHUNKS-084` | `KVStorage::count_embedded_chunks_for_docs` | `edgequake-storage/src/adapters/postgres/kv.rs` | Read | Yes |  |
+| `DATA-PG-KV-KEYS-WITH-PREFIX-085` | `KVStorage::keys_with_prefix` | `edgequake-storage/src/adapters/postgres/kv.rs` | Read | Yes |  |
+| `DATA-PG-KV-KEYS-WITH-PREFIX-LIMITED-086` | `KVStorage::keys_with_prefix_limited` | `edgequake-storage/src/adapters/postgres/kv.rs` | Read | Yes |  |
+| `DATA-PG-KV-KEYS-WITH-SUFFIX-087` | `KVStorage::keys_with_suffix` | `edgequake-storage/src/adapters/postgres/kv.rs` | Read | Yes |  |
+| `DATA-PG-KV-KEYS-WITH-SUFFIX-LIMITED-088` | `KVStorage::keys_with_suffix_limited` | `edgequake-storage/src/adapters/postgres/kv.rs` | Read | Yes |  |
+| `DATA-PG-KV-KEYS-089` | `KVStorage::keys` | `edgequake-storage/src/adapters/postgres/kv.rs` | Read | Yes | ADMIN mid-wildcard |
+| `DATA-PG-KV-CLEAR-090` | `KVStorage::clear` | `edgequake-storage/src/adapters/postgres/kv.rs` | Write | Yes | ADMIN |
+| `DATA-PG-KV-TRANSITION-IF-STATUS-091` | `KVStorage::transition_if_status` | `edgequake-storage/src/adapters/postgres/kv.rs` | Write | Yes |  |
+| `DATA-PG-KV-DDL-CREATE-TABLE-092` | `PostgresKVStorage::create_table` | `edgequake-storage/src/adapters/postgres/kv.rs` | DDL | Yes |  |

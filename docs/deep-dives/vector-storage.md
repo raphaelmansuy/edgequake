@@ -1,619 +1,396 @@
 ---
 title: 'Deep Dive: Vector Storage'
-description: "Vector storage and similarity search internals."
+description: "How EdgeQuake stores embeddings in PostgreSQL with pgvector, indexes them with HNSW, and filters similarity search by workspace, document and type."
 ---
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+> **Product: v0.32.2** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
 
 # Deep Dive: Vector Storage
 
-> **How EdgeQuake Stores and Searches Vector Embeddings**
+> **How EdgeQuake stores and searches vector embeddings**
 
-Vector storage powers EdgeQuake's semantic search capabilities. This document explains how embeddings are stored, indexed, and queried for similarity.
+This page explains how embeddings are stored, indexed and searched for similarity. It is for engineers who tune retrieval or debug vector errors. Production runs on PostgreSQL with pgvector only.
 
-**See also:** [Data Layer](data-layer.md) — physical `eq_eq_*_vectors` / workspace tables, halfvec policy, FTS→KV join, and the query×store matrix.
+**See also:** [Data Layer](data-layer.md) for the physical tables, the typed backend and the query-by-store matrix.
 
 ---
 
 ## Overview
 
-EdgeQuake uses a trait-based vector storage abstraction. **Production deployments use PostgreSQL + pgvector only** (in-memory vector storage was removed with v0.4.0).
+The chunk text goes to an embedding model. The resulting vector is written to a pgvector table with an HNSW index. A query embeds the question and searches the same index.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    VECTOR STORAGE ARCHITECTURE                  │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │                     LLM PROVIDER                            ││
-│  │                                                             ││
-│  │  ┌───────────────┐     ┌───────────────────────────────────┐││
-│  │  │ Text Chunk    │────▶│ Embedding Model                   │││
-│  │  │ "Dr. Sarah    │     │ (text-embedding-3-small)          │││
-│  │  │  Chen..."     │     │                                   │││
-│  │  └───────────────┘     └─────────────┬─────────────────────┘││
-│  │                                      │                      ││
-│  │                              [1536-dim vector]              ││
-│  │                                      │                      ││
-│  └──────────────────────────────────────│──────────────────────┘│
-│                                         │                       │
-│                                         ▼                       │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │                    VECTOR STORAGE                          │ │
-│  │                                                            │ │
-│  │  ┌──────────┐    ┌──────────┐    ┌──────────┐              │ │
-│  │  │ IVFFlat  │    │  HNSW    │    │ Memory   │              │ │
-│  │  │ (lists)  │    │ (graph)  │    │ (brute)  │              │ │
-│  │  └────┬─────┘    └────┬─────┘    └────┬─────┘              │ │
-│  │       │               │               │                    │ │
-│  │       └───────────────┼───────────────┘                    │ │
-│  │                       │                                    │ │
-│  │                       ▼                                    │ │
-│  │           ┌───────────────────────────────────────┐        │ │
-│  │           │          pgvector / memory            │        │ │
-│  │           │     [id, embedding, metadata]         │        │ │
-│  │           └───────────────────────────────────────┘        │ │
-│  │                                                            │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart LR
+  text["Text chunk"]
+  model["Embedding model<br/>provider"]
+  vec["Vector<br/>1536 dimensions"]
+  store["PgVectorStorage<br/>pgvector tables"]
+  hnsw["HNSW index<br/>cosine"]
+  query["query_filtered<br/>top_k and filters"]
+  results["VectorSearchResult<br/>id, score, metadata"]
+  text --> model --> vec --> store --> hnsw
+  query --> hnsw --> results
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class model eqLlm
+class store eqStore
 ```
 
----
+*Notice that writes and reads meet at the same HNSW index. Filters apply in the same SQL statement as the ranking.*
 
-## Why Separate Vector Storage?
-
-| Reason                  | Benefit                                         |
-| ----------------------- | ----------------------------------------------- |
-| **Specialized Indices** | HNSW, IVFFlat optimized for nearest-neighbor    |
-| **GPU Acceleration**    | Backends like Faiss can use GPU                 |
-| **Different Scaling**   | Vectors scale differently than graph data       |
-| **Backend Flexibility** | pgvector in PostgreSQL (required) |
+Vectors are stored in PostgreSQL next to the graph and the KV store. That keeps one operations surface. The in-memory adapter (`MemoryVectorStorage` in `edgequake-storage/src/adapters/memory/`) is used by unit tests, not by the server.
 
 ---
 
-## halfvec and dimension policy (M071 / M080+)
+## Dimension and column policy
 
-pgvector HNSW has dimension ceilings: **`vector` ≤ 2000**, **`halfvec` ≤ 4000**. EdgeQuake resolves column type via `AnnIndexPolicy` in [`adapters/postgres/capabilities.rs`](https://github.com/raphaelmansuy/edgequake/blob/edgequake-main/edgequake/crates/edgequake-storage/src/adapters/postgres/capabilities.rs):
+pgvector limits HNSW to 2000 dimensions for the `vector` type and 4000 for `halfvec`. `AnnIndexPolicy` in [`capabilities.rs`](../../edgequake/crates/edgequake-storage/src/adapters/postgres/capabilities.rs) applies these limits:
 
-| Condition | Column | HNSW |
-| --------- | ------ | ---- |
-| dim ≤ 2000 | `vector` or `halfvec` (see env) | ✅ |
-| 2000 < dim ≤ 4000 | `halfvec` (auto-promote from `vector`) | ✅ |
-| dim > 4000 | no ANN index | ❌ (sequential scan) |
+| Embedding dimension | Column type | HNSW index |
+| ------------------- | ------------ | ---------- |
+| ≤ 2000 | `vector` or `halfvec`, per `EDGEQUAKE_VECTOR_STORAGE` | Yes |
+| 2001–4000 | `halfvec` (promoted from `vector` in `full` mode) | Yes |
+| > 4000 | Configured type | No (sequential scan) |
 
-**`EDGEQUAKE_VECTOR_STORAGE`** (default `full`):
+`EDGEQUAKE_VECTOR_STORAGE` selects the column mode:
 
-| Value | Column type | Index opclass |
-| ----- | ----------- | ------------- |
-| `full` | `vector` | `vector_cosine_ops` |
-| `halfvec` / `half` | `halfvec` | `halfvec_cosine_ops` (~50% memory) |
+| Value | Column | Opclass |
+| ----- | ------ | ------- |
+| unset, `halfvec` or `half` | `halfvec` (**default**) | `halfvec_cosine_ops` |
+| `full` (or any other value) | `vector` | `vector_cosine_ops` |
 
-**Migration 080:** Marker migration records halfvec mode; actual `vector → halfvec` conversion runs from `migrations/support/080/apply.sql` when `EDGEQUAKE_VECTOR_STORAGE=halfvec` at bootstrap. **Migration 071** auto-promotes dims in (2000, 4000] to `halfvec` for HNSW viability.
+Any value other than `halfvec` or `half` selects `full`, so check the spelling. Changing the mode on an existing database needs a migration. The data-layer page covers the rules: [halfvec and the migrations](data-layer.md#6-pgvector).
 
-Changing embedding model/dimension requires workspace reconcile or rebuild — vectors from different models are not comparable. See [Embedding Models](/docs/deep-dives/embedding-models/).
+The supported distance metric is cosine. `SUPPORTED_VECTOR_METRIC` is `"cosine"`.
 
 ---
 
-## Core Data Structures
+## Core data structures
 
 ### VectorSearchResult
 
-Results from similarity queries:
-
 ```rust
 /// Vector similarity search result.
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VectorSearchResult {
-    /// Record identifier (chunk ID, entity name, etc.)
+    /// Record identifier (chunk id, entity name, …)
     pub id: String,
-
-    /// Similarity score (higher = more similar)
-    /// Range: -1.0 to 1.0 for cosine similarity
+    /// Similarity score. Higher is more similar.
     pub score: f32,
-
-    /// Associated metadata (source, timestamps, etc.)
+    /// Metadata stored with the vector
     pub metadata: serde_json::Value,
 }
 ```
 
-**Metadata Fields:**
+### Metadata keys used by filters
 
-| Field          | Type   | Description           |
-| -------------- | ------ | --------------------- |
-| `source_id`    | String | Origin document/chunk |
-| `entity_type`  | String | PERSON, CONCEPT, etc. |
-| `created_at`   | String | ISO timestamp         |
-| `workspace_id` | UUID   | Tenant isolation      |
+| Key in `metadata` | Filter field | Meaning |
+| ----------------- | ------------ | ------- |
+| `document_id`, `source_document_id` | `document_ids` | Document that produced the vector |
+| `tenant_id` | `tenant_id` | Tenant isolation |
+| `workspace_id` | `workspace_id` | Workspace isolation |
+| `type` | `vector_type` | `chunk`, `entity` or `relationship` |
+| `modality` | `modalities` | `chart`, `figure`, `table` or `equation` |
 
----
-
-## The VectorStorage Trait
-
-All vector backends implement this interface:
-
-```rust
-#[async_trait]
-pub trait VectorStorage: Send + Sync {
-    /// Get the storage namespace (for multi-tenancy)
-    fn namespace(&self) -> &str;
-
-    /// Get the expected embedding dimension
-    fn dimension(&self) -> usize;
-
-    /// Initialize storage (create tables/indices)
-    async fn initialize(&self) -> Result<()>;
-
-    /// Flush pending changes
-    async fn finalize(&self) -> Result<()>;
-
-    // ========== Search Operations ==========
-
-    /// Perform similarity search
-    async fn query(
-        &self,
-        query_embedding: &[f32],
-        top_k: usize,
-        filter_ids: Option<&[String]>,
-    ) -> Result<Vec<VectorSearchResult>>;
-
-    // ========== CRUD Operations ==========
-
-    /// Insert or update vectors
-    async fn upsert(
-        &self,
-        data: &[(String, Vec<f32>, serde_json::Value)]
-    ) -> Result<()>;
-
-    /// Delete vectors by IDs
-    async fn delete(&self, ids: &[String]) -> Result<()>;
-
-    /// Delete all vectors for an entity
-    async fn delete_entity(&self, entity_name: &str) -> Result<()>;
-
-    /// Delete relationship vectors for an entity
-    async fn delete_entity_relations(&self, entity_name: &str) -> Result<()>;
-
-    // ========== Retrieval ==========
-
-    /// Get single vector by ID
-    async fn get_by_id(&self, id: &str) -> Result<Option<Vec<f32>>>;
-
-    /// Get multiple vectors by IDs
-    async fn get_by_ids(&self, ids: &[String]) -> Result<Vec<(String, Vec<f32>)>>;
-
-    // ========== Utility ==========
-
-    async fn is_empty(&self) -> Result<bool>;
-    async fn count(&self) -> Result<usize>;
-    async fn clear(&self) -> Result<()>;
-    async fn clear_workspace(&self, workspace_id: &Uuid) -> Result<usize>;
-
-    /// Query with metadata pre-filter (SPEC-007 Tier 2+)
-    async fn query_filtered(
-        &self,
-        query_embedding: &[f32],
-        top_k: usize,
-        filter_ids: Option<&[String]>,
-        metadata_filter: Option<&MetadataFilter>,
-    ) -> Result<Vec<VectorSearchResult>>;
-}
-```
-
----
-
-## SQL Pre-Filtering (SPEC-007)
-
-> **Added in v0.7.0** — Pushes metadata filtering to the SQL layer for dramatic performance improvements at scale.
+`embedding_model` is also a filter field. It names the embedding model that produced the query vector, so that typed search uses the same vector space.
 
 ### MetadataFilter
 
 ```rust
-pub struct MetadataFilter {
-    pub document_ids: Option<Vec<String>>,  // Filter by document(s)
-    pub tenant_id: Option<String>,          // Filter by tenant
-    pub workspace_id: Option<String>,       // Filter by workspace
-}
+let filter = MetadataFilter::from_tenant_workspace_type(
+    Some(tenant_id),
+    Some(workspace_id),
+    "chunk",
+);
 ```
 
-All fields are optional; only non-`None` fields participate in AND-combined filtering.
-
-### Three-Tier Architecture
-
-| Tier | Strategy               | Index Type | Performance                      |
-| ---- | ---------------------- | ---------- | -------------------------------- |
-| 1    | Post-retrieval filter  | None       | Baseline (scans all vectors)     |
-| 2    | JSONB WHERE + GIN      | GIN        | ~30-60% reduction in scans       |
-| 3    | Materialized columns   | B-tree     | ~60-90% reduction in scans       |
-
-**How it works in PostgreSQL:**
-
-```sql
--- Tier 2+3 combined: column-first with JSONB fallback
-SELECT id, metadata, 1 - (embedding <=> $1::vector) AS score
-FROM eq_workspace_vectors
-WHERE (document_id = ANY($2) OR metadata->>'document_id' = ANY($2))
-  AND (tenant_id = $3 OR metadata->>'tenant_id' = $3)
-ORDER BY embedding <=> $1::vector
-LIMIT $4
-```
-
-The query planner uses B-tree indexes on materialized columns when available, falling back to GIN-indexed JSONB extraction otherwise.
-
-### Dual-Write on Upsert
-
-When vectors are inserted, metadata is written to both:
-1. The `metadata` JSONB column (backward compatibility)
-2. Materialized columns: `document_id`, `tenant_id`, `workspace_id`
-
-This ensures existing code reading the JSONB blob continues to work while new queries benefit from indexed column lookups.
-
-### Migration Safety
-
-Migrations 027-029 use dynamic table discovery (`pg_tables WHERE tablename LIKE 'eq_%_vectors'`) to safely apply indexes to all workspace-scoped vector tables, including those created at runtime.
+Every field is optional. Only the fields that are set take part in the `AND`. The filter lives in [`traits/vector.rs`](../../edgequake/crates/edgequake-storage/src/traits/vector.rs).
 
 ---
 
-## Storage Backends
+## The VectorStorage trait
 
-### PgVectorStorage (production)
+All vector backends implement this trait in [`traits/vector.rs`](../../edgequake/crates/edgequake-storage/src/traits/vector.rs). The main methods are:
 
-Production-grade storage using PostgreSQL with the pgvector extension. Implementation: [`edgequake-storage/src/adapters/postgres/vector/`](https://github.com/raphaelmansuy/edgequake/tree/edgequake-main/edgequake/crates/edgequake-storage/src/adapters/postgres/vector/).
+```rust
+#[async_trait]
+pub trait VectorStorage: Send + Sync {
+    fn namespace(&self) -> &str;
+    fn dimension(&self) -> usize;
+    async fn initialize(&self) -> Result<()>;
+    async fn finalize(&self) -> Result<()>;
+
+    // Search
+    async fn query(&self, query_embedding: &[f32], top_k: usize,
+                   filter_ids: Option<&[String]>) -> Result<Vec<VectorSearchResult>>;
+    async fn query_filtered(&self, query_embedding: &[f32], top_k: usize,
+                            filter_ids: Option<&[String]>,
+                            metadata_filter: Option<&MetadataFilter>)
+                            -> Result<Vec<VectorSearchResult>>;
+    async fn text_search_filtered(&self, query_text: &str, top_k: usize,
+                                  filter_ids: Option<&[String]>,
+                                  metadata_filter: Option<&MetadataFilter>)
+                                  -> Result<Vec<VectorSearchResult>>;
+
+    // Writes
+    async fn upsert(&self, data: &[(String, Vec<f32>, serde_json::Value)]) -> Result<()>;
+    async fn upsert_report_created(&self, data: &[(String, Vec<f32>, serde_json::Value)])
+                                   -> Result<Vec<String>>;   // ids newly inserted
+    async fn delete(&self, ids: &[String]) -> Result<()>;
+    async fn delete_entity(&self, entity_name: &str) -> Result<()>;
+    async fn delete_entity_relations(&self, entity_name: &str) -> Result<()>;
+    async fn delete_by_document(&self, document_id: &str) -> Result<usize>;
+
+    // Reads and maintenance
+    async fn get_by_id(&self, id: &str) -> Result<Option<Vec<f32>>>;
+    async fn get_by_ids(&self, ids: &[String]) -> Result<Vec<(String, Vec<f32>)>>;
+    async fn is_empty(&self) -> Result<bool>;
+    async fn count(&self) -> Result<usize>;
+    async fn ping(&self) -> Result<()>;           // cheap connectivity check
+    async fn clear(&self) -> Result<()>;
+    async fn clear_workspace(&self, workspace_id: &Uuid) -> Result<usize>;
+    async fn warmup_workspace_ann(&self, workspace_id: &str) -> Result<bool>;
+}
+```
+
+The trait also has `delete_entities_batch` and `supports_native_text_search`. Their defaults are fine for most callers. The code has more methods than this list; the trait file is the reference.
+
+---
+
+## Filtered search (SPEC-007)
+
+Filters run in SQL, before the top-k cut. Without that, the top-k could be filled with vectors the caller will discard.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+sequenceDiagram
+  participant Q as Query engine
+  participant VS as PgVectorStorage
+  participant PG as PostgreSQL pgvector
+  Q->>VS: query_filtered(embedding, top_k, filter_ids, filter)
+  VS->>PG: SET LOCAL hnsw.ef_search and iterative scan
+  VS->>PG: WHERE tenant, workspace, document and type predicates, ORDER BY distance, LIMIT k
+  PG-->>VS: candidate rows with id, metadata and score
+  VS-->>Q: VectorSearchResult list, best score first
+```
+
+*Notice that the ANN search and the filter run together in PostgreSQL. The application never sees rows that the filter removes.*
+
+### The predicates
+
+For `workspace_id`, the SQL uses the materialized column **or** the JSONB key. Legacy rows may store the value only in JSONB:
+
+```sql
+SELECT id, metadata, 1 - (embedding <=> $1::vector) AS score
+FROM public.eq_eq_default_vectors
+WHERE (workspace_id = $2 OR metadata->>'workspace_id' = $2)
+  AND (document_id = ANY($3) OR metadata->>'document_id' = ANY($3)
+       OR metadata->>'source_document_id' = ANY($3))
+ORDER BY embedding <=> $1::vector
+LIMIT $4;
+```
+
+*This is a simplified sketch of the legacy query. The exact SQL is generated in [`metadata_filter_sql.rs`](../../edgequake/crates/edgequake-storage/src/metadata_filter_sql.rs).*
+
+Set `EDGEQUAKE_METADATA_FILTER_COLUMNS_ONLY=1` to use the column predicate alone. The OR with JSONB stops PostgreSQL from using a workspace partial index (SPEC-064).
+
+### Indexes that support filters
+
+- **Btree on `document_id`** (partial, `WHERE document_id IS NOT NULL`).
+- **Btree on `(tenant_id, workspace_id)`**.
+- **No GIN on `metadata`.** Migration 027 added one. Migration 073 dropped it because no query used it.
+
+### Migration history
+
+| Migration | Change |
+| --------- | ------ |
+| 027 | Added a GIN index on JSONB `metadata` (dropped by 073) |
+| 028 | Added materialized `document_id`, `tenant_id` and `workspace_id` columns and backfilled them |
+| 029 | Added btree indexes on the materialized columns |
+
+---
+
+## Dual-write on upsert
+
+`upsert` writes the vector and its `metadata` in one `UNNEST` statement. It also writes the materialized columns `document_id`, `tenant_id` and `workspace_id`, which it reads from `metadata`. `ON CONFLICT` updates all of them.
+
+- The `metadata` column keeps older readers working.
+- The columns serve the indexed predicates above.
+- `upsert_report_created` uses `RETURNING (xmax = 0)` to report which ids were inserted. The compensation path uses this list to delete only what it created.
+
+Batches are split by `EDGEQUAKE_VECTOR_UPSERT_CHUNK` (default 1000, clamped to 100–10000).
+
+---
+
+## Index types
+
+`VectorIndexType` in [`config.rs`](../../edgequake/crates/edgequake-storage/src/adapters/postgres/config.rs) has three values. HNSW is the default.
+
+| Type | When to use | Notes |
+| ---- | ----------- | ----- |
+| `HNSW` (default) | Production search | Cosine opclass, `m` and `ef_construction` |
+| `IVFFlat` | Legacy or special cases | Uses `lists` (default 100). Not the default for any backend |
+| `None` | Bulk loads | Exact scan until `ensure_ann_index()` builds the index |
+
+### HNSW settings
+
+| Setting | Default | Source |
+| ------- | ------- | ------ |
+| `m` | 16 | `PostgresConfig` |
+| `ef_construction` | 128 | `EDGEQUAKE_HNSW_EF_CONSTRUCTION` (clamped to 4–1000) |
+| `hnsw.ef_search` | pgvector default (40) | `EDGEQUAKE_HNSW_EF_SEARCH` (1–1000) |
+
+The generated DDL looks like this (for the legacy table, with `prefix` set to `eq_default`):
+
+```sql
+CREATE INDEX IF NOT EXISTS eq_eq_default_vectors_embedding_idx
+ON public.eq_eq_default_vectors
+USING hnsw (embedding halfvec_cosine_ops)
+WITH (m = 16, ef_construction = 128);
+```
+
+Changing `ef_construction` affects only new indexes. An existing index needs an operator `REINDEX INDEX CONCURRENTLY`. See the [REINDEX note](data-layer.md#6-pgvector) in the data-layer page.
+
+---
+
+## Storage backend: PgVectorStorage
+
+`PgVectorStorage` in [`adapters/postgres/vector/`](../../edgequake/crates/edgequake-storage/src/adapters/postgres/vector/) is the production backend. It is created from a `PostgresConfig`.
 
 ```rust
 pub struct PgVectorStorage {
     pool: PostgresPool,
     table_name: String,
+    stats_table_name: String,   // O(1) row counts
     namespace: String,
     dimension: usize,
     index_type: VectorIndexType,
     ivfflat_lists: u32,
     hnsw_m: u32,
     hnsw_ef_construction: u32,
+    // … prefix, storage mode, chunk KV table, lazy flags
 }
 ```
 
-**Characteristics:**
+| Attribute | Value |
+| --------- | ----- |
+| Persistence | Full PostgreSQL durability (WAL) |
+| Index types | HNSW (default), IVFFlat, none |
+| Distance metric | Cosine only |
+| Required | `DATABASE_URL`. The server does not start without it |
 
-| Attribute        | Value                     |
-| ---------------- | ------------------------- |
-| Persistence      | ✅ Full durability        |
-| Index Types      | IVFFlat, HNSW             |
-| Distance Metrics | Cosine, L2, Inner Product |
-| Best For         | Production, >10K vectors  |
+### Tables
 
-**Schema:**
+| Table | Scope |
+| ----- | ----- |
+| `public.eq_{prefix}_vectors` | Legacy shared table for the namespace |
+| `eq_{namespace}_ws_{slug}_vectors` | Legacy per-workspace table. The slug is the workspace UUID with `_` for `-` |
+| `chunk_embeddings`, `*_embeddings` | Typed tables used by the default backend |
 
-```sql
-CREATE TABLE eq_{workspace}_vectors (
-    id TEXT PRIMARY KEY,
-    embedding vector(1536) NOT NULL,  -- or halfvec(1536) per AnnIndexPolicy
-    metadata JSONB DEFAULT '{}',
-    document_id TEXT,  -- materialized for SPEC-007 filters
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-```
+Under the default typed backend, the legacy tables are not written. The data-layer page has the typed schema.
 
 ---
 
-## Index Types
+## Embedding dimensions
 
-### IVFFlat (Inverted File with Flat Quantization)
+These models are defined in [`models.toml`](../../edgequake/models.toml):
 
-Partitions vector space into clusters:
+| Model | Dimensions | Provider |
+| ----- | ---------- | -------- |
+| `text-embedding-3-small` (default) | 1536 | OpenAI |
+| `text-embedding-3-large` | 3072 | OpenAI |
+| `nomic-embed-text` | 768 | Ollama |
+| `mxbai-embed-large` | 1024 | Ollama |
+| `embeddinggemma` | 768 | Ollama |
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    IVFFlat INDEX                                │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Step 1: Cluster vectors into lists (Voronoi cells)             │
-│                                                                 │
-│     ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐    │
-│     │ List 1  │    │ List 2  │    │ List 3  │    │ List N  │    │
-│     │         │    │         │    │         │    │         │    │
-│     │ ● ● ●   │    │ ● ● ●   │    │ ● ●     │    │ ● ● ●   │    │
-│     │   ●     │    │ ● ●     │    │ ● ● ●   │    │ ●       │    │
-│     └─────────┘    └─────────┘    └─────────┘    └─────────┘    │
-│                                                                 │
-│  Step 2: Query finds nearest centroid(s)                        │
-│  Step 3: Search only those lists (probes=1-5)                   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+Vectors from different models are not comparable. A dimension change needs a workspace reconcile or a rebuild. See [Embedding Models](embedding-models.md).
 
-**Configuration:**
+### Dimension mismatch
 
-```sql
--- Create IVFFlat index
-CREATE INDEX ON vectors
-USING ivfflat (embedding vector_cosine_ops)
-WITH (lists = 100);  -- ~sqrt(n) lists recommended
-```
+Postgres storage checks the dimension on every write. Two messages are common:
 
-| Parameter | Recommendation                |
-| --------- | ----------------------------- |
-| `lists`   | sqrt(n) to 4\*sqrt(n)         |
-| `probes`  | 1-10 (higher = better recall) |
+- On upsert: `Embedding dimension mismatch for id '…': expected N, got M`.
+- On the table write path: `Vector dimension mismatch on <table>: stored=…, required=…`. This fails closed and points to the options below.
+
+Fixes, in order of safety:
+
+1. Switch the embedding provider or model to match the stored dimension.
+2. Re-embed into a new workspace.
+3. Set `EDGEQUAKE_ALLOW_VECTOR_TABLE_REBUILD=1`. This wipes and recreates the table. Use it only when the data can be re-ingested.
 
 ---
 
-### HNSW (Hierarchical Navigable Small World)
+## Performance tuning
 
-Multi-layer graph for efficient nearest-neighbor:
+Set these on the server, not in code:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    HNSW INDEX                                   │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Layer 2 (sparse)     ●─────────────────────────●               │
-│                       │                         │               │
-│                       │                         │               │
-│  Layer 1 (medium)     ●───●───●─────────●───●───●               │
-│                       │   │   │         │   │   │               │
-│                       │   │   │         │   │   │               │
-│  Layer 0 (dense)    ●─●─●─●─●─●───────●─●─●─●─●─●               │
-│                                                                 │
-│  • Entry point at top layer                                     │
-│  • Greedy descent through layers                                │
-│  • Local search at layer 0                                      │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+| Knob | Effect | Setting |
+| ---- | ------ | ------- |
+| HNSW `ef_search` | Recall versus latency at query time | `EDGEQUAKE_HNSW_EF_SEARCH` |
+| Scan budget | Caps tuples scanned by one query | `EDGEQUAKE_HNSW_MAX_SCAN_TUPLES` (default 20000) |
+| Workspace partial HNSW | Smaller graph for hot workspaces | `EDGEQUAKE_HNSW_PARTIAL_BY_WORKSPACE=1` (opt-in) |
+| Upsert batch size | Round trips versus progress updates | `EDGEQUAKE_VECTOR_UPSERT_CHUNK` |
 
-**Configuration:**
+For a one-off session, `SET hnsw.ef_search = 100;` raises recall at the cost of latency.
 
-```sql
--- Create HNSW index
-CREATE INDEX ON vectors
-USING hnsw (embedding vector_cosine_ops)
-WITH (m = 16, ef_construction = 64);
-```
+### Connection pool defaults
 
-| Parameter         | Meaning                   | Default |
-| ----------------- | ------------------------- | ------- |
-| `m`               | Max connections per layer | 16      |
-| `ef_construction` | Build-time beam width     | 64      |
-| `ef_search`       | Query-time beam width     | 40      |
+`PostgresConfig` sets these defaults:
+
+| Field | Default |
+| ----- | ------- |
+| `max_connections` | 32 |
+| `min_connections` | 1 |
+| `connect_timeout` | 30 s |
+| `idle_timeout` | 600 s |
+
+The pool must be big enough for the concurrent work. Watch for acquire timeouts under load.
+
+### Memory
+
+A 1536-dimension `vector` stores 1536 × 4 bytes = 6 KB of raw data per row. A `halfvec` stores half that. Index size is in addition to this. Use [product limits](../product-limits.md) for capacity planning, not these estimates.
 
 ---
 
-## Index Selection Guide
+## Best practices
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 WHEN TO USE EACH INDEX                          │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Dataset Size:                                                  │
-│                                                                 │
-│    < 1K vectors     →  None (brute-force is fine)               │
-│    1K - 100K        →  IVFFlat (good balance)                   │
-│    > 100K           →  HNSW (faster queries)                    │
-│                                                                 │
-│  Query Pattern:                                                 │
-│                                                                 │
-│    Many inserts     →  IVFFlat (faster builds)                  │
-│    Many queries     →  HNSW (faster search)                     │
-│    Both balanced    →  HNSW (better latency)                    │
-│                                                                 │
-│  Resource Constraints:                                          │
-│                                                                 │
-│    Limited memory   →  IVFFlat (lower overhead)                 │
-│    Abundant memory  →  HNSW (better performance)                │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+1. **Match the model.** Use the same embedding model for indexing and querying.
+2. **Batch writes.** Use `upsert` with a full batch rather than one row per call.
+3. **Use filters in SQL.** Pass a `MetadataFilter` so the top-k is taken after filtering.
+4. **Tune with env vars.** Change `ef_search` and the scan budget per deployment.
+5. **Health checks use `ping()`.** `count()` is an exact count and can be slow on large tables.
+6. **Cosine needs no pre-normalization.** The cosine opclass divides by the vector norms.
 
 ---
 
-## Embedding Dimensions
+## Common issues
 
-EdgeQuake supports multiple embedding models:
+### Slow queries
 
-| Model                    | Dimensions | Provider |
-| ------------------------ | ---------- | -------- |
-| `text-embedding-3-small` | 1536       | OpenAI   |
-| `text-embedding-3-large` | 3072       | OpenAI   |
-| `text-embedding-ada-002` | 1536       | OpenAI   |
-| `nomic-embed-text`       | 768        | Ollama   |
-| `mxbai-embed-large`      | 1024       | Ollama   |
-| `all-MiniLM-L6-v2`       | 384        | Local    |
+Check these in order:
 
-### Dimension Mismatch Handling
+1. Run `EXPLAIN (ANALYZE, BUFFERS)`. A sequential scan on a large table means the index is missing or the filter shape blocks it.
+2. If the filter contains the JSONB `OR`, try `EDGEQUAKE_METADATA_FILTER_COLUMNS_ONLY=1` for workspace-scoped data.
+3. Raise `EDGEQUAKE_HNSW_EF_SEARCH` if recall is low. Lowering it speeds queries up.
+4. Check pool exhaustion. Acquire timeouts show up in the logs.
 
-EdgeQuake detects stored vs provider dimension via `pg_attribute.atttypmod` (works on empty tables). When dimensions change, reconcile migrations (M071/M080) or rebuild embeddings — see [Embedding Models](/docs/deep-dives/embedding-models/).
+### Index build is slow
 
----
+For a large legacy table, the runtime already builds indexes with `CREATE INDEX CONCURRENTLY` when the table is not empty. Schedule the build outside peak hours. Lowering `m` or `ef_construction` shortens the build but lowers recall, so measure both before you change them.
 
-## Vector Operations
+### Dropping a vector table
 
-### Upsert Vectors
-
-```rust
-// Prepare embeddings
-let data = vec![
-    (
-        "chunk_001".to_string(),
-        vec![0.1, 0.2, 0.3, ...],  // 1536 dimensions
-        json!({
-            "source_id": "doc_123",
-            "content_preview": "Dr. Sarah Chen..."
-        })
-    ),
-    // ...more vectors
-];
-
-// Bulk insert
-storage.upsert(&data).await?;
-```
-
-### Similarity Search
-
-```rust
-// Query embedding from LLM
-let query_embedding = llm.embed("Who is Sarah Chen?").await?;
-
-// Search top 10 most similar
-let results = storage.query(
-    &query_embedding,
-    10,    // top_k
-    None,  // no filter
-).await?;
-
-for result in results {
-    println!("ID: {}, Score: {:.4}", result.id, result.score);
-}
-```
-
-### Filtered Search
-
-```rust
-// Search within specific chunks only
-let filter = vec![
-    "chunk_001".to_string(),
-    "chunk_002".to_string(),
-    "chunk_003".to_string(),
-];
-
-let results = storage.query(
-    &query_embedding,
-    10,
-    Some(&filter),  // restrict to these IDs
-).await?;
-```
+`PgVectorStorage::drop_table()` removes the table and all its rows. It is not a recovery tool. Use the [dimension rules](#dimension-mismatch) first.
 
 ---
 
-## Performance Tuning
+## See also
 
-### pgvector Settings
-
-```sql
--- Set HNSW search beam width (higher = better recall)
-SET hnsw.ef_search = 100;
-
--- Set IVF probes (higher = better recall)
-SET ivfflat.probes = 10;
-
--- Enable parallel queries
-SET max_parallel_workers_per_gather = 4;
-```
-
-### Connection Pooling
-
-```rust
-let pool = PgPoolOptions::new()
-    .max_connections(20)           // Concurrent queries
-    .min_connections(5)            // Keep-alive
-    .acquire_timeout(Duration::from_secs(30))
-    .connect(&database_url)
-    .await?;
-```
-
-### Batch Operations
-
-```rust
-// Bad: Many small inserts
-for (id, vec, meta) in data {
-    storage.upsert(&[(id, vec, meta)]).await?;
-}
-
-// Good: Single batch insert
-storage.upsert(&data).await?;
-```
-
----
-
-## Benchmarks
-
-> **Honesty (SPEC-065):** Illustrative unfiltered/warm numbers below are **not** the product claim table. For proven floors, cold cliffs, and 100k Q1-d (Wave-2 opt-in), see [`docs/product-limits.md`](../product-limits.md).
-
-Performance on typical workloads (pgvector with HNSW, 100K vectors, 1536 dimensions) — **illustrative / warm / often unfiltered**:
-
-| Operation      | Latency | Notes         |
-| -------------- | ------- | ------------- |
-| `query(k=10)`  | ~5ms    | HNSW ef=100   |
-| `query(k=100)` | ~15ms   | HNSW ef=100   |
-| `upsert(1)`    | ~3ms    | Single vector |
-| `upsert(100)`  | ~50ms   | Batch insert  |
-| Index build    | ~30s    | 100K vectors  |
-
-**Memory Usage (order-of-magnitude):**
-
-- 1536-dim vector: ~6KB (with overhead)
-- 100K vectors: ~600MB
-- HNSW index: ~200MB additional
-
----
-
-## Multi-Tenancy
-
-Vector storage supports workspace-based isolation:
-
-```rust
-// Each workspace gets own prefix
-let storage_a = PgVectorStorage::new(config_a);  // eq_ws_a_vectors
-let storage_b = PgVectorStorage::new(config_b);  // eq_ws_b_vectors
-
-// Clear specific workspace
-storage_a.clear_workspace(&workspace_id).await?;
-```
-
----
-
-## Best Practices
-
-1. **Match Dimensions** - Always use same embedding model for indexing and querying
-2. **Batch Inserts** - Use bulk upsert for multiple vectors
-3. **Tune Indices** - Adjust HNSW m/ef or IVFFlat lists for your dataset
-4. **Monitor Size** - Track vector counts for capacity planning
-5. **Normalize Vectors** - Cosine similarity assumes unit vectors
-
----
-
-## Common Issues
-
-### Dimension Mismatch
-
-```
-Error: Vector dimension 768 doesn't match expected 1536
-```
-
-**Solution:** Either:
-
-- Rebuild embeddings with correct model
-- Drop and recreate table with `drop_table()`
-
-### Slow Queries
-
-**Symptoms:** Query latency >100ms
-
-**Solutions:**
-
-1. Create index if missing
-2. Increase `ef_search` for HNSW
-3. Increase `probes` for IVFFlat
-4. Check connection pool exhaustion
-
-### Index Build Timeout
-
-**Symptoms:** Index creation hangs
-
-**Solution:** For large datasets, create index with reduced parameters:
-
-```sql
-CREATE INDEX CONCURRENTLY ON vectors
-USING hnsw (embedding vector_cosine_ops)
-WITH (m = 8, ef_construction = 32);
-```
-
----
-
-## See Also
-
-- [Graph Storage](/docs/deep-dives/graph-storage/) - Knowledge graph storage
-- [Entity Extraction](/docs/deep-dives/entity-extraction/) - How entities get embeddings
-- [Query Modes](/docs/deep-dives/query-modes/) - How vector search is used
-- [Performance Tuning](/docs/operations/performance-tuning/) - Optimization guide
+- [Graph Storage](graph-storage.md): knowledge graph storage
+- [Entity Extraction](entity-extraction.md): how entities get embeddings
+- [Query Modes](query-modes.md): how vector search is used
+- [Embedding Models](embedding-models.md): model choice and dimensions
+- [Performance Tuning](../operations/performance-tuning.md): optimization guide

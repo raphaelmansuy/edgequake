@@ -29,10 +29,10 @@ Read it left to right. Bypass skips straight to the final stage.
 
 | Stage | What happens |
 | ----- | ------------ |
-| Prepare | The question is embedded. In parallel, an LLM extracts keywords: **high-level** (themes) and **low-level** (specific names). Keywords are cached for 24 hours. If the request supplies keywords, the keyword LLM call is skipped. |
+| Prepare | The question is embedded. In parallel, an LLM extracts keywords: **high-level** (themes) and **low-level** (specific names). Keywords are cached for 24 hours. If the request supplies non-empty high-level or low-level keywords, the keyword LLM call is skipped. |
 | Retrieve | The mode decides which stores to search. See the diagrams below. |
 | Post-process | Filter to requested document ids, drop low-relevancy items, rerank, sort, and trim to the token budget. |
-| Finalize | The LLM writes the answer from the context. An answer cache may return a stored answer first, and a sample of answers is checked for faithfulness. |
+| Finalize | The LLM writes the answer from the context. An answer cache may return a stored answer first. When enabled, a sample of answers gets a faithfulness score. |
 
 Engine defaults: up to 60 entities, 60 relationships, and 20 chunks; a 30,000 token context budget; graph depth 2; minimum score 0.1; reranking on with the top 20 kept. Per-request settings can override these.
 
@@ -123,9 +123,9 @@ sequenceDiagram
     L-->>U: Answer with sources
 ```
 
-Read it top to bottom. If the vector search finds nothing, the engine falls back to the highest-degree relationships.
+Read it top to bottom. If no relationship vector matches, the engine falls back to the best-connected entities in the graph. Set `EDGEQUAKE_POPULAR_NODE_FALLBACK=0` to turn that fallback off.
 
-Global mode can optionally expand to entities in the same index-time community, and add extractive community reports when `EDGEQUAKE_COMMUNITY_REPORTS` is on. This is not the same as Microsoft GraphRAG, which builds a hierarchy of LLM-written community reports. See [EdgeQuake vs GraphRAG](../comparisons/vs-graphrag.md).
+Global mode can optionally expand to entities in the same index-time community (`EDGEQUAKE_COMMUNITY_GLOBAL`), and add extractive community reports when `EDGEQUAKE_COMMUNITY_REPORTS` is on. This is not the same as Microsoft GraphRAG, which builds a hierarchy of LLM-written community reports. See [EdgeQuake vs GraphRAG](../comparisons/vs-graphrag.md).
 
 ## Hybrid mode
 
@@ -151,7 +151,7 @@ Read it top to bottom. The arms are chosen using the question's intent, so an ar
 
 ## Mix mode
 
-Mix mode is the default. It runs the same three arms in parallel, then scores and blends them.
+Mix mode is the default. It runs the three arms in parallel, skipping any arm with zero weight or that the question's intent rules out. It then scores and blends the results.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%

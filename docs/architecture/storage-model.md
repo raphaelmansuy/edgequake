@@ -125,7 +125,7 @@ Things the diagram leaves out:
 - **The graph.** Entities and relationships are AGE nodes and edges, not rows in these tables. Each node and edge records the chunk ids it came from.
 - **Link tables.** `chunk_entity_links` and `chunk_relation_links` record which chunks produced which entities and relationships. They support lineage queries.
 - **Row-level security.** Tenant-owned tables have row-level security policies, and `FORCE ROW LEVEL SECURITY` is set on several of them (migration 096). The storage layer sets the tenant and workspace as session variables inside a transaction, and the policies read them.
-- **`tasks` details.** The table is keyed by `track_id`, and it carries `tenant_id` and `workspace_id` columns without a foreign key.
+- **`tasks` details.** The API looks up a task by its `track_id`. The `tenant_id` and `workspace_id` columns have foreign keys, added by migration `104` when the table was partitioned by month.
 
 ---
 

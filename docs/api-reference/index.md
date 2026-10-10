@@ -3,9 +3,9 @@ title: API Reference
 description: Map of the EdgeQuake REST API for v0.32.x and the v0.33.0 additions. Start here to find the right page for documents, queries, graph, tasks, connections and more.
 ---
 
-This section describes the EdgeQuake HTTP API. It is for developers who call EdgeQuake from their own code, or who write an SDK. Product pin: **v0.32.2**. Pages also cover the **v0.33.0** additions (provider Connections, `POST /api/v1/providers/test`, honest `/health`). Those are marked "v0.33.0" on each page.
+# API Reference
 
-**Source of truth.** The running server publishes its own contract at `/api-docs/openapi.json` and a Try-it-out UI at `/swagger-ui/` (default `http://localhost:8080`). A committed copy of the v0.32.2 contract is in [`openapi.snapshot.json`](../../edgequake_webui/openapi/openapi.snapshot.json). It does not yet include the v0.33.0 routes. Where this documentation and the server disagree, trust the server.
+This section describes the EdgeQuake HTTP API for developers who call EdgeQuake from their own code or write an SDK. The product pin is **v0.32.2**. Pages also cover the **v0.33.0** additions (provider Connections, `POST /api/v1/providers/test`, honest `/health`), marked "v0.33.0" on each page.
 
 ## Pick a page
 
@@ -65,24 +65,20 @@ sequenceDiagram
     App->>API: POST /api/v1/auth/login
     API-->>App: access_token
     App->>API: POST /api/v1/documents/upload
-    API-->>App: 202 with task_id and document_id
+    API-->>App: 202 with task_id, track_id and document_id
     API->>Q: queue the work
     loop until a terminal status
-        App->>API: GET /api/v1/tasks/{task_id}
+        App->>API: GET /api/v1/tasks/{track_id}
         API-->>App: status pending, processing, indexed
     end
     App->>API: POST /api/v1/query
     API-->>App: answer and sources
 ```
 
-Read it top to bottom. Uploads return at once; the server does the heavy work in the background, so you poll the task (or listen on a WebSocket) before you query.
+Read it top to bottom. Uploads return at once; the server does the heavy work in the background, so poll the task (or listen on a WebSocket) before you query.
 
-## Pages in this section
+## Source of truth
 
-- [REST API](rest-api.md): conventions, health, documents, parse, query, chat, graph, conversations, knowledge injection, models and settings.
-- [Document upload](document-upload-quick-reference.md): which upload endpoint to use, with copy-paste examples.
-- [Extended API](extended-api.md): tasks, progress streams, pipeline, costs, tenants, workspaces, Ollama emulation.
-- [Lineage endpoints](lineage-endpoints.md): provenance for documents, chunks and entities.
-- [Connections and provider test](connections.md): saved provider endpoints, probes, per-role model routing (v0.33.0).
+The running server publishes its own contract at `/api-docs/openapi.json` and a Try-it-out UI at `/swagger-ui/` (default `http://localhost:8080`). A committed copy of the v0.32.2 contract is in [`openapi.snapshot.json`](../../edgequake_webui/openapi/openapi.snapshot.json). It does not yet include the v0.33.0 routes. Where this documentation and the server disagree, trust the server.
 
 Related: [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md), [Decision extraction](../concepts/decision-extraction.md), [Environment variables](../operations/env-reference.md).

@@ -39,8 +39,8 @@ erDiagram
 - **Cosine only.** Queries use the cosine operator `<=>` and indexes use `halfvec_cosine_ops`. L2 and inner product are not wired.
 - **`halfvec` by default.** A `halfvec` stores each number in 16 bits, so it is half the size of a normal `vector`. `EDGEQUAKE_VECTOR_STORAGE` selects the mode; the default is `halfvec`.
 - **Index size limits.** HNSW can index a `vector` up to 2000 dimensions and a `halfvec` up to 4000.
-- **Versions.** Iterative scans need pgvector 0.8.0 or later. Versions below 0.8.2 carry a known security issue. The images pin 0.8.5.
-- **Model key.** The model registry name comes from `EDGEQUAKE_EMBEDDING_MODEL` and defaults to `text-embedding-3-small`. If the registry has no entry for the query dimension, the search returns an empty list.
+- **Versions.** Iterative scans need pgvector 0.8.0 or later. The code treats 0.8.2 as the CVE-safe floor (`PGVECTOR_MIN_CVE_SAFE` in `capabilities.rs`): CVE-2026-3172 affected parallel HNSW builds in 0.8.0 and 0.8.1. The images pin 0.8.5.
+- **Model key.** The model name comes from `EDGEQUAKE_EMBEDDING_MODEL` and defaults to `text-embedding-3-small`. The `embedding_models` row for that model selects the rows to search.
 - **Backend switch.** `EDGEQUAKE_VECTOR_BACKEND` defaults to `typed_embeddings`. The value `legacy_tables` is a rollback switch for databases that still have the old tables. Unknown values fall back to typed.
 
 ## Indexes
@@ -62,7 +62,7 @@ CREATE INDEX idx_chunk_embeddings_hnsw_d1536
 | `chunk_embeddings` | `idx_chunk_embeddings_workspace (workspace_id, model_id)` |
 | `entity_embeddings`, `relationship_embeddings`, `report_embeddings` | `(workspace_id, model_id)` and a unique `(workspace_id, legacy_vector_id)` index on the non-null legacy IDs |
 
-Other dimensions are accepted (up to the limits above), but the migrations create no HNSW index for them. Searches on such a model have no HNSW index to use. Add an index with a new migration if you use one. The runtime does not create indexes on the request path.
+Other dimensions are accepted (up to the limits above), but the migrations create no HNSW index for them. Searches on such a model fall back to a scan. If you use one, add the index in a new migration.
 
 ## How a vector search runs
 
@@ -89,7 +89,7 @@ The settings in step D are all `SET LOCAL`, so they end with the transaction:
 
 | Setting | Value | Override |
 |---|---|---|
-| `statement_timeout` | 2000 ms by default | `EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS` |
+| `statement_timeout` | Budget of 2000 ms, minus 250 ms of headroom, so PostgreSQL gives up before the application does (1750 ms by default) | `EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS` |
 | `plan_cache_mode` | `force_custom_plan` (filters vary a lot per workspace) | none |
 | `hnsw.ef_search` | `4 x K`, clamped to 40..1000 | `EDGEQUAKE_HNSW_EF_SEARCH` (1..1000) |
 | `hnsw.iterative_scan` | `relaxed_order` (filtered queries, pgvector 0.8 or later) | `EDGEQUAKE_HNSW_ITERATIVE_SCAN` = `strict`, `off`, or default |
@@ -100,7 +100,7 @@ Iterative scan matters for filtered search. Without it, PostgreSQL filters the i
 
 The SQL wraps the index query as `WITH candidates AS MATERIALIZED (...) SELECT ... ORDER BY score + 0 DESC LIMIT K`. The index returns candidates in approximate order. The outer sort uses the exact stored-vector score, which removes small ordering errors from `halfvec` rounding.
 
-Writes batch with `unnest` and use `ON CONFLICT (model_id, chunk_id) DO NOTHING`, so a retry is safe.
+Chunk writes batch with `unnest` and use `ON CONFLICT (model_id, chunk_id) DO NOTHING`, so a retry is safe. Entity, relationship, and report writes use `ON CONFLICT ... DO UPDATE` instead.
 
 ### Index build settings (older per-workspace adapter)
 
@@ -114,7 +114,7 @@ These settings only matter if you run the rollback backend. The typed tables use
 
 ## Keyword search
 
-Chunks have a generated full-text column, `content_tsv`, with a GIN index (`idx_chunks_content_tsv`, migration 136). Keyword search uses it next to vector search. `EDGEQUAKE_FTS_LANGUAGE` selects the text-search configuration; the default is `english`.
+Chunks have a stored generated column, `content_tsv`, with a GIN index (`idx_chunks_content_tsv`, migration 136). Keyword search reads it next to vector search. The column is built with the `english` configuration. Under the typed backend, `EDGEQUAKE_FTS_LANGUAGE` has no effect; it applies only to the legacy rollback path.
 
 ## Serving fence
 
@@ -126,9 +126,9 @@ At start the storage layer reads the installed versions of PostgreSQL, pgvector,
 
 ## Operation catalog
 
-These entries come from the SPEC-088 inventory, written before the typed tables. Their entry points name the `VectorStorage` trait. With the default `typed_embeddings` backend, the typed adapters serve the same calls from the tables above. Operations that create or drop `eq_*_vectors` tables (`DDL-CREATE-TABLE`, `DDL-ENSURE-ANN-INDEX`, `DDL-PARTIAL-HNSW`, `WS-DROP-TABLE`, `DIM-RECONCILE`, and the stats entries) describe the legacy adapter and run only in rollback mode. Ref IDs never change, so the entries stay.
+These entries come from the SPEC-088 inventory, written before the typed tables. Their entry points name the `VectorStorage` trait. With the default `typed_embeddings` backend, the typed adapters serve the same calls from the tables above. Operations that create or drop `eq_*_vectors` tables (`DDL-CREATE-TABLE`, `DDL-ENSURE-ANN-INDEX`, `DDL-PARTIAL-HNSW`, `WS-DROP-TABLE`, and `DIM-RECONCILE`) describe the legacy adapter and run only in rollback mode. Ref IDs never change, so the entries stay.
 
-Rows with a linked Ref ID have a benchmark template in [benchmarks/](./benchmarks/README.md). Cost and failure notes are in [complexity-matrix.md](./complexity-matrix.md). Some entry points are descriptive, not exact function names.
+Rows with a linked Ref ID have a benchmark template in [benchmarks/](./benchmarks/README.md). Cost and failure notes are in [complexity-matrix.md](./complexity-matrix.md). File paths are relative to `edgequake/crates/`. Some entry points are descriptive, not exact function names.
 
 ### Vector reads (9)
 
@@ -136,15 +136,15 @@ Nearest-neighbor search, keyword search, lookups, and counts.
 
 | Ref ID | Entry point | File | Type | Tx | Notes |
 |---|---|---|---|---|---|
-| [`DATA-PGVEC-VECTORS-ANN-QUERY-001`](./benchmarks/001.md) | `VectorStorage::query` | `storage/postgres/vector/storage_impl.rs` | Read | Yes | unfiltered HNSW/IVF |
-| [`DATA-PGVEC-VECTORS-ANN-QUERY-FILTERED-002`](./benchmarks/002.md) | `VectorStorage::query_filtered` | `storage/postgres/vector/storage_impl.rs` | Read | Yes | tenant/ws/doc + iterative_scan |
-| `DATA-PG-VECTORS-TEXT-SEARCH-FILTERED-003` | `VectorStorage::text_search_filtered` | `storage/postgres/vector/storage_impl.rs` | Read | Yes | FTS GIN |
-| `DATA-PG-VECTORS-GET-BY-ID-009` | `VectorStorage::get_by_id` | `storage/postgres/vector/storage_impl.rs` | Read | Yes |  |
-| `DATA-PG-VECTORS-GET-BY-IDS-010` | `VectorStorage::get_by_ids` | `storage/postgres/vector/storage_impl.rs` | Read | Yes |  |
-| `DATA-PG-VECTORS-COUNT-011` | `VectorStorage::count` | `storage/postgres/vector/storage_impl.rs` | Read | Yes | stats O(1) or COUNT* |
-| `DATA-PG-VECTORS-IS-EMPTY-012` | `VectorStorage::is_empty` | `storage/postgres/vector/storage_impl.rs` | Read | Yes |  |
-| `DATA-PG-VECTORS-PING-013` | `VectorStorage::ping` | `storage/postgres/vector/storage_impl.rs` | Read | No |  |
-| `DATA-PGVEC-VECTORS-WARMUP-ANN-017` | `VectorStorage::warmup_workspace_ann` | `storage/postgres/vector/storage_impl.rs` | Read | Yes |  |
+| [`DATA-PGVEC-VECTORS-ANN-QUERY-001`](./benchmarks/001.md) | `VectorStorage::query` | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | Read | Yes | unfiltered HNSW/IVF |
+| [`DATA-PGVEC-VECTORS-ANN-QUERY-FILTERED-002`](./benchmarks/002.md) | `VectorStorage::query_filtered` | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | Read | Yes | tenant/ws/doc + iterative_scan |
+| `DATA-PG-VECTORS-TEXT-SEARCH-FILTERED-003` | `VectorStorage::text_search_filtered` | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | Read | Yes | FTS GIN |
+| `DATA-PG-VECTORS-GET-BY-ID-009` | `VectorStorage::get_by_id` | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | Read | Yes |  |
+| `DATA-PG-VECTORS-GET-BY-IDS-010` | `VectorStorage::get_by_ids` | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | Read | Yes |  |
+| `DATA-PG-VECTORS-COUNT-011` | `VectorStorage::count` | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | Read | Yes | stats O(1) or COUNT* |
+| `DATA-PG-VECTORS-IS-EMPTY-012` | `VectorStorage::is_empty` | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | Read | Yes |  |
+| `DATA-PG-VECTORS-PING-013` | `VectorStorage::ping` | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | Read | No |  |
+| `DATA-PGVEC-VECTORS-WARMUP-ANN-017` | `VectorStorage::warmup_workspace_ann` | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | Read | Yes |  |
 
 ### Vector writes (8)
 
@@ -152,14 +152,14 @@ Upserts and deletes.
 
 | Ref ID | Entry point | File | Type | Tx | Notes |
 |---|---|---|---|---|---|
-| [`DATA-PGVEC-VECTORS-UPSERT-BATCH-004`](./benchmarks/004.md) | `VectorStorage::upsert_report_created` | `storage/postgres/vector/storage_impl.rs` | Write | Yes | UNNEST ON CONFLICT |
-| `DATA-PG-VECTORS-DELETE-BY-ID-005` | `VectorStorage::delete` | `storage/postgres/vector/storage_impl.rs` | Write | Yes |  |
-| `DATA-PG-VECTORS-DELETE-ENTITY-006` | `VectorStorage::delete_entity` | `storage/postgres/vector/storage_impl.rs` | Write | Yes |  |
-| `DATA-PG-VECTORS-DELETE-ENTITIES-BATCH-007` | `VectorStorage::delete_entities_batch` | `storage/postgres/vector/storage_impl.rs` | Write | Yes |  |
-| `DATA-PG-VECTORS-DELETE-ENTITY-RELATIONS-008` | `VectorStorage::delete_entity_relations` | `storage/postgres/vector/storage_impl.rs` | Write | Yes |  |
-| `DATA-PG-VECTORS-CLEAR-014` | `VectorStorage::clear` | `storage/postgres/vector/storage_impl.rs` | Write | Yes | ADMIN |
-| `DATA-PG-VECTORS-CLEAR-WORKSPACE-015` | `VectorStorage::clear_workspace` | `storage/postgres/vector/storage_impl.rs` | Write | Yes | ADMIN |
-| `DATA-PG-VECTORS-DELETE-BY-DOCUMENT-016` | `VectorStorage::delete_by_document` | `storage/postgres/vector/storage_impl.rs` | Write | Yes |  |
+| [`DATA-PGVEC-VECTORS-UPSERT-BATCH-004`](./benchmarks/004.md) | `VectorStorage::upsert_report_created` | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | Write | Yes | UNNEST ON CONFLICT |
+| `DATA-PG-VECTORS-DELETE-BY-ID-005` | `VectorStorage::delete` | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | Write | Yes |  |
+| `DATA-PG-VECTORS-DELETE-ENTITY-006` | `VectorStorage::delete_entity` | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | Write | Yes |  |
+| `DATA-PG-VECTORS-DELETE-ENTITIES-BATCH-007` | `VectorStorage::delete_entities_batch` | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | Write | Yes |  |
+| `DATA-PG-VECTORS-DELETE-ENTITY-RELATIONS-008` | `VectorStorage::delete_entity_relations` | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | Write | Yes |  |
+| `DATA-PG-VECTORS-CLEAR-014` | `VectorStorage::clear` | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | Write | Yes | ADMIN |
+| `DATA-PG-VECTORS-CLEAR-WORKSPACE-015` | `VectorStorage::clear_workspace` | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | Write | Yes | ADMIN |
+| `DATA-PG-VECTORS-DELETE-BY-DOCUMENT-016` | `VectorStorage::delete_by_document` | `edgequake-storage/src/adapters/postgres/vector/storage_impl.rs` | Write | Yes |  |
 
 ### Vector DDL and session (7)
 
@@ -167,10 +167,10 @@ Table and index setup, dimension handling, and search settings. Most of these be
 
 | Ref ID | Entry point | File | Type | Tx | Notes |
 |---|---|---|---|---|---|
-| `DATA-PGVEC-VECTORS-DDL-CREATE-TABLE-018` | `create_table` | `storage/postgres/vector/ddl.rs` | DDL | Yes |  |
-| `DATA-PGVEC-VECTORS-DDL-ENSURE-ANN-INDEX-019` | `ensure_ann_index` | `storage/postgres/vector/ddl.rs` | DDL | No |  |
-| `DATA-PGVEC-VECTORS-DDL-PARTIAL-HNSW-020` | `ensure_partial_hnsw_for_workspace` | `storage/postgres/vector/ddl.rs` | DDL | No |  |
-| `DATA-PG-VECTORS-DDL-ENSURE-FTS-021` | `ensure_content_fts` | `storage/postgres/vector/ddl.rs` | DDL | No |  |
-| `DATA-PGVEC-VECTORS-SESSION-SEARCH-TUNING-022` | `search_tuning_statements` | `storage/postgres/vector/search_tuning.rs` | Session | Yes |  |
-| `DATA-PG-VECTORS-WS-DROP-TABLE-023` | `PgWorkspaceVectorRegistry::drop_workspace_table` | `storage/postgres/workspace_vector.rs` | DDL | Yes |  |
-| `DATA-PGVEC-VECTORS-DIM-RECONCILE-024` | `reconcile_dimension` | `storage/postgres/vector/migration.rs` | DDL | Yes |  |
+| `DATA-PGVEC-VECTORS-DDL-CREATE-TABLE-018` | `create_table` | `edgequake-storage/src/adapters/postgres/vector/ddl.rs` | DDL | Yes |  |
+| `DATA-PGVEC-VECTORS-DDL-ENSURE-ANN-INDEX-019` | `ensure_ann_index` | `edgequake-storage/src/adapters/postgres/vector/ddl.rs` | DDL | No |  |
+| `DATA-PGVEC-VECTORS-DDL-PARTIAL-HNSW-020` | `ensure_partial_hnsw_for_workspace` | `edgequake-storage/src/adapters/postgres/vector/ddl.rs` | DDL | No |  |
+| `DATA-PG-VECTORS-DDL-ENSURE-FTS-021` | `ensure_content_fts` | `edgequake-storage/src/adapters/postgres/vector/ddl.rs` | DDL | No |  |
+| `DATA-PGVEC-VECTORS-SESSION-SEARCH-TUNING-022` | `search_tuning_statements` | `edgequake-storage/src/adapters/postgres/vector/search_tuning.rs` | Session | Yes |  |
+| `DATA-PG-VECTORS-WS-DROP-TABLE-023` | `PgWorkspaceVectorRegistry::drop_workspace_table` | `edgequake-storage/src/adapters/postgres/workspace_vector.rs` | DDL | Yes |  |
+| `DATA-PGVEC-VECTORS-DIM-RECONCILE-024` | `reconcile_dimension` | `edgequake-storage/src/adapters/postgres/vector/migration.rs` | DDL | Yes |  |

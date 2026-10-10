@@ -5,7 +5,7 @@ description: Five-minute path from install to a first RAG answer with the EdgeQu
 
 # Python SDK quickstart
 
-This walkthrough uploads a short document and asks a question. You need a running EdgeQuake server (`make dev` or equivalent) and Python 3.10+.
+This walkthrough uploads a short document, waits for indexing, and asks a question. You need a running EdgeQuake server (`make dev` or an equivalent) and Python 3.10+.
 
 ## 1. Install
 
@@ -20,7 +20,7 @@ from edgequake import EdgeQuake
 
 client = EdgeQuake(base_url="http://localhost:8080")
 # With auth: EdgeQuake(base_url="...", api_key="eq-...", workspace_id="...")
-assert client.health().status in ("healthy", "degraded")
+print(client.health().status)  # "healthy" when the server is ready
 ```
 
 ## 3. Upload and wait
@@ -32,13 +32,16 @@ up = client.documents.upload(
     content="Marie Curie won Nobel Prizes in Physics (1903) and Chemistry (1911).",
     title="Curie",
 )
-task_id = up.task_id
+if up.task_id is None:
+    raise SystemExit(f"Duplicate of {up.duplicate_of}; nothing new to index")
+
 while True:
-    task = client.tasks.get(task_id)
+    task = client.tasks.get(up.task_id)
     if task.status in ("indexed", "failed", "cancelled"):
         break
     time.sleep(1)
-print("status:", task.status)
+if task.status != "indexed":
+    raise SystemExit(f"Ingestion ended with status {task.status}")
 ```
 
 ## 4. Query
@@ -47,24 +50,29 @@ print("status:", task.status)
 res = client.query.execute(query="How many Nobel Prizes did Marie Curie win?", mode="mix")
 print(res.answer)
 for s in res.sources:
-    print("-", getattr(s, "snippet", None) or s)
+    print("-", s.snippet or s.id)
 ```
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
 sequenceDiagram
     participant You
     participant SDK as Python SDK
-    participant API as EdgeQuake
+    participant API as EdgeQuake REST API
     You->>SDK: documents.upload
-    SDK->>API: POST /documents
-    API-->>SDK: task_id
-    loop until terminal
+    SDK->>API: POST /api/v1/documents
+    API-->>SDK: document_id and task_id
+    loop until a final status
         You->>SDK: tasks.get
-        SDK->>API: GET /tasks/{id}
+        SDK->>API: GET /api/v1/tasks/{track_id}
     end
     You->>SDK: query.execute
-    SDK->>API: POST /query
-    API-->>You: answer
+    SDK->>API: POST /api/v1/query
+    API-->>SDK: QueryResponse
+    SDK-->>You: answer and sources
 ```
 
-Read it top to bottom: upload, wait for `indexed`, then query. Next: [Python README](README.md), [Document upload](../../api-reference/document-upload-quick-reference.md).
+Upload, poll the task until it reaches a final status, then query. Read it top to bottom.
+
+Next: [Python README](README.md) for the full resource list, and [Document upload](../../api-reference/document-upload-quick-reference.md).

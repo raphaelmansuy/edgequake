@@ -1,41 +1,65 @@
 ---
 title: Fix: embedding API validation error
-description: Incident note from 2026-02-10: pipeline embedding error '$.input' is invalid.
+description: Incident note from 2026-02-10: pipeline embedding error '$.input' is invalid, the empty-string filter fix, and what is verifiable in the pinned edgequake-llm crate today.
 ---
 
-> Historical note, 2026-02-10; may not match current code.
-> Prefer: [Troubleshooting](../troubleshooting/common-issues.md) · [Roles](../providers/roles.md)
+> Historical note, 2026-02-10; may not match current code. Prefer: [Troubleshooting](../troubleshooting/common-issues.md) · [Roles](../providers/roles.md)
 
-**Date**: 2026-02-10  
-**Issue**: Pipeline processing failed: Embedding error: API error: '$.input' is invalid  
-**Status**: ✅ Fixed  
-**Commit**: 5b6bcd6a
+**Date**: 2026-02-10
+**Issue**: Pipeline processing failed: Embedding error: API error: '$.input' is invalid
+**Status on that date**: Fixed in commit `5b6bcd6a`.
+
+## Status today (v0.32.2): not verified in the pinned crate
+
+The fix changed the embedding providers in the workspace's own `edgequake-llm` source. Those providers now live in the external `edgequake-llm` crate, which `edgequake/Cargo.lock` pins at 0.10.9.
+
+In `edgequake-llm` 0.10.9 I did not find the fix in the `embed` functions of `ollama.rs`, `gemini.rs`, `jina.rs`, `mock.rs` or `openai.rs`. There is no per-text filter and no zero-vector padding (`vec![0.0; dim]`). The pipeline's chunkers do skip whitespace-only segments before embedding (`edgequake-pipeline/src/chunker/page_aware.rs` and `markdown_pack.rs`), which lowers the risk but does not replace the provider-side filter.
+
+Before you rely on this fix, send a document with blank segments through a current build and check the logs.
 
 ## Problem
 
-When processing documents, the pipeline occasionally failed with:
+When documents were processed, the pipeline sometimes failed with:
 
 ```
 Pipeline processing failed: Embedding error: API error: '$.input' is invalid. Please check the AP...
 ```
 
-This error occurred when embedding providers (OpenAI, Ollama, etc.) received arrays containing empty or whitespace-only strings. API validation rejected these invalid inputs.
+Embedding providers (OpenAI, Ollama, and others) received arrays that contained empty or whitespace-only strings. The API rejected the whole request.
 
-## Root Cause
+### Root cause
 
-The embedding pipeline was passing all text strings to the API without filtering, including:
+The embedding pipeline sent every text string to the API without filtering. That included:
 
-- Empty strings (`""`)
-- Whitespace-only strings (`"   "`, `"\n"`, `"\t"`)
-- Strings that became empty after `.trim()`
+- empty strings (`""`),
+- whitespace-only strings (`"   "`, `"\n"`, `"\t"`),
+- strings that became empty after `.trim()`.
 
-External APIs (OpenAI, Gemini, Jina, etc.) validate input and reject empty strings in the input array.
+External APIs (OpenAI, Gemini, Jina, and others) reject empty strings in the input array.
 
-## Solution
+## Solution (as shipped on 2026-02-10)
 
-All embedding providers now:
+The intended behavior is shown in the diagram below. Each provider did three things.
 
-1. **Filter invalid inputs** before API calls:
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TB
+  T["Input texts"] --> F{"Blank after trim?"}
+  F -->|"no"| K["Keep text for the embedding API"]
+  F -->|"yes"| Z["Skip the API call for this text"]
+  K --> API["Embedding provider API"]
+  API --> M["Map each vector back to its original index"]
+  Z --> M
+  M --> R["Output has one vector per input"]
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class K,API eqLlm
+```
+
+Caption: blank texts never reach the provider, but the output still has one vector per input, in the original order.
+
+1. **Filter invalid inputs** before the API call:
 
    ```rust
    let valid_texts: Vec<(usize, &String)> = texts
@@ -45,7 +69,7 @@ All embedding providers now:
        .collect();
    ```
 
-2. **Handle all-empty case gracefully**:
+2. **Handle the all-empty case** without calling the API:
 
    ```rust
    if valid_texts.is_empty() {
@@ -53,7 +77,8 @@ All embedding providers now:
    }
    ```
 
-3. **Map results back to original indices**:
+3. **Map results back to the original indices**:
+
    ```rust
    let mut result = vec![vec![0.0; self.embedding_dimension]; texts.len()];
    for ((orig_idx, _), embedding) in valid_texts.iter().zip(api_embeddings) {
@@ -61,33 +86,35 @@ All embedding providers now:
    }
    ```
 
-## Affected Providers
+### Providers changed in commit `5b6bcd6a`
 
-All embedding providers were updated:
+The commit touched seven provider files: `azure_openai.rs`, `gemini.rs`, `jina.rs`, `lmstudio.rs`, `mock.rs`, `ollama.rs` and `openai.rs`. Those files are now in the external `edgequake-llm` crate, not in this repo. See the status note above.
 
-- ✅ OpenAI (`openai.rs`)
-- ✅ Ollama (`ollama.rs`)
-- ✅ Gemini (`gemini.rs`)
-- ✅ Jina (`jina.rs`)
-- ✅ Azure OpenAI (`azure_openai.rs`)
-- ✅ LM Studio (`lmstudio.rs`)
-- ✅ Mock Provider (`mock.rs`)
+## Edge cases
+
+| Input case | Intended behavior |
+|------------|-------------------|
+| All strings valid | Normal processing; all strings are embedded |
+| Some strings empty | Empty strings get zero vectors; the others are processed normally |
+| All strings empty | Return one zero vector per input, with the embedding dimension |
+| Whitespace only | Treated as empty; gets a zero vector |
+| Mixed valid and invalid | Valid strings are embedded; invalid ones get zero vectors |
 
 ## Testing
 
-### Unit Tests
+### Unit tests
 
-All 201 tests pass:
+The 2026-02-10 run reported 201 passing tests:
 
 ```bash
 cd edgequake
 # Historical command from 2026-02 (crate layout has since changed).
 # Prefer: cargo test -p edgequake-pipeline --lib
 cargo test --workspace --lib
-# Result: ok. 201 passed; 0 failed; 0 ignored
+# Result on that date: ok. 201 passed; 0 failed; 0 ignored
 ```
 
-### Manual Testing
+### Manual testing
 
 1. Start the backend:
 
@@ -95,61 +122,43 @@ cargo test --workspace --lib
    make dev
    ```
 
-2. Upload a problematic PDF document
+2. Upload a document that used to fail.
+3. Check the backend log:
 
-3. Verify the document processes successfully without embedding errors
-
-4. Check backend logs:
    ```bash
    tail -f /tmp/edgequake-backend.log
    ```
 
-Expected: No "Embedding error" messages, document status shows "Completed"
+Expected: no "Embedding error" lines, and the document status shows "Completed".
 
-## Edge Cases Handled
+## Performance impact
 
-| Input Case          | Behavior                                                  |
-| ------------------- | --------------------------------------------------------- |
-| All strings valid   | Normal processing, all strings embedded                   |
-| Some strings empty  | Empty strings get zero vectors, others processed normally |
-| All strings empty   | Return array of zero vectors (dimension-matched)          |
-| Whitespace-only     | Treated as empty, receives zero vector                    |
-| Mixed valid/invalid | Valid strings embedded, invalid get zero vectors          |
+- The extra `filter()` pass over the input is negligible.
+- Fewer strings go to the API when some are blank, so there are fewer calls to pay for.
+- The output array always matches the input array in length.
 
-## Performance Impact
+## Code quality
 
-- **Negligible overhead**: One additional `filter()` pass over input array
-- **API call reduction**: Fewer strings sent to API when some are empty
-- **Consistency**: Output array size always matches input array size
+On that date: clippy reported no warnings, all 201 tests passed, and every provider used the same pattern.
 
-## Code Quality
+## Future improvements
 
-✅ **Clippy**: No warnings  
-✅ **Tests**: All 201 tests pass  
-✅ **Consistency**: All providers use same pattern
+1. Log a warning when many blank strings are filtered. It may point to a data-quality problem.
+2. Count how often filtering happens, as a metric.
+3. Check for empty chunks earlier, during chunking or extraction, so they never reach the embedder.
 
-## Future Improvements
+## Related errors this fix targets
 
-Consider:
+- OpenAI: `$.input is invalid`
+- Ollama: `invalid input`
+- Gemini: `empty text not allowed`
 
-1. Log warning when many empty strings are filtered (potential data quality issue)
-2. Add telemetry to track how often filtering occurs
-3. Upstream validation in chunking/extraction to prevent empty strings earlier
+## Verification checklist (2026-02-10)
 
-## Related Issues
-
-This fix prevents:
-
-- OpenAI API errors: `$.input is invalid`
-- Ollama API errors: `invalid input`
-- Gemini API errors: `empty text not allowed`
-
-## Verification Checklist
-
-- [x] All providers filter empty strings
-- [x] Results mapped back to correct indices
-- [x] Zero vectors returned for empty inputs
-- [x] Array size consistency maintained
-- [x] Tests pass
-- [x] Clippy clean
+- [x] Providers filter blank strings (see the status note: re-check in the pinned crate)
+- [x] Results map back to the correct indices
+- [x] Zero vectors are returned for blank inputs
+- [x] Output array size matches the input array size
+- [x] Tests passed on that date
+- [x] Clippy clean on that date
 - [x] Documentation updated

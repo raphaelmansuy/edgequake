@@ -5,21 +5,43 @@ description: "Which PostgreSQL versions EdgeQuake supports, which extension vers
 
 # Version matrix (PG16, PG17, PG18)
 
-EdgeQuake runs the same SQL on PostgreSQL 16, 17, and 18. This page shows the version pins, how each registered operation is tracked, and where the version decisions are recorded.
+EdgeQuake runs the same SQL on PostgreSQL 16, 17, and 18. This page shows the version pins, which features need which version, how each registered operation is tracked, and where the version decisions are recorded.
 
 ## Versions
 
 Source of truth: `edgequake/docker/extension-pins.sh`. The default image uses PostgreSQL 18.
 
-| Profile | PostgreSQL | pgvector | Apache AGE | Image tag |
-|---|---|---|---|---|
-| pg18 (default) | 18 | 0.8.5 | 1.8.0 | `latest` |
-| pg17 | 17 | 0.8.5 | 1.7.0 | `latest-pg17` |
-| pg16 | 16 | 0.8.5 | 1.6.0 | `latest-pg16` |
+| Profile | PostgreSQL | pgvector | Apache AGE | Image tag (GHCR) | Local build file |
+|---|---|---|---|---|---|
+| pg18 (default) | 18 | 0.8.5 | 1.8.0 | `latest` | `edgequake/docker/Dockerfile.postgres.pg18` |
+| pg17 | 17 | 0.8.5 | 1.7.0 | `latest-pg17` | `edgequake/docker/Dockerfile.postgres.pg17` |
+| pg16 (legacy) | 16 | 0.8.5 | 1.6.0 | `latest-pg16` | `edgequake/docker/Dockerfile.postgres` |
 
-Extensions in every image: `vector`, `age`, `pg_trgm`, `btree_gin`, and `uuid-ossp`. An optional PG18 image with vectorscale (DiskANN) is built from `Dockerfile.postgres.pg18-vectorscale`.
+Extensions in every image: `vector`, `age`, `pg_trgm`, `btree_gin`, and `uuid-ossp`. An optional PG18 image with vectorscale (DiskANN) is built from `edgequake/docker/Dockerfile.postgres.pg18-vectorscale`.
 
-The code does not branch on version strings. It probes capabilities at run time. The probe result is on `/health` under `schema.postgres_capabilities`.
+## How the code handles versions
+
+The code does not switch on the PostgreSQL version string. At boot it probes each capability it needs and falls back when a probe fails. The results appear on `/health` under `schema.postgres_capabilities`.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    pins["Pinned versions: PG, pgvector, AGE"] --> boot["Boot probe in capabilities.rs"]
+    boot --> health["/health: schema.postgres_capabilities"]
+    boot --> q1{"pgvector 0.8.0 or later?"}
+    q1 -- "yes" --> iter["Iterative HNSW scan on"]
+    q1 -- "no" --> plain["Single-pass HNSW; filtered recall can drop"]
+    boot --> q2{"AGE 1.7.0 or later?"}
+    q2 -- "yes" --> rls["AGE RLS and COPY loader available"]
+    q2 -- "no" --> nocopy["COPY loader off; batched SQL writes"]
+    boot --> q3{"PG18 and uuidv7() works?"}
+    q3 -- "yes" --> v7["UUIDv7 document IDs"]
+    q3 -- "no" --> v4["UUIDv4 document IDs"]
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class pins,health,q1,q2,rls eqStore
+```
 
 | Capability | Needs |
 |---|---|
@@ -31,11 +53,11 @@ The code does not branch on version strings. It probes capabilities at run time.
 ## Decisions
 
 - [pg17-differential.md](./pg17-differential.md): no PG17-specific SQL. Closed.
-- [pg18-adoption.md](./pg18-adoption.md): what PG18 features are used through probes and what is deferred.
+- [pg18-adoption.md](./pg18-adoption.md): which PG18 features are used through probes, and which are deferred.
 
 ## Test coverage
 
-Four workflows run the matrix: `.github/workflows/data-layer-matrix.yml`, `postgres-matrix-nightly.yml`, `spec091-data-layer.yml` (pull request smoke test), and `postgres-integration.yml`. One captured run is in [version-matrix-results.md](./version-matrix-results.md).
+Four workflows run the matrix: `.github/workflows/data-layer-matrix.yml`, `.github/workflows/postgres-matrix-nightly.yml`, `.github/workflows/spec091-data-layer.yml` (pull request smoke test), and `.github/workflows/postgres-integration.yml`. One captured run is recorded in [version-matrix-results.md](./version-matrix-results.md).
 
 ## Per-operation status
 
@@ -44,9 +66,11 @@ Each of the 235 registered operations has a status for each PostgreSQL version.
 | Status | Meaning |
 |---|---|
 | `artifact` | A plan-shape contract is recorded in [rm4-explain-hot-paths.md](../../specs/091-simplify-data-layer/measurements/rm4-explain-hot-paths.md) (SPEC-091 RM4, 2026-07-31). |
-| `pending` | No checked-in `EXPLAIN ANALYZE` exists yet. The CI recall fixtures remain the executable gate. Runs at 100k rows or more are deferred to soak tests. |
+| `pending` | No checked-in `EXPLAIN ANALYZE` exists yet. The CI recall fixtures are the executable gate. Runs at 100k rows or more are deferred to soak tests. |
 
 Current counts: 3 operations are `artifact` on all three versions, and 232 are `pending` on all three versions.
+
+### Hot-path operations with a recorded plan
 
 | Ref number | Operation | Status | Note |
 |---|---|---|---|
@@ -54,9 +78,9 @@ Current counts: 3 operations are `artifact` on all three versions, and 232 are `
 | 002 | `DATA-PGVEC-VECTORS-ANN-QUERY-FILTERED-002` | artifact | Filtered ANN query. HNSW with `relaxed_order` and a workspace filter. |
 | 003 | `DATA-PG-VECTORS-TEXT-SEARCH-FILTERED-003` | artifact | Filtered keyword search. Uses `idx_chunks_content_tsv` (migration 136). |
 
-## Version notes on the other operations
+### Version notes on the other operations
 
-The original matrix attached one note to some of the pending rows. Numbers are Ref ID suffixes; find the entry on [postgres.md](./postgres.md), [pgvector.md](./pgvector.md), or [age.md](./age.md).
+Numbers are Ref ID suffixes. Find each entry in [postgres.md](./postgres.md), [pgvector.md](./pgvector.md), or [age.md](./age.md).
 
 | Note | Ref numbers |
 |---|---|

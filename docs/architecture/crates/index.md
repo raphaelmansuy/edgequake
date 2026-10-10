@@ -31,3 +31,30 @@ Two crates come from crates.io, not from this repository:
 - `edgequake-pdf2md` converts PDF pages to Markdown. `edgequake-pdf` wraps it.
 
 There is no `edgequake-graph` crate. Graph code lives in `edgequake-storage` and `edgequake-query`.
+
+## Which crate owns a change
+
+Read the diagram top to bottom. Pick the question that matches your change, then open the crate it points to.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    change["What are you changing?"] --> q1["New HTTP route or handler"]
+    change --> q2["Chunking, extraction, or merge"]
+    change --> q3["Retrieval or answer mode"]
+    change --> q4["Table, vector, or graph access"]
+    change --> q5["Upload queue, worker, or cancel"]
+    change --> q6["PDF to Markdown conversion"]
+    change --> q7["Login, API key, or role"]
+    q1 --> c1["edgequake-api: routes.rs and handlers/"]
+    q2 --> c2["edgequake-pipeline"]
+    q3 --> c3["edgequake-query"]
+    q4 --> c4["edgequake-storage"]
+    q5 --> c5["edgequake-tasks"]
+    q6 --> c6["edgequake-pdf"]
+    q7 --> c7["edgequake-auth"]
+%% eq-classes
+classDef eqStore fill:#D1FAE5,stroke:#10B981,color:#064E3B
+class q4,q5,c4 eqStore
+```

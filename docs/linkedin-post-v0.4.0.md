@@ -5,7 +5,13 @@ description: "Historical LinkedIn post for the v0.4.0 release."
 
 # LinkedIn Post — EdgeQuake v0.4.0
 
-> **Historical document.** Marketing snapshot for **v0.4.0**. Current product is **v0.23.0**. For up-to-date PDF vision, cancel/progress, and ops guidance see [PDF Processing](deep-dives/pdf-processing.md), [PDF Ingestion](tutorials/pdf-ingestion.md), and [CHANGELOG](../CHANGELOG.md). Not part of the living docs nav.
+> **Historical document.** Marketing snapshot for **v0.4.0**. Current product is **v0.32.2**. For up-to-date PDF vision, cancel/progress, and ops guidance see [PDF Processing](deep-dives/pdf-processing.md), [PDF Ingestion](tutorials/pdf-ingestion.md), and [CHANGELOG](../CHANGELOG.md). Not part of the living docs nav.
+
+> **Maintainer note (current behavior, v0.32.2).** The post below describes v0.4.0. Current code differs in three places:
+>
+> - `extraction_method` is now `text`, `vision`, `hybrid` or `edgeparse`. There is no `ocr` value (enum in `edgequake/crates/edgequake-storage/src/pdf_storage.rs`).
+> - Uploads default `enable_vision` to true, so vision is no longer opt-in (`edgequake/crates/edgequake-api/src/handlers/pdf_upload/upload.rs`). The `enable_vision` multipart field still exists.
+> - A vision failure falls back to EdgeParse only when Vision was not explicitly selected. Explicit Vision never degrades silently (`edgequake/crates/edgequake-pdf/src/fallback.rs`).
 
 **Title:** Why your RAG pipeline struggles with PDFs — and how we fixed it with LLM Vision
 
@@ -56,4 +62,32 @@ Happy to answer questions about the implementation — the interaction between R
 #RAG #LLM #AI #OpenSource #Rust #PDF #KnowledgeGraph #DocumentProcessing #GenAI
 
 ---
-*~2,450 characters — within LinkedIn 3,000 character limit*
+
+*Post body is about 3,040 characters with Markdown stripped. That is slightly over LinkedIn's 3,000-character limit, so trim a line or two before posting.*
+
+## Maintainer flow (not part of the post)
+
+How a PDF moves through the current pipeline, from upload to graph:
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
+%% eq-theme:v1
+flowchart TD
+    U["PDF upload<br/>POST /api/v1/documents/pdf"] --> C["Convert task<br/>PdfProcessing"]
+    C --> V{"Backend selected"}
+    V -->|"vision or hybrid"| VL["Vision LLM reads page images"]
+    V -->|"edgeparse"| EP["EdgeParse CPU extraction"]
+    V -->|"text"| T["Text extraction"]
+    VL -->|"failure, Vision not explicit"| EP
+    VL --> M["Markdown stored"]
+    EP --> M
+    T --> M
+    M --> I["Insert task<br/>chunk, extract, embed, store"]
+    I --> G["Knowledge graph"]
+    P["SSE progress<br/>/api/v1/documents/pdf/progress/stream/{track_id}"] -.-> C
+%% eq-classes
+classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
+class VL eqLlm
+```
+
+The convert step produces the Markdown, then a separate insert task builds the graph. The SSE progress endpoint is keyed by `track_id`.
