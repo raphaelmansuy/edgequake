@@ -47,6 +47,9 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Epoch coverage hashes git ls-tree <tag> for every published release.
+          fetch-depth: 0
 
       - uses: ./.github/actions/setup-rust
         with:

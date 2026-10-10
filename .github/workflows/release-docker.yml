@@ -21,6 +21,9 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Epoch coverage hashes git ls-tree <tag> for every published release.
+          fetch-depth: 0
 
       - name: Setup Rust (shared CI cache)
         uses: ./.github/actions/setup-rust

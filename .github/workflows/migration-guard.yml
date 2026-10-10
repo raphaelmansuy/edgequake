@@ -68,6 +68,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Epoch coverage hashes git ls-tree <tag> for every published release.
+          fetch-depth: 0
 
       - name: Verify migration checksums against lockfile
         run: |
