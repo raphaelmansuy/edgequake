@@ -27,6 +27,7 @@ import {
   isServerPersistedMessageId,
 } from "@/lib/query/conversation-errors";
 import type { QueryMessage } from "@/lib/query/query-interface-types";
+import { conversationEchoesPending } from "@/lib/query/merge-query-messages";
 import {
   clearPendingAfterMerge,
   createStreamSession,
@@ -346,7 +347,17 @@ export function useQueryStreamSession({
             queryKey: conversationKeys.lists(),
           });
         }
-        setSession((s) => (s.stage === "stopped" ? s : clearPendingAfterMerge(s)));
+        setSession((s) => {
+          if (s.stage === "stopped") return s;
+          const pendingContent = s.pendingMessage?.content;
+          if (!settledId || !pendingContent) return clearPendingAfterMerge(s);
+          const cached = queryClient.getQueryData<{
+            messages?: { role?: string; content?: string }[];
+          }>(conversationKeys.detail(settledId));
+          return conversationEchoesPending(cached?.messages, pendingContent)
+            ? clearPendingAfterMerge(s)
+            : s;
+        });
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
           setSession((s) => reduceStreamSession(s, { type: "abort" }));

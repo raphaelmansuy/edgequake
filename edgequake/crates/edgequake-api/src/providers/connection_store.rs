@@ -65,6 +65,16 @@ pub fn parse_connection_id(raw: &str) -> Option<Uuid> {
     Uuid::parse_str(raw.trim()).ok()
 }
 
+#[cfg(feature = "postgres")]
+#[derive(sqlx::FromRow)]
+struct StoredConnectionRow {
+    api_shape: String,
+    base_url: String,
+    api_key_ciphertext: Option<Vec<u8>>,
+    api_key_nonce: Option<Vec<u8>>,
+    key_id: Option<String>,
+}
+
 /// Decrypt a `provider_connections` row into a runtime spec.
 #[cfg(feature = "postgres")]
 pub async fn load_connection_spec(
@@ -75,15 +85,8 @@ pub async fn load_connection_spec(
     use crate::error::ApiError;
     use crate::providers::connection_factory::ConnectionSpec;
 
-    let row: (
-        String,
-        String,
-        String,
-        Option<Vec<u8>>,
-        Option<Vec<u8>>,
-        Option<String>,
-    ) = sqlx::query_as(
-        r#"SELECT api_shape, base_url, auth_scheme, api_key_ciphertext, api_key_nonce, key_id
+    let row = sqlx::query_as::<_, StoredConnectionRow>(
+        r#"SELECT api_shape, base_url, api_key_ciphertext, api_key_nonce, key_id
            FROM provider_connections WHERE id = $1"#,
     )
     .bind(id)
@@ -92,7 +95,7 @@ pub async fn load_connection_spec(
     .map_err(|e| ApiError::Internal(e.to_string()))?
     .ok_or_else(|| ApiError::NotFound("connection not found".into()))?;
 
-    let api_key = match (row.3, row.4, row.5) {
+    let api_key = match (row.api_key_ciphertext, row.api_key_nonce, row.key_id) {
         (Some(ct), Some(nonce), Some(kid)) => {
             let env = edgequake_secrets::Envelope {
                 ciphertext: ct,
@@ -107,8 +110,8 @@ pub async fn load_connection_spec(
     };
 
     Ok(ConnectionSpec {
-        shape: row.0,
-        base_url: row.1,
+        shape: row.api_shape,
+        base_url: row.base_url,
         api_key,
         model: model.to_string(),
         embedding_model: None,

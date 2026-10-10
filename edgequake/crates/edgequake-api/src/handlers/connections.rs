@@ -255,7 +255,7 @@ pub async fn delete_connection(
         if n == 0 {
             return Err(ApiError::NotFound("connection not found".into()));
         }
-        return Ok(StatusCode::NO_CONTENT);
+        Ok(StatusCode::NO_CONTENT)
     }
     #[cfg(not(feature = "postgres"))]
     {
@@ -284,15 +284,7 @@ pub async fn test_stored_connection(
                 retry_after_secs: 5,
             })?;
         let tenant = scoped_tenant(&tenant_ctx)?;
-        let row: (
-            String,
-            String,
-            String,
-            Option<Vec<u8>>,
-            Option<Vec<u8>>,
-            Option<String>,
-            bool,
-        ) = sqlx::query_as(
+        let row = sqlx::query_as::<_, StoredProbeRow>(
             r#"SELECT api_shape, base_url, auth_scheme, api_key_ciphertext, api_key_nonce, key_id,
                           allow_private_network
                    FROM provider_connections
@@ -305,7 +297,7 @@ pub async fn test_stored_connection(
         .map_err(map_sql)?
         .ok_or_else(|| ApiError::NotFound("connection not found".into()))?;
 
-        let api_key = match (row.3, row.4, row.5) {
+        let api_key = match (row.api_key_ciphertext, row.api_key_nonce, row.key_id) {
             (Some(ct), Some(nonce), Some(kid)) => {
                 let env = edgequake_secrets::Envelope {
                     ciphertext: ct,
@@ -319,13 +311,13 @@ pub async fn test_stored_connection(
             _ => None,
         };
         let probe = probe_provider(ProbeRequest {
-            shape: row.0,
-            base_url: Some(row.1),
+            shape: row.api_shape,
+            base_url: Some(row.base_url),
             model: None,
             embedding_model: None,
             api_key,
-            auth_scheme: Some(row.2),
-            allow_private_network: Some(row.6),
+            auth_scheme: Some(row.auth_scheme),
+            allow_private_network: Some(row.allow_private_network),
             expected_dimension: None,
         })
         .await;
@@ -344,7 +336,7 @@ pub async fn test_stored_connection(
         .bind(err)
         .execute(pool)
         .await;
-        return Ok(Json(probe));
+        Ok(Json(probe))
     }
     #[cfg(not(feature = "postgres"))]
     {
@@ -484,7 +476,7 @@ async fn upsert(
             .await
             .map_err(map_sql)?
         };
-        return Ok(row.into_view());
+        Ok(row.into_view())
     }
     #[cfg(not(feature = "postgres"))]
     {
@@ -494,6 +486,18 @@ async fn upsert(
             retry_after_secs: 5,
         })
     }
+}
+
+#[cfg(feature = "postgres")]
+#[derive(sqlx::FromRow)]
+struct StoredProbeRow {
+    api_shape: String,
+    base_url: String,
+    auth_scheme: String,
+    api_key_ciphertext: Option<Vec<u8>>,
+    api_key_nonce: Option<Vec<u8>>,
+    key_id: Option<String>,
+    allow_private_network: bool,
 }
 
 #[cfg(feature = "postgres")]

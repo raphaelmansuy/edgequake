@@ -38,3 +38,18 @@ export function mergeQueryMessages(
 
   return result;
 }
+
+/**
+ * True when the refetched conversation already contains the streamed answer,
+ * so the optimistic pending bubble can be dropped without blanking the thread.
+ */
+export function conversationEchoesPending(
+  messages: { role?: string; content?: string }[] | undefined,
+  pendingContent: string | undefined,
+): boolean {
+  if (!pendingContent) return true;
+  return (messages ?? []).some(
+    (message) =>
+      message.role === "assistant" && message.content === pendingContent,
+  );
+}

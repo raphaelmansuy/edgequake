@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { mergeQueryMessages } from "../merge-query-messages";
+import {
+  conversationEchoesPending,
+  mergeQueryMessages,
+} from "../merge-query-messages";
 import type { QueryMessage } from "../query-interface-types";
 
 const user = (content: string, id = "u1"): QueryMessage => ({
@@ -49,5 +52,30 @@ describe("mergeQueryMessages (UI-P3-005)", () => {
     const server = [user("q"), assistant("done")];
     const pending = assistant("done", "pending-1");
     expect(mergeQueryMessages(server, null, pending)).toEqual(server);
+  });
+});
+
+describe("conversationEchoesPending", () => {
+  it("treats an empty pending answer as already settled", () => {
+    expect(conversationEchoesPending([], "")).toBe(true);
+    expect(conversationEchoesPending(undefined, undefined)).toBe(true);
+  });
+
+  it("keeps the pending bubble until the server echoes the same assistant text", () => {
+    expect(
+      conversationEchoesPending(
+        [{ role: "user", content: "q" }],
+        "Mock answer",
+      ),
+    ).toBe(false);
+    expect(
+      conversationEchoesPending(
+        [
+          { role: "user", content: "q" },
+          { role: "assistant", content: "Mock answer" },
+        ],
+        "Mock answer",
+      ),
+    ).toBe(true);
   });
 });

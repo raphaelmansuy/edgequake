@@ -17,7 +17,7 @@ impl DocumentTaskProcessor {
         .with_cancellation(cancel);
         #[cfg(feature = "postgres")]
         {
-            return factory.with_pg_pool(self.app_state.as_ref().and_then(|s| s.pg_pool.clone()));
+            factory.with_pg_pool(self.app_state.as_ref().and_then(|s| s.pg_pool.clone()))
         }
         #[cfg(not(feature = "postgres"))]
         {

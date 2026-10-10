@@ -73,7 +73,7 @@ export function AppProviders({ children }: AppProvidersProps) {
                 {children}
                 <Toaster 
                   richColors 
-                  position="bottom-right" 
+                  position="top-right" 
                   duration={3000}
                   closeButton
                 />

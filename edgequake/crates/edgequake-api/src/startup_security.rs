@@ -113,10 +113,10 @@ fn is_non_local_database(url: &str) -> bool {
             || lower.contains("127.0.0.1")
             || lower.contains("host.docker.internal"));
     };
-    match parsed.host_str().unwrap_or("") {
-        "localhost" | "127.0.0.1" | "::1" | "host.docker.internal" => false,
-        _ => true,
-    }
+    !matches!(
+        parsed.host_str().unwrap_or(""),
+        "localhost" | "127.0.0.1" | "::1" | "host.docker.internal"
+    )
 }
 
 /// Log outcome; exit process on fatal when strict startup is enabled.

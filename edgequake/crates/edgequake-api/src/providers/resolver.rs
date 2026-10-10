@@ -224,7 +224,7 @@ impl WorkspaceProviderResolver {
             .with_models_config(state.query.models_config.clone());
         #[cfg(feature = "postgres")]
         {
-            return resolver.with_pg_pool(state.pg_pool.clone());
+            resolver.with_pg_pool(state.pg_pool.clone())
         }
         #[cfg(not(feature = "postgres"))]
         {

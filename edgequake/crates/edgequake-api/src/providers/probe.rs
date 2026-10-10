@@ -142,8 +142,6 @@ pub async fn probe_provider(req: ProbeRequest) -> ProbeResponse {
 
     let list_url = if shape == "ollama" {
         format!("{base}{}", local_health_path("ollama"))
-    } else if shape.contains("anthropic") {
-        format!("{base}/v1/models")
     } else {
         format!("{base}/v1/models")
     };
