@@ -1,11 +1,10 @@
 ---
-title: "Docker Deployment Verification"
-description: "Historical note: Docker verification checklist."
+title: Docker deployment verification
+description: Incident note from 2026-02-09: checks used after the frontend-backend Docker fix.
 ---
 
-> **Historical note.** This page may not match the current product. Prefer the guides under Getting started, Operations, and Providers.
-
-# Docker Deployment Verification
+> Historical note, 2026-02-09; may not match current code.
+> Prefer: [Docker quick start](DOCKER_QUICK_START.md) · [Troubleshooting](../troubleshooting/common-issues.md)
 
 ## ✅ Fixes Applied
 

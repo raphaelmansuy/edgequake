@@ -1,11 +1,10 @@
 ---
-title: "EdgeQuake Docker Setup - Implementation Summary"
-description: "Historical note: Docker setup implementation."
+title: Docker setup implementation
+description: Incident note from 2026-02-09: how make docker-up and the frontend Dockerfile were wired.
 ---
 
-> **Historical note.** This page may not match the current product. Prefer the guides under Getting started, Operations, and Providers.
-
-# EdgeQuake Docker Setup - Implementation Summary
+> Historical note, 2026-02-09; may not match current code.
+> Prefer: [Docker quick start](DOCKER_QUICK_START.md) · [Docker deployment options](../operations/docker-deployment-options.md)
 
 ## Overview
 

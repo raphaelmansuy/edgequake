@@ -1,11 +1,10 @@
 ---
-title: "Issue Resolution Summary: Can't Import Documents"
-description: "Historical note: issue resolution summary."
+title: Issue resolution: cannot import documents
+description: Incident note: users posted multipart to the JSON documents endpoint; docs and tests were fixed.
 ---
 
-> **Historical note.** This page may not match the current product. Prefer the guides under Getting started, Operations, and Providers.
-
-# Issue Resolution Summary: Can't Import Documents
+> Historical note, date unknown (pre-v0.32); may not match current code.
+> Prefer: [Upload errors](../troubleshooting/common-issues.md#1-document-upload-errors) · [Upload quick reference](../api-reference/document-upload-quick-reference.md)
 
 ## Problem Statement
 

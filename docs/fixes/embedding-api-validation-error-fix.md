@@ -1,11 +1,10 @@
 ---
-title: 'Fix: Embedding API Validation Error'
-description: "Historical note: embedding API validation error fix."
+title: Fix: embedding API validation error
+description: Incident note from 2026-02-10: pipeline embedding error '$.input' is invalid.
 ---
 
-# Fix: Embedding API Validation Error
-
-> **Historical document.** Incident note from **2026-02-10**. Current product is **v0.23.0**. Prefer [Troubleshooting](../troubleshooting/common-issues.md) and root [CHANGELOG](../../CHANGELOG.md) for living guidance. Not part of the living docs nav.
+> Historical note, 2026-02-10; may not match current code.
+> Prefer: [Troubleshooting](../troubleshooting/common-issues.md) · [Roles](../providers/roles.md)
 
 **Date**: 2026-02-10  
 **Issue**: Pipeline processing failed: Embedding error: API error: '$.input' is invalid  

@@ -37,3 +37,34 @@ jobs:
         run: make spec163-env-docs
       - name: Schema train docs
         run: make schema-train-docs
+
+  postgres-roles:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: edgequake
+          POSTGRES_PASSWORD: edgequake_secret
+          POSTGRES_DB: edgequake
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U edgequake -d edgequake"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://edgequake:edgequake_secret@localhost:5432/edgequake
+      EDGEQUAKE_ALLOW_MOCK_PROVIDER: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+      - name: Apply connection schema
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f edgequake/migrations/169_spec163_provider_connections.sql
+      - name: SPEC-163 postgres role wiring
+        working-directory: edgequake
+        run: |
+          cargo test -p edgequake-api --features postgres --test spec163_probe --test spec163_roles -- --test-threads=1

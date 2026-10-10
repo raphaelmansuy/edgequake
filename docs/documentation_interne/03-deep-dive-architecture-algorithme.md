@@ -1,14 +1,10 @@
 ---
-title: "EdgeQuake — Deep dive architecture & algorithme"
-version: "0.26.4"
-audience: "Architectes, développeurs, data scientists"
-description: "Historical internal note: architecture and algorithm (French)."
+title: EdgeQuake — Deep dive architecture et algorithme
+description: Dossier client v0.26.4 : code, algorithme d'ingestion, modèle de données et interrogation (historique).
 ---
 
-# EdgeQuake — Deep dive architecture & algorithme
-
-> **Produit** : EdgeQuake v0.26.4 · **Base algorithmique** : LightRAG ([arXiv:2410.05779](https://arxiv.org/abs/2410.05779))
-> **Documents liés** : [Déploiement technique](01-deploiement-technique.md) · [Intégration IT](02-integration-it.md)
+> Historical note, 2026-08-30 (produit v0.26.4); may not match current code.
+> Prefer: [Architecture](../architecture/index.md) · [Roles](../providers/roles.md) · [Troubleshooting](../troubleshooting/index.md)
 
 Ce document explique **comment EdgeQuake fonctionne à l'intérieur** : le découpage du
 code, l'algorithme d'ingestion, le modèle de données, l'algorithme d'interrogation, et

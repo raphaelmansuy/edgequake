@@ -1,11 +1,10 @@
 ---
-title: "EdgeQuake v0.26.4 — Démarrage local avec Langfuse"
-description: "Historical runbook for a local Langfuse stack."
+title: EdgeQuake — Démarrage local avec Langfuse
+description: Runbook local validé le 2026-08-26 pour démarrer EdgeQuake avec Langfuse (historique).
 ---
 
-# EdgeQuake v0.26.4 — Démarrage local avec Langfuse
-
-> Validé le 2026-08-26 sur cette machine. Chaîne de traçage prouvée de bout en bout.
+> Historical note, 2026-08-26 (produit v0.26.4); may not match current code.
+> Prefer: [04-langfuse-kubernetes.md](04-langfuse-kubernetes.md) · [Deployment](../operations/deployment.md)
 
 ## Démarrage
 

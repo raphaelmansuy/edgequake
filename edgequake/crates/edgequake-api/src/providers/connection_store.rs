@@ -127,6 +127,40 @@ pub async fn llm_from_pool(
     crate::providers::connection_factory::llm_from_connection(&spec).ok()
 }
 
+/// Build an LLM from `llm_roles.<role>.connection_id` when that id is set.
+#[cfg(feature = "postgres")]
+pub async fn llm_from_workspace_role(
+    pool: &sqlx::PgPool,
+    ws: &edgequake_core::Workspace,
+    role: edgequake_core::LlmRole,
+) -> Option<Arc<dyn LLMProvider>> {
+    let resolved = edgequake_core::resolve_role_llm(ws, role);
+    let id = resolved.connection_id.as_deref()?;
+    llm_from_pool(pool, id, &resolved.model).await
+}
+
+/// Prefer a saved VLM connection; otherwise build from provider name + model.
+pub async fn vision_llm_preferring_connection(
+    pool: AmbientPool,
+    ws: Option<&edgequake_core::Workspace>,
+    provider: &str,
+    model: &str,
+) -> Option<Arc<dyn LLMProvider>> {
+    #[cfg(feature = "postgres")]
+    if let (Some(pool), Some(ws)) = (pool.as_ref(), ws) {
+        if let Some(connected) =
+            llm_from_workspace_role(pool, ws, edgequake_core::LlmRole::Vlm).await
+        {
+            return Some(connected);
+        }
+    }
+    #[cfg(not(feature = "postgres"))]
+    {
+        let _ = (pool, ws);
+    }
+    edgequake_llm::ProviderFactory::create_llm_provider(provider, model).ok()
+}
+
 #[cfg(feature = "postgres")]
 pub async fn embedding_from_pool(
     pool: &sqlx::PgPool,

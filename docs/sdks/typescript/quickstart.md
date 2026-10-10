@@ -1,48 +1,38 @@
 ---
-title: "TypeScript SDK — quickstart"
-description: "TypeScript SDK quickstart."
+title: TypeScript SDK quickstart
+description: Install edgequake-sdk, upload a document, and run a first query from Node or TypeScript.
 ---
 
-# TypeScript SDK — quickstart
+# TypeScript SDK quickstart
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../../ingestion-cancel-and-fairness.md)
-
-> **SDK package: ~0.4.0** (≠ product version)
-
-## Run tests
+You need Node 18+ and a running EdgeQuake server.
 
 ```bash
-cd sdks/typescript && bun test
+npm install edgequake-sdk@0.1.0
 ```
 
-## Upload + list
+```ts
+import { EdgeQuake } from "edgequake-sdk";
 
-```typescript
-import { EdgeQuakeClient } from "@edgequake/sdk";
+const client = new EdgeQuake({ baseUrl: "http://localhost:8080" });
 
-const client = new EdgeQuakeClient({ baseUrl: "http://localhost:8080" });
-
-await client.documents.upload({
-  content: "# Hello\n\nEdgeQuake",
-  title: "demo.md",
+const up = await client.documents.upload({
+  content: "Marie Curie won two Nobel Prizes.",
+  title: "Curie",
 });
 
-const list = await client.documents.list({ page: 1, page_size: 10 });
+let status = "pending";
+while (status === "pending" || status === "processing") {
+  const task = await client.tasks.get(up.task_id!);
+  status = task.status;
+  await new Promise((r) => setTimeout(r, 1000));
+}
+
+const res = await client.query.execute({
+  query: "How many Nobel Prizes?",
+  mode: "mix",
+});
+console.log(res.answer);
 ```
 
-## Conversations bulk delete
-
-The client sends `{ conversation_ids: [...] }` and expects `{ affected: number }` from the API.
-
-## Progress / cancel
-
-```typescript
-await client.tasks.cancel(trackId);
-// WebSocket: ws://host/ws/progress/{track_id}
-```
-
-See [Ingestion cancel & fairness](../../ingestion-cancel-and-fairness.md).
-
-## Costs / pipeline pricing
-
-Pipeline cost endpoints share DRY path constants in the SDK — they map to `/api/v1/pipeline/costs/...` as routed in `routes.rs`.
+Next: [TypeScript README](README.md), [API reference](../../api-reference/index.md).

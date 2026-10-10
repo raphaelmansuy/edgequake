@@ -1024,6 +1024,11 @@ impl DocumentTaskProcessor {
         } else {
             None
         };
+        let vision_workspace = async {
+            let svc = self.workspace_service.as_ref()?;
+            svc.get_workspace(data.workspace_id).await.ok().flatten()
+        }
+        .await;
 
         let converter = if precomputed_markdown.is_some() {
             edgequake_pdf::create_pdf_converter(edgequake_pdf::PdfParserBackend::EdgeParse)
@@ -1184,17 +1189,20 @@ impl DocumentTaskProcessor {
             let model = vision_model.clone().filter(|s| !s.is_empty());
             match model {
                 Some(model) => {
-                    match edgequake_llm::ProviderFactory::create_llm_provider(
+                    match crate::providers::connection_store::vision_llm_preferring_connection(
+                        self.ambient_connection_pool(),
+                        vision_workspace.as_ref(),
                         &vision_provider,
                         &model,
-                    ) {
-                        Ok(provider) => {
+                    )
+                    .await
+                    {
+                        Some(provider) => {
                             print_figure_filter = Some(
                                 edgequake_pdf::image_guard::ImageGuardProvider::wrap(provider),
                             );
                         }
-                        Err(e) => tracing::warn!(
-                            error = %e,
+                        None => tracing::warn!(
                             provider = %vision_provider,
                             model = %model,
                             "SPEC-128 figure filter: could not create vision LLM provider"
@@ -1697,24 +1705,22 @@ impl DocumentTaskProcessor {
             && crate::services::manuscript_verify::empty_page_retry_enabled_from_env()
             && markdown.contains(edgequake_pdf::EMPTY_VISION_PAGE_PLACEHOLDER)
         {
-            let escalate_provider =
-                vision_model
-                    .clone()
-                    .filter(|s| !s.is_empty())
-                    .and_then(|model| {
-                        edgequake_llm::ProviderFactory::create_llm_provider(
-                            &vision_provider,
-                            &model,
-                        )
-                        .map_err(|e| {
-                            tracing::warn!(
-                                error = %e,
-                                "SPEC-134 escalation: provider unavailable — skipping"
-                            );
-                            e
-                        })
-                        .ok()
-                    });
+            let escalate_provider = match vision_model.clone().filter(|s| !s.is_empty()) {
+                Some(model) => {
+                    crate::providers::connection_store::vision_llm_preferring_connection(
+                        self.ambient_connection_pool(),
+                        vision_workspace.as_ref(),
+                        &vision_provider,
+                        &model,
+                    )
+                    .await
+                    .or_else(|| {
+                        tracing::warn!("SPEC-134 escalation: provider unavailable — skipping");
+                        None
+                    })
+                }
+                None => None,
+            };
             match escalate_provider {
                 Some(provider) => {
                     let provider =
@@ -1784,24 +1790,22 @@ impl DocumentTaskProcessor {
             && page_modality.is_manuscript_like()
             && crate::services::manuscript_verify::verify_enabled_from_env()
         {
-            let verify_provider =
-                vision_model
-                    .clone()
-                    .filter(|s| !s.is_empty())
-                    .and_then(|model| {
-                        edgequake_llm::ProviderFactory::create_llm_provider(
-                            &vision_provider,
-                            &model,
-                        )
-                        .map_err(|e| {
-                            tracing::warn!(
-                                error = %e,
-                                "SPEC-134 verify: judge provider unavailable — fail open"
-                            );
-                            e
-                        })
-                        .ok()
-                    });
+            let verify_provider = match vision_model.clone().filter(|s| !s.is_empty()) {
+                Some(model) => {
+                    crate::providers::connection_store::vision_llm_preferring_connection(
+                        self.ambient_connection_pool(),
+                        vision_workspace.as_ref(),
+                        &vision_provider,
+                        &model,
+                    )
+                    .await
+                    .or_else(|| {
+                        tracing::warn!("SPEC-134 verify: judge provider unavailable — fail open");
+                        None
+                    })
+                }
+                None => None,
+            };
             match verify_provider {
                 Some(provider) => {
                     // SPEC-134 WP-1: the judge sees the same page renders as

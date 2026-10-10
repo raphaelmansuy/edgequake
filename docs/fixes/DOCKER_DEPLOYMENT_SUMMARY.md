@@ -1,11 +1,10 @@
 ---
-title: "✅ DOCKER DEPLOYMENT - COMPLETE"
-description: "Historical note: Docker deployment summary."
+title: Docker deployment summary
+description: Incident note from 2026-02-09: frontend NEXT_PUBLIC_API_URL and OPENAI_API_KEY in Compose.
 ---
 
-> **Historical note.** This page may not match the current product. Prefer the guides under Getting started, Operations, and Providers.
-
-# ✅ DOCKER DEPLOYMENT - COMPLETE
+> Historical note, 2026-02-09; may not match current code.
+> Prefer: [Docker quick start](DOCKER_QUICK_START.md) · [Docker deployment options](../operations/docker-deployment-options.md) · [Troubleshooting](../troubleshooting/common-issues.md)
 
 ## Mission Status: SUCCESSFUL ✨
 

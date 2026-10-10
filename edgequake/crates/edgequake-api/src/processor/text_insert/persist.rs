@@ -177,19 +177,12 @@ impl DocumentTaskProcessor {
             {
                 match (summary_ws.as_ref(), self.pg_pool.as_ref()) {
                     (Some(ws), Some(pool)) => {
-                        let role =
-                            edgequake_core::resolve_role_llm(ws, edgequake_core::LlmRole::Summary);
-                        match role.connection_id.as_deref() {
-                            Some(id) => {
-                                crate::providers::connection_store::llm_from_pool(
-                                    pool,
-                                    id,
-                                    &role.model,
-                                )
-                                .await
-                            }
-                            None => None,
-                        }
+                        crate::providers::connection_store::llm_from_workspace_role(
+                            pool,
+                            ws,
+                            edgequake_core::LlmRole::Summary,
+                        )
+                        .await
                     }
                     _ => None,
                 }

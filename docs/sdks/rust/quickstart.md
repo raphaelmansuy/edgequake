@@ -1,73 +1,27 @@
 ---
-title: "Rust SDK — quickstart"
-description: "Rust SDK quickstart."
+title: Rust SDK quickstart
+description: Add edgequake-sdk to a Cargo project and run a first health check and query.
 ---
 
-# Rust SDK — quickstart
+# Rust SDK quickstart
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../../ingestion-cancel-and-fairness.md)
-
-> **Crate: ~0.4.0** (≠ product version)
-
-## 1. Configure once
+```toml
+[dependencies]
+edgequake-sdk = "0.4"
+tokio = { version = "1", features = ["full"] }
+```
 
 ```rust
-let client = EdgeQuakeClient::builder()
-    .base_url("http://localhost:8080")
-    .bearer_token(std::env::var("EDGEQUAKE_TOKEN")?)
-    .tenant_id(std::env::var("EDGEQUAKE_TENANT_ID")?)
-    .user_id(std::env::var("EDGEQUAKE_USER_ID")?)
-    .workspace_id(std::env::var("EDGEQUAKE_WORKSPACE_ID")?)
-    .build()?;
+use edgequake_sdk::ClientBuilder;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = ClientBuilder::default()
+        .base_url("http://localhost:8080")
+        .build()?;
+    println!("{:?}", client.health().check().await?);
+    Ok(())
+}
 ```
 
-## 2. Health then work
-
-```rust
-let h = client.health().check().await?;
-assert_eq!(h.status, "healthy");
-```
-
-## 3. Documents (lawful query)
-
-Only send params the API defines (`ListDocumentsRequest`):
-
-```rust
-use edgequake_sdk::types::documents::DocumentListQuery;
-
-let q = DocumentListQuery {
-    page: Some(1),
-    page_size: Some(20),
-    date_from: None,
-    date_to: None,
-    document_pattern: Some("quarterly".to_string()),
-};
-let page = client.documents().list_with_query(&q).await?;
-```
-
-## 4. Conversations
-
-```rust
-use edgequake_sdk::types::conversations::ConversationListQuery;
-
-let q = ConversationListQuery {
-    limit: Some(50),
-    filter_folder_id: Some("folder-uuid".to_string()),
-    ..Default::default()
-};
-let convos = client.conversations().list_with_query(&q).await?;
-```
-
-## 5. Cancel task
-
-```rust
-client.tasks().cancel(&track_id).await?;
-```
-
-See [Ingestion cancel & fairness](../../ingestion-cancel-and-fairness.md).
-
-## 6. Run tests (when hacking the SDK)
-
-```bash
-cd sdks/rust && cargo test
-```
+Next: upload with `client.documents().upload(...)`, poll `client.tasks().get(...)`, then `client.query().execute(...)`. See [Rust README](README.md) and [Document upload](../../api-reference/document-upload-quick-reference.md).

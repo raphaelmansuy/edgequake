@@ -1,14 +1,10 @@
 ---
-title: "EdgeQuake — Guide d'intégration IT"
-version: "0.26.4"
-audience: "Équipes d'exploitation, DBA, supervision, sécurité opérationnelle"
-description: "Historical internal note: IT integration (French)."
+title: EdgeQuake — Guide d'intégration IT
+description: Dossier client v0.26.4 : exploitation, supervision, sauvegarde, mise à jour et rollback (historique).
 ---
 
-# EdgeQuake — Guide d'intégration IT
-
-> **Produit** : EdgeQuake v0.26.4 · **Schéma base** : migrations jusqu'à **149**
-> **Documents liés** : [Déploiement technique](01-deploiement-technique.md) · [Deep dive architecture & algorithme](03-deep-dive-architecture-algorithme.md)
+> Historical note, 2026-08-30 (produit v0.26.4); may not match current code.
+> Prefer: [Deployment](../operations/deployment.md) · [Troubleshooting](../troubleshooting/index.md) · [Security](../security/index.md)
 
 Ce guide s'adresse aux équipes IT qui **exploitent** EdgeQuake au quotidien. Il
 couvre les procédures d'exploitation, la supervision, la sauvegarde, la mise à jour et

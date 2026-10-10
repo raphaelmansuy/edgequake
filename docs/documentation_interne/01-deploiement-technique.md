@@ -1,14 +1,10 @@
 ---
-title: "EdgeQuake — Documentation technique de déploiement"
-version: "0.26.4"
-audience: "Architectes, ingénieurs infrastructure, RSSI"
-description: "Historical internal note: technical deployment (French)."
+title: EdgeQuake — Documentation technique de déploiement
+description: Dossier client v0.26.4 : architecture de déploiement, prérequis, compose, Helm et contrôles de sécurité (historique).
 ---
 
-# EdgeQuake — Documentation technique de déploiement
-
-> **Produit** : EdgeQuake v0.26.4 · **Schéma base** : migrations 001 → **149**
-> **Documents liés** : [Intégration IT](02-integration-it.md) · [Deep dive architecture & algorithme](03-deep-dive-architecture-algorithme.md)
+> Historical note, 2026-08-30 (produit v0.26.4); may not match current code.
+> Prefer: [Deployment](../operations/deployment.md) · [Security](../security/index.md) · [Providers](../providers/index.md)
 
 ---
 

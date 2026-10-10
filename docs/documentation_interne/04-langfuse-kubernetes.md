@@ -1,19 +1,10 @@
 ---
-title: "EdgeQuake × Langfuse — Compatibilité, déploiement Kubernetes et remédiation"
-version: "1.0"
-date: "2026-08-26"
-produit: "EdgeQuake v0.26.4"
-methode: "Tests empiriques sur Langfuse 3.1.1, 3.225.5 et 4 — résultats reproductibles"
-description: "Historical internal note: Langfuse on Kubernetes."
+title: EdgeQuake × Langfuse — Compatibilité et déploiement Kubernetes
+description: Note empirique du 2026-08-26 : OTLP/HTTP vers Langfuse 3.1 vs 3.225+ et 4, et remédiation Kubernetes (historique).
 ---
 
-# EdgeQuake × Langfuse — Compatibilité et déploiement Kubernetes
-
-> **Conclusion en une phrase** : EdgeQuake exporte ses traces **exclusivement** via
-> OTLP/HTTP sur `/api/public/otel/v1/traces`. Cet endpoint **n'existe pas dans
-> Langfuse 3.1** — aucune configuration Kubernetes ne peut compenser cette absence.
-> La correction est une **montée de version mineure** de Langfuse (3.1 → 3.225+),
-> sans changement de majeure.
+> Historical note, 2026-08-26; may not match current code.
+> Prefer: [Deployment](../operations/deployment.md) · [Local Langfuse runbook](RUNBOOK-LOCAL-LANGFUSE.md)
 
 ---
 

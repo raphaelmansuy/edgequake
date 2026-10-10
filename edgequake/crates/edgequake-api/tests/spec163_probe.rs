@@ -256,16 +256,29 @@ async fn http_saved_connection_roundtrip() {
             )
             .await
             .unwrap();
-        assert_eq!(created.status(), StatusCode::CREATED);
+        if created.status() != StatusCode::CREATED {
+            return Err(format!("create status {}", created.status()));
+        }
         let bytes = axum::body::to_bytes(created.into_body(), usize::MAX)
             .await
             .unwrap();
         let view: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(view["locality"], "local");
-        assert_eq!(view["source"], "db");
-        assert_eq!(view["key_configured"], false);
-        assert!(view.get("api_key").is_none());
-        let id = view["id"].as_str().unwrap().to_string();
+        if view["locality"] != "local" {
+            return Err(format!("locality {:?}", view["locality"]));
+        }
+        if view["source"] != "db" {
+            return Err(format!("source {:?}", view["source"]));
+        }
+        if view["key_configured"] != false {
+            return Err("key_configured should be false".into());
+        }
+        if view.get("api_key").is_some() {
+            return Err("api_key must not be echoed".into());
+        }
+        let id = view["id"]
+            .as_str()
+            .ok_or_else(|| "missing id".to_string())?
+            .to_string();
 
         let app = edgequake_api::create_router(edgequake_api::AppState::test_state_with_pg_pool(
             pool.clone(),
@@ -279,18 +292,21 @@ async fn http_saved_connection_roundtrip() {
             )
             .await
             .unwrap();
-        assert_eq!(listed.status(), StatusCode::OK);
+        if listed.status() != StatusCode::OK {
+            return Err(format!("list status {}", listed.status()));
+        }
         let bytes = axum::body::to_bytes(listed.into_body(), usize::MAX)
             .await
             .unwrap();
         let rows: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert!(
-            rows.as_array()
-                .unwrap()
-                .iter()
-                .any(|row| row["slug"] == slug),
-            "{rows}"
-        );
+        if !rows
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["slug"] == slug)
+        {
+            return Err(format!("slug {slug} missing from {rows}"));
+        }
 
         let app = edgequake_api::create_router(edgequake_api::AppState::test_state_with_pg_pool(
             pool.clone(),
@@ -305,20 +321,40 @@ async fn http_saved_connection_roundtrip() {
             )
             .await
             .unwrap();
-        assert_eq!(tested.status(), StatusCode::OK);
+        if tested.status() != StatusCode::OK {
+            return Err(format!("test status {}", tested.status()));
+        }
         let bytes = axum::body::to_bytes(tested.into_body(), usize::MAX)
             .await
             .unwrap();
         let probe: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(probe["ok"], true, "{probe}");
-        id
+        if probe["ok"] != true {
+            return Err(format!("probe not ok: {probe}"));
+        }
+
+        let mut locked = edgequake_api::AppState::test_state_with_pg_pool(pool.clone());
+        locked.auth.config.auth_enabled = true;
+        locked.auth.config.dev_mode = false;
+        let app = edgequake_api::create_router(locked);
+        let denied = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/connections")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        if denied.status() != StatusCode::UNAUTHORIZED {
+            return Err(format!("expected 401, got {}", denied.status()));
+        }
+        Ok(())
     }
     .await;
 
-    sqlx::query("DELETE FROM provider_connections WHERE slug = $1")
+    let _ = sqlx::query("DELETE FROM provider_connections WHERE slug = $1")
         .bind(&slug)
         .execute(&pool)
-        .await
-        .unwrap();
-    let _ = result;
+        .await;
+    result.expect("postgres connection roundtrip");
 }

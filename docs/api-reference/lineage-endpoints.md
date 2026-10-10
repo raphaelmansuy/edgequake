@@ -1,466 +1,282 @@
 ---
-title: 'Lineage API Reference'
-description: "REST endpoints for document lineage, chunk provenance, and entity traceability."
+title: Lineage API Reference
+description: Trace EdgeQuake answers back to documents, chunks and entities. Covers document lineage, chunk detail, entity provenance, graph lineage and multimodal assets.
 ---
 
 # Lineage API Reference
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+This page describes the endpoints that show where a fact came from. It is for developers who need provenance in an answer UI, an audit trail or a debugging tool. Base path: `/api/v1`. Auth and headers are the same as the [REST API](rest-api.md#conventions).
 
-> REST API endpoints for document lineage, chunk provenance, entity traceability, and multimodal assets
+**Convert then ingest.** A PDF is first converted to Markdown, then ingested. Lineage appears after the ingest step finishes. A PDF row can say `Completed` while the linked document is still `extracting`. That is expected. See [Ingestion cancel and fairness](../ingestion-cancel-and-fairness.md).
 
-**Convert vs ingest:** PDF-sourced documents link `pdf_id` at admission. Lineage reflects the **Insert** (KG) phase — chunk/entity provenance is stamped after convert completes and Insert runs. PDF row `Completed` with doc still `extracting` is expected mid-pipeline. See [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md#convert-then-ingest-spec-057-p2).
-
----
-
-## Base URL
-
-```
-http://localhost:8080/api/v1
-```
-
----
-
-## Endpoints Overview
-
-| Method | Path                                       | Description                          |
-| ------ | ------------------------------------------ | ------------------------------------ |
-| GET    | `/documents/{id}/lineage`                  | Complete document lineage tree       |
-| GET    | `/documents/{id}/metadata`                 | Document metadata (flat KV)          |
-| GET    | `/documents/{document_id}/assets/{asset_id}` | Multimodal PNG by stable asset id  |
-| GET    | `/documents/{document_id}/mm-assets/{*asset_path}` | Multimodal asset by relative path |
-| GET    | `/chunks/{chunk_id}`                       | Chunk detail with entities           |
-| GET    | `/chunks/{chunk_id}/lineage`               | Chunk lineage with parent refs       |
-| GET    | `/entities/{entity_id}/provenance`         | Entity source traceability           |
-| GET    | `/lineage/entities/{entity_name}`          | Entity lineage (all source docs)     |
-| GET    | `/lineage/documents/{document_id}`         | Document graph lineage (entities+rels)|
-
----
-
-## Document Lineage
-
-### `GET /api/v1/documents/{document_id}/lineage`
-
-Returns the complete lineage tree for a document: all chunks with position data and all entities extracted from them.
-
-**Path Parameters**
-
-| Parameter     | Type   | Description  |
-| ------------- | ------ | ------------ |
-| `document_id` | string | Document ID  |
-
-**Response** `200 OK`
-
-```json
-{
-  "document_id": "abc123def456",
-  "chunks": [
-    {
-      "chunk_id": "abc123def456-chunk-0",
-      "chunk_index": 0,
-      "content_preview": "EdgeQuake is an advanced RAG framework...",
-      "tokens": 150,
-      "start_line": 1,
-      "end_line": 25,
-      "entity_count": 5
-    },
-    {
-      "chunk_id": "abc123def456-chunk-1",
-      "chunk_index": 1,
-      "content_preview": "The pipeline processes documents through...",
-      "tokens": 142,
-      "start_line": 26,
-      "end_line": 50,
-      "entity_count": 3
-    }
-  ],
-  "entities": [
-    {
-      "entity_id": "EDGEQUAKE",
-      "entity_name": "EDGEQUAKE",
-      "entity_type": "TECHNOLOGY",
-      "chunk_ids": ["abc123def456-chunk-0", "abc123def456-chunk-1"]
-    }
-  ]
-}
+```mermaid
+flowchart LR
+    D["Document"] --> C["Chunks"]
+    C --> E["Entities"]
+    C --> R["Relationships"]
+    E --> S["Source documents"]
+    D --> A["Assets images"]
 ```
 
-**Error Responses**
+Read it left to right: a document splits into chunks; chunks produce entities and relationships; an entity can point back to every document that mentioned it. Assets are figures extracted from PDF pages.
 
-| Status | Description          |
-| ------ | -------------------- |
-| 404    | Document not found   |
-| 500    | Internal server error|
+## Endpoints
 
----
+| Method | Path | Returns |
+|--------|------|---------|
+| GET | `/documents/{document_id}/lineage` | Full lineage tree plus metadata and assets |
+| GET | `/documents/{document_id}/metadata` | Flat document metadata |
+| GET | `/documents/{document_id}/lineage/export?format=json\|csv` | Downloadable export |
+| GET | `/documents/{document_id}/assets` | Asset summaries (no binary) |
+| GET | `/documents/{document_id}/assets/{asset_id}` | PNG by stable id (for example `page-0001-chart`) |
+| GET | `/documents/{document_id}/mm-assets/{*asset_path}` | Asset by relative path |
+| GET | `/chunks/{chunk_id}` | Full chunk text, entities and relationships |
+| GET | `/chunks/{chunk_id}/lineage` | Chunk with parent document context |
+| GET | `/entities/{entity_id}/provenance` | Sources and related entities for one entity |
+| GET | `/lineage/entities/{entity_name}` | Every document that produced an entity |
+| GET | `/lineage/documents/{document_id}` | Graph summary of a document |
 
-## Document Metadata
+All of these return 404 when the id is unknown or belongs to another workspace.
 
-### `GET /api/v1/documents/{document_id}/metadata`
+## Document lineage
 
-Returns all stored metadata for a document as a flat JSON object. This data is from the KV storage key `{document_id}-metadata`.
-
-**Path Parameters**
-
-| Parameter     | Type   | Description  |
-| ------------- | ------ | ------------ |
-| `document_id` | string | Document ID  |
-
-**Response** `200 OK`
-
-```json
-{
-  "id": "abc123def456",
-  "title": "paper.pdf",
-  "document_type": "pdf",
-  "file_size_bytes": 1048576,
-  "sha256_checksum": "a1b2c3d4e5f6...",
-  "page_count": 12,
-  "status": "completed",
-  "created_at": "2025-01-15T10:30:00Z",
-  "processed_at": "2025-01-15T10:31:00Z",
-  "llm_model": "gpt-4.1-nano",
-  "embedding_model": "text-embedding-3-small",
-  "chunk_count": 8
-}
-```
-
-**Notes**: Fields vary depending on document source (PDF vs. text/markdown). PDF documents include `pdf_id` and modality fields when vision convert persisted mm-assets. The response includes all metadata stored during ingestion.
-
----
-
-## Multimodal Assets (mm-assets)
-
-Vision PDF convert can persist page/chart PNGs and rewrite markdown figure links to `![alt](assets/page-0001.png)`. Assets are served under the linked **document_id** (set after convert links PDF → document).
-
-### `GET /api/v1/documents/{document_id}/assets/{asset_id}`
-
-Binary PNG (or other image) by stable **`asset_id`** — filename stem from relative path (e.g. `page-0001` from `assets/page-0001.png`).
+`GET /api/v1/documents/{document_id}/lineage` reads the persisted lineage record and wraps it with current metadata.
 
 ```bash
-curl -o page-0001.png \
-  "http://localhost:8080/api/v1/documents/{document_id}/assets/page-0001" \
-  -H "X-Workspace-ID: workspace-uuid"
+curl -s http://localhost:8080/api/v1/documents/$DOC_ID/lineage \
+  -H "X-Workspace-ID: $WORKSPACE_ID"
 ```
-
-### `GET /api/v1/documents/{document_id}/mm-assets/{*asset_path}`
-
-Same bytes by relative path under the document mm-assets root (e.g. `assets/page-0001.png`).
-
-```bash
-curl -o page-0001.png \
-  "http://localhost:8080/api/v1/documents/{document_id}/mm-assets/assets/page-0001.png" \
-  -H "X-Workspace-ID: workspace-uuid"
-```
-
-**Lineage implication:** chunk content may reference `assets/…` URLs; provenance traces back to PDF page via `pdf_id` + asset path. See [Lineage Tracking Architecture](/docs/architecture/lineage-tracking/#modality-and-mm-assets).
-
----
-
-## Chunk Detail
-
-### `GET /api/v1/chunks/{chunk_id}`
-
-Returns detailed information about a specific chunk, including extracted entities and relationships.
-
-**Path Parameters**
-
-| Parameter  | Type   | Description                              |
-| ---------- | ------ | ---------------------------------------- |
-| `chunk_id` | string | Chunk ID (format: `{doc_id}-chunk-{N}`)  |
-
-**Response** `200 OK`
 
 ```json
 {
-  "chunk_id": "abc123def456-chunk-0",
-  "document_id": "abc123def456",
-  "document_name": "paper.pdf",
-  "content": "EdgeQuake is an advanced RAG framework implemented in Rust...",
-  "index": 0,
-  "char_range": {
-    "start": 0,
-    "end": 1024
+  "document_id": "5b1f...",
+  "metadata": {
+    "id": "5b1f...",
+    "status": "completed",
+    "title": "Curie notes"
   },
+  "lineage": {
+    "document_id": "5b1f...",
+    "document_name": "Curie notes",
+    "job_id": "...",
+    "total_chunks": 3,
+    "total_entities": 12,
+    "total_relationships": 8,
+    "extraction_provider": "ollama",
+    "extraction_model": "gemma3:latest",
+    "embedding_provider": "ollama",
+    "embedding_model": "embeddinggemma:latest",
+    "embedding_dimension": 768,
+    "chunks": [
+      {
+        "chunk_id": "5b1f...-chunk-0",
+        "chunk_index": 0,
+        "start_line": 1,
+        "end_line": 20,
+        "start_offset": 0,
+        "end_offset": 512,
+        "page_start": 1,
+        "page_end": 1,
+        "entity_ids": ["MARIE_CURIE"],
+        "relationship_ids": ["rel-1"]
+      }
+    ],
+    "entities": {
+      "MARIE_CURIE": {
+        "source_document_ids": ["5b1f..."],
+        "source_chunk_ids": ["5b1f...-chunk-0"]
+      }
+    },
+    "relationships": {
+      "rel-1": {
+        "source_document_id": "5b1f...",
+        "source_chunk_id": "5b1f...-chunk-0"
+      }
+    },
+    "created_at": "2026-10-09T10:00:00Z",
+    "updated_at": "2026-10-09T10:01:00Z"
+  },
+  "mm_assets": []
+}
+```
+
+`page_start` and `page_end` are filled for PDF-sourced documents when available. Older lineage records may lack them; the server adds them on the fly from chunk storage when it can. Export with `GET .../lineage/export?format=csv` (or `json`) for a downloadable file.
+
+## Document metadata
+
+`GET /api/v1/documents/{document_id}/metadata` returns the flat metadata object stored for the document (status, title, token counts, models, and so on). Use it when you need the document fields without the lineage tree.
+
+## Multimodal assets
+
+After a vision-backed PDF conversion, extracted figures live as assets.
+
+```bash
+# List summaries (no binary)
+curl -s http://localhost:8080/api/v1/documents/$DOC_ID/assets
+
+# Fetch bytes by stable id
+curl -s -o chart.png http://localhost:8080/api/v1/documents/$DOC_ID/assets/page-0001-chart
+```
+
+`GET .../mm-assets/{*asset_path}` accepts a relative path when you already know it. Both binary routes return `image/png` on success and 404 when missing. Assets appear only when multimodal asset storage is enabled (PostgreSQL builds).
+
+## Chunk detail and lineage
+
+```bash
+curl -s http://localhost:8080/api/v1/chunks/$CHUNK_ID
+```
+
+```json
+{
+  "chunk_id": "5b1f...-chunk-0",
+  "document_id": "5b1f...",
+  "document_name": "Curie notes",
+  "index": 0,
+  "content": "Marie Curie won two Nobel Prizes...",
+  "token_count": 48,
+  "char_range": { "start": 0, "end": 512 },
   "start_line": 1,
-  "end_line": 25,
-  "token_count": 150,
+  "end_line": 20,
+  "page_start": 1,
+  "page_end": 1,
   "entities": [
-    {
-      "id": "EDGEQUAKE",
-      "name": "EDGEQUAKE",
-      "entity_type": "TECHNOLOGY",
-      "description": "An advanced RAG framework"
-    }
+    { "id": "MARIE_CURIE", "name": "MARIE_CURIE", "entity_type": "PERSON", "description": "..." }
   ],
   "relationships": [
     {
-      "source_name": "EDGEQUAKE",
-      "target_name": "RUST",
-      "relation_type": "implemented_in",
-      "description": "EdgeQuake is implemented in Rust"
+      "source_name": "MARIE_CURIE",
+      "target_name": "NOBEL_PRIZE",
+      "relation_type": "WON",
+      "description": "Won two Nobel Prizes"
     }
   ],
-  "extraction_metadata": null
+  "extraction_metadata": {
+    "model": "gemma3:latest",
+    "duration_ms": 900,
+    "input_tokens": 200,
+    "output_tokens": 80,
+    "gleaning_iterations": 1,
+    "cached": false
+  }
 }
 ```
 
----
+`GET /chunks/{chunk_id}/lineage` adds parent document context: `content_preview`, `document_type`, `entity_names`, `entity_count`, `relationship_count`. Use it when you have a chunk id from a query source and want the surrounding document.
 
-## Chunk Lineage
+## Entity provenance
 
-### `GET /api/v1/chunks/{chunk_id}/lineage`
-
-Returns a chunk's complete lineage chain — parent document info, position data, model provenance, and entity/relationship summary — in a single call.
-
-**Path Parameters**
-
-| Parameter  | Type   | Description |
-| ---------- | ------ | ----------- |
-| `chunk_id` | string | Chunk ID    |
-
-**Response** `200 OK`
-
-```json
-{
-  "chunk_id": "abc123def456-chunk-0",
-  "document_id": "abc123def456",
-  "document_name": "paper.pdf",
-  "document_type": "pdf",
-  "chunk_index": 0,
-  "content_preview": "EdgeQuake is an advanced RAG framework...",
-  "tokens": 150,
-  "start_line": 1,
-  "end_line": 25,
-  "start_offset": 0,
-  "end_offset": 1024,
-  "llm_model": "gpt-4.1-nano",
-  "embedding_model": "text-embedding-3-small",
-  "embedding_dimension": 1536,
-  "entity_names": ["EDGEQUAKE", "RUST", "RAG"],
-  "entity_count": 3,
-  "relationship_count": 2,
-  "file_path": "/uploads/paper.pdf",
-  "created_at": "2025-01-15T10:30:00Z"
-}
+```bash
+curl -s http://localhost:8080/api/v1/entities/MARIE_CURIE/provenance
 ```
 
-**Implements**
-- **F3**: Every chunk contains parent_document_id and position info
-- **F8**: PDF → Document → Chunk → Entity chain is traceable
-
----
-
-## Entity Provenance
-
-### `GET /api/v1/entities/{entity_id}/provenance`
-
-Returns the full provenance trail for an entity: all source documents and chunks where it was extracted.
-
-**Path Parameters**
-
-| Parameter   | Type   | Description                         |
-| ----------- | ------ | ----------------------------------- |
-| `entity_id` | string | Entity ID (UPPERCASE with underscores) |
-
-**Response** `200 OK`
-
 ```json
 {
-  "entity_id": "EDGEQUAKE",
-  "entity_name": "EDGEQUAKE",
-  "entity_type": "TECHNOLOGY",
-  "description": "An advanced RAG framework implemented in Rust",
+  "entity_id": "MARIE_CURIE",
+  "entity_name": "MARIE_CURIE",
+  "entity_type": "PERSON",
+  "description": "Physicist and chemist",
+  "total_extraction_count": 3,
   "sources": [
     {
-      "document_id": "abc123def456",
-      "document_name": "paper.pdf",
+      "document_id": "5b1f...",
+      "document_name": "Curie notes",
+      "first_extracted_at": "2026-10-09T10:00:30Z",
       "chunks": [
         {
-          "chunk_id": "abc123def456-chunk-0",
-          "start_line": null,
-          "end_line": null,
-          "source_text": null
+          "chunk_id": "5b1f...-chunk-0",
+          "start_line": 1,
+          "end_line": 20,
+          "source_text": "Marie Curie won..."
         }
-      ],
-      "first_extracted_at": null
+      ]
     }
   ],
-  "total_extraction_count": 2,
   "related_entities": [
     {
-      "entity_id": "RUST",
-      "entity_name": "RUST",
-      "relationship_type": "implemented_in",
+      "entity_id": "NOBEL_PRIZE",
+      "entity_name": "NOBEL_PRIZE",
+      "relationship_type": "WON",
       "shared_documents": 1
     }
   ]
 }
 ```
 
----
+## Entity lineage
 
-## Entity Lineage
-
-### `GET /api/v1/lineage/entities/{entity_name}`
-
-Returns source documents and chunks for a named entity.
-
-**Path Parameters**
-
-| Parameter     | Type   | Description  |
-| ------------- | ------ | ------------ |
-| `entity_name` | string | Entity name  |
-
-**Response** `200 OK`
+`GET /api/v1/lineage/entities/{entity_name}` lists every source document for an entity, plus description history.
 
 ```json
 {
-  "entity_name": "SARAH_CHEN",
+  "entity_name": "MARIE_CURIE",
   "entity_type": "PERSON",
   "source_count": 2,
   "source_documents": [
     {
-      "document_id": "abc123",
-      "chunk_ids": ["abc123-chunk-0", "abc123-chunk-3"],
-      "line_ranges": []
+      "document_id": "5b1f...",
+      "chunk_ids": ["5b1f...-chunk-0"],
+      "line_ranges": [{ "start_line": 1, "end_line": 20 }]
     }
   ],
-  "description_versions": []
-}
-```
-
----
-
-## Document Graph Lineage
-
-### `GET /api/v1/lineage/documents/{document_id}`
-
-Returns all entities and relationships extracted from a document, with extraction statistics.
-
-**Path Parameters**
-
-| Parameter     | Type   | Description  |
-| ------------- | ------ | ------------ |
-| `document_id` | string | Document ID  |
-
-**Response** `200 OK`
-
-```json
-{
-  "document_id": "abc123def456",
-  "chunk_count": 8,
-  "extraction_stats": {
-    "total_entities": 20,
-    "unique_entities": 15,
-    "total_relationships": 12,
-    "unique_relationships": 10,
-    "processing_time_ms": null
-  },
-  "entities": [
+  "description_versions": [
     {
-      "name": "EDGEQUAKE",
-      "entity_type": "TECHNOLOGY",
-      "source_chunks": ["abc123def456-chunk-0"],
-      "is_shared": false
-    }
-  ],
-  "relationships": [
-    {
-      "source": "EDGEQUAKE",
-      "target": "RUST",
-      "keywords": "implemented_in",
-      "source_chunks": ["abc123def456-chunk-0"]
+      "version": 1,
+      "description": "Physicist and chemist",
+      "created_at": "2026-10-09T10:00:30Z",
+      "source_chunk_id": "5b1f...-chunk-0"
     }
   ]
 }
 ```
 
----
+## Document graph lineage
 
-## SDK Usage Examples
-
-### Rust
-
-```rust
-use edgequake_sdk::EdgeQuake;
-
-let client = EdgeQuake::new("http://localhost:8080")?;
-
-// Document lineage
-let lineage = client.documents().get_lineage("abc123").await?;
-println!("Chunks: {}", lineage.chunks.len());
-
-// Document metadata
-let meta = client.documents().get_metadata("abc123").await?;
-
-// Chunk lineage
-let chunk = client.chunks().get_lineage("abc123-chunk-0").await?;
-println!("Lines {}-{}", chunk.start_line.unwrap_or(0), chunk.end_line.unwrap_or(0));
-```
-
-### TypeScript
-
-```typescript
-import { EdgeQuake } from "@edgequake/sdk";
-
-const client = new EdgeQuake({ baseUrl: "http://localhost:8080" });
-
-// Document lineage
-const lineage = await client.documents.getLineage("abc123");
-console.log(`${lineage.chunks.length} chunks`);
-
-// Document metadata
-const meta = await client.documents.getMetadata("abc123");
-
-// Chunk lineage
-const chunk = await client.chunks.getLineage("abc123-chunk-0");
-console.log(`Lines ${chunk.start_line}-${chunk.end_line}`);
-```
-
-### Python
-
-```python
-from edgequake import EdgeQuake
-
-client = EdgeQuake(base_url="http://localhost:8080")
-
-# Document lineage
-lineage = client.documents.get_lineage("abc123")
-print(f"{len(lineage.chunks)} chunks")
-
-# Document metadata
-meta = client.documents.get_metadata("abc123")
-
-# Chunk lineage
-chunk = client.chunks.get_lineage("abc123-chunk-0")
-print(f"Lines {chunk.start_line}-{chunk.end_line}")
-```
-
----
-
-## Error Handling
-
-All endpoints return standard error responses:
+`GET /api/v1/lineage/documents/{document_id}` summarises the graph that came from one document.
 
 ```json
 {
-  "error": "NotFound",
-  "message": "Document 'abc123' not found"
+  "document_id": "5b1f...",
+  "chunk_count": 3,
+  "entities": [
+    {
+      "id": "MARIE_CURIE",
+      "name": "MARIE_CURIE",
+      "label": "Marie Curie",
+      "entity_type": "PERSON",
+      "source_chunks": ["5b1f...-chunk-0"],
+      "is_shared": false,
+      "description": "Physicist and chemist"
+    }
+  ],
+  "relationships": [
+    {
+      "source": "MARIE_CURIE",
+      "target": "NOBEL_PRIZE",
+      "keywords": "won",
+      "source_chunks": ["5b1f...-chunk-0"]
+    }
+  ],
+  "extraction_stats": {
+    "total_entities": 12,
+    "unique_entities": 10,
+    "total_relationships": 8,
+    "unique_relationships": 7,
+    "processing_time_ms": 4500
+  }
 }
 ```
 
-| Status | Meaning              |
-| ------ | -------------------- |
-| 200    | Success              |
-| 404    | Resource not found   |
-| 500    | Internal server error|
+`is_shared: true` means the entity also appears in other documents.
 
----
+## Document-level extraction fields
 
-## OpenAPI Documentation
+Document list and detail responses also carry a `DocumentLineage`-style summary when available: `llm_model`, `embedding_model`, `embedding_dimensions`, `input_tokens`, `output_tokens`, `total_tokens`, `cost_usd`, `processing_duration_ms`, `chunking_strategy`, `avg_chunk_size`, `entity_types`, `relationship_types`, `keywords`, and for PDFs `pdf_extraction_method` (`vision` or `text`), `pdf_vision_model` and `pdf_extraction_warning`. Those fields live on the document object, not on the lineage tree endpoint.
 
-Interactive API docs: [`http://localhost:8080/swagger-ui/`](http://localhost:8080/swagger-ui/)  
-Machine-readable SSOT: [`edgequake_webui/openapi/openapi.snapshot.json`](../../edgequake_webui/openapi/openapi.snapshot.json)
+## Errors
 
-All lineage and asset endpoints are tagged in OpenAPI (Lineage, Documents).
+| Status | Meaning |
+|--------|---------|
+| 404 | Document, chunk or entity not found in this workspace, or lineage not written yet |
+| 503 | Read path busy under ingest load (retry) |
+
+Related: [REST API](rest-api.md), [Architecture: lineage tracking](../architecture/lineage-tracking.md), [SDKs](../sdks/README.md).

@@ -268,7 +268,8 @@ async fn anthropic_messages(
         "role": "assistant",
         "content": [{ "type": "text", "text": format!("echo:{last}") }],
         "model": state.model,
-        "stop_reason": "end_turn"
+        "stop_reason": "end_turn",
+        "usage": { "input_tokens": 1, "output_tokens": 1 }
     }))
     .into_response()
 }

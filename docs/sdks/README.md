@@ -1,67 +1,67 @@
 ---
-title: "EdgeQuake SDKs"
-description: "EdgeQuake client SDKs: install, versions, and language index."
+title: EdgeQuake SDKs
+description: Install and use EdgeQuake HTTP clients. Source packages are 0.4.0; published registry versions may lag. Covers Python, TypeScript, Rust and other languages.
 ---
 
 # EdgeQuake SDKs
 
-> **Product: v0.23.0** · Contract: [OpenAPI snapshot](../../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+This page lists the official HTTP clients for EdgeQuake. It is for developers who prefer a typed library over raw `curl`. Server product pin: **v0.32.2**. Client source trees in `sdks/` are versioned **0.4.0** and track the HTTP surface, not the product number.
 
-Official HTTP clients for the EdgeQuake API. SDK **package** versions (~**0.4.0**) are decoupled from the server — check `pyproject.toml`, `package.json`, or crate manifests for the client semver you install.
+The server contract is [OpenAPI](../../edgequake_webui/openapi/openapi.snapshot.json) plus `routes.rs`. When an SDK and the server disagree, trust the server. No SDK yet wraps the v0.33.0 Connections or `POST /providers/test` routes — call those with raw HTTP ([Connections](../api-reference/connections.md)).
 
-**Canonical routing** lives in `edgequake/crates/edgequake-api/src/routes.rs`; OpenAPI is the field-level truth for DTOs.
+```mermaid
+flowchart LR
+    App["Your app"] --> SDK["SDK client"]
+    SDK --> API["EdgeQuake /api/v1"]
+    App --> Raw["Raw HTTP for Connections"]
+    Raw --> API
+```
 
-Use these docs for **copy-paste examples** and day-to-day integration. For honest gaps and parity, read [Brutal assessment](./BRUTAL-ASSESSMENT.md) and the spec tracker [SDK-API-COVERAGE.md](../../specs/009-skd-update/SDK-API-COVERAGE.md).
+Read it left to right: use an SDK for common resources, and raw HTTP for brand-new admin routes until the SDKs catch up.
 
-## By language
+## Language matrix
 
-| Tier | SDK | Folder | Package / crate |
-|------|-----|--------|-----------------|
-| 1 | Rust | [rust](./rust/) | `sdks/rust` — `edgequake-sdk` |
-| 1 | Python | [python](./python/) | `sdks/python` — PyPI `edgequake-sdk` ~0.4.0 |
-| 1 | TypeScript / Node | [typescript](./typescript/) | `sdks/typescript` — `@edgequake/sdk` ~0.4.0 |
-| 2 | Kotlin/JVM | [kotlin](./kotlin/) | `sdks/kotlin` |
-| 2 | Swift | [swift](./swift/) | `sdks/swift` |
-| 2 | Go | [go](./go/) | `sdks/go` — monorepo path; not on pkg.go.dev yet |
-| 2 | Java | [java](./java/) | `sdks/java` — Maven Central ~0.4.0 |
-| 2 | C# / .NET | [csharp](./csharp/) | `sdks/csharp` |
-| 2 | Ruby | [ruby](./ruby/) | `sdks/ruby` — path install; `lib/` present |
-| 2 | PHP | [php](./php/) | `sdks/php` — experimental; monorepo / OpenAPI |
+| Tier | Language | Source | Package id | Source version | Published (checked) | Client class |
+|------|----------|--------|------------|----------------|---------------------|--------------|
+| 1 | Python | [python](python/README.md) | PyPI `edgequake-sdk` | 0.4.0 | **0.3.0** on PyPI | `EdgeQuake` / `AsyncEdgeQuake` |
+| 1 | TypeScript | [typescript](typescript/README.md) | npm `edgequake-sdk` | 0.4.0 | **0.1.0** on npm | `EdgeQuake` |
+| 1 | Rust | [rust](rust/README.md) | crates.io `edgequake-sdk` | 0.4.0 | **0.4.0** on crates.io | `EdgeQuakeClient` |
+| 2 | Go | [go](go/README.md) | `github.com/edgequake/edgequake-go` | go 1.21+ | Not on pkg.go.dev | `edgequake.NewClient` |
+| 2 | Java | [java](java/README.md) | `io.edgequake:edgequake-sdk` | 0.4.0 | Not on Maven Central | `EdgeQuakeClient` |
+| 2 | Kotlin | [kotlin](kotlin/README.md) | `io.edgequake:edgequake-sdk-kotlin` | 0.4.0 | Not on Maven Central | `EdgeQuakeClient` |
+| 2 | C# | [csharp](csharp/README.md) | `EdgeQuake.SDK` | 0.4.0 | Not on NuGet | `EdgeQuakeClient` |
+| 2 | Ruby | [ruby](ruby/README.md) | gem `edgequake` | 0.4.0 | Not on RubyGems | `EdgeQuake::Client` |
+| 2 | PHP | [php](php/README.md) | Composer `edgequake/sdk` | (unversioned) | Not on Packagist | `EdgeQuake\Client` |
+| 2 | Swift | [swift](swift/README.md) | package `EdgeQuakeSDK` | Swift 5.9+ | Path / SPM only | `EdgeQuakeClient` |
 
-## Version decoupling
+Install from a registry only when the table says it is published. Otherwise build from the monorepo path under `sdks/`.
 
-| What | Version | Notes |
-|------|---------|-------|
-| EdgeQuake server / Docker | **0.23.0** | `ghcr.io/raphaelmansuy/edgequake:0.23.0` |
-| SDK packages (PyPI, npm, Maven, …) | **~0.4.0** | Independent release cadence |
-| API contract | OpenAPI snapshot | Must match server you target |
+## Quick start (Python)
 
-Upgrade the **server** and **SDK** on independent schedules; regenerate or bump SDKs when OpenAPI drifts.
+```bash
+pip install edgequake-sdk==0.3.0   # latest on PyPI
+# or: pip install ./sdks/python    # source 0.4.0
+```
 
-## Headers and tenancy (all SDKs)
+```python
+from edgequake import EdgeQuake
 
-Most `/api/v1/*` calls expect workspace context:
+client = EdgeQuake(base_url="http://localhost:8080", api_key="eq-...")
+print(client.health().status)
+doc = client.documents.upload(content="Marie Curie won two Nobel Prizes.", title="Notes")
+answer = client.query.execute(query="How many Nobel Prizes?", mode="mix")
+print(answer.answer)
+```
 
-- `Authorization: Bearer <jwt>` (or API key per server config)
-- `X-Tenant-ID`, `X-User-ID`, `X-Workspace-ID` as required by your deployment
+See language pages for TypeScript, Rust and the others. Prefer `mode="mix"` (server default). Python currently sends `top_k` / `rerank` on query; the server ignores unknown fields — use typed clients that send `max_results` / `enable_rerank` when available (TypeScript does).
 
-Configure these on the client **once**; every resource reuses the same transport.
+## Coverage notes
 
-## Quick actions
+| Area | Status |
+|------|--------|
+| Documents, PDF, query, chat, graph, conversations, tasks, parse | Tier 1 covers most; Tier 2 covers a useful subset |
+| `display_status` / `ui_phase` | Present in JSON; not always first-class on models |
+| Connections, `providers/test`, `llm_roles.connection_id` | **Not in any SDK** — raw HTTP |
+| Go document list | Sends `per_page`; API expects `page_size` (known client bug) |
 
-1. **Health** — `GET /health` (unversioned) before anything else.
-2. **List documents** — `GET /api/v1/documents` with optional `page`, `page_size`, `date_from`, `date_to`, `document_pattern`. Document responses expose `display_status` (badge key from `IngestionStatusMapper`) and `ui_phase` (`idle | running | stopping | terminal`) — prefer those over raw `status`/`stage` for UI (SPEC-057 P4).
-3. **Batch ingestion** — SDKs expose:
-   - `POST /api/v1/documents/upload/batch` (text/images — **not** PDFs)
-   - `POST /api/v1/documents/pdf/batch` (PDFs; WebUI uses N× `/documents/pdf`)
-4. **Progress / cancel (v0.23)** — WebSocket `/ws/progress/{track_id}` or `POST /api/v1/tasks/{track_id}/cancel`; see [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md). Tier 1 SDKs lead; Tier 2 may need raw HTTP.
-5. **Stateless parse (v0.23 / SPEC-094)** — `POST /api/v1/parse` converts a PDF to Markdown **without** ingestion residue. Tier 1 SDKs (Rust, Python, TypeScript) ship a typed `parse` resource: `parse()`, `backends()`, `job()`. Sync is default (≤ 15 pages / 20 MiB); pass `async: true` (or `Prefer: respond-async`) for jobs up to 1000 pages, polled via `GET /api/v1/parse/jobs/{id}`. Tier 2 SDKs: use raw HTTP until parity lands.
-6. **Conversations** — list uses cursor filters (`filter[folder_id]`, etc.); bulk delete body uses **`conversation_ids`**; response uses **`affected`**.
-
-**SPEC-103 LLM cache (server-side, no SDK field):** query keyword extraction and answers are cached by default (`EDGEQUAKE_LLM_CACHE=1`; overrides `EDGEQUAKE_KEYWORD_CACHE` / `EDGEQUAKE_QUERY_ANSWER_CACHE`). Caching is a server concern — clients just send the same query and get the same answer; set the env vars on the **server**, not the client.
-
-## See also
-
-- [REST API overview](../api-reference/rest-api.md)
-- [Multi-tenant tutorial](../tutorials/multi-tenant.md)
-- [Integrations](../integrations/index.md)
+Deeper honesty: [Brutal assessment](BRUTAL-ASSESSMENT.md). Version rules: [VERSION-POLICY](VERSION-POLICY.md). Spec tracker: [SDK-API-COVERAGE](../../specs/009-skd-update/SDK-API-COVERAGE.md). API overview: [API reference](../api-reference/index.md).

@@ -1,9 +1,10 @@
 ---
-title: "EdgeQuake — Dossier technique de déploiement {client}"
-description: "Index of internal French working notes. May not match current code."
+title: EdgeQuake — Dossier technique de déploiement {client}
+description: Index du dossier client v0.26.4 (déploiement, intégration IT, deep dive, Langfuse). Historique.
 ---
 
-# EdgeQuake — Dossier technique de déploiement {client}
+> Historical note, 2026-08-30 (produit v0.26.4); may not match current code.
+> Prefer: [Déploiement technique](01-deploiement-technique.md) · [Intégration IT](02-integration-it.md) · [Deep dive](03-deep-dive-architecture-algorithme.md) · [Langfuse Kubernetes](04-langfuse-kubernetes.md) · [Deployment](../operations/deployment.md)
 
 ## Contrôle documentaire
 

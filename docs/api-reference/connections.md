@@ -1,128 +1,99 @@
 ---
-title: "Connections and provider test"
-description: "REST API for saved LLM provider connections, live probes, and per-role model routing (SPEC-163 / v0.33.0)."
+title: Connections and provider test
+description: "v0.33.0 API for saved LLM provider Connections, POST /api/v1/providers/test, per-role llm_roles.connection_id, honest /health security_posture, and edgequake doctor."
 ---
 
 # Connections and provider test
 
-This page covers the **v0.33.0** provider APIs. Use them to save an LLM endpoint once, test that it answers, and point each workspace model role at it. Product pin for the rest of the API is still **v0.32.2**; these routes ship with schema train **169**.
+This page covers the **v0.33.0** (SPEC-163) endpoints that store LLM provider endpoints, probe them before you save a key, and route workspace roles through a saved Connection. It is for operators and admins who configure providers. Product pin is still **v0.32.2**; these routes ship with **v0.33.0**. Upgrade notes: [Upgrade to 0.33.0](../operations/upgrade-to-0.33.0.md).
 
-Admin role required on every route below (`ApiRequireAdmin`). When auth is off, the server treats the default user as admin.
+Auth: every Connections and probe route requires an **admin** JWT or API key (`ApiRequireAdmin`). Send `Authorization: Bearer <token>`. See [Provider security](../providers/security.md).
 
-Related: [Providers guide](../providers/index.md) · [Model roles](../providers/roles.md) · [Security](../providers/security.md) · [Extended API](extended-api.md)
+## What a Connection is
 
-## How the pieces fit
+A Connection is a named provider endpoint stored in PostgreSQL (migration 169, table `provider_connections`). The API key is encrypted with `EDGEQUAKE_SECRETS_KEY`. The list endpoint also shows env-backed rows (for example from `OLLAMA_HOST`) with `source: "env"` and a nil UUID; those are read-only.
 
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%
-%% eq-theme:v1
-flowchart LR
-  UI["Settings / wizard"] --> C["POST /connections"]
-  C --> DB[("provider_connections")]
-  UI --> T["POST /connections/{id}/test"]
-  T --> P["Upstream LLM"]
-  W["Workspace llm_roles.connection_id"] --> R["Resolver"]
-  R --> DB
-  R --> P
-%% eq-classes
-classDef eqLlm fill:#FEF3C7,stroke:#F59E0B,color:#451A03
-class C,DB,T,P,W eqLlm
-```
+| Field | Description |
+|-------|-------------|
+| `slug` | Unique name within a tenant (unique with `tenant_id`) |
+| `display_name` | Label for the UI |
+| `api_shape` | Wire format: `ollama`, `openai_chat`, `anthropic_messages`, or a native provider id |
+| `base_url` | Provider base URL (http or https) |
+| `locality` | `local` or `cloud`. Default: `local` when `api_shape` looks like a local provider, else `cloud` |
+| `auth_scheme` | `none`, `bearer` or `x_api_key` (default `none`) |
+| `api_key` | Write-only. Never returned. Requires `EDGEQUAKE_SECRETS_KEY` |
+| `timeout_secs` | Default 120 |
+| `allow_private_network` | Allow loopback and private IPs. Defaults to true when `locality` is `local` |
+| `tenant_id` | Optional UUID. Omit for a server-wide row |
 
-Read left to right: you save a connection, probe it, then attach its id to a workspace role. At query or extract time the resolver loads the row, decrypts the key, and builds the client.
+Response view (never includes the key): `id`, `tenant_id`, `slug`, `display_name`, `api_shape`, `locality`, `base_url`, `auth_scheme`, `key_fingerprint`, `key_configured`, `timeout_secs`, `allow_private_network`, `source` (`db` or `env`), `last_test_ok`, `last_test_error`.
 
-## Shapes and auth schemes
+## Endpoints
 
-| `api_shape` / `shape` | Typical base URL | Notes |
-|---|---|---|
-| `openai_chat` | `https://api.openai.com/v1` or any OpenAI-compatible host | Chat Completions |
-| `anthropic_messages` | `https://api.anthropic.com` | Messages API |
-| `ollama` | `http://host.docker.internal:11434` | Native Ollama |
-| Native ids (`openai`, `anthropic`, `lmstudio`, `omlx`, …) | See [providers](../providers/index.md) | Resolved like env providers |
+| Method | Path | Success |
+|--------|------|---------|
+| GET | `/api/v1/connections` | 200 array of Connection views |
+| POST | `/api/v1/connections` | 201 created view |
+| PUT | `/api/v1/connections/{id}` | 200 updated view |
+| DELETE | `/api/v1/connections/{id}` | 204 |
+| POST | `/api/v1/connections/{id}/test` | 200 probe result (updates `last_test_*`) |
+| POST | `/api/v1/providers/test` | 200 probe result (no storage) |
 
-| `auth_scheme` | Header sent |
-|---|---|
-| `none` | No key |
-| `bearer` | `Authorization: Bearer …` |
-| `x_api_key` | `x-api-key: …` |
-
-Keys are write-only. The API returns `key_configured` and a short `key_fingerprint`, never the plaintext. Storing a key needs `EDGEQUAKE_SECRETS_KEY` (AES-256-GCM).
-
-## List connections
-
-`GET /api/v1/connections`
-
-Returns database rows plus read-only **env** connections derived from process environment (`OLLAMA_HOST`, `OPENAI_COMPATIBLE_BASE_URL`, `OMLX_HOST` / `OMLX_BASE_URL`, `ANTHROPIC_BASE_URL`, `LMSTUDIO_HOST`). Env rows use a nil UUID and `source: "env"`.
+All of these need PostgreSQL except `GET /connections` (env rows still appear) and `POST /providers/test`. Without PostgreSQL, create/update/delete/test-stored return 503.
 
 ```bash
-curl -s http://localhost:8080/api/v1/connections \
-  -H "Authorization: Bearer $TOKEN" | jq .
-```
-
-Response item (`ConnectionView`):
-
-| Field | Meaning |
-|---|---|
-| `id` | Connection UUID (nil for env) |
-| `tenant_id` | Optional tenant scope |
-| `slug`, `display_name` | Stable id and label |
-| `api_shape`, `locality`, `base_url`, `auth_scheme` | How to call it |
-| `key_fingerprint`, `key_configured` | Key presence without revealing the secret |
-| `timeout_secs`, `allow_private_network` | Client limits and SSRF policy |
-| `source` | `"db"` or `"env"` |
-| `last_test_ok`, `last_test_error` | Last probe result, if any |
-
-## Create connection
-
-`POST /api/v1/connections` → `201`
-
-```bash
+# Create
 curl -s -X POST http://localhost:8080/api/v1/connections \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "slug": "ollama-local",
-    "display_name": "Ollama on this machine",
+    "slug": "my-ollama",
+    "display_name": "Ollama",
     "api_shape": "ollama",
-    "base_url": "http://host.docker.internal:11434",
-    "locality": "local",
-    "auth_scheme": "none",
-    "allow_private_network": true
+    "base_url": "http://127.0.0.1:11434",
+    "locality": "local"
   }'
 ```
 
-Body (`UpsertConnection`): `slug`, `display_name`, `api_shape`, `base_url` required. Optional: `locality`, `auth_scheme`, `api_key`, `timeout_secs` (default 120), `allow_private_network`, `tenant_id`.
-
-The server validates `base_url` with the SSRF policy before insert. Private/loopback hosts need `allow_private_network: true` (default when `locality` is `local`).
-
-## Update connection
-
-`PUT /api/v1/connections/{id}` → `200`
-
-Same body as create. Omit `api_key` (or send empty) to keep the stored key. Sending a new key re-encrypts it.
-
-## Delete connection
-
-`DELETE /api/v1/connections/{id}` → `204`
-
-Returns `404` if the id is unknown. Does not cascade-clear workspace `llm_roles.connection_id` references; update those roles separately.
-
-## Test a stored connection
-
-`POST /api/v1/connections/{id}/test` → `200` (`ProbeResponse`)
-
-Decrypts the stored key, probes the upstream, and writes `last_test_ok` / `last_test_error` on the row.
-
-```bash
-curl -s -X POST "http://localhost:8080/api/v1/connections/$ID/test" \
-  -H "Authorization: Bearer $TOKEN" | jq .
+```json
+{
+  "id": "11111111-1111-1111-1111-111111111111",
+  "tenant_id": null,
+  "slug": "my-ollama",
+  "display_name": "Ollama",
+  "api_shape": "ollama",
+  "locality": "local",
+  "base_url": "http://127.0.0.1:11434",
+  "auth_scheme": "none",
+  "key_fingerprint": null,
+  "key_configured": false,
+  "timeout_secs": 120,
+  "allow_private_network": true,
+  "source": "db",
+  "last_test_ok": null,
+  "last_test_error": null
+}
 ```
 
-## Ad-hoc provider test
+Omit `api_key` on PUT to keep the stored key. Send a new value to replace it. Empty string is ignored. Storing a key without `EDGEQUAKE_SECRETS_KEY` returns 400.
 
-`POST /api/v1/providers/test` → `200` (`ProbeResponse`)
+## Probe a provider
 
-Probes an endpoint without saving it. Useful from the first-run wizard.
+`POST /api/v1/providers/test` checks reachability, lists models, and optionally tries chat and embed. It does not save anything. Use it from the first-run wizard or before creating a Connection.
+
+```mermaid
+sequenceDiagram
+    participant A as Admin
+    participant S as EdgeQuake
+    participant P as Provider
+    A->>S: POST /providers/test
+    S->>S: Validate URL SSRF policy
+    S->>P: List models, optional chat and embed
+    P-->>S: Results
+    S-->>A: ok, kind, latency_ms, models
+```
+
+Read it top to bottom. The server refuses dangerous URLs first, then talks to the provider, then returns a structured result.
 
 ```bash
 curl -s -X POST http://localhost:8080/api/v1/providers/test \
@@ -130,63 +101,108 @@ curl -s -X POST http://localhost:8080/api/v1/providers/test \
   -H "Content-Type: application/json" \
   -d '{
     "shape": "ollama",
-    "base_url": "http://host.docker.internal:11434",
-    "model": "gemma3:latest",
-    "allow_private_network": true
+    "base_url": "http://127.0.0.1:11434",
+    "model": "gemma3:latest"
   }'
 ```
 
-| Request field | Meaning |
-|---|---|
-| `shape` | Same values as `api_shape` |
-| `base_url` | Required except when a local default exists for the shape |
-| `model`, `embedding_model` | Optional; defaults apply per shape |
-| `api_key`, `auth_scheme` | Optional credentials |
-| `allow_private_network` | Allow private/loopback targets |
-| `expected_dimension` | If set, embed probe must match this size |
+```json
+{
+  "ok": true,
+  "kind": "ok",
+  "latency_ms": 42,
+  "message": "reachable",
+  "models": ["gemma3:latest", "embeddinggemma:latest"],
+  "embedding_dimension": null,
+  "chat_ok": true,
+  "embed_ok": false,
+  "list_ok": true
+}
+```
 
-| Response field | Meaning |
-|---|---|
-| `ok` | Overall success |
-| `kind` | Error kind when not ok (`ok`, `unreachable`, `auth`, `dim_mismatch`, …) |
-| `latency_ms` | Wall time |
-| `message` | Human-readable detail |
-| `models` | Models listed by the upstream, when available |
-| `embedding_dimension` | Measured embed size, if probed |
-| `chat_ok`, `embed_ok`, `list_ok` | Per-capability flags |
+| Body field | Notes |
+|------------|-------|
+| `shape` | Required. Same values as `api_shape`. Local shapes get a default URL when `base_url` is omitted (for example Ollama → `http://127.0.0.1:11434`). |
+| `base_url` | Required for cloud shapes |
+| `model`, `embedding_model` | Optional models to exercise |
+| `api_key`, `auth_scheme` | Credentials for the probe only |
+| `allow_private_network` | Override SSRF private-IP policy |
+| `expected_dimension` | Fail with `dim_mismatch` when the embedding size differs |
+
+`kind` values (snake_case): `ok`, `unreachable`, `unauthorized`, `model_not_found`, `dim_mismatch`, `shape_mismatch`, `ssrf_denied`, `invalid_url`.
+
+`POST /connections/{id}/test` runs the same probe with the stored URL and decrypted key, then writes `last_test_ok` and `last_test_error`.
+
+## SSRF rules
+
+Every create, update and probe validates `base_url`:
+
+- Scheme must be `http` or `https`.
+- Blocked hosts and obfuscated IPs are rejected.
+- Private and loopback addresses need `locality=local` (or `allow_private_network=true`). Cloud connections to `127.0.0.1` fail with `ssrf_denied`.
+
+See [Provider security](../providers/security.md).
 
 ## Per-role routing
 
-Workspace metadata `llm_roles.<role>.connection_id` points at a saved connection UUID. Roles: `extract`, `query`, `keyword`, `summary`, `embedding`, `vision`, `reranker`, `decision`.
+Point a workspace role at a Connection by setting `connection_id` in `llm_roles`. Only some roles use Connections today (`extract` and `query`). Details: [Model roles](../providers/roles.md).
 
 ```bash
-curl -s -X PATCH "http://localhost:8080/api/v1/workspaces/$WS" \
+curl -s -X PUT http://localhost:8080/api/v1/workspaces/$WORKSPACE_ID \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "metadata": {
-      "llm_roles": {
-        "extract": {
-          "provider": "ollama",
-          "model": "gemma3:latest",
-          "connection_id": "'"$ID"'"
-        }
+    "llm_roles": {
+      "query": {
+        "provider": "openai-compatible",
+        "model": "my-model",
+        "connection_id": "11111111-1111-1111-1111-111111111111"
       }
     }
   }'
 ```
 
-Merge rules for `llm_roles` are documented in [Extended API](extended-api.md). See also [Model roles](../providers/roles.md).
+If `connection_id` is invalid, the row is missing, PostgreSQL is down, or the client cannot be built, EdgeQuake falls back silently to the next provider choice. Check `/health` and **Test connection** when answers come from the wrong model.
 
-## CLI: `edgequake doctor`
+## Health and doctor
 
-Not an HTTP route. Prints preflight checks (database, schema, secrets key, provider reachability posture) and exits `0` (ok), `1` (fail), or `2` (warn). Prefer this before opening the UI on a new install.
+`GET /health` (public) now includes `security_posture` and a live probe for local LLM providers:
+
+```json
+{
+  "status": "healthy",
+  "components": { "llm_provider": true },
+  "security_posture": {
+    "auth_enabled": false,
+    "dev_mode": true,
+    "secrets_key_configured": true,
+    "jwt_secret_is_default": true,
+    "rate_limit_enabled": false,
+    "swagger_enabled": true
+  }
+}
+```
+
+`status` becomes `degraded` when a local LLM does not answer the probe. Full field list: [REST API: Health](rest-api.md#health).
+
+CLI preflight (no server required for the check itself):
 
 ```bash
 edgequake doctor
 edgequake doctor --json
 ```
 
-## Honest health
+Exit codes: `0` all required checks passed, `1` database check failed, `2` other failures (warnings). Checks include `DATABASE_URL`, secrets key, JWT secret and related env.
 
-`GET /health` includes provider reachability and security posture fields used by the WebUI banner. Prefer it over guessing whether Ollama or a cloud key is live.
+## Known behaviour to watch
+
+These are implementation facts, not documentation workarounds:
+
+- `GET /connections` and `POST /providers/test` are not filtered by the caller's tenant. Scope with care in multi-tenant installs.
+- Omitting `tenant_id` on PUT writes `null` (it does not leave the previous value).
+- A duplicate `(tenant_id, slug)` currently surfaces as a 500 from the database unique constraint rather than a clean 409.
+- `locality` default is keyed on `api_shape`, not on the provider slug.
+
+None of the published SDKs wrap these routes yet. Call them with raw HTTP (see [Custom clients](../integrations/custom-clients.md)).
+
+Related: [Providers](../providers/index.md), [Environment reference](../operations/env-reference.md), [Upgrade to 0.33.0](../operations/upgrade-to-0.33.0.md).

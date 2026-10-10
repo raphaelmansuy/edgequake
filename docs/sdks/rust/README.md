@@ -1,97 +1,44 @@
 ---
-title: "Rust SDK"
-description: "Rust SDK for EdgeQuake."
+title: Rust SDK
+description: Install and use the EdgeQuake Rust client crate edgequake-sdk. Async EdgeQuakeClient for documents, query, parse and more.
 ---
 
 # Rust SDK
 
-> **Product: v0.23.0** · Crate **~0.4.0** (decoupled from server)
-
-**Location:** `sdks/rust`  
-**Authority:** Same headers and `/api/v1` paths as the Axum server.
-
-## Install
-
-In your `Cargo.toml` (crates.io or monorepo path):
+Official async Rust client. Crate: **`edgequake-sdk`** version **0.4.0** (published on crates.io).
 
 ```toml
+[dependencies]
 edgequake-sdk = "0.4"
-# edgequake-sdk = { path = "../sdks/rust" }
+tokio = { version = "1", features = ["full"] }
 ```
 
-## Minimal example
-
 ```rust
-use edgequake_sdk::EdgeQuakeClient;
+use edgequake_sdk::{ClientBuilder, types::query::QueryRequest};
 
 #[tokio::main]
-async fn main() -> edgequake_sdk::Result<()> {
-    let client = EdgeQuakeClient::builder()
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = ClientBuilder::default()
         .base_url("http://localhost:8080")
-        .bearer_token("YOUR_JWT")
-        .tenant_id("tenant-uuid")
-        .user_id("user-uuid")
-        .workspace_id("workspace-uuid")
+        .api_key("eq-...")
         .build()?;
 
     let health = client.health().check().await?;
-    println!("{}", health.status);
+    println!("{health:?}");
 
-    let docs = client.documents().list().await?;
-    println!("{} documents on this page", docs.documents.len());
-
+    let ans = client
+        .query()
+        .execute(&QueryRequest {
+            query: "What is in my documents?".into(),
+            mode: Some("mix".into()),
+            ..Default::default()
+        })
+        .await?;
+    println!("{:?}", ans.answer);
     Ok(())
 }
 ```
 
-## High-value calls
+Main type: `EdgeQuakeClient` (built with `ClientBuilder`). Resources mirror the API: documents, pdf, parse, query, chat, graph, conversations, tasks, and more. The Rust `QueryRequest` still exposes a `top_k` field; prefer aligning with the server's `max_results` when you construct requests manually.
 
-| Goal | Method |
-|------|--------|
-| List documents with filters | `documents().list_with_query(&DocumentListQuery { page: Some(2), document_pattern: Some("report".into()), ..Default::default() })` |
-| List conversations with API filters | `conversations().list_with_query(&ConversationListQuery { .. })` |
-| Bulk delete conversations | POST body uses `conversation_ids` via SDK helpers |
-| Cancel ingestion task | `tasks().cancel(track_id)` — see [Ingestion cancel & fairness](../../ingestion-cancel-and-fairness.md) |
-| Stateless parse (SPEC-094) | `parse().parse(file_bytes, filename, options)` → `ParseOutcome::{Completed, Accepted}`; also `parse().backends()`, `parse().job(id)` |
-
-## Stateless parse (SPEC-094, v0.23)
-
-`POST /api/v1/parse` converts a PDF to Markdown without ingestion residue. Sync by default (≤ 15 pages / 20 MiB); async for larger jobs (≤ 1000 pages).
-
-```rust
-use edgequake_sdk::resources::parse::ParseOptions;
-
-let bytes = std::fs::read("/tmp/paper.pdf")?;
-
-// Sync parse — ParseOutcome::Completed(ParseResponse) or Accepted(202)
-let outcome = client
-    .parse()
-    .parse(
-        bytes,
-        "paper.pdf",
-        ParseOptions { pages: Some("1-5".into()), ..Default::default() },
-    )
-    .await?;
-
-match outcome {
-    edgequake_sdk::resources::parse::ParseOutcome::Completed(res) => {
-        println!("{} pages, {} ms", res.page_count, res.metrics.total_ms);
-        println!("{}", &res.markdown[..200.min(res.markdown.len())]);
-    }
-    edgequake_sdk::resources::parse::ParseOutcome::Accepted(acc) => {
-        let status = client.parse().job(&acc.job_id).await?;
-        if let Some(result) = status.result {
-            println!("{}", &result.markdown[..200.min(result.markdown.len())]);
-        }
-    }
-}
-
-let backends = client.parse().backends().await?; // ParseBackendsResponse
-```
-
-Document responses also expose `display_status` / `ui_phase` (SPEC-057 P4) — prefer them over raw `status`/`stage` for progress UI. Query keyword/answer caching is **server-side only** (`EDGEQUAKE_LLM_CACHE=1` default; `EDGEQUAKE_KEYWORD_CACHE` / `EDGEQUAKE_QUERY_ANSWER_CACHE` overrides) — no client change needed.
-
-## Next
-
-- [Quickstart & patterns](./quickstart.md)
-- Crate `README` in `sdks/rust/README.md`
+Quickstart: [quickstart.md](quickstart.md). Connections: raw HTTP ([Connections](../../api-reference/connections.md)).

@@ -1,19 +1,35 @@
 ---
 title: Integrations
-description: Connect EdgeQuake with your existing stack.
+description: Connect EdgeQuake to LangChain, Open WebUI, MCP clients and custom HTTP apps. Points to SDKs and the REST API.
 ---
 
-> **Product: v0.23.0** · Contract: OpenAPI · Spec ops: [Ingestion cancel & fairness](../ingestion-cancel-and-fairness.md)
+# Integrations
 
-Integrate EdgeQuake with popular tools and frameworks. For typed HTTP clients, start with **[SDKs](/docs/sdks/)** (Python, TypeScript, Rust Tier 1).
+This section shows how to plug EdgeQuake into other tools. It is for developers who already run EdgeQuake and want a chat UI, an agent, a LangChain chain or a thin HTTP client. Product pin: **v0.32.2**.
 
-## Official SDKs
+Prefer an [official SDK](../sdks/README.md) when one exists. Fall back to the [REST API](../api-reference/index.md) for everything else (including v0.33.0 Connections).
 
-- **[SDK overview](/docs/sdks/)** — Language matrix, version decoupling (~0.4.0 packages vs product 0.23.0)
-- **[Python](/docs/sdks/python/)** · **[TypeScript](/docs/sdks/typescript/)** · **[Rust](/docs/sdks/rust/)** — recommended for new integrations
+```mermaid
+flowchart LR
+    UI["Open WebUI"] --> OL["Ollama API /api"]
+    Agent["AI agent"] --> MCP["MCP /mcp"]
+    LC["LangChain"] --> SDK["Python SDK"]
+    Custom["Custom app"] --> REST["REST /api/v1"]
+    OL --> EQ["EdgeQuake"]
+    MCP --> EQ
+    SDK --> EQ
+    REST --> EQ
+```
 
-## Framework integrations
+Read it left to right: each tool talks to EdgeQuake through a different front door. The knowledge graph and storage are the same underneath.
 
-- **[LangChain](/docs/integrations/langchain/)** — Use EdgeQuake as a LangChain retriever.
-- **[Open WebUI](/docs/integrations/open-webui/)** — Connect EdgeQuake to Open WebUI for chat.
-- **[Custom Clients](/docs/integrations/custom-clients/)** — Raw REST/OpenAPI when no SDK fits.
+## Pages
+
+| Integration | Use it when |
+|-------------|-------------|
+| [Open WebUI](open-webui.md) | You want a ChatGPT-style UI on top of Graph-RAG |
+| [LangChain](langchain.md) | You build Python RAG chains |
+| [MCP](mcp.md) | An AI agent should search and (optionally) ingest through tools |
+| [Custom clients](custom-clients.md) | No SDK fits, or you need Connections / provider test |
+
+Related: [SDK overview](../sdks/README.md), [API reference](../api-reference/index.md), [Getting started](../getting-started/quick-start.md).
