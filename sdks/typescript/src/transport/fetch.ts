@@ -205,9 +205,10 @@ export class FetchTransport implements HttpTransport {
 
     // WHY: AbortController enables request timeout without external deps
     const controller = new AbortController();
-    const signal = options.signal
+    const combined = options.signal
       ? this.combineSignals(options.signal, controller.signal)
-      : controller.signal;
+      : { signal: controller.signal, cleanup: () => {} };
+    const signal = combined.signal;
 
     const timeoutId = timeout
       ? setTimeout(() => controller.abort(), timeout)
@@ -253,6 +254,7 @@ export class FetchTransport implements HttpTransport {
       throw error;
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
+      combined.cleanup();
     }
   }
 
@@ -305,16 +307,27 @@ export class FetchTransport implements HttpTransport {
   private combineSignals(
     userSignal: AbortSignal,
     timeoutSignal: AbortSignal,
-  ): AbortSignal {
+  ): { signal: AbortSignal; cleanup: () => void } {
     // WHY: AbortSignal.any() is available in Node 20+, fall back for 18
-    if ("any" in AbortSignal) {
-      return AbortSignal.any([userSignal, timeoutSignal]);
+    if (typeof AbortSignal.any === "function") {
+      return { signal: AbortSignal.any([userSignal, timeoutSignal]), cleanup: () => {} };
     }
 
     const controller = new AbortController();
-    const onAbort = () => controller.abort();
-    userSignal.addEventListener("abort", onAbort);
-    timeoutSignal.addEventListener("abort", onAbort);
-    return controller.signal;
+    const onUserAbort = () => controller.abort(userSignal.reason);
+    const onTimeoutAbort = () => controller.abort(timeoutSignal.reason);
+    if (userSignal.aborted) onUserAbort();
+    else if (timeoutSignal.aborted) onTimeoutAbort();
+    else {
+      userSignal.addEventListener("abort", onUserAbort, { once: true });
+      timeoutSignal.addEventListener("abort", onTimeoutAbort, { once: true });
+    }
+    return {
+      signal: controller.signal,
+      cleanup: () => {
+        userSignal.removeEventListener("abort", onUserAbort);
+        timeoutSignal.removeEventListener("abort", onTimeoutAbort);
+      },
+    };
   }
 }
