@@ -46,11 +46,25 @@ pub fn split_into_sentences(text: &str) -> Vec<String> {
     let mut sentences = Vec::new();
     let mut current = String::new();
 
-    for c in text.chars() {
+    for (offset, c) in text.char_indices() {
         current.push(c);
 
         // Check for sentence endings (simple heuristic)
         if c == '.' || c == '!' || c == '?' {
+            let remaining = &text[offset + c.len_utf8()..];
+            if c == '.'
+                && current
+                    .chars()
+                    .rev()
+                    .nth(1)
+                    .is_some_and(|ch| ch.is_ascii_digit())
+                && remaining
+                    .chars()
+                    .next()
+                    .is_some_and(|ch| ch.is_ascii_digit())
+            {
+                continue;
+            }
             // Avoid splitting on abbreviations like "Dr." "Mr." "Inc."
             let trimmed = current.trim();
             if trimmed.len() >= 3 {
@@ -61,7 +75,13 @@ pub fn split_into_sentences(text: &str) -> Vec<String> {
                         "Dr.", "Mr.", "Mrs.", "Ms.", "Jr.", "Sr.", "Inc.", "Ltd.", "etc.", "vs.",
                         "e.g.", "i.e.", "No.", "St.",
                     ];
-                    if !abbrevs.contains(last_word) {
+                    let continues_abbreviation = c == '.'
+                        && abbrevs.iter().any(|abbrev| {
+                            abbrev
+                                .strip_prefix(last_word)
+                                .is_some_and(|suffix| remaining.starts_with(suffix))
+                        });
+                    if !continues_abbreviation && !abbrevs.contains(last_word) {
                         sentences.push(current.trim().to_string());
                         current = String::new();
                     }
@@ -184,4 +204,33 @@ pub(super) fn find_split_point_internal(text: &str, target: usize, separators: &
     }
 
     floor_char_boundary(text, target.min(text.len()))
+}
+
+#[cfg(test)]
+mod sentence_tests {
+    use super::*;
+
+    #[test]
+    fn decimal_points_do_not_end_sentences() {
+        assert_eq!(
+            split_into_sentences("The value is 3.14. Next sentence!"),
+            ["The value is 3.14.", "Next sentence!"]
+        );
+    }
+
+    #[test]
+    fn periods_inside_supported_multi_dot_abbreviations_stay_in_sentence() {
+        assert_eq!(
+            split_into_sentences("Use examples, e.g. Rust and Go. Next!"),
+            ["Use examples, e.g. Rust and Go.", "Next!"]
+        );
+        assert_eq!(
+            split_into_sentences("Use one, i.e. the first. Done."),
+            ["Use one, i.e. the first.", "Done."]
+        );
+        assert_eq!(
+            split_into_sentences("Dr. Smith arrived. Yes!"),
+            ["Dr. Smith arrived.", "Yes!"]
+        );
+    }
 }
