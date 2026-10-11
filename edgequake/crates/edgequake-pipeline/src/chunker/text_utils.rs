@@ -80,6 +80,9 @@ pub fn split_into_sentences(text: &str) -> Vec<String> {
 
 /// Take sentences from buffer to achieve approximately target overlap tokens.
 pub(super) fn take_overlap_sentences(buffer: &[String], target_tokens: usize) -> Vec<String> {
+    if target_tokens == 0 {
+        return Vec::new();
+    }
     let mut overlap = Vec::new();
     let mut tokens = 0;
 
@@ -184,4 +187,25 @@ pub(super) fn find_split_point_internal(text: &str, target: usize, separators: &
     }
 
     floor_char_boundary(text, target.min(text.len()))
+}
+
+#[cfg(test)]
+mod overlap_tests {
+    use super::*;
+
+    #[test]
+    fn zero_overlap_carries_no_sentences() {
+        assert!(
+            take_overlap_sentences(&["One sentence.".into(), "Another sentence.".into()], 0)
+                .is_empty()
+        );
+        assert!(take_overlap_sentences(&[], 0).is_empty());
+    }
+
+    #[test]
+    fn positive_overlap_keeps_last_whole_sentence() {
+        let sentences = vec!["First sentence.".into(), "Last sentence.".into()];
+        assert_eq!(take_overlap_sentences(&sentences, 1), ["Last sentence."]);
+        assert_eq!(take_overlap_sentences(&sentences, usize::MAX), sentences);
+    }
 }
