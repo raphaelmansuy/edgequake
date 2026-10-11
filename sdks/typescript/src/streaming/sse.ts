@@ -1,3 +1,5 @@
+import { readerCleanup } from "./reader-cleanup.js";
+
 /**
  * SSE (Server-Sent Events) streaming utilities.
  *
@@ -29,6 +31,7 @@ export async function* parseSSEStream<T>(
   }
 
   const reader = response.body.getReader();
+  const cleanup = readerCleanup(reader, signal);
   const decoder = new TextDecoder();
   let buffer = "";
 
@@ -39,6 +42,7 @@ export async function* parseSSEStream<T>(
       }
 
       const { done, value } = await reader.read();
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
@@ -64,6 +68,6 @@ export async function* parseSSEStream<T>(
       }
     }
   } finally {
-    reader.releaseLock();
+    await cleanup();
   }
 }
