@@ -742,7 +742,9 @@ fn parse_citation_bracket(chars: &[char], i: usize) -> Option<(usize, Vec<usize>
     j = end;
 
     while j < chars.len() && chars[j] == '[' {
-        let (end2, more) = parse_bracket_body(chars, j + 1)?;
+        let Some((end2, more)) = parse_bracket_body(chars, j + 1) else {
+            break;
+        };
         if more.is_empty() {
             break;
         }
@@ -988,6 +990,20 @@ mod tests {
         );
         assert_eq!(short_document_label("notes.md"), "notes");
         assert_eq!(short_document_label("Report.pdf"), "Report");
+    }
+
+    #[test]
+    fn citation_parser_keeps_valid_prefix_before_non_citation_brackets() {
+        let raw: Vec<char> = "[1][note]".chars().collect();
+        assert_eq!(parse_citation_bracket(&raw, 0), Some((3, vec![1])));
+        let raw: Vec<char> = "[1][2][note]".chars().collect();
+        assert_eq!(parse_citation_bracket(&raw, 0), Some((6, vec![1, 2])));
+        let report = rewrite_verified_citations("Fact [1][note].", &catalog_fixture());
+        assert_eq!(report.rewritten_ids, vec![1]);
+        assert!(report.text.contains("[p.4]("));
+        assert!(report.text.contains("[note]"));
+        let raw: Vec<char> = "[note][1]".chars().collect();
+        assert_eq!(parse_citation_bracket(&raw, 0), None);
     }
 
     #[test]
