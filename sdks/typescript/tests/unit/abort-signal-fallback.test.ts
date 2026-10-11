@@ -33,15 +33,35 @@ describe("AbortSignal composition fallback", () => {
     controller.abort(reason);
     await expect(pending).rejects.toBe(reason);
   });
-  it.each([false, true])("removes caller listeners after request failure=%s", async (fail) => {
+  it("keeps caller cancellation active while consuming the response body", async () => {
     const controller = new AbortController();
-    const add = vi.spyOn(controller.signal, "addEventListener");
-    const remove = vi.spyOn(controller.signal, "removeEventListener");
-    const fetchFn = vi.fn(async () => { if (fail) throw new TypeError("offline"); return response(); }) as unknown as typeof fetch;
+    const reason = new DOMException("body cancellation", "AbortError");
+    let headersReturned!: () => void;
+    const headersReady = new Promise<void>((resolve) => { headersReturned = resolve; });
+    const fetchFn = vi.fn(async (_url, init) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(stream) {
+          init!.signal!.addEventListener("abort", () => stream.error(init!.signal!.reason), { once: true });
+        },
+      });
+      headersReturned();
+      return new Response(body, { headers: { "Content-Type": "application/json" } });
+    }) as unknown as typeof fetch;
     const pending = transport(fetchFn).request({ method: "GET", path: "/health", signal: controller.signal });
-    if (fail) await expect(pending).rejects.toThrow("offline");
-    else await expect(pending).resolves.toEqual({ ok: true });
-    expect(add).toHaveBeenCalledTimes(1);
-    expect(remove).toHaveBeenCalledWith("abort", add.mock.calls[0][1]);
+    await headersReady;
+    await Promise.resolve();
+    controller.abort(reason);
+    await expect(pending).rejects.toBe(reason);
+  });
+  it("preserves native signal composition when available", async () => {
+    Object.defineProperty(AbortSignal, "any", anyDescriptor);
+    const controller = new AbortController();
+    const reason = new DOMException("native cancellation", "AbortError");
+    controller.abort(reason);
+    const fetchFn = vi.fn(async (_url, init) => {
+      if (init!.signal!.aborted) throw init!.signal!.reason;
+      return response();
+    }) as unknown as typeof fetch;
+    await expect(transport(fetchFn).request({ method: "GET", path: "/health", signal: controller.signal })).rejects.toBe(reason);
   });
 });

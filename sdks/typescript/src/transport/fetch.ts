@@ -205,10 +205,9 @@ export class FetchTransport implements HttpTransport {
 
     // WHY: AbortController enables request timeout without external deps
     const controller = new AbortController();
-    const combined = options.signal
+    const signal = options.signal
       ? this.combineSignals(options.signal, controller.signal)
-      : { signal: controller.signal, cleanup: () => {} };
-    const signal = combined.signal;
+      : controller.signal;
 
     const timeoutId = timeout
       ? setTimeout(() => controller.abort(), timeout)
@@ -254,7 +253,6 @@ export class FetchTransport implements HttpTransport {
       throw error;
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
-      combined.cleanup();
     }
   }
 
@@ -307,10 +305,10 @@ export class FetchTransport implements HttpTransport {
   private combineSignals(
     userSignal: AbortSignal,
     timeoutSignal: AbortSignal,
-  ): { signal: AbortSignal; cleanup: () => void } {
+  ): AbortSignal {
     // WHY: AbortSignal.any() is available in Node 20+, fall back for 18
     if (typeof AbortSignal.any === "function") {
-      return { signal: AbortSignal.any([userSignal, timeoutSignal]), cleanup: () => {} };
+      return AbortSignal.any([userSignal, timeoutSignal]);
     }
 
     const controller = new AbortController();
@@ -322,12 +320,6 @@ export class FetchTransport implements HttpTransport {
       userSignal.addEventListener("abort", onUserAbort, { once: true });
       timeoutSignal.addEventListener("abort", onTimeoutAbort, { once: true });
     }
-    return {
-      signal: controller.signal,
-      cleanup: () => {
-        userSignal.removeEventListener("abort", onUserAbort);
-        timeoutSignal.removeEventListener("abort", onTimeoutAbort);
-      },
-    };
+    return controller.signal;
   }
 }
