@@ -615,16 +615,31 @@ fn crude_uncited_sentence_ratio(text: &str) -> Option<f32> {
 pub fn build_document_page_url(doc_id: &str, chunk_id: Option<&str>, page: Option<u32>) -> String {
     let mut params: Vec<String> = Vec::new();
     if let Some(c) = chunk_id.map(str::trim).filter(|s| !s.is_empty()) {
-        params.push(format!("chunk={c}"));
+        params.push(format!("chunk={}", encode_url_component(c)));
     }
     if let Some(p) = page.filter(|&p| p >= 1) {
         params.push(format!("page={p}"));
     }
+    let doc_id = encode_url_component(doc_id);
     if params.is_empty() {
         format!("/documents/{doc_id}")
     } else {
         format!("/documents/{doc_id}?{}", params.join("&"))
     }
+}
+
+/// Percent-encode a single path segment or query value using UTF-8 bytes.
+fn encode_url_component(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len());
+    for byte in value.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+            encoded.push(char::from(byte));
+        } else {
+            use std::fmt::Write;
+            write!(encoded, "%{byte:02X}").expect("writing to a String cannot fail");
+        }
+    }
+    encoded
 }
 
 fn short_doc_fallback(doc_id: &str) -> String {
@@ -988,6 +1003,22 @@ mod tests {
         );
         assert_eq!(short_document_label("notes.md"), "notes");
         assert_eq!(short_document_label("Report.pdf"), "Report");
+    }
+
+    #[test]
+    fn document_page_url_encodes_identifier_components() {
+        assert_eq!(
+            build_document_page_url("doc/name &?", Some("chunk&a=b #"), Some(3)),
+            "/documents/doc%2Fname%20%26%3F?chunk=chunk%26a%3Db%20%23&page=3"
+        );
+        assert_eq!(
+            build_document_page_url("文档", None, None),
+            "/documents/%E6%96%87%E6%A1%A3"
+        );
+        assert_eq!(
+            build_document_page_url("doc-1_a.b~", Some("chunk-2"), Some(0)),
+            "/documents/doc-1_a.b~?chunk=chunk-2"
+        );
     }
 
     #[test]
