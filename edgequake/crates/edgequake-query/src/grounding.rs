@@ -180,12 +180,13 @@ fn normalize_span_text(s: &str) -> String {
     s.chars()
         .map(|c| {
             if c.is_alphanumeric() || c.is_whitespace() {
-                c.to_ascii_lowercase()
+                c
             } else {
                 ' '
             }
         })
         .collect::<String>()
+        .to_lowercase()
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
@@ -248,6 +249,18 @@ mod tests {
             "W3-arith-v2 requires worked example + MUST compute; got:\n{g}"
         );
         assert!(allows_honest_refusal(g));
+    }
+
+    #[test]
+    fn grounding_normalizes_unicode_case() {
+        assert!(answer_has_context_span("ÉCOLE À PARIS", "école à paris"));
+        assert_eq!(
+            answer_context_token_coverage("CAFÉ ÉCOLE", "café école"),
+            1.0
+        );
+        assert!(!needs_groundedness_retry("CAFÉ ÉCOLE", "café école"));
+        assert!(answer_has_context_span("ΣΧΟΛΕΊΟ", "σχολείο"));
+        assert_eq!(normalize_span_text("İSTANBUL!"), "i\u{307}stanbul");
     }
 
     #[test]
