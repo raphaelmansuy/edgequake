@@ -1,3 +1,5 @@
+import { readerCleanup } from "../streaming/reader-cleanup.js";
+
 /**
  * Fetch-based HTTP transport.
  *
@@ -66,12 +68,15 @@ export class FetchTransport implements HttpTransport {
     }
 
     const reader = response.body.getReader();
+    const cleanup = readerCleanup(reader, options.signal);
     const decoder = new TextDecoder();
     let buffer = "";
 
     try {
       while (true) {
+        if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
         const { done, value } = await reader.read();
+        if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
@@ -94,7 +99,7 @@ export class FetchTransport implements HttpTransport {
         }
       }
     } finally {
-      reader.releaseLock();
+      await cleanup();
     }
   }
 
