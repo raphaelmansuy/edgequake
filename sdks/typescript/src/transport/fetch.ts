@@ -37,64 +37,69 @@ export class FetchTransport implements HttpTransport {
 
   /** JSON request → parsed response body. */
   async request<T>(options: RequestOptions): Promise<T> {
-    const response = await this.executeWithMiddleware(options);
-    await this.checkResponseStatus(response);
+    return this.withResponse(options, async (response) => {
+      await this.checkResponseStatus(response);
 
-    // WHY: Some DELETE endpoints return 204 No Content
-    if (response.status === 204) {
-      return undefined as T;
-    }
+      // WHY: Some DELETE endpoints return 204 No Content
+      if (response.status === 204) {
+        return undefined as T;
+      }
 
-    // WHY: Some endpoints (e.g., /ready, /live) return plain text "OK"
-    // instead of JSON. Detect via Content-Type header to avoid parse errors.
-    const contentType = response.headers.get("content-type") ?? "";
-    if (!contentType.includes("application/json")) {
-      const text = await response.text();
-      return text as T;
-    }
+      // WHY: Some endpoints (e.g., /ready, /live) return plain text "OK"
+      // instead of JSON. Detect via Content-Type header to avoid parse errors.
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!contentType.includes("application/json")) {
+        const text = await response.text();
+        return text as T;
+      }
 
-    return (await response.json()) as T;
+      return (await response.json()) as T;
+    });
   }
 
   /** Streaming request → async iterable of raw SSE `data:` lines. */
   async *stream(options: RequestOptions): AsyncIterable<string> {
-    const response = await this.executeWithMiddleware(options);
-    await this.checkResponseStatus(response);
-
-    if (!response.body) {
-      throw new NetworkError("Response body is null — streaming unavailable");
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
+    const { response, cleanup } = await this.executeWithMiddleware(options);
     try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      await this.checkResponseStatus(response);
 
-        buffer += decoder.decode(value, { stream: true });
+      if (!response.body) {
+        throw new NetworkError("Response body is null — streaming unavailable");
+      }
 
-        // WHY: SSE events are separated by double newline
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      try {
         while (true) {
-          const eventEnd = buffer.indexOf("\n\n");
-          if (eventEnd === -1) break;
+          const { done, value } = await reader.read();
+          if (done) break;
 
-          const eventText = buffer.slice(0, eventEnd);
-          buffer = buffer.slice(eventEnd + 2);
+          buffer += decoder.decode(value, { stream: true });
 
-          for (const line of eventText.split("\n")) {
-            if (line.startsWith("data: ")) {
-              const data = line.slice(6);
-              if (data === "[DONE]") return;
-              yield data;
+          // WHY: SSE events are separated by double newline
+          while (true) {
+            const eventEnd = buffer.indexOf("\n\n");
+            if (eventEnd === -1) break;
+
+            const eventText = buffer.slice(0, eventEnd);
+            buffer = buffer.slice(eventEnd + 2);
+
+            for (const line of eventText.split("\n")) {
+              if (line.startsWith("data: ")) {
+                const data = line.slice(6);
+                if (data === "[DONE]") return;
+                yield data;
+              }
             }
           }
         }
+      } finally {
+        reader.releaseLock();
       }
     } finally {
-      reader.releaseLock();
+      cleanup();
     }
   }
 
@@ -119,14 +124,14 @@ export class FetchTransport implements HttpTransport {
 
     const method = options?.method ?? "POST";
 
-    const response = await this.executeWithMiddleware({
+    return this.withResponse({
       method,
       path,
       body: formData,
+    }, async (response) => {
+      await this.checkResponseStatus(response);
+      return (await response.json()) as T;
     });
-
-    await this.checkResponseStatus(response);
-    return (await response.json()) as T;
   }
 
   /** Batch file upload via multipart/form-data. */
@@ -148,21 +153,22 @@ export class FetchTransport implements HttpTransport {
       }
     }
 
-    const response = await this.executeWithMiddleware({
+    return this.withResponse({
       method: "POST",
       path,
       body: formData,
+    }, async (response) => {
+      await this.checkResponseStatus(response);
+      return (await response.json()) as T;
     });
-
-    await this.checkResponseStatus(response);
-    return (await response.json()) as T;
   }
 
   /** Binary download → Blob. */
   async requestBlob(options: RequestOptions): Promise<Blob> {
-    const response = await this.executeWithMiddleware(options);
-    await this.checkResponseStatus(response);
-    return response.blob();
+    return this.withResponse(options, async (response) => {
+      await this.checkResponseStatus(response);
+      return response.blob();
+    });
   }
 
   /** Build a WebSocket URL for the given path. */
@@ -181,10 +187,14 @@ export class FetchTransport implements HttpTransport {
    */
   private async executeWithMiddleware(
     options: RequestOptions,
-  ): Promise<Response> {
+  ): Promise<{ response: Response; cleanup: () => void }> {
+    const cleanups: Array<() => void> = [];
+    const cleanup = () => {
+      for (const dispose of cleanups.splice(0)) dispose();
+    };
     // Build the base fetch function
     type NextFn = (req: RequestOptions) => Promise<Response>;
-    const baseFetch: NextFn = (req: RequestOptions) => this.rawFetch(req);
+    const baseFetch: NextFn = (req: RequestOptions) => this.rawFetch(req, cleanups);
 
     // WHY: Compose middlewares right-to-left so first middleware runs first
     const handler: NextFn = this.middlewares.reduceRight<NextFn>(
@@ -193,21 +203,44 @@ export class FetchTransport implements HttpTransport {
       baseFetch,
     );
 
-    return handler(options);
+    try {
+      return { response: await handler(options), cleanup };
+    } catch (error) {
+      cleanup();
+      throw error;
+    }
+  }
+
+  /** Keep composed signals active until response consumption has finished. */
+  private async withResponse<T>(
+    options: RequestOptions,
+    consume: (response: Response) => Promise<T>,
+  ): Promise<T> {
+    const { response, cleanup } = await this.executeWithMiddleware(options);
+    try {
+      return await consume(response);
+    } finally {
+      cleanup();
+    }
   }
 
   /**
    * Raw fetch call with URL building, headers, timeout.
    */
-  private async rawFetch(options: RequestOptions): Promise<Response> {
+  private async rawFetch(
+    options: RequestOptions,
+    cleanups: Array<() => void>,
+  ): Promise<Response> {
     const url = this.buildUrl(options.path, options.query);
     const timeout = options.timeout ?? this.config.timeout;
 
     // WHY: AbortController enables request timeout without external deps
     const controller = new AbortController();
-    const signal = options.signal
+    const combined = options.signal
       ? this.combineSignals(options.signal, controller.signal)
-      : controller.signal;
+      : { signal: controller.signal, cleanup: () => {} };
+    const signal = combined.signal;
+    cleanups.push(combined.cleanup);
 
     const timeoutId = timeout
       ? setTimeout(() => controller.abort(), timeout)
@@ -305,10 +338,10 @@ export class FetchTransport implements HttpTransport {
   private combineSignals(
     userSignal: AbortSignal,
     timeoutSignal: AbortSignal,
-  ): AbortSignal {
+  ): { signal: AbortSignal; cleanup: () => void } {
     // WHY: AbortSignal.any() is available in Node 20+, fall back for 18
     if (typeof AbortSignal.any === "function") {
-      return AbortSignal.any([userSignal, timeoutSignal]);
+      return { signal: AbortSignal.any([userSignal, timeoutSignal]), cleanup: () => {} };
     }
 
     const controller = new AbortController();
@@ -320,6 +353,12 @@ export class FetchTransport implements HttpTransport {
       userSignal.addEventListener("abort", onUserAbort, { once: true });
       timeoutSignal.addEventListener("abort", onTimeoutAbort, { once: true });
     }
-    return controller.signal;
+    return {
+      signal: controller.signal,
+      cleanup: () => {
+        userSignal.removeEventListener("abort", onUserAbort);
+        timeoutSignal.removeEventListener("abort", onTimeoutAbort);
+      },
+    };
   }
 }
