@@ -61,7 +61,7 @@ jobs:
             bash ../specs/046-graphrag-study/e2e/run_spec046_acc.sh
 
       - name: Upload AccReport JSON
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: spec046-acc-report
           path: edgequake/target/spec046-acc/acc_report.json
