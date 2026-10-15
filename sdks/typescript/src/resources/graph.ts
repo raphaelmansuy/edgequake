@@ -28,6 +28,24 @@ import type {
 } from "../types/graph.js";
 import { Resource } from "./base.js";
 
+/**
+ * Build the query string for GET /api/v1/graph and /api/v1/graph/stream.
+ *
+ * WHY: The server reads `start_node`, `depth` and `max_nodes` (it has no
+ * `limit` parameter and silently ignores it), so `limit` is sent as
+ * `max_nodes` unless `max_nodes` is given explicitly.
+ */
+function graphQueryParams(query?: GraphQuery): URLSearchParams {
+  const params = new URLSearchParams();
+  const maxNodes = query?.max_nodes ?? query?.limit;
+  if (maxNodes !== undefined) params.set("max_nodes", String(maxNodes));
+  if (query?.start_node) params.set("start_node", query.start_node);
+  if (query?.depth !== undefined) params.set("depth", String(query.depth));
+  if (query?.labels?.length) params.set("labels", query.labels.join(","));
+  if (query?.search) params.set("search", query.search);
+  return params;
+}
+
 /** Entities sub-resource accessed via `client.graph.entities`. */
 export class EntitiesResource extends Resource {
   /** List entities with optional filters. */
@@ -163,10 +181,7 @@ export class GraphResource extends Resource {
 
   /** Get the knowledge graph (nodes and edges). */
   async get(query?: GraphQuery): Promise<GraphResponse> {
-    const params = new URLSearchParams();
-    if (query?.limit !== undefined) params.set("limit", String(query.limit));
-    if (query?.labels?.length) params.set("labels", query.labels.join(","));
-    if (query?.search) params.set("search", query.search);
+    const params = graphQueryParams(query);
     const qs = params.toString();
     const path = qs ? `/api/v1/graph?${qs}` : "/api/v1/graph";
     return this._get(path);
@@ -177,10 +192,7 @@ export class GraphResource extends Resource {
     query?: GraphQuery,
     signal?: AbortSignal,
   ): AsyncIterable<GraphStreamEvent> {
-    const params = new URLSearchParams();
-    if (query?.limit !== undefined) params.set("limit", String(query.limit));
-    if (query?.labels?.length) params.set("labels", query.labels.join(","));
-    if (query?.search) params.set("search", query.search);
+    const params = graphQueryParams(query);
     const qs = params.toString();
     const path = qs ? `/api/v1/graph/stream?${qs}` : "/api/v1/graph/stream";
     return this._streamSSE<GraphStreamEvent>(path, undefined, signal);

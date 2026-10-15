@@ -61,7 +61,8 @@ class GraphResource(SyncResource):
         if label:
             params["label"] = label
         if limit:
-            params["limit"] = limit
+            # WHY: the server's GET /graph reads `max_nodes`; it has no `limit`
+            params["max_nodes"] = limit
         return self._get("/api/v1/graph", params=params, response_type=GraphResponse)
 
     def stream(
@@ -355,7 +356,8 @@ class AsyncGraphResource(AsyncResource):
         if label:
             params["label"] = label
         if limit:
-            params["limit"] = limit
+            # WHY: the server's GET /graph reads `max_nodes`; it has no `limit`
+            params["max_nodes"] = limit
         return await self._get(
             "/api/v1/graph", params=params, response_type=GraphResponse
         )
