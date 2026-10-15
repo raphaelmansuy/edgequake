@@ -371,6 +371,15 @@ module EdgeQuake
       assert_equal "B", mock.last_call[:body][:tgt_id]
     end
 
+    def test_create_sends_required_source_id
+      mock = MockHttpHelper.new('{"status":"success"}')
+      svc = RelationshipService.new(mock)
+      svc.create(src_id: "A", tgt_id: "B", keywords: "knows", description: "A knows B")
+      assert_equal "manual_entry", mock.last_call[:body][:source_id]
+      svc.create(src_id: "A", tgt_id: "B", keywords: "k", description: "d", source_id: "doc-1")
+      assert_equal "doc-1", mock.last_call[:body][:source_id]
+    end
+
     def test_get
       mock = MockHttpHelper.new('{"relationship":{"id":"r1"}}')
       svc = RelationshipService.new(mock)
