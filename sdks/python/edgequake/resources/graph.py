@@ -247,7 +247,9 @@ class EntitiesResource(SyncResource):
         """
         return self._post(
             "/api/v1/graph/entities/merge",
-            json=MergeEntitiesRequest(source=source, target=target).model_dump(),
+            json=MergeEntitiesRequest(source=source, target=target).model_dump(
+                exclude_none=True, by_alias=True
+            ),
             response_type=MergeEntitiesResponse,
         )
 
@@ -484,7 +486,9 @@ class AsyncEntitiesResource(AsyncResource):
     async def merge(self, source: str, target: str) -> MergeEntitiesResponse:
         return await self._post(
             "/api/v1/graph/entities/merge",
-            json={"source": source, "target": target},
+            json=MergeEntitiesRequest(source=source, target=target).model_dump(
+                exclude_none=True, by_alias=True
+            ),
             response_type=MergeEntitiesResponse,
         )
 
