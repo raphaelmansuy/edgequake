@@ -17,6 +17,7 @@ import Sigma from "sigma";
 import { EdgeArrowProgram } from "sigma/rendering";
 import { animateNodes } from "sigma/utils";
 import { applyDelta, diffToDelta, type ApplyDeltaContext } from "./apply-delta";
+import { sigmaContainerBox } from "./container-box";
 import { clampEgoDepth, collectHopDistances, hopFade } from "./ego";
 import { bindInteractions, type InteractionHandle } from "./interactions";
 import { LayoutScheduler, markAllPlaced } from "./layout-scheduler";
@@ -647,16 +648,20 @@ export class GraphEngine {
         stagePadding: 50,
         zIndex: true,
         minEdgeThickness: 1.5,
+        // The companion pane can mount before layout. Sigma would throw
+        // "Container has no width" from resize(); a later observation
+        // applies the real box.
+        allowInvalidContainer: true,
         nodeReducer,
         edgeReducer,
       });
       this.sigma = sigma;
       this.resizeObserver?.disconnect();
       this.resizeObserver = new ResizeObserver(() => {
-        sigma.resize();
-        sigma.refresh();
+        this.resizeToContainer(sigma);
       });
       this.resizeObserver.observe(this.container);
+      this.resizeToContainer(sigma);
       this.bindInteractions(sigma);
       this.focusEdgeOverlay = bindFocusEdgeOverlay(sigma, {
         getColor: () => this.theme.focus,
@@ -689,6 +694,18 @@ export class GraphEngine {
       console.warn("[GraphEngine] Sigma init failed:", error);
       this.sigma = null;
       this.options.onWebglError?.(err);
+    }
+  }
+
+  /** Apply the laid-out box. A 0×0 pane is skipped so resize cannot throw. */
+  private resizeToContainer(sigma: Sigma): void {
+    if (this.destroyed || this.sigma !== sigma) return;
+    if (!sigmaContainerBox(this.container)) return;
+    try {
+      sigma.resize();
+      sigma.refresh();
+    } catch (error) {
+      console.warn("[GraphEngine] resize skipped:", error);
     }
   }
 

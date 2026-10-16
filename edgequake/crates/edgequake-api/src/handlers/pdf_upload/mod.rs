@@ -11,6 +11,7 @@
 
 pub mod byte_range;
 pub mod content;
+mod cursor;
 mod helpers;
 pub mod operations;
 pub mod progress_identity;

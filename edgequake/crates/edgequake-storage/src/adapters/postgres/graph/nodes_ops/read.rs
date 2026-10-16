@@ -77,6 +77,9 @@ impl PostgresAGEGraphStorage {
         if node_ids.is_empty() {
             return Ok(Vec::new());
         }
+        if self.plain_reads_ready().await? {
+            return super::super::plain::read::read::node_degrees_batch(self, node_ids).await;
+        }
 
         let pool = self.pool.get().await?;
         let mut conn = pool.acquire().await.map_err(|e| {
@@ -179,6 +182,9 @@ impl PostgresAGEGraphStorage {
     pub(in crate::adapters::postgres::graph) async fn pg_get_all_nodes(
         &self,
     ) -> Result<Vec<GraphNode>> {
+        if self.plain_reads_ready().await? {
+            return super::super::plain::read::read::get_all_nodes(self).await;
+        }
         let pool = self.pool.get().await?;
         let sql = format!(
             r#"/* DATA-AGE-GRAPH-GET-ALL-NODES */
@@ -253,6 +259,9 @@ impl PostgresAGEGraphStorage {
         if node_ids.is_empty() {
             return Ok(HashMap::new());
         }
+        if self.plain_reads_ready().await? {
+            return super::super::plain::read::read::get_nodes_batch(self, node_ids).await;
+        }
 
         // Use direct SQL with UNNEST for batch parameter binding (LightRAG pattern)
         let sql = crate::dataop::sql_comment(
@@ -307,6 +316,10 @@ impl PostgresAGEGraphStorage {
     ) -> Result<Vec<GraphEdge>> {
         if node_ids.is_empty() {
             return Ok(Vec::new());
+        }
+        if self.plain_reads_ready().await? {
+            return super::super::plain::read::read::edges_for_node_set(self, node_ids, None, None)
+                .await;
         }
 
         // WHY (SPEC-106 / #356): All graphid comparisons must go via ::text —
@@ -375,6 +388,9 @@ impl PostgresAGEGraphStorage {
     ) -> Result<Vec<(GraphNode, usize, usize)>> {
         if node_ids.is_empty() {
             return Ok(Vec::new());
+        }
+        if self.plain_reads_ready().await? {
+            return super::super::plain::read::read::nodes_with_degrees(self, node_ids).await;
         }
 
         // WHY: All graphid comparisons must go via ::text — Apache AGE's graphid type has

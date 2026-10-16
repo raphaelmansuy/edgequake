@@ -224,7 +224,8 @@ export function reduceStreamSession(
           llmModel: event.llmModel ?? state.pendingMessage.llmModel,
           isStreaming: false,
         },
-        optimisticUserMessage: null,
+        // The question stays until the saved thread includes it. Clearing it
+        // here blanks the page when the conversation detail has not loaded.
         thinkingStartMs: null,
         cotStartedAt: null,
       };

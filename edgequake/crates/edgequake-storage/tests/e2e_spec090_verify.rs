@@ -497,6 +497,7 @@ async fn e2e_spec090_verify_pdf_list_explain() {
             processing_status: None,
             page: Some(1),
             page_size: Some(20),
+            ..Default::default()
         })
         .await
         .expect("list");

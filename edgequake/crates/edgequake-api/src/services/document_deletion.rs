@@ -96,6 +96,16 @@ async fn scoped_discovery_has_filter_mismatch(
     Ok(!unscoped_nodes.is_empty() || !unscoped_edges.is_empty())
 }
 
+/// Cascade when the manifest path did not run, and when it left a citation
+/// discovery can still see. A clean projection delete does not scan again.
+fn graph_cascade_required(
+    graph_already_done: bool,
+    projection_owned: bool,
+    residual_citations: bool,
+) -> bool {
+    residual_citations || (!graph_already_done && !projection_owned)
+}
+
 async fn post_proof_source_absent(
     state: &AppState,
     tenant_ctx: &TenantContext,
@@ -721,7 +731,22 @@ pub async fn perform_document_deletion(
     let mut relationships_removed = 0usize;
     let mut relationships_updated = 0usize;
 
-    if !graph_already_done && !projection_owned {
+    // Projection apply owns rows named in the delete manifest. Anything
+    // discovery can still see (a contribution the manifest missed) is removed
+    // by the same exclusive-delete / shared-replace cascade.
+    let mut residual_citations = false;
+    if graph_already_done || projection_owned {
+        if let Err(e) = post_proof_source_absent(state, tenant_ctx, &scope).await {
+            tracing::warn!(
+                document_id = %document_id,
+                error = %e,
+                "discoverable graph citations remain; cascade will remove them"
+            );
+            residual_citations = true;
+        }
+    }
+
+    if graph_cascade_required(graph_already_done, projection_owned, residual_citations) {
         state.tasks.progress_broadcaster.deletion_phase(
             &document_id,
             &deletion_track_id,
@@ -883,20 +908,6 @@ pub async fn perform_document_deletion(
         relationships_updated = cascade_stats.relationships_updated;
         embeddings_deleted += cascade_stats.embeddings_deleted;
         write_deletion_checkpoint(state, &metadata_key, has_metadata, CHECKPOINT_GRAPH_DONE).await;
-    } else {
-        // Resume after graph: still re-prove before vectors/KV.
-        if let Err(e) = post_proof_source_absent(state, tenant_ctx, &scope).await {
-            let reason = e.to_string();
-            reset_deleting_status(
-                state,
-                &document_id,
-                &actual_key_prefix,
-                &reason,
-                Some(deletion_track_id.as_str()),
-            )
-            .await;
-            return Err(e);
-        }
     }
 
     let vectors_already_done = checkpoint.as_deref() == Some(CHECKPOINT_VECTORS_DONE);
@@ -1263,6 +1274,15 @@ pub async fn find_active_deletion_track_id(
 mod tests {
     use super::*;
     use edgequake_storage::kv_keys;
+
+    #[test]
+    fn cascade_runs_for_residuals_and_skips_a_clean_projection_delete() {
+        assert!(graph_cascade_required(false, false, false));
+        assert!(!graph_cascade_required(false, true, false));
+        assert!(graph_cascade_required(false, true, true));
+        assert!(!graph_cascade_required(true, false, false));
+        assert!(graph_cascade_required(true, true, true));
+    }
 
     #[tokio::test]
     async fn purge_list_surfaces_removes_wsdoc_and_metadata_even_when_orphaned() {

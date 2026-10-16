@@ -102,15 +102,24 @@ impl PgProjectionLedger {
             .execute(&mut *tx)
             .await
             .map_err(database_error)?;
-        let rows = sqlx::query_as::<_, ClaimedRow>(CLAIM_SQL)
-            .bind(i64::from(request.limit))
-            .bind(request.owner_token)
-            .bind(lease_ms(request.lease_duration_ms)?)
-            .bind(graph_provider)
-            .bind(vector_provider)
-            .fetch_all(&mut *tx)
-            .await
-            .map_err(database_error)?;
+        let rows = if graph_provider.is_some() || vector_provider.is_some() {
+            sqlx::query_as::<_, ClaimedRow>(CLAIM_SQL)
+                .bind(i64::from(request.limit))
+                .bind(request.owner_token)
+                .bind(lease_ms(request.lease_duration_ms)?)
+                .bind(graph_provider)
+                .bind(vector_provider)
+                .fetch_all(&mut *tx)
+                .await
+        } else {
+            sqlx::query_as::<_, ClaimedRow>(CLAIM_SQL_OPEN)
+                .bind(i64::from(request.limit))
+                .bind(request.owner_token)
+                .bind(lease_ms(request.lease_duration_ms)?)
+                .fetch_all(&mut *tx)
+                .await
+        }
+        .map_err(database_error)?;
 
         // The short claim transaction is committed before work leaves this
         // method, so callers cannot hold row locks during provider I/O.
@@ -591,20 +600,88 @@ impl ClaimedRow {
     }
 }
 
-const CLAIM_SQL: &str = r#"
+const CLAIM_SQL_OPEN: &str = r#"
 WITH due AS (
     SELECT event_id, binding_id
     FROM public.projection_deliveries
     WHERE state IN ('pending', 'retry') AND next_attempt_at <= now()
-      AND ($4::text IS NULL OR EXISTS (
-          SELECT 1 FROM public.data_bindings b
-          WHERE b.binding_id = projection_deliveries.binding_id
-            AND ((b.role IN ('graph', 'graph_projection') AND b.provider = $4)
-              OR (b.role IN ('vector', 'vector_projection', 'embedding') AND b.provider = $5))
-      ))
     ORDER BY next_attempt_at, event_id, binding_id
     LIMIT $1
     FOR UPDATE SKIP LOCKED
+),
+claimed AS (
+    UPDATE public.projection_deliveries AS d
+    SET state = 'leased',
+        lease_owner = $2,
+        lease_until = now() + ($3 * interval '1 millisecond'),
+        epoch = d.epoch + 1,
+        attempts = d.attempts + 1
+    FROM due
+    WHERE d.event_id = due.event_id AND d.binding_id = due.binding_id
+    RETURNING d.*
+)
+SELECT c.event_id, c.binding_id, c.state, c.next_attempt_at, c.lease_until,
+       c.lease_owner, c.epoch, c.attempts, c.receipt, c.provider_receipt,
+       e.tenant_id, e.workspace_id, e.object_kind, e.object_id,
+       e.object_revision, e.schema_version, e.operation, e.manifest_ref, e.digest,
+       b.role AS binding_role, b.generation AS binding_generation,
+       b.provider AS binding_provider, b.config_ref AS binding_config_ref,
+       b.layout AS binding_layout, b.physical_index AS binding_physical_index,
+       b.model_descriptor AS binding_model_descriptor, b.state AS binding_state,
+       p.expected_digest
+FROM claimed c
+JOIN public.projection_events e ON e.event_id = c.event_id
+JOIN public.data_bindings b ON b.binding_id = c.binding_id
+LEFT JOIN public.projection_event_role_proofs p
+  ON p.event_id = c.event_id
+ AND p.role = CASE
+        WHEN b.role IN ('graph', 'graph_projection') THEN 'graph'
+        ELSE 'vector'
+     END
+ORDER BY c.next_attempt_at, c.event_id, c.binding_id
+"#;
+
+/// `$4 IS NULL OR EXISTS (provider = $4)` hides the provider from a generic
+/// plan, so a scoped claim walks every due delivery. Each provider arm starts
+/// at `idx_projection_deliveries_binding_due` and stops at the page. A claim
+/// with no provider uses [`CLAIM_SQL_OPEN`].
+const CLAIM_SQL: &str = r#"
+WITH due AS (
+    SELECT event_id, binding_id FROM (
+        (SELECT d.event_id, d.binding_id, d.next_attempt_at
+         FROM public.data_bindings b
+         JOIN LATERAL (
+             SELECT d.event_id, d.binding_id, d.next_attempt_at
+             FROM public.projection_deliveries d
+             WHERE d.binding_id = b.binding_id
+               AND d.state IN ('pending', 'retry')
+               AND d.next_attempt_at <= now()
+             ORDER BY d.next_attempt_at, d.event_id, d.binding_id
+             LIMIT $1
+             FOR UPDATE OF d SKIP LOCKED
+         ) d ON true
+         WHERE b.role IN ('graph', 'graph_projection') AND b.provider = $4
+         ORDER BY d.next_attempt_at, d.event_id, d.binding_id
+         LIMIT $1)
+        UNION ALL
+        (SELECT d.event_id, d.binding_id, d.next_attempt_at
+         FROM public.data_bindings b
+         JOIN LATERAL (
+             SELECT d.event_id, d.binding_id, d.next_attempt_at
+             FROM public.projection_deliveries d
+             WHERE d.binding_id = b.binding_id
+               AND d.state IN ('pending', 'retry')
+               AND d.next_attempt_at <= now()
+             ORDER BY d.next_attempt_at, d.event_id, d.binding_id
+             LIMIT $1
+             FOR UPDATE OF d SKIP LOCKED
+         ) d ON true
+         WHERE b.role IN ('vector', 'vector_projection', 'embedding') AND b.provider = $5
+         ORDER BY d.next_attempt_at, d.event_id, d.binding_id
+         LIMIT $1)
+    ) picked
+    ORDER BY next_attempt_at, event_id, binding_id
+    LIMIT $1
 ),
 claimed AS (
     UPDATE public.projection_deliveries AS d
@@ -789,8 +866,10 @@ mod tests {
 
     #[test]
     fn claim_is_bounded_and_skip_locked() {
-        assert!(CLAIM_SQL.contains("FOR UPDATE SKIP LOCKED"));
+        assert!(CLAIM_SQL.contains("FOR UPDATE OF d SKIP LOCKED"));
+        assert!(CLAIM_SQL_OPEN.contains("FOR UPDATE SKIP LOCKED"));
         assert!(CLAIM_SQL.contains("LIMIT $1"));
+        assert!(!CLAIM_SQL.contains("$4::text IS NULL"));
         assert!(CLAIM_SQL.contains("epoch = d.epoch + 1"));
         assert!(RECLAIM_EXPIRED_SQL.contains("epoch = d.epoch + 1"));
     }

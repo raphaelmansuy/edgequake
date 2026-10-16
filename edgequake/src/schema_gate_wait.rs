@@ -173,7 +173,7 @@ async fn evaluate_live(database_url: &str) -> Result<GateDecision, sqlx::Error> 
         .await?;
     let manifest = edgequake_migrate_manifest::load();
     let applied: Vec<i64> =
-        sqlx::query_scalar("SELECT version FROM _sqlx_migrations WHERE success = true")
+        sqlx::query_scalar("SELECT version FROM public._sqlx_migrations WHERE success = true")
             .fetch_all(&pool)
             .await
             .unwrap_or_default();

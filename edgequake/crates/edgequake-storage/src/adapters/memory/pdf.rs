@@ -241,16 +241,27 @@ impl PdfDocumentStorage for MemoryPdfStorage {
             .cloned()
             .collect();
 
-        items.sort_by_key(|p| std::cmp::Reverse(p.created_at));
+        items.sort_by(|a, b| {
+            b.created_at
+                .cmp(&a.created_at)
+                .then_with(|| b.pdf_id.cmp(&a.pdf_id))
+        });
         let total_count = items.len() as i64;
-        let offset = (page - 1) * page_size;
-        items = items.into_iter().skip(offset).take(page_size).collect();
+        if let Some((at, id)) = filter.keyset_cursor() {
+            items.retain(|pdf| pdf.created_at < at || (pdf.created_at == at && pdf.pdf_id < id));
+        } else {
+            let offset = (page - 1) * page_size;
+            items = items.into_iter().skip(offset).collect();
+        }
+        let has_more = items.len() > page_size;
+        items.truncate(page_size);
 
         Ok(PdfList {
             items,
             total_count,
             page,
             page_size,
+            has_more,
         })
     }
 
@@ -507,6 +518,52 @@ mod tests {
         assert!(after.markdown_content.is_none());
         assert!(after.extraction_method.is_none());
         assert!(after.extraction_errors.is_none());
+    }
+
+    #[tokio::test]
+    async fn list_pdfs_keyset_orders_a_created_at_tie() {
+        let storage = MemoryPdfStorage::new();
+        let ws = Uuid::new_v4();
+        let mut second = sample_pdf_request(ws);
+        second.sha256_checksum = calculate_pdf_checksum(b"%PDF-1.4b");
+        second.filename = "b.pdf".into();
+        let left = storage.create_pdf(sample_pdf_request(ws)).await.unwrap();
+        let right = storage.create_pdf(second).await.unwrap();
+        let tied = Utc::now();
+        {
+            let mut pdfs = storage.pdfs.write().unwrap();
+            pdfs.get_mut(&left).unwrap().created_at = tied;
+            pdfs.get_mut(&right).unwrap().created_at = tied;
+        }
+        let (first_id, second_id) = if left > right {
+            (left, right)
+        } else {
+            (right, left)
+        };
+        let page = storage
+            .list_pdfs(ListPdfFilter {
+                workspace_id: Some(ws),
+                page: Some(1),
+                page_size: Some(1),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(page.items[0].pdf_id, first_id);
+        assert!(page.has_more);
+        let next = storage
+            .list_pdfs(ListPdfFilter {
+                workspace_id: Some(ws),
+                page_size: Some(1),
+                after_created_at: Some(tied),
+                after_pdf_id: Some(first_id),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(next.items[0].pdf_id, second_id);
+        assert!(!next.has_more);
+        assert_eq!(next.total_count, 2);
     }
 
     #[tokio::test]

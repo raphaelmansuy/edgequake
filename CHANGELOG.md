@@ -4,6 +4,165 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.35.5] — 2026-10-16
+
+Patch: the published Postgres images no longer ship Apache AGE. On a server that cannot install the extension, `edgequake migrate` records migration 171 with the safe schema, so `/health` is not left with `pending_count` 1. Schema stays **207**. Upgrade from 0.35.4:
+[`docs/operations/upgrade-to-0.35.5.md`](docs/operations/upgrade-to-0.35.5.md).
+
+**CD:** GHCR `edgequake`, `edgequake-frontend`, `edgequake-postgres` (`0.35.5`, `-pg16`, `-pg17`, `-pg18`), and `edgequake-keycloak` on tag `v0.35.5`.
+
+**SPEC-001 Acc:** scored on this cut, medical-mid n=200, Mistral pins, archive
+[`medical-mid-20261016T162456Z`](specs/001-benchmark/e2e/artifacts/history/medical-mid-20261016T162456Z/)
+(`valid: true`). EdgeQuake **0.8054**, LightRAG **0.7920**, delta **+0.0135**
+(95% bootstrap CI [+0.0056, +0.1506], n_paired 40). The harness marks this as
+not a publishable beat because L2 is incomplete. EdgeQuake does not claim a win.
+Evidence recall is 0.921 versus 0.956, and context relevancy is 0.437 versus
+0.508. The answer prompt is unchanged from v0.35.4.
+
+### Changed
+
+- **Postgres images:** pg16, pg17, and pg18 product images keep pgvector 0.8.5, `pg_trgm`, `btree_gin`, and `uuid-ossp`, and do not compile Apache AGE. A data directory that already loaded AGE cannot open on these images. Drop AGE with `edgequake migrate --drop-age` on the v0.35.4 image before moving that volume. v0.35.4 remains the image for jobs that still `CREATE EXTENSION age`.
+- **Migration 171 on a server without the AGE package:** non-interactive `edgequake migrate` records 171 when `age` is absent from `pg_available_extensions`. The cutover ledger stays `ready` / `age_absent`. When the package is installed, 171 still waits for `--drop-age` or `EDGEQUAKE_MIGRATE_DROP_AGE=yes`.
+
+## [0.35.4] — 2026-10-16
+
+Patch: document delete removes plain-graph edge provenance (#493), and `edgequake migrate` finishes the plain-graph cutover when the role `statement_timeout` is short (#494). Schema stays **207**. Upgrade from 0.35.3 is a no-op:
+[`docs/operations/upgrade-to-0.35.4.md`](docs/operations/upgrade-to-0.35.4.md).
+
+**CD:** GHCR `edgequake`, `edgequake-frontend`, `edgequake-postgres`, and
+`edgequake-keycloak` on tag `v0.35.4`.
+
+**SPEC-001 Acc:** scored on this cut, medical-mid n=200, Mistral pins, archive
+[`medical-mid-20261016T111544Z`](specs/001-benchmark/e2e/artifacts/history/medical-mid-20261016T111544Z/)
+(`valid: true`). EdgeQuake **0.7877**, LightRAG **0.7990**, delta **-0.0113**
+(95% bootstrap CI [-0.0361, +0.0806], n_paired 53). The interval includes 0,
+so this is a statistical tie. EdgeQuake does not claim a win. Evidence recall is
+0.891 versus 0.931, and context relevancy is 0.398 versus 0.495. The gold
+prompt now keeps every supporting clause, so the v0.35.3 score does not cover
+this binary.
+
+### Fixed
+
+- **Plain-graph edge provenance on document delete (#493):** when `eq_graph_cutover.status` is `ready`, an exclusive edge delete writes `eq_graph_edges`. A sister relationship on the same endpoints stays. A scoped delete stays inside the tenant fence. Discovery also matches singular `source_document_id` and `source_chunk_id`. If a projection-owned delete still leaves a discoverable citation, the existing cascade removes it.
+- **Cutover under a role statement timeout (#494):** `edgequake migrate` keeps the plain-graph copy off a role or database `statement_timeout`, so a 10s timeout does not leave `eq_graph_cutover.status` at `backfilling`. A cap that does fire rolls that copy back.
+
+### Changed
+
+- **Gold answers:** the answer states every supporting clause from the context. It does not stop after the first fact.
+
+## [0.35.3] — 2026-10-16
+
+Patch: query retrieval puts the source pages of entities named in the question at the front of the prompt. Schema stays **207**. Upgrade from 0.35.2 is a no-op:
+[`docs/operations/upgrade-to-0.35.3.md`](docs/operations/upgrade-to-0.35.3.md).
+
+**CD:** GHCR `edgequake`, `edgequake-frontend`, `edgequake-postgres`, and
+`edgequake-keycloak` on tag `v0.35.3`. Demo install follows the Release Docker
+workflow through [deploy-gcp-edgequake.yml](.github/workflows/deploy-gcp-edgequake.yml).
+
+**SPEC-001 Acc:** scored on this query path, medical-mid n=200, Mistral pins,
+archive [`medical-mid-20261016T002647Z`](specs/001-benchmark/e2e/artifacts/history/medical-mid-20261016T002647Z/)
+(`valid: true`, `n_paired` 200). EdgeQuake **0.7910**, LightRAG **0.7870**,
+delta **+0.0040** (95% bootstrap CI [-0.0238, +0.0306]). The interval includes 0,
+so this is a statistical tie. EdgeQuake does not claim a win. Evidence recall is
+0.893 versus 0.948, and context relevancy is 0.391 versus 0.490. The promote
+checklist stays blocked. A later filter that required the entity name to appear
+inside the source page scored EdgeQuake 0.7690 versus LightRAG 0.7847 and was
+removed before this tag.
+
+### Changed
+
+- **Named-entity pages lead the prompt:** when the question spells a stored entity, or uses that entity's stored parenthetical abbreviation, the query expands that entity's edges and prepends its source pages. Abbreviation pages stay first. Among the remaining named-entity pages, the best lexical matches to the question lead.
+- **Keyword label lookup:** a keyword is also probed as the stored node id, with spaces written as underscores, so the graph label search can hit the entity the question named.
+
+## [0.35.2] — 2026-10-15
+
+Patch: an ingest fix that restores entity and relationship vectors, plus the user-journey fixes that were not in tag `v0.35.1`. Schema stays **207**.
+Upgrade from 0.35.1 is a no-op:
+[`docs/operations/upgrade-to-0.35.2.md`](docs/operations/upgrade-to-0.35.2.md).
+
+**CD:** GHCR `edgequake`, `edgequake-frontend`, `edgequake-postgres`, and
+`edgequake-keycloak` on tag `v0.35.2`.
+
+**SPEC-001 Acc:** scored on this cut, medical-mid n=200, Mistral pins, scorecard
+[`publish/latest`](specs/001-benchmark/e2e/artifacts/publish/latest/) (`valid: true`).
+EdgeQuake **0.7525**, LightRAG **0.7810**, delta **-0.0285** (95% bootstrap CI
+[-0.078, -0.001]). LightRAG is ahead on this run; EdgeQuake does not claim a win.
+The gap is in Fact Retrieval (0.653 vs 0.740); Complex Reasoning, Contextual
+Summarize, and Creative Generation are within 0.015. This is one run; the
+August 2026 runs (before the durable commit path) had EdgeQuake at 0.768 to 0.794.
+
+### Fixed
+
+- **Entity and relationship vectors on the default ingest path:** the durable commit path wrote chunks, graph facts, and chunk embeddings, then returned before the merge step. Entity and relationship embeddings were computed and dropped, so `entities`, `relationships`, `entity_embeddings`, and `relationship_embeddings` stayed empty for every document ingested that way, and the Local and Global vector arms had nothing to search. The commit path now writes the relational spine and the fleet vectors after the commit. On the n=200 corpus the index went from 0 to 4,272 entity vectors and 4,683 relationship vectors, matching the graph.
+- **Ready cutover ignores `EDGEQUAKE_GRAPH_READ=age` (#477):** once `eq_graph_cutover.status` is `ready`, the variable does not create Apache AGE label tables and does not route graph reads or writes to AGE. `eq_graph_nodes` and `eq_graph_edges` stay the only graph IO. Before the ledger is `ready`, the in-progress upgrade path is unchanged.
+- **Document lineage GET:** the page reads the lineage row that finalize wrote, instead of an empty store.
+- **Knowledge injection list:** an injection row keeps the workspace tenant, and the workspace list reads that row.
+- **Query thread:** the question stays on screen until the saved answer is present.
+
+### Confirmed
+
+- **#479** split-origin credentialed CORS, **#478** lineage on a 160k-node AGE graph, **#477** AGE cutover, and **#399** workspaces past the first page of 20. Re-proved on this tag. No new schema.
+
+## [0.35.1] — 2026-10-14
+
+Patch: ship the v0.35 fixes that were not in tag `v0.35.0` (schema **206**).
+Schema moves **206 → 207**. Upgrade:
+[`docs/operations/upgrade-to-0.35.1.md`](docs/operations/upgrade-to-0.35.1.md).
+
+**CD:** GHCR `edgequake`, `edgequake-frontend`, `edgequake-postgres`, and
+`edgequake-keycloak` on tag `v0.35.1`.
+
+**SPEC-001 Acc:** attested from existing
+[`publish/latest`](specs/001-benchmark/e2e/artifacts/publish/latest/)
+(`valid: true`, medical-mid, `2026-08-15T11:02:18Z`) — no fresh n=200 run.
+`MISTRAL_API_KEY` in the cut environment is rejected with HTTP 401, so retrieval
+was **not** re-scored. This cut changes post-migrate graph reads, lineage SQL,
+and credentialed CORS.
+
+### Fixed
+
+- **Plain graph after migrate (#477, #484):** once `eq_graph_cutover` is `ready`, reads and writes use `eq_graph_nodes` / `eq_graph_edges` only. `EDGEQUAKE_GRAPH_READ=age` does not reopen AGE label tables after that ledger row is `ready`.
+- **Document lineage on large AGE graphs (#478):** `GET /api/v1/lineage/documents/{id}` no longer scans every node in the tenant. Migration 207 looks up source prefixes as the bypass owner and applies the session tenant inside the indexed plan.
+- **Split-origin credentialed CORS (#479):** open CORS echoes the request `Origin` and sends `Access-Control-Allow-Credentials: true`. It never sends `*`.
+
+## [0.35.0] — 2026-10-12
+
+Minor: plain PostgreSQL graph for GraphRAG (SPEC-164). Apache AGE is optional.
+Schema moves **169 → 206**. Upgrade:
+[`docs/operations/upgrade-to-0.35.0.md`](docs/operations/upgrade-to-0.35.0.md).
+Study and install:
+[`specs/164-pure-postgres-study/README.md`](specs/164-pure-postgres-study/README.md).
+
+**CD:** GHCR `edgequake`, `edgequake-frontend`, `edgequake-postgres`, and
+`edgequake-keycloak` on tag `v0.35.0`.
+
+**SPEC-001 Acc:** attested from existing
+[`publish/latest`](specs/001-benchmark/e2e/artifacts/publish/latest/)
+(`valid: true`, medical-mid, `2026-08-15T11:02:18Z`) — no fresh n=200 run.
+Retrieval was **not** re-scored. This cut changes graph SQL and request-path
+indexes under row security.
+
+### Added
+
+- **SPEC-164 plain graph:** Migrations **170–206**. `eq_graph_nodes` /
+  `eq_graph_edges` are the product adjacency tables. Fresh install works on
+  Postgres with pgvector and without the Apache AGE package (RDS / Cloud SQL
+  class). Measured proof:
+  [`reports/WHY-AGE-IS-OPTIONAL.md`](specs/164-pure-postgres-study/reports/WHY-AGE-IS-OPTIONAL.md).
+- **AGE as a migrate question:** Migration **171** drops AGE only when migrate
+  is answered yes (`--drop-age`). Default is keep. `--confirm-drop` does not
+  answer that question.
+- **RLS-safe query indexes (203–206):** Stored `legacy_chunk_key`, `modality`,
+  and `current_stage`; owner-side label and node search so the tenant role
+  uses index conditions.
+
+### Fixed
+
+- Query companion graph pane no longer throws when Sigma measures a zero-width
+  container (`allowInvalidContainer` + deferred resize).
+- Health reports `graph_available` when the plain cutover ledger is ready, even
+  if AGE is absent.
+
 ## [0.34.0] — 2026-10-11
 
 Minor: a plain-English picture tour of every web screen, taken on the public

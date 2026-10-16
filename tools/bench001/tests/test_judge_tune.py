@@ -46,3 +46,12 @@ def test_concise_still_available(monkeypatch):
 
 def test_paper_embed_constant():
     assert PAPER_JUDGE_EMBEDDING_MODEL == "BAAI/bge-large-en-v1.5"
+
+
+def test_gold_prompt_keeps_every_supporting_context_fact():
+    text = GOLD_SYSTEM_PROMPT
+    assert "ONE short sentence" not in text
+    assert "that fact only" not in text
+    assert "every context fact that answers the question" in text
+    assert "Do not stop after the first supporting fact" in text
+    assert "plain answer text only" in text

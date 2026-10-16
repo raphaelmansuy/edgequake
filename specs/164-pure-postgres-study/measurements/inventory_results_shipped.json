@@ -1,0 +1,159 @@
+{
+  "spec": "164-inventory-shipped",
+  "scale": "m_inv (200k/500k)",
+  "age_close": "EDGE.eq_source_id / eq_target_id",
+  "shadow_mismatches": 0,
+  "legacy_parent_close_ms": 345.609,
+  "medians": [
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-A",
+      "op_id": "OP-164-09",
+      "median_ms": 1.831,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-B",
+      "op_id": "OP-164-09",
+      "median_ms": 1.74,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-A",
+      "op_id": "OP-164-09-legacy",
+      "median_ms": 345.609,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-A",
+      "op_id": "OP-164-10",
+      "median_ms": 1.694,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-B",
+      "op_id": "OP-164-10",
+      "median_ms": 2.122,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-A",
+      "op_id": "OP-164-11",
+      "median_ms": 1609.65,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-B",
+      "op_id": "OP-164-11",
+      "median_ms": 1605.777,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-A",
+      "op_id": "OP-164-12",
+      "median_ms": 2.85,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-B",
+      "op_id": "OP-164-12",
+      "median_ms": 1.281,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-A",
+      "op_id": "OP-164-13",
+      "median_ms": 300.672,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-B",
+      "op_id": "OP-164-13",
+      "median_ms": 1.361,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-A",
+      "op_id": "OP-164-14",
+      "median_ms": 1.231,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-B",
+      "op_id": "OP-164-14",
+      "median_ms": 1.26,
+      "n": 5
+    }
+  ],
+  "ratios_b_over_a": [
+    {
+      "op_id": "OP-164-09",
+      "arm_a_ms": 1.831,
+      "arm_b_ms": 1.74,
+      "ratio_b_over_a": 0.95,
+      "within_2x": true
+    },
+    {
+      "op_id": "OP-164-10",
+      "arm_a_ms": 1.694,
+      "arm_b_ms": 2.122,
+      "ratio_b_over_a": 1.253,
+      "within_2x": true
+    },
+    {
+      "op_id": "OP-164-11",
+      "arm_a_ms": 1609.65,
+      "arm_b_ms": 1605.777,
+      "ratio_b_over_a": 0.998,
+      "within_2x": true
+    },
+    {
+      "op_id": "OP-164-12",
+      "arm_a_ms": 2.85,
+      "arm_b_ms": 1.281,
+      "ratio_b_over_a": 0.449,
+      "within_2x": true
+    },
+    {
+      "op_id": "OP-164-13",
+      "arm_a_ms": 300.672,
+      "arm_b_ms": 1.361,
+      "ratio_b_over_a": 0.005,
+      "within_2x": true
+    },
+    {
+      "op_id": "OP-164-14",
+      "arm_a_ms": 1.231,
+      "arm_b_ms": 1.26,
+      "ratio_b_over_a": 1.024,
+      "within_2x": true
+    }
+  ],
+  "hypotheses": {
+    "H-164-06": {
+      "pass": true,
+      "detail": "OP-164-09..14 B<=2x A at M, shipped eq_* close"
+    },
+    "H-164-07": {
+      "pass": true,
+      "detail": "plain close faster than the parent _ag_label_edge query"
+    },
+    "H-164-08": {
+      "pass": true,
+      "detail": "lineage GIN plain within 2x AGE"
+    }
+  },
+  "decision_amendment": "strengthen_migrate_feasible"
+}

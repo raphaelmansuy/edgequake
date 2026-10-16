@@ -1,0 +1,12 @@
+{
+  "created_at_utc": "2026-10-16T00:26:47Z",
+  "profile_id": "ACC_E2OCC_086_v1_lrlike_arms_v2",
+  "valid": true,
+  "verdict": "STATISTICAL TIE on answer quality",
+  "git_sha": "60c0974e1",
+  "archive": "specs/001-benchmark/e2e/artifacts/history/medical-mid-20261016T002647Z",
+  "task_name": "GraphRAG-Bench/EQ-vs-LR",
+  "can_claim_beats_lightrag": false,
+  "n_questions": 200,
+  "fixture_id": "medical_publish_question_ids_v1"
+}

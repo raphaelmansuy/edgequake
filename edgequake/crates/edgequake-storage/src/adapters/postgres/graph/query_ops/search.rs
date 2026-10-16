@@ -153,6 +153,15 @@ impl PostgresAGEGraphStorage {
         tenant_id: Option<&str>,
         workspace_id: Option<&str>,
     ) -> Result<Vec<String>> {
+        if self.plain_reads_ready().await? {
+            return super::super::plain::search::search::popular_labels(
+                self,
+                limit,
+                tenant_id,
+                workspace_id,
+            )
+            .await;
+        }
         let pool = self.pool.get().await?;
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
@@ -220,6 +229,16 @@ impl PostgresAGEGraphStorage {
         tenant_id: Option<&str>,
         workspace_id: Option<&str>,
     ) -> Result<Vec<String>> {
+        if self.plain_reads_ready().await? {
+            return super::super::plain::search::search::search_labels(
+                self,
+                query,
+                limit,
+                tenant_id,
+                workspace_id,
+            )
+            .await;
+        }
         let pool = self.pool.get().await?;
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
@@ -374,6 +393,17 @@ impl PostgresAGEGraphStorage {
         tenant_id: Option<&str>,
         workspace_id: Option<&str>,
     ) -> Result<Vec<(GraphNode, usize)>> {
+        if self.plain_reads_ready().await? {
+            return super::super::plain::search::search::search_nodes(
+                self,
+                query,
+                limit,
+                entity_type,
+                tenant_id,
+                workspace_id,
+            )
+            .await;
+        }
         let pool = self.pool.get().await?;
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
@@ -460,6 +490,17 @@ impl PostgresAGEGraphStorage {
         tenant_id: Option<&str>,
         workspace_id: Option<&str>,
     ) -> Result<Vec<(GraphNode, usize)>> {
+        if self.plain_reads_ready().await? {
+            return super::super::plain::search::search::popular_nodes(
+                self,
+                limit,
+                min_degree,
+                entity_type,
+                tenant_id,
+                workspace_id,
+            )
+            .await;
+        }
         let pool = self.pool.get().await?;
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))

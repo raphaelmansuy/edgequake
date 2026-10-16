@@ -448,6 +448,10 @@ pub struct ListPdfsQuery {
     /// Page size.
     #[serde(default = "default_page_size")]
     pub page_size: usize,
+
+    /// Keyset from a previous `next_cursor`. When set, `page` is not an offset.
+    #[serde(default)]
+    pub cursor: Option<String>,
 }
 
 fn default_page() -> usize {
@@ -507,4 +511,8 @@ pub struct PdfPaginationInfo {
 
     /// Total pages.
     pub total_pages: usize,
+
+    /// Pass this as `cursor` to read the next page without walking skipped rows.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
 }

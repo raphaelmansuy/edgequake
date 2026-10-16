@@ -659,14 +659,27 @@ impl WorkspaceServiceImpl {
             storage_bytes: i64,
         }
 
+        // One pass over documents. Three separate aggregates each scanned the
+        // workspace (46.525 ms and 6447 buffers with 40,000 foreign rows
+        // removed three times). The same three numbers from one aggregate
+        // are 17.502 ms and 2149 buffers. A small workspace already stops on
+        // idx_documents_workspace_created (0.101 ms for 50 rows).
         let stats: StatsRow = sqlx::query_as(
             r#"
             SELECT
-                (SELECT COUNT(*) FROM public.documents WHERE workspace_id = $1) AS document_count,
-                (SELECT COALESCE(SUM(chunk_count), 0)::BIGINT FROM public.documents WHERE workspace_id = $1) AS chunk_count,
+                doc.document_count,
+                doc.chunk_count,
                 (SELECT COUNT(*) FROM entities WHERE workspace_id = $1) AS entity_count,
                 (SELECT COUNT(*) FROM relationships WHERE workspace_id = $1) AS relationship_count,
-                (SELECT COALESCE(SUM(file_size_bytes), 0)::BIGINT FROM public.documents WHERE workspace_id = $1) AS storage_bytes
+                doc.storage_bytes
+            FROM (
+                SELECT
+                    COUNT(*)::bigint AS document_count,
+                    COALESCE(SUM(chunk_count), 0)::bigint AS chunk_count,
+                    COALESCE(SUM(file_size_bytes), 0)::bigint AS storage_bytes
+                FROM public.documents
+                WHERE workspace_id = $1
+            ) doc
             "#,
         )
         .bind(workspace_id)
@@ -676,12 +689,15 @@ impl WorkspaceServiceImpl {
 
         // The migration gate guarantees typed embedding homes before serve.
         // Database failures must not be reported as a valid zero count.
+        // chunk_embeddings.workspace_id is the workspace key used by ANN search
+        // and workspace delete. idx_chunk_embeddings_workspace answers the count.
+        // Joining chunks scanned that table as well: 2.453 ms and 283 buffers
+        // for 50 embeddings beside 20,000 others, versus 0.027 ms and 4 buffers.
         let embedding_count = sqlx::query_scalar::<_, i64>(
             r#"
             SELECT COUNT(*)::BIGINT
-            FROM public.chunk_embeddings ce
-            INNER JOIN public.chunks c ON c.id = ce.chunk_id
-            WHERE c.workspace_id = $1
+            FROM public.chunk_embeddings
+            WHERE workspace_id = $1
             "#,
         )
         .bind(workspace_id)
@@ -698,5 +714,50 @@ impl WorkspaceServiceImpl {
             embedding_count: embedding_count as usize,
             storage_bytes: stats.storage_bytes as usize,
         })
+    }
+}
+
+#[cfg(all(test, feature = "postgres"))]
+mod workspace_stats_sql {
+    #[test]
+    fn document_totals_scan_the_workspace_once() {
+        let src = include_str!("workspace_ops.rs");
+        let start = src
+            .find("async fn pg_get_workspace_stats")
+            .expect("stats fn");
+        let body = &src[start..];
+        let end = body
+            .find("Failed to get workspace embedding count")
+            .expect("embedding count follows the document aggregate");
+        let body = &body[..end];
+        assert_eq!(
+            body.matches("FROM public.documents").count(),
+            1,
+            "document count and both sums must share one scan"
+        );
+        assert!(body.contains("SUM(chunk_count)"));
+        assert!(body.contains("SUM(file_size_bytes)"));
+    }
+
+    #[test]
+    fn embedding_count_reads_chunk_embeddings_by_workspace() {
+        let src = include_str!("workspace_ops.rs");
+        let start = src
+            .find("async fn pg_get_workspace_stats")
+            .expect("stats fn");
+        let body = &src[start..];
+        let embed = body
+            .find("SELECT COUNT(*)::BIGINT")
+            .expect("embedding count");
+        let end = body
+            .find("Failed to get workspace embedding count")
+            .expect("embedding error");
+        let sql = &body[embed..end];
+        assert!(sql.contains("FROM public.chunk_embeddings"));
+        assert!(sql.contains("WHERE workspace_id = $1"));
+        assert!(
+            !sql.contains("JOIN") && !sql.contains("public.chunks"),
+            "embedding count must use chunk_embeddings.workspace_id"
+        );
     }
 }

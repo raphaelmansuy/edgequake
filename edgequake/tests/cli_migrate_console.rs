@@ -650,6 +650,89 @@ async fn cli_migrate_applies_expandables_before_fleet_drop_without_confirm() {
     drop_db(&db, &name).await;
 }
 
+/// SPEC-150: with only the Apache AGE drop left, a second migrate still takes
+/// the run lock. A busy lock exits 75 instead of the soft-exit 0.
+#[tokio::test]
+async fn cli_migrate_age_pending_lock_busy_exits_75() {
+    let Some(db) = dev_db_url() else {
+        eprintln!("SKIP: DATABASE_URL not set");
+        return;
+    };
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let name = format!("eq_mig_lock_{nanos}");
+    let Some(fresh) = create_fresh_db(&db, &name).await else {
+        eprintln!("SKIP: cannot create database");
+        return;
+    };
+
+    let pool = sqlx::PgPool::connect(&fresh).await.expect("connect");
+    let pending = edgequake_api::state::migration_bootstrap::list_pending_migrations(&pool)
+        .await
+        .expect("list pending");
+    sqlx::query(
+        "CREATE TABLE public._sqlx_migrations (
+            version BIGINT PRIMARY KEY,
+            description TEXT NOT NULL,
+            installed_on TIMESTAMPTZ NOT NULL DEFAULT now(),
+            success BOOLEAN NOT NULL,
+            checksum BYTEA NOT NULL,
+            execution_time BIGINT NOT NULL
+        )",
+    )
+    .execute(&pool)
+    .await
+    .expect("ledger");
+    for (version, description) in &pending {
+        if *version == 171 {
+            continue;
+        }
+        sqlx::query(
+            "INSERT INTO public._sqlx_migrations
+             (version, description, success, checksum, execution_time)
+             VALUES ($1, $2, true, $3, 0)",
+        )
+        .bind(version)
+        .bind(description)
+        .bind(Vec::<u8>::new())
+        .execute(&pool)
+        .await
+        .expect("insert ledger");
+    }
+
+    let mut holder = pool.acquire().await.expect("holder");
+    sqlx::query("SELECT pg_advisory_lock(hashtext('edgequake.migrate.run'))")
+        .execute(&mut *holder)
+        .await
+        .expect("lock");
+
+    let out = run_cli(
+        &[],
+        &fresh,
+        &[
+            ("EDGEQUAKE_MIGRATE_LOCK_DEADLINE", "2"),
+            ("EDGEQUAKE_MIGRATE_DROP_AGE", ""),
+        ],
+    );
+    drop(holder);
+    pool.close().await;
+
+    let combined = format!("{}{}", out.stdout, out.stderr);
+    assert_eq!(
+        out.status.code(),
+        Some(75),
+        "busy migrate lock must exit 75: {combined}"
+    );
+    assert!(
+        combined.contains("MIGRATE_LOCK_BUSY"),
+        "must name the busy lock: {combined}"
+    );
+
+    drop_db(&db, &name).await;
+}
+
 // ---------------------------------------------------------------------------
 // SPEC-137 — 0.25→0.26 mid-cutover honesty (consent alias, abort class, 149).
 // ---------------------------------------------------------------------------

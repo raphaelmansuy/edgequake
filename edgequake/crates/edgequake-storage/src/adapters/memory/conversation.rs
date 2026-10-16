@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 use uuid::Uuid;
 
+use crate::conversation_storage::ListWindow;
 use crate::conversation_types::{ConversationRow, FolderRow, MessageRow};
 use crate::error::{Result, StorageError};
 
@@ -147,7 +148,7 @@ impl MemoryConversationStorage {
         sort_field: &str,
         sort_desc: bool,
         limit: i64,
-        offset: i64,
+        window: ListWindow,
     ) -> Result<(Vec<ConversationRow>, i64)> {
         let conversations = self.conversations.read().map_err(map_lock_err)?;
         let search_lower = search.map(|s| s.to_lowercase());
@@ -167,16 +168,51 @@ impl MemoryConversationStorage {
             .cloned()
             .collect();
 
-        match sort_field {
-            "title" => rows.sort_by(|a, b| a.title.cmp(&b.title)),
-            "updated_at" => rows.sort_by_key(|a| a.updated_at),
-            _ => rows.sort_by_key(|a| a.created_at),
-        }
-        if sort_desc {
-            rows.reverse();
+        let total = rows.len() as i64;
+        rows.sort_by(|a, b| {
+            let primary = match sort_field {
+                "title" => a.title.cmp(&b.title),
+                "updated_at" => a.updated_at.cmp(&b.updated_at),
+                _ => a.created_at.cmp(&b.created_at),
+            };
+            let tied = primary.then(a.conversation_id.cmp(&b.conversation_id));
+            if sort_desc {
+                tied.reverse()
+            } else {
+                tied
+            }
+        });
+        match &window {
+            ListWindow::AfterTime { at, id } if sort_field != "title" => {
+                rows.retain(|row| {
+                    let row_at = if sort_field == "updated_at" {
+                        row.updated_at
+                    } else {
+                        row.created_at
+                    };
+                    if sort_desc {
+                        (row_at, row.conversation_id) < (*at, *id)
+                    } else {
+                        (row_at, row.conversation_id) > (*at, *id)
+                    }
+                });
+            }
+            ListWindow::AfterTitle { title, id } if sort_field == "title" => {
+                rows.retain(|row| {
+                    if sort_desc {
+                        (&row.title, row.conversation_id) < (title, *id)
+                    } else {
+                        (&row.title, row.conversation_id) > (title, *id)
+                    }
+                });
+            }
+            _ => {}
         }
 
-        let total = rows.len() as i64;
+        let offset = match &window {
+            ListWindow::Offset(offset) => *offset,
+            ListWindow::AfterTime { .. } | ListWindow::AfterTitle { .. } => 0,
+        };
         let items = rows
             .into_iter()
             .skip(offset.max(0) as usize)
@@ -361,7 +397,7 @@ impl MemoryConversationStorage {
         &self,
         conversation_id: Uuid,
         limit: i64,
-        offset: i64,
+        window: ListWindow,
     ) -> Result<(Vec<MessageRow>, i64)> {
         let messages = self.messages.read().map_err(map_lock_err)?;
         let mut rows: Vec<MessageRow> = messages
@@ -369,14 +405,41 @@ impl MemoryConversationStorage {
             .filter(|m| m.conversation_id == conversation_id)
             .cloned()
             .collect();
-        rows.sort_by_key(|m| m.created_at);
         let total = rows.len() as i64;
+        rows.sort_by(|a, b| {
+            a.created_at
+                .cmp(&b.created_at)
+                .then(a.message_id.cmp(&b.message_id))
+        });
+        if let ListWindow::AfterTime { at, id } = &window {
+            rows.retain(|row| (row.created_at, row.message_id) > (*at, *id));
+        }
+        let offset = match &window {
+            ListWindow::Offset(offset) => *offset,
+            ListWindow::AfterTime { .. } | ListWindow::AfterTitle { .. } => 0,
+        };
         let page = rows
             .into_iter()
             .skip(offset.max(0) as usize)
             .take(limit.max(0) as usize)
             .collect();
         Ok((page, total))
+    }
+
+    pub async fn list_recent_messages(
+        &self,
+        conversation_id: Uuid,
+        limit: i64,
+    ) -> Result<Vec<MessageRow>> {
+        let messages = self.messages.read().map_err(map_lock_err)?;
+        let mut rows: Vec<MessageRow> = messages
+            .values()
+            .filter(|m| m.conversation_id == conversation_id)
+            .cloned()
+            .collect();
+        rows.sort_by_key(|m| m.created_at);
+        let start = rows.len().saturating_sub(limit.max(0) as usize);
+        Ok(rows.split_off(start))
     }
 
     pub async fn get_message_count(&self, conversation_id: Uuid) -> Result<i64> {
@@ -607,11 +670,11 @@ impl ConversationStorage for MemoryConversationStorage {
         sort_field: &str,
         sort_desc: bool,
         limit: i64,
-        offset: i64,
+        window: ListWindow,
     ) -> Result<(Vec<ConversationRow>, i64)> {
         MemoryConversationStorage::list_conversations(
             self, tenant_id, user_id, archived, pinned, folder_id, unfiled, search, sort_field,
-            sort_desc, limit, offset,
+            sort_desc, limit, window,
         )
         .await
     }
@@ -713,9 +776,17 @@ impl ConversationStorage for MemoryConversationStorage {
         &self,
         conversation_id: Uuid,
         limit: i64,
-        offset: i64,
+        window: ListWindow,
     ) -> Result<(Vec<MessageRow>, i64)> {
-        MemoryConversationStorage::list_messages(self, conversation_id, limit, offset).await
+        MemoryConversationStorage::list_messages(self, conversation_id, limit, window).await
+    }
+
+    async fn list_recent_messages(
+        &self,
+        conversation_id: Uuid,
+        limit: i64,
+    ) -> Result<Vec<MessageRow>> {
+        MemoryConversationStorage::list_recent_messages(self, conversation_id, limit).await
     }
 
     async fn create_folder(
@@ -827,7 +898,7 @@ mod tests {
                 "created_at",
                 false,
                 10,
-                0,
+                ListWindow::Offset(0),
             )
             .await
             .unwrap();

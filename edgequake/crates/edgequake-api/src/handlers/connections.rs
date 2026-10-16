@@ -140,17 +140,17 @@ pub async fn list_connections(
     let mut rows = env_connections();
     #[cfg(feature = "postgres")]
     if let Some(pool) = state.pg_pool.as_ref() {
-        let sql = r#"SELECT id, tenant_id, slug, display_name, api_shape, locality, base_url,
-                      auth_scheme, key_fingerprint, api_key_ciphertext IS NOT NULL AS key_configured,
-                      timeout_secs, allow_private_network, last_test_ok, last_test_error
-               FROM provider_connections
-               WHERE ($1::uuid IS NULL OR tenant_id IS NULL OR tenant_id = $1)
-               ORDER BY slug"#;
-        let db_rows = sqlx::query_as::<_, ConnectionRow>(sql)
-            .bind(tenant)
-            .fetch_all(pool)
-            .await
-            .map_err(map_sql)?;
+        let db_rows = if let Some(tenant_id) = tenant {
+            sqlx::query_as::<_, ConnectionRow>(&connection_list_sql(true))
+                .bind(tenant_id)
+                .fetch_all(pool)
+                .await
+        } else {
+            sqlx::query_as::<_, ConnectionRow>(&connection_list_sql(false))
+                .fetch_all(pool)
+                .await
+        }
+        .map_err(map_sql)?;
         for r in db_rows {
             rows.push(r.into_view());
         }
@@ -242,14 +242,21 @@ pub async fn delete_connection(
                 retry_after_secs: 5,
             })?;
         let tenant = scoped_tenant(&tenant_ctx)?;
-        let n = sqlx::query(
-            r#"DELETE FROM provider_connections
-               WHERE id = $1 AND ($2::uuid IS NULL OR tenant_id IS NULL OR tenant_id = $2)"#,
-        )
-        .bind(id)
-        .bind(tenant)
-        .execute(pool)
-        .await
+        let n = if let Some(tenant_id) = tenant {
+            sqlx::query(
+                "DELETE FROM provider_connections \
+                 WHERE id = $1 AND (tenant_id IS NULL OR tenant_id = $2)",
+            )
+            .bind(id)
+            .bind(tenant_id)
+            .execute(pool)
+            .await
+        } else {
+            sqlx::query("DELETE FROM provider_connections WHERE id = $1")
+                .bind(id)
+                .execute(pool)
+                .await
+        }
         .map_err(map_sql)?
         .rows_affected();
         if n == 0 {
@@ -284,16 +291,27 @@ pub async fn test_stored_connection(
                 retry_after_secs: 5,
             })?;
         let tenant = scoped_tenant(&tenant_ctx)?;
-        let row = sqlx::query_as::<_, StoredProbeRow>(
-            r#"SELECT api_shape, base_url, auth_scheme, api_key_ciphertext, api_key_nonce, key_id,
-                          allow_private_network
-                   FROM provider_connections
-                   WHERE id = $1 AND ($2::uuid IS NULL OR tenant_id IS NULL OR tenant_id = $2)"#,
-        )
-        .bind(id)
-        .bind(tenant)
-        .fetch_optional(pool)
-        .await
+        let row = if let Some(tenant_id) = tenant {
+            sqlx::query_as::<_, StoredProbeRow>(
+                "SELECT api_shape, base_url, auth_scheme, api_key_ciphertext, api_key_nonce, key_id, \
+                        allow_private_network \
+                 FROM provider_connections \
+                 WHERE id = $1 AND (tenant_id IS NULL OR tenant_id = $2)",
+            )
+            .bind(id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await
+        } else {
+            sqlx::query_as::<_, StoredProbeRow>(
+                "SELECT api_shape, base_url, auth_scheme, api_key_ciphertext, api_key_nonce, key_id, \
+                        allow_private_network \
+                 FROM provider_connections WHERE id = $1",
+            )
+            .bind(id)
+            .fetch_optional(pool)
+            .await
+        }
         .map_err(map_sql)?
         .ok_or_else(|| ApiError::NotFound("connection not found".into()))?;
 
@@ -395,19 +413,32 @@ async fn upsert(
             })?;
         let timeout = body.timeout_secs.unwrap_or(120);
         let auth_scheme = body.auth_scheme.unwrap_or_else(|| "none".into());
-        let duplicate: bool = sqlx::query_scalar(
-            r#"SELECT EXISTS(
-                   SELECT 1 FROM provider_connections
-                   WHERE slug = $1
-                     AND tenant_id IS NOT DISTINCT FROM $2::uuid
-                     AND ($3::uuid IS NULL OR id <> $3)
-               )"#,
-        )
-        .bind(&body.slug)
-        .bind(tenant_id)
-        .bind(id)
-        .fetch_one(pool)
-        .await
+        let duplicate: bool = if let Some(existing) = id {
+            sqlx::query_scalar(
+                "SELECT EXISTS( \
+                     SELECT 1 FROM provider_connections \
+                     WHERE slug = $1 \
+                       AND tenant_id IS NOT DISTINCT FROM $2::uuid \
+                       AND id <> $3 \
+                 )",
+            )
+            .bind(&body.slug)
+            .bind(tenant_id)
+            .bind(existing)
+            .fetch_one(pool)
+            .await
+        } else {
+            sqlx::query_scalar(
+                "SELECT EXISTS( \
+                     SELECT 1 FROM provider_connections \
+                     WHERE slug = $1 AND tenant_id IS NOT DISTINCT FROM $2::uuid \
+                 )",
+            )
+            .bind(&body.slug)
+            .bind(tenant_id)
+            .fetch_one(pool)
+            .await
+        }
         .map_err(map_sql)?;
         if duplicate {
             return Err(ApiError::Conflict(
@@ -415,39 +446,44 @@ async fn upsert(
             ));
         }
         let row = if let Some(existing) = id {
-            sqlx::query_as::<_, ConnectionRow>(
-                r#"UPDATE provider_connections SET
-                    slug = $2, display_name = $3, api_shape = $4, locality = $5, base_url = $6,
-                    auth_scheme = $7,
-                    api_key_ciphertext = COALESCE($8, api_key_ciphertext),
-                    api_key_nonce = COALESCE($9, api_key_nonce),
-                    key_id = COALESCE($10, key_id),
-                    key_fingerprint = COALESCE($11, key_fingerprint),
-                    timeout_secs = $12, allow_private_network = $13,
-                    updated_at = now()
-                   WHERE id = $1
-                     AND ($14::uuid IS NULL OR tenant_id IS NULL OR tenant_id = $14)
-                   RETURNING id, tenant_id, slug, display_name, api_shape, locality, base_url,
-                             auth_scheme, key_fingerprint, api_key_ciphertext IS NOT NULL AS key_configured,
-                             timeout_secs, allow_private_network, last_test_ok, last_test_error"#,
-            )
-            .bind(existing)
-            .bind(&body.slug)
-            .bind(&body.display_name)
-            .bind(&body.api_shape)
-            .bind(&locality)
-            .bind(&body.base_url)
-            .bind(&auth_scheme)
-            .bind(ciphertext.as_deref())
-            .bind(nonce.as_deref())
-            .bind(key_id.as_deref())
-            .bind(fingerprint.as_deref())
-            .bind(timeout)
-            .bind(allow_private)
-            .bind(tenant_id)
-            .fetch_one(pool)
-            .await
-            .map_err(map_sql)?
+            let updated = if let Some(tenant) = tenant_id {
+                sqlx::query_as::<_, ConnectionRow>(&connection_update_sql(true))
+                    .bind(existing)
+                    .bind(&body.slug)
+                    .bind(&body.display_name)
+                    .bind(&body.api_shape)
+                    .bind(&locality)
+                    .bind(&body.base_url)
+                    .bind(&auth_scheme)
+                    .bind(ciphertext.as_deref())
+                    .bind(nonce.as_deref())
+                    .bind(key_id.as_deref())
+                    .bind(fingerprint.as_deref())
+                    .bind(timeout)
+                    .bind(allow_private)
+                    .bind(tenant)
+                    .fetch_one(pool)
+                    .await
+            } else {
+                sqlx::query_as::<_, ConnectionRow>(&connection_update_sql(false))
+                    .bind(existing)
+                    .bind(&body.slug)
+                    .bind(&body.display_name)
+                    .bind(&body.api_shape)
+                    .bind(&locality)
+                    .bind(&body.base_url)
+                    .bind(&auth_scheme)
+                    .bind(ciphertext.as_deref())
+                    .bind(nonce.as_deref())
+                    .bind(key_id.as_deref())
+                    .bind(fingerprint.as_deref())
+                    .bind(timeout)
+                    .bind(allow_private)
+                    .fetch_one(pool)
+                    .await
+            }
+            .map_err(map_sql)?;
+            updated
         } else {
             sqlx::query_as::<_, ConnectionRow>(
                 r#"INSERT INTO provider_connections (
@@ -500,6 +536,58 @@ struct StoredProbeRow {
     allow_private_network: bool,
 }
 
+const CONNECTION_COLUMNS: &str =
+    "id, tenant_id, slug, display_name, api_shape, locality, base_url, \
+     auth_scheme, key_fingerprint, api_key_ciphertext IS NOT NULL AS key_configured, \
+     timeout_secs, allow_private_network, last_test_ok, last_test_error";
+
+const CONNECTION_PAGE_COLUMNS: &str =
+    "id, tenant_id, slug, display_name, api_shape, locality, base_url, \
+     auth_scheme, key_fingerprint, key_configured, \
+     timeout_secs, allow_private_network, last_test_ok, last_test_error";
+
+/// A generic plan cannot use `($1 IS NULL OR tenant_id IS NULL OR tenant_id = $1)`
+/// as an index condition, so a tenant list seq-scans every connection. When the
+/// caller passes a tenant, each arm is a required predicate: that tenant on
+/// `(tenant_id, slug)`, and shared rows (`tenant_id IS NULL`) on the tenant
+/// index. A call with no tenant lists every connection.
+pub fn connection_list_sql(scoped: bool) -> String {
+    if scoped {
+        format!(
+            "SELECT {CONNECTION_PAGE_COLUMNS} FROM ( \
+               (SELECT {CONNECTION_COLUMNS} FROM provider_connections \
+                WHERE tenant_id = $1 ORDER BY slug) \
+               UNION ALL \
+               (SELECT {CONNECTION_COLUMNS} FROM provider_connections \
+                WHERE tenant_id IS NULL ORDER BY slug) \
+             ) page ORDER BY slug"
+        )
+    } else {
+        format!("SELECT {CONNECTION_COLUMNS} FROM provider_connections ORDER BY slug")
+    }
+}
+
+fn connection_update_sql(scoped: bool) -> String {
+    let tenant = if scoped {
+        "AND (tenant_id IS NULL OR tenant_id = $14)"
+    } else {
+        ""
+    };
+    format!(
+        "UPDATE provider_connections SET \
+            slug = $2, display_name = $3, api_shape = $4, locality = $5, base_url = $6, \
+            auth_scheme = $7, \
+            api_key_ciphertext = COALESCE($8, api_key_ciphertext), \
+            api_key_nonce = COALESCE($9, api_key_nonce), \
+            key_id = COALESCE($10, key_id), \
+            key_fingerprint = COALESCE($11, key_fingerprint), \
+            timeout_secs = $12, allow_private_network = $13, \
+            updated_at = now() \
+         WHERE id = $1 {tenant} \
+         RETURNING {CONNECTION_COLUMNS}"
+    )
+}
+
 #[cfg(feature = "postgres")]
 fn map_sql(e: sqlx::Error) -> ApiError {
     match e {
@@ -508,5 +596,25 @@ fn map_sql(e: sqlx::Error) -> ApiError {
             ApiError::Conflict("a connection with this slug already exists".into())
         }
         other => ApiError::Internal(other.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{connection_list_sql, connection_update_sql};
+
+    #[test]
+    fn scoped_connection_list_requires_the_tenant() {
+        let scoped = connection_list_sql(true);
+        assert!(scoped.contains("tenant_id = $1"));
+        assert!(scoped.contains("tenant_id IS NULL"));
+        assert!(!scoped.contains("$1::uuid IS NULL"));
+        let open = connection_list_sql(false);
+        assert!(!open.contains("$1"));
+        assert!(open.contains("ORDER BY slug"));
+        let update = connection_update_sql(true);
+        assert!(update.contains("tenant_id IS NULL OR tenant_id = $14"));
+        assert!(!update.contains("$14::uuid IS NULL"));
+        assert!(!connection_update_sql(false).contains("$14"));
     }
 }

@@ -280,7 +280,7 @@ mod tests {
         let m = Manifest::parse(MANIFEST_TOML).expect("parse");
         assert_eq!(m.schema_version, 1);
         assert!(!m.migration.is_empty());
-        assert_eq!(m.irreversible_drop, vec![125, 126, 131]);
+        assert_eq!(m.irreversible_drop, vec![125, 126, 131, 171]);
         assert_eq!(m.legacy_cutover_assert, 142);
         assert!(!m.by_version(1).unwrap().fossils.is_empty());
         assert!(!m.by_version(19).unwrap().fossils.is_empty());

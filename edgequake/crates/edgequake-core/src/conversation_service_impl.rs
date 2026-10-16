@@ -40,6 +40,11 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 #[cfg(feature = "postgres")]
+use crate::conversation_service::{
+    encode_time_cursor, encode_title_cursor, keyset_page_meta, pagination_meta, parse_list_cursor,
+    ParsedCursor,
+};
+#[cfg(feature = "postgres")]
 use crate::{
     conversation_service::ConversationService,
     error::{Error, Result},
@@ -47,9 +52,12 @@ use crate::{
     types::{
         Conversation, ConversationFilter, ConversationSortField, CreateConversationRequest,
         CreateMessageRequest, Folder, ImportError, ImportResult, Message, MessageRole,
-        PaginatedConversations, PaginatedMessages, UpdateConversationRequest, UpdateMessageRequest,
+        PaginatedConversations, PaginatedMessages, PaginationMeta, UpdateConversationRequest,
+        UpdateMessageRequest,
     },
 };
+#[cfg(feature = "postgres")]
+use edgequake_storage::conversation_storage::ListWindow;
 #[cfg(feature = "postgres")]
 use edgequake_storage::{ConversationStorage, PostgresConversationStorage};
 
@@ -151,6 +159,68 @@ impl ConversationServiceImpl {
 }
 
 #[cfg(feature = "postgres")]
+fn conversation_window(cursor: ParsedCursor, field: &str, desc: bool) -> (ListWindow, usize) {
+    match cursor {
+        ParsedCursor::Offset(offset) => (ListWindow::Offset(offset as i64), offset),
+        ParsedCursor::AfterTime {
+            field: cursor_field,
+            desc: cursor_desc,
+            at,
+            id,
+        } if cursor_field == field && cursor_desc == desc => (ListWindow::AfterTime { at, id }, 0),
+        ParsedCursor::AfterTitle {
+            desc: cursor_desc,
+            title,
+            id,
+        } if field == "title" && cursor_desc == desc => (ListWindow::AfterTitle { title, id }, 0),
+        ParsedCursor::AfterTime { .. } | ParsedCursor::AfterTitle { .. } => {
+            (ListWindow::Offset(0), 0)
+        }
+    }
+}
+
+#[cfg(feature = "postgres")]
+fn conversation_cursor(item: &Conversation, field: &str, desc: bool) -> String {
+    if field == "title" {
+        encode_title_cursor(desc, &item.title, item.conversation_id)
+    } else {
+        let at = if field == "created_at" {
+            item.created_at
+        } else {
+            item.updated_at
+        };
+        encode_time_cursor(field, desc, at, item.conversation_id)
+    }
+}
+
+#[cfg(feature = "postgres")]
+fn finish_page<T>(
+    items: &mut Vec<T>,
+    keyset: bool,
+    offset: usize,
+    limit: usize,
+    total: usize,
+    cursor_of: impl Fn(&T) -> String,
+) -> PaginationMeta {
+    if keyset {
+        let has_more = items.len() > limit;
+        if has_more {
+            items.truncate(limit);
+        }
+        let next = has_more.then(|| items.last().map(&cursor_of)).flatten();
+        keyset_page_meta(has_more, total, next)
+    } else {
+        let mut meta = pagination_meta(offset, limit, items.len(), total);
+        if meta.has_more {
+            if let Some(last) = items.last() {
+                meta.next_cursor = Some(cursor_of(last));
+            }
+        }
+        meta
+    }
+}
+
+#[cfg(feature = "postgres")]
 #[async_trait]
 impl ConversationService for ConversationServiceImpl {
     async fn create_conversation(
@@ -236,7 +306,14 @@ impl ConversationService for ConversationServiceImpl {
             ConversationSortField::Title => "title",
         };
 
-        let offset = crate::conversation_service::offset_from_cursor(cursor.as_deref());
+        let (window, offset) =
+            conversation_window(parse_list_cursor(cursor.as_deref()), sort_field, sort_desc);
+        let keyset = !matches!(window, ListWindow::Offset(_));
+        let fetch_limit = if keyset {
+            limit.saturating_add(1) as i64
+        } else {
+            limit as i64
+        };
 
         let (rows, total) = self
             .storage
@@ -250,24 +327,19 @@ impl ConversationService for ConversationServiceImpl {
                 filter.search.as_deref(),
                 sort_field,
                 sort_desc,
-                limit as i64,
-                offset as i64,
+                fetch_limit,
+                window,
             )
             .await
             .map_err(Self::map_error)?;
 
-        let items: Vec<Conversation> = rows.into_iter().map(Self::row_to_conversation).collect();
-        let taken = items.len();
+        let mut items: Vec<Conversation> =
+            rows.into_iter().map(Self::row_to_conversation).collect();
+        let pagination = finish_page(&mut items, keyset, offset, limit, total as usize, |item| {
+            conversation_cursor(item, sort_field, sort_desc)
+        });
 
-        Ok(PaginatedConversations {
-            items,
-            pagination: crate::conversation_service::pagination_meta(
-                offset,
-                limit,
-                taken,
-                total as usize,
-            ),
-        })
+        Ok(PaginatedConversations { items, pagination })
     }
 
     async fn share_conversation(&self, conversation_id: Uuid) -> Result<String> {
@@ -381,25 +453,39 @@ impl ConversationService for ConversationServiceImpl {
         cursor: Option<String>,
         limit: usize,
     ) -> Result<PaginatedMessages> {
-        let offset = crate::conversation_service::offset_from_cursor(cursor.as_deref());
+        let (window, offset) =
+            conversation_window(parse_list_cursor(cursor.as_deref()), "created_at", false);
+        let keyset = !matches!(window, ListWindow::Offset(_));
+        let fetch_limit = if keyset {
+            limit.saturating_add(1) as i64
+        } else {
+            limit as i64
+        };
         let (rows, total) = self
             .storage
-            .list_messages(conversation_id, limit as i64, offset as i64)
+            .list_messages(conversation_id, fetch_limit, window)
             .await
             .map_err(Self::map_error)?;
 
-        let items: Vec<Message> = rows.into_iter().map(Self::row_to_message).collect();
-        let taken = items.len();
+        let mut items: Vec<Message> = rows.into_iter().map(Self::row_to_message).collect();
+        let pagination = finish_page(&mut items, keyset, offset, limit, total as usize, |item| {
+            encode_time_cursor("created_at", false, item.created_at, item.message_id)
+        });
 
-        Ok(PaginatedMessages {
-            items,
-            pagination: crate::conversation_service::pagination_meta(
-                offset,
-                limit,
-                taken,
-                total as usize,
-            ),
-        })
+        Ok(PaginatedMessages { items, pagination })
+    }
+
+    async fn list_recent_messages(
+        &self,
+        conversation_id: Uuid,
+        limit: usize,
+    ) -> Result<Vec<Message>> {
+        let rows = self
+            .storage
+            .list_recent_messages(conversation_id, limit as i64)
+            .await
+            .map_err(Self::map_error)?;
+        Ok(rows.into_iter().map(Self::row_to_message).collect())
     }
 
     async fn create_folder(

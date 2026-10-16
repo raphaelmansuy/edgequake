@@ -102,6 +102,65 @@ async fn pdf_list_filters_bind_all_combinations_and_paginate_metadata_only() {
 }
 
 #[tokio::test]
+async fn pdf_list_keyset_matches_the_next_offset_row_and_orders_a_tie() {
+    let Some((pool, workspace, _)) = fixture().await else {
+        return;
+    };
+    let tied_at = chrono::DateTime::parse_from_rfc3339("2030-01-01T00:00:00Z")
+        .unwrap()
+        .with_timezone(&chrono::Utc);
+    let low = Uuid::from_u128(1);
+    let high = Uuid::from_u128(2);
+    for id in [low, high] {
+        sqlx::query(
+            "INSERT INTO pdf_documents(pdf_id,workspace_id,filename,content_type,file_size_bytes,sha256_checksum,processing_status,created_at) VALUES($1,$2,'tie.pdf','application/pdf',1024,$3,'completed',$4)",
+        )
+        .bind(id)
+        .bind(workspace)
+        .bind(id.simple().to_string())
+        .bind(tied_at)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    let storage = PostgresPdfStorage::new(pool.clone());
+    let first = storage
+        .list_pdfs(ListPdfFilter {
+            workspace_id: Some(workspace),
+            page: Some(1),
+            page_size: Some(1),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let second = storage
+        .list_pdfs(ListPdfFilter {
+            workspace_id: Some(workspace),
+            page: Some(2),
+            page_size: Some(1),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let keyset = storage
+        .list_pdfs(ListPdfFilter {
+            workspace_id: Some(workspace),
+            page_size: Some(1),
+            after_created_at: Some(first.items[0].created_at),
+            after_pdf_id: Some(first.items[0].pdf_id),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(first.items[0].pdf_id, high);
+    assert!(first.has_more);
+    assert_eq!(second.items[0].pdf_id, low);
+    assert_eq!(keyset.items[0].pdf_id, low);
+    assert_eq!(keyset.total_count, first.total_count);
+    pool.close().await;
+}
+
+#[tokio::test]
 async fn malformed_pdf_status_returns_invalid_data_without_panicking() {
     let Some((pool, workspace, _)) = fixture().await else {
         return;

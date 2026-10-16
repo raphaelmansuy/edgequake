@@ -10,12 +10,10 @@ use crate::error::{ApiError, ApiResult};
 use edgequake_core::conversation_service::ConversationService;
 use edgequake_query::ConversationMessage;
 
-/// Oldest-first `list_messages` + LIMIT would return the wrong end of long
-/// threads. We fetch a capped page then keep the **recent tail** as the raw
-/// pool; `apply_history_policy` in the query crate does the real cut.
-const HISTORY_FETCH_CAP: usize = 10_000;
-
 /// Raw recent pool before policy (enough for token-budget trim of long turns).
+///
+/// Fetched with a backward index scan. One extra row covers the just-saved
+/// user message, which this loader drops before the pool is trimmed.
 const RECENT_HISTORY_POOL: usize = 64;
 
 /// Load prior turns for a conversation, excluding the just-saved user message.
@@ -28,12 +26,11 @@ pub async fn load_recent_conversation_history(
     exclude_message_id: Uuid,
 ) -> ApiResult<Vec<ConversationMessage>> {
     let page = conversation_service
-        .list_messages(conversation_id, None, HISTORY_FETCH_CAP)
+        .list_recent_messages(conversation_id, RECENT_HISTORY_POOL + 1)
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to load conversation history: {e}")))?;
 
     let mut prior: Vec<ConversationMessage> = page
-        .items
         .into_iter()
         .filter(|m| m.message_id != exclude_message_id)
         .filter(|m| !m.content.trim().is_empty())
@@ -59,7 +56,7 @@ mod tests {
     fn recent_pool_is_larger_than_default_window() {
         const {
             assert!(RECENT_HISTORY_POOL >= 16);
-            assert!(HISTORY_FETCH_CAP > RECENT_HISTORY_POOL);
+            assert!(RECENT_HISTORY_POOL < 10_000);
         }
     }
 }

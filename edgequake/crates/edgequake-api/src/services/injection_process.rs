@@ -106,8 +106,17 @@ pub async fn write_injection_status(
     let _ = kv_storage
         .upsert(&[(meta_key.to_string(), meta.clone())])
         .await;
-    // SPEC-091 Wave B6: typed dual-write (warn-only).
-    crate::services::injection_relational::typed_injection_upsert(&meta, None).await;
+    // Status updates run on the worker, which has no request pool. The sidecar
+    // pool is the same Postgres the create path wrote.
+    #[cfg(feature = "postgres")]
+    {
+        let pool = crate::services::relational_sidecar_store::sidecar_pool();
+        crate::services::injection_relational::typed_injection_upsert(&meta, pool.as_deref()).await;
+    }
+    #[cfg(not(feature = "postgres"))]
+    {
+        crate::services::injection_relational::typed_injection_upsert(&meta, None).await;
+    }
 }
 
 /// Process injection content through the resilient pipeline + shared persister.

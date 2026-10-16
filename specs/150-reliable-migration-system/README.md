@@ -1,8 +1,8 @@
 # SPEC-150 — Reliable Migration System
 
-> **Status:** Implemented (WP-1..WP-10) on HEAD through migration **168**.  
-> **Proof:** `make spec150-matrix PG=all` → **56/56 ok** (2026-09-26 through v0.26.0 / schema 159).  
-> **Epochs:** `scripts/spec150/epochs.toml` covers every published `vX.Y.Z` through **v0.32.2** (schema **168**); enforced by `./scripts/check_epoch_coverage.sh`.  
+> **Status:** Implemented (WP-1..WP-10) on HEAD through migration **169**.  
+> **Proof:** PG16 replay of all **41** schema epochs → ledger **169**, **41/41 ok**, concurrent lock exit **75** (2026-10-15, `SKIP_SCHEMA_DIFF=1`).  
+> **Epochs:** `scripts/spec150/epochs.toml` covers every published `vX.Y.Z` whose schema is at or below HEAD (**v0.34.0**, schema **169**, epoch `v0.33.0`). Later tags such as v0.35.0 (schema 206) are not upgrade sources for this binary. Enforced by `./scripts/check_epoch_coverage.sh`.  
 > **Operator guide:** [`docs/operations/upgrading.md`](../../docs/operations/upgrading.md).  
 > **Squash:** none — `T_fresh` ≈ 1–2s on PG16/17/18 (budget 180s).
 
@@ -24,10 +24,10 @@ Day-2 ops: [11-ops-runbook.md](11-ops-runbook.md).
 
 | Claim | What we actually ran |
 |-------|----------------------|
-| Epoch → HEAD | **Replay** of each epoch's migration set via `git archive` + `sqlx migrate run`, then HEAD `migrate` + schema-diff vs fresh HEAD. `FORCE_REPLAY=1` (GHCR image boots are optional; pull failures fall back to replay). |
-| PG majors | PG16 × all 32 epochs; PG17/18 × epochs that list them in `scripts/spec150/epochs.toml` (incl. informational pre-v0.23). |
-| Equivalence | Normalized `pg_dump --schema-only` (container client). Empty allowlist; no converge migrations **160+**. |
-| Chaos | Concurrent advisory-lock → exit **75**. Kill-9 / dirty-row messaging exist in code paths; not every chaos row in [09](09-test-proof-protocol.md) was re-executed in the 2026-09-26 local matrix. |
+| Epoch → HEAD | 2026-10-15: `FORCE_REPLAY=1 SKIP_SCHEMA_DIFF=1 PG=16` replayed every epoch in `epochs.toml`, then HEAD `migrate`. Each report has `ledger_max=169`. |
+| PG majors | This pass is PG16 × all 41 epochs. PG17/18 reports were not refreshed (they still record ledger 168). |
+| Equivalence | Schema-dump diff was not re-run (`SKIP_SCHEMA_DIFF=1`). |
+| Chaos | Concurrent advisory-lock → exit **75** (re-run 2026-10-15). |
 | `T_upgrade` | Wall-clock per matrix case (includes container start) — not pure SQL apply time. See [measurements/](measurements/). |
 
 Artifacts: [reports/](reports/) (`*.json` + `SUMMARY.md`) · [measurements/](measurements/).
@@ -47,7 +47,7 @@ Artifacts: [reports/](reports/) (`*.json` + `SUMMARY.md`) · [measurements/](mea
 
 | ID | Criterion | Evidence |
 |----|-----------|----------|
-| S1 | Published schema epochs upgrade to HEAD | [reports/](reports/) 56/56 |
+| S1 | Published schema epochs upgrade to HEAD | [reports/pg16](reports/pg16) 41/41, ledger 169 |
 | S2 | API never applies numbered migrations | `serve_boot.rs` + contract test |
 | S3 | Pending schema does not crash-loop orchestrators | `SCHEMA_GATE=wait`; Helm/compose migrate |
 | S4 | Known fossils apply without env | `manifest.toml`; unknown → 65 |

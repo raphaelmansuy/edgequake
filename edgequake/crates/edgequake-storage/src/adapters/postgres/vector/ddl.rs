@@ -201,7 +201,7 @@ impl PgVectorStorage {
             return false;
         };
         sqlx::query_scalar(
-            "SELECT EXISTS (SELECT 1 FROM _sqlx_migrations WHERE version = 131 AND success)",
+            "SELECT EXISTS (SELECT 1 FROM public._sqlx_migrations WHERE version = 131 AND success)",
         )
         .fetch_one(&pool)
         .await
@@ -230,7 +230,7 @@ impl PgVectorStorage {
         };
         // Migration 126 applied? (its version row in sqlx's ledger)
         let applied_126: bool = sqlx::query_scalar(
-            "SELECT EXISTS (SELECT 1 FROM _sqlx_migrations WHERE version = 126 AND success)",
+            "SELECT EXISTS (SELECT 1 FROM public._sqlx_migrations WHERE version = 126 AND success)",
         )
         .fetch_one(&pool)
         .await

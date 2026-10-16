@@ -1,30 +1,25 @@
-# EdgeQuake PostgreSQL 18 — pgvector + Apache AGE 1.8.0 (SPEC-042 / SPEC-068)
+# EdgeQuake PostgreSQL 18 — pgvector + contrib FTS extensions (SPEC-042)
 #
 # SSOT extension pins: edgequake/docker/extension-pins.sh (EQ_POSTGRES_PROFILE=pg18)
 #   PostgreSQL 18 (bookworm)
 #   pgvector     v0.8.5  — https://pgxn.org/dist/vector
-#   Apache AGE   1.8.0   — tag PG18/v1.8.0-rc0 (VLE/index-scan/contsel)
 #   contrib      pg_trgm, btree_gin, uuid-ossp (postgresql-contrib-18)
+# Apache AGE is not in this image. GraphRAG uses the plain eq_graph_* tables.
 
 FROM postgres:18-bookworm
 
 ARG PGVECTOR_VERSION=v0.8.5
-ARG AGE_GIT_REF=PG18/v1.8.0-rc0
 
 LABEL org.edgequake.postgres.version="18-bookworm" \
       org.edgequake.pgvector.version="0.8.5" \
-      org.edgequake.age.version="1.8.0" \
-      org.edgequake.extensions="vector,age,pg_trgm,btree_gin,uuid-ossp"
+      org.edgequake.extensions="vector,pg_trgm,btree_gin,uuid-ossp"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     postgresql-server-dev-18 \
     postgresql-contrib-18 \
     ca-certificates \
-    curl \
     git \
-    flex \
-    bison \
     && rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \
@@ -35,31 +30,19 @@ RUN set -eux; \
     make install; \
     rm -rf /tmp/pgvector
 
-RUN set -eux; \
-    cd /tmp; \
-    git clone --depth 1 --branch "${AGE_GIT_REF}" https://github.com/apache/age.git; \
-    cd age; \
-    make; \
-    make install; \
-    rm -rf /tmp/age
-
 RUN apt-get purge -y --auto-remove \
     build-essential \
     postgresql-server-dev-18 \
     git \
-    curl \
-    flex \
-    bison \
     && rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \
     test -f /usr/share/postgresql/18/extension/vector.control; \
-    test -f /usr/share/postgresql/18/extension/age.control; \
+    test ! -e /usr/share/postgresql/18/extension/age.control; \
     test -f /usr/share/postgresql/18/extension/pg_trgm.control; \
     test -f /usr/share/postgresql/18/extension/btree_gin.control; \
     test -f /usr/share/postgresql/18/extension/uuid-ossp.control; \
-    grep -q "default_version = '0.8.5'" /usr/share/postgresql/18/extension/vector.control; \
-    grep -q "default_version = '1.8.0'" /usr/share/postgresql/18/extension/age.control
+    grep -q "default_version = '0.8.5'" /usr/share/postgresql/18/extension/vector.control
 
 EXPOSE 5432
 CMD ["postgres"]

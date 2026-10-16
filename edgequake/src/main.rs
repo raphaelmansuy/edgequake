@@ -671,6 +671,39 @@ async fn run_migrate_dry_run_cli() -> Result<()> {
     Ok(())
 }
 
+/// Schema line for `edgequake migrate status`. Reads `public._sqlx_migrations`
+/// only. Does not apply migrations.
+#[cfg(feature = "postgres")]
+async fn print_migrate_schema_status(pool: &sqlx::PgPool) -> Result<()> {
+    let exists: bool =
+        sqlx::query_scalar("SELECT to_regclass('public._sqlx_migrations') IS NOT NULL")
+            .fetch_one(pool)
+            .await
+            .context("schema ledger probe")?;
+    let db_schema: Option<i64> = if exists {
+        sqlx::query_scalar("SELECT max(version) FROM public._sqlx_migrations WHERE success")
+            .fetch_one(pool)
+            .await
+            .context("schema version")?
+    } else {
+        None
+    };
+    let pending = edgequake_api::state::migration_bootstrap::list_pending_migrations(pool)
+        .await
+        .context("pending schema migrations")?;
+    let drops: Vec<i64> = pending
+        .iter()
+        .map(|(version, _)| *version)
+        .filter(|version| migrate_console::is_irreversible_drop(*version))
+        .collect();
+    let binary_schema = edgequake_migrate_manifest::load().compat_serve_max;
+    println!(
+        "{}",
+        migrate_console::format_schema_status(db_schema, binary_schema, pending.len(), &drops)
+    );
+    Ok(())
+}
+
 /// SPEC-091 P4: `edgequake migrate status` — read the migration progress
 /// ledger and print per-job state, completion, rate and ETA. Never applies
 /// migrations; safe to run against a live serving database.
@@ -686,6 +719,10 @@ async fn run_migrate_status_cli() -> Result<()> {
         .await
         .context("PgPoolBundle connect failed")?;
 
+    if let Err(e) = print_migrate_schema_status(&bundle.query).await {
+        println!("schema: unavailable ({e})");
+    }
+
     let job_ids: Vec<(sqlx::types::Uuid, String, String)> = match sqlx::query_as(
         "SELECT job_id, step_id, state FROM edgequake.edgequake_migration_job \
          ORDER BY started_at NULLS LAST, step_id",
@@ -695,17 +732,17 @@ async fn run_migrate_status_cli() -> Result<()> {
     {
         Ok(rows) => rows,
         Err(e) => {
-            println!("migration ledger unavailable (apply migration 106?): {e}");
+            println!("data jobs: ledger unavailable (apply migration 106?): {e}");
             return Ok(());
         }
     };
 
     if job_ids.is_empty() {
-        println!("no migration jobs registered (EDGEQUAKE_MIGRATION_MODE=off?)");
+        println!("data jobs: none registered (EDGEQUAKE_MIGRATION_MODE=off?)");
         return Ok(());
     }
 
-    println!("migration jobs:");
+    println!("data jobs:");
     for (job_id, step_id, _state) in job_ids {
         match edgequake_storage::migration_engine::lease::job_detail(&bundle.query, job_id).await {
             Ok(Some(d)) => migrate_console::print_migration_job_line(
@@ -731,11 +768,14 @@ async fn run_migrate_status_cli() -> Result<()> {
 
 /// SPEC-091 Migration Console (doc 15 §7) — usage for the `migrate` verb family.
 const MIGRATE_USAGE: &str = "usage:
-  edgequake migrate [--confirm-drop|--drop-confirm]  apply schema migrations (+ reconcile)
+  edgequake migrate [--confirm-drop|--drop-confirm] [--drop-age|--keep-age]
+                                        apply schema migrations (+ reconcile)
+                                        Apache AGE stays unless you pass --drop-age
+                                        or answer yes to the question
   edgequake migrate check                       preflight environment (no writes)
   edgequake migrate dry-run                     preview pending + posture (no writes)
   edgequake migrate drain [--timeout <secs>]    foreground data-engine drain (SPEC-150)
-  edgequake migrate status                      raw per-job progress ledger
+  edgequake migrate status                      schema version, then data-engine jobs
   edgequake migrate console [--watch]           intelligent posture dashboard + next steps
   edgequake migrate plan                        the ordered, live-derived runbook
   edgequake migrate guard [--family <name>]     read-only flip/drop readiness probe

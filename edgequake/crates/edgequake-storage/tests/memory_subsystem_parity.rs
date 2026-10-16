@@ -1,5 +1,6 @@
 //! Memory PDF + conversation adapter parity smoke tests (SPEC-017 P1).
 
+use edgequake_storage::conversation_storage::ListWindow;
 use edgequake_storage::{
     calculate_pdf_checksum, CreatePdfRequest, MemoryConversationStorage, MemoryPdfStorage,
     PdfDocumentStorage, PdfProcessingStatus,
@@ -100,7 +101,7 @@ async fn memory_conversation_crud_smoke() {
     assert!(share.starts_with("share_"));
     assert_eq!(
         storage
-            .list_messages(conv.conversation_id, 10, 0)
+            .list_messages(conv.conversation_id, 10, ListWindow::Offset(0))
             .await
             .unwrap()
             .1,

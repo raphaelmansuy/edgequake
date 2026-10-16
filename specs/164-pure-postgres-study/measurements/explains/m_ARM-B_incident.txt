@@ -1,0 +1,8 @@
+                                                     QUERY PLAN                                                      
+---------------------------------------------------------------------------------------------------------------------
+ Function Scan on plain_incident  (cost=0.25..10.25 rows=1000 width=32) (actual time=0.550..0.550 rows=6.00 loops=1)
+   Buffers: shared hit=309
+ Planning Time: 0.061 ms
+ Execution Time: 0.879 ms
+(4 rows)
+

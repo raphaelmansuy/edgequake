@@ -257,6 +257,41 @@ async fn e2e_spec405_typed_fts_without_legacy_vectors() {
     );
     assert_eq!(filtered[0].id, prose_key);
 
+    // 6b) document_ids must not return another document that shares the token.
+    let other_doc = w3::seed_document(&pool, ws).await;
+    let other_id = w3::seed_chunk(
+        &pool,
+        other_doc,
+        ws,
+        0,
+        &format!("{TOKEN} other document shares the term"),
+    )
+    .await;
+    mark_ready(&pool, other_id).await;
+    let other_key = format!("{other_doc}-chunk-0");
+    let scoped_docs = storage
+        .text_search_filtered(
+            TOKEN,
+            10,
+            None,
+            Some(&MetadataFilter {
+                workspace_id: Some(ws.to_string()),
+                document_ids: Some(vec![doc.to_string()]),
+                vector_type: Some("chunk".into()),
+                ..Default::default()
+            }),
+        )
+        .await
+        .expect("document-scoped FTS");
+    assert!(
+        scoped_docs.iter().any(|h| h.id == prose_key),
+        "document scope must keep the requested document, got {scoped_docs:?}"
+    );
+    assert!(
+        scoped_docs.iter().all(|h| h.id != other_key),
+        "document scope must drop the other document, got {scoped_docs:?}"
+    );
+
     // 7) Explicit legacy_tables + missing relation → Err without SELECT 42P01.
     std::env::set_var(VECTOR_BACKEND_ENV, "legacy_tables");
     let legacy_err = storage
@@ -287,4 +322,129 @@ async fn e2e_spec405_typed_fts_without_legacy_vectors() {
         Some(v) => std::env::set_var(VECTOR_BACKEND_ENV, v),
         None => std::env::remove_var(VECTOR_BACKEND_ENV),
     }
+}
+
+#[tokio::test(flavor = "current_thread")]
+#[allow(clippy::await_holding_lock)]
+async fn tenant_chunk_search_skips_the_other_tenants_term_matches() {
+    let Some(cfg) = require_or_skip_postgres("spec405_tenant_fts") else {
+        return;
+    };
+    let _env = w3::w3_env_guard().await;
+    let pool = contract_pg_pool(&cfg).await;
+    if !has_content_tsv(&pool).await {
+        eprintln!("skip: migration 136 content_tsv missing");
+        return;
+    }
+
+    let prev_backend = std::env::var(VECTOR_BACKEND_ENV).ok();
+    std::env::set_var(VECTOR_BACKEND_ENV, "typed_embeddings");
+
+    let ws = w3::seed_workspace(&pool, "spec405-tenant").await;
+    let doc = w3::seed_document(&pool, ws).await;
+    let own_tenant = w3::workspace_tenant(&pool, ws).await;
+    let token = format!("TenantFence{}", Uuid::new_v4().simple());
+    let own_id = w3::seed_chunk(&pool, doc, ws, 0, &format!("{token} owned by the caller")).await;
+    let other_tenant = Uuid::new_v4();
+    sqlx::query("INSERT INTO tenants (tenant_id, name, slug, is_active) VALUES ($1, $2, $3, TRUE)")
+        .bind(other_tenant)
+        .bind("spec405 other")
+        .bind(format!("spec405-{}", other_tenant.as_simple()))
+        .execute(&pool)
+        .await
+        .expect("other tenant");
+    let other_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO chunks (id, document_id, workspace_id, chunk_index, content, metadata, tenant_id) \
+         VALUES ($1, $2, $3, 1, $4, $5, $6)",
+    )
+    .bind(other_id)
+    .bind(doc)
+    .bind(ws)
+    .bind(format!("{token} owned by someone else"))
+    .bind(serde_json::json!({"legacy_chunk_key": format!("{doc}-chunk-1")}))
+    .bind(other_tenant)
+    .execute(&pool)
+    .await
+    .expect("other chunk");
+    mark_ready(&pool, own_id).await;
+    mark_ready(&pool, other_id).await;
+
+    let mut pg_cfg = cfg.clone();
+    pg_cfg.namespace = format!("spec405_tenant_{}", ws.as_simple());
+    let storage = PgVectorStorage::with_pool(
+        PostgresPool::from_existing(pool.clone(), pg_cfg.clone()),
+        pg_cfg,
+        DIM,
+    );
+    let own_key = format!("{doc}-chunk-0");
+    let other_key = format!("{doc}-chunk-1");
+    let scoped = storage
+        .text_search_filtered(
+            &token,
+            10,
+            None,
+            Some(&MetadataFilter {
+                workspace_id: Some(ws.to_string()),
+                tenant_id: Some(own_tenant.to_string()),
+                vector_type: Some("chunk".into()),
+                ..Default::default()
+            }),
+        )
+        .await
+        .expect("tenant FTS");
+    let open = storage
+        .text_search_filtered(
+            &token,
+            10,
+            None,
+            Some(&MetadataFilter {
+                workspace_id: Some(ws.to_string()),
+                vector_type: Some("chunk".into()),
+                ..Default::default()
+            }),
+        )
+        .await
+        .expect("workspace FTS");
+
+    sqlx::query("DELETE FROM chunks WHERE id = $1 OR id = $2")
+        .bind(own_id)
+        .bind(other_id)
+        .execute(&pool)
+        .await
+        .expect("cleanup chunks");
+    sqlx::query("DELETE FROM documents WHERE id = $1")
+        .bind(doc)
+        .execute(&pool)
+        .await
+        .expect("cleanup document");
+    sqlx::query("DELETE FROM workspaces WHERE workspace_id = $1")
+        .bind(ws)
+        .execute(&pool)
+        .await
+        .expect("cleanup workspace");
+    sqlx::query("DELETE FROM tenants WHERE tenant_id = $1 OR tenant_id = $2")
+        .bind(own_tenant)
+        .bind(other_tenant)
+        .execute(&pool)
+        .await
+        .expect("cleanup tenants");
+
+    match prev_backend {
+        Some(v) => std::env::set_var(VECTOR_BACKEND_ENV, v),
+        None => std::env::remove_var(VECTOR_BACKEND_ENV),
+    }
+
+    assert!(
+        scoped.iter().any(|hit| hit.id == own_key),
+        "caller tenant must keep its chunk, got {scoped:?}"
+    );
+    assert!(
+        scoped.iter().all(|hit| hit.id != other_key),
+        "caller tenant must skip the other tenant's chunk, got {scoped:?}"
+    );
+    assert!(
+        open.iter().any(|hit| hit.id == own_key) && open.iter().any(|hit| hit.id == other_key),
+        "workspace search without a tenant must keep both chunks, got {open:?}"
+    );
 }

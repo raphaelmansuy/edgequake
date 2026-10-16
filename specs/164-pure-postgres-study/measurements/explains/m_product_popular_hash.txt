@@ -1,0 +1,62 @@
+                                                                                                   QUERY PLAN                                                                                                    
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=43767.85..43809.70 rows=5 width=200) (actual time=629.482..629.673 rows=5 loops=1)
+   Buffers: shared hit=35 read=4865, temp read=3958 written=6038
+   CTE degrees
+     ->  Finalize GroupAggregate  (cost=32403.77..32454.44 rows=200 width=15) (actual time=275.811..397.727 rows=200000 loops=1)
+           Group Key: e.source_id
+           Buffers: shared hit=21 read=3867, temp read=2515 written=3958
+           ->  Gather Merge  (cost=32403.77..32450.44 rows=400 width=15) (actual time=275.791..342.995 rows=369732 loops=1)
+                 Workers Planned: 2
+                 Workers Launched: 2
+                 Buffers: shared hit=21 read=3867, temp read=2515 written=3958
+                 ->  Sort  (cost=31403.75..31404.25 rows=200 width=15) (actual time=256.184..270.777 rows=123244 loops=3)
+                       Sort Key: e.source_id
+                       Sort Method: external merge  Disk: 2928kB
+                       Buffers: shared hit=21 read=3867, temp read=2515 written=3958
+                       Worker 0:  Sort Method: external merge  Disk: 2952kB
+                       Worker 1:  Sort Method: external merge  Disk: 3552kB
+                       ->  Partial HashAggregate  (cost=31394.11..31396.11 rows=200 width=15) (actual time=135.631..170.471 rows=123244 loops=3)
+                             Group Key: e.source_id
+                             Batches: 5  Memory Usage: 8257kB  Disk Usage: 3680kB
+                             Buffers: shared hit=5 read=3867, temp read=1336 written=2775
+                             Worker 0:  Batches: 5  Memory Usage: 8257kB  Disk Usage: 3696kB
+                             Worker 1:  Batches: 5  Memory Usage: 8257kB  Disk Usage: 6984kB
+                             ->  Parallel Append  (cost=0.42..29310.79 rows=416664 width=7) (actual time=0.047..66.570 rows=333332 loops=3)
+                                   Buffers: shared hit=5 read=3867
+                                   ->  Parallel Index Only Scan using idx_eq_graph_edges_source on eq_graph_edges e  (cost=0.42..13809.73 rows=208332 width=7) (actual time=0.040..20.203 rows=166666 loops=3)
+                                         Index Cond: (namespace = 'spec164_age'::text)
+                                         Heap Fetches: 0
+                                         Buffers: shared hit=4 read=1981
+                                   ->  Parallel Index Only Scan using idx_eq_graph_edges_target on eq_graph_edges e_1  (cost=0.42..13417.73 rows=208332 width=7) (actual time=0.047..31.634 rows=249999 loops=2)
+                                         Index Cond: (namespace = 'spec164_age'::text)
+                                         Heap Fetches: 0
+                                         Buffers: shared hit=1 read=1886
+   ->  Limit  (cost=11312.99..11313.00 rows=5 width=15) (actual time=629.431..629.434 rows=5 loops=1)
+         Buffers: shared hit=4 read=2261, temp read=2212 written=3202
+         ->  Sort  (cost=11312.99..11812.99 rows=200000 width=15) (actual time=629.429..629.431 rows=5 loops=1)
+               Sort Key: (COALESCE(d.degree, '0'::bigint)) DESC, n_1.node_id
+               Sort Method: top-N heapsort  Memory: 25kB
+               Buffers: shared hit=4 read=2261, temp read=2212 written=3202
+               ->  Merge Left Join  (cost=12.06..7991.06 rows=200000 width=15) (actual time=509.283..605.307 rows=200000 loops=1)
+                     Merge Cond: (n_1.node_id = d.node_id)
+                     Buffers: shared hit=1 read=2261, temp read=2212 written=3202
+                     ->  Index Only Scan using eq_graph_nodes_pkey on eq_graph_nodes n_1  (cost=0.42..7476.42 rows=200000 width=7) (actual time=1.077..26.668 rows=200000 loops=1)
+                           Index Cond: (namespace = 'spec164_age'::text)
+                           Heap Fetches: 0
+                           Buffers: shared read=989
+                     ->  Sort  (cost=11.64..12.14 rows=200 width=40) (actual time=508.197..523.942 rows=200000 loops=1)
+                           Sort Key: d.node_id
+                           Sort Method: external sort  Disk: 5776kB
+                           Buffers: shared hit=1 read=1272, temp read=2212 written=3202
+                           ->  CTE Scan on degrees d  (cost=0.00..4.00 rows=200 width=40) (actual time=275.817..450.597 rows=200000 loops=1)
+                                 Buffers: shared hit=1 read=1272, temp read=769 written=1756
+   ->  Index Scan using eq_graph_nodes_pkey on eq_graph_nodes n  (cost=0.42..8.44 rows=1 width=185) (actual time=0.019..0.019 rows=1 loops=5)
+         Index Cond: ((namespace = 'spec164_age'::text) AND (node_id = n_1.node_id))
+         Buffers: shared hit=11 read=9
+ Planning:
+   Buffers: shared hit=247 read=38
+ Planning Time: 1.367 ms
+ Execution Time: 633.066 ms
+(58 rows)
+

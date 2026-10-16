@@ -56,9 +56,15 @@ describe("mergeQueryMessages (UI-P3-005)", () => {
 });
 
 describe("conversationEchoesPending", () => {
-  it("treats an empty pending answer as already settled", () => {
-    expect(conversationEchoesPending([], "")).toBe(true);
-    expect(conversationEchoesPending(undefined, undefined)).toBe(true);
+  it("keeps an empty local answer until the server has an assistant message", () => {
+    expect(conversationEchoesPending([], "")).toBe(false);
+    expect(conversationEchoesPending(undefined, undefined)).toBe(false);
+    expect(
+      conversationEchoesPending(
+        [{ role: "assistant", content: "Not answerable" }],
+        "",
+      ),
+    ).toBe(true);
   });
 
   it("keeps the pending bubble until the server echoes the same assistant text", () => {

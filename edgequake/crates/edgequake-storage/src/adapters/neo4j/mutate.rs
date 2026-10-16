@@ -486,7 +486,7 @@ impl GraphStorageMutateOps for Neo4jClient {
 
     async fn delete_edges_scoped_batch(
         &self,
-        _edges: &[(String, String)],
+        _edges: &[(String, String, String)],
         _tenant_id: &str,
         _workspace_id: &str,
     ) -> StorageResult<usize> {

@@ -10,6 +10,9 @@ pub static LAST_SOURCE_PREFIX_COUNT_LEN: AtomicUsize = AtomicUsize::new(0);
 
 impl PostgresAGEGraphStorage {
     pub(super) async fn pg_node_count(&self) -> Result<usize> {
+        if self.plain_reads_ready().await? {
+            return super::plain::counts::counts::node_count(self).await;
+        }
         // WHY: Native SQL COUNT(*) on AGE vertex table is ~10x faster than
         // Cypher `MATCH (n:Node) RETURN count(n)` which does a full graph scan
         // through the AGE extension layer. No LOAD 'age' / search_path setup needed.
@@ -30,6 +33,9 @@ impl PostgresAGEGraphStorage {
     }
 
     pub(super) async fn pg_edge_count(&self) -> Result<usize> {
+        if self.plain_reads_ready().await? {
+            return super::plain::counts::counts::edge_count(self).await;
+        }
         // WHY: Native SQL COUNT(*) on AGE edge table is ~10x faster than
         // Cypher `MATCH ()-[r:EDGE]->()` which traverses the full graph.
         let pool = self.pool.get().await?;
@@ -55,11 +61,17 @@ impl PostgresAGEGraphStorage {
     /// and grows with the graph; `pg_class.reltuples` is an in-memory catalog
     /// lookup and accurate within autovacuum's threshold (typically <10 %).
     pub(super) async fn pg_node_count_fast(&self) -> Result<usize> {
+        if self.plain_reads_ready().await? {
+            return self.plain_reltuples("eq_graph_nodes").await;
+        }
         self.reltuples_estimate("_ag_label_vertex").await
     }
 
     /// O(1) edge count estimate. See [`node_count_fast`].
     pub(super) async fn pg_edge_count_fast(&self) -> Result<usize> {
+        if self.plain_reads_ready().await? {
+            return self.plain_reltuples("eq_graph_edges").await;
+        }
         self.reltuples_estimate("_ag_label_edge").await
     }
 
@@ -75,6 +87,13 @@ impl PostgresAGEGraphStorage {
         &self,
         workspace_id: &uuid::Uuid,
     ) -> Result<usize> {
+        if self.plain_reads_ready().await? {
+            return super::plain::counts::counts::node_count_by_workspace(
+                self,
+                &workspace_id.to_string(),
+            )
+            .await;
+        }
         let pool = self.pool.get().await?;
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
@@ -110,6 +129,13 @@ impl PostgresAGEGraphStorage {
         &self,
         workspace_id: &uuid::Uuid,
     ) -> Result<usize> {
+        if self.plain_reads_ready().await? {
+            return super::plain::counts::counts::edge_count_by_workspace(
+                self,
+                &workspace_id.to_string(),
+            )
+            .await;
+        }
         let pool = self.pool.get().await?;
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
@@ -144,6 +170,10 @@ impl PostgresAGEGraphStorage {
         &self,
         workspace_id: &uuid::Uuid,
     ) -> Result<usize> {
+        if self.plain_reads_ready().await? {
+            return super::plain::counts::counts::distinct_types(self, &workspace_id.to_string())
+                .await;
+        }
         let pool = self.pool.get().await?;
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
@@ -224,6 +254,9 @@ impl PostgresAGEGraphStorage {
     ) -> Result<std::collections::HashMap<String, usize>> {
         use std::collections::HashMap;
 
+        if self.plain_reads_ready().await? {
+            return super::plain::counts::counts::counts_by_prefixes(self, prefixes).await;
+        }
         let mut out = HashMap::with_capacity(prefixes.len());
         if prefixes.is_empty() {
             return Ok(out);
@@ -342,6 +375,11 @@ impl PostgresAGEGraphStorage {
     /// Complexity: O(N+E) unavoidable; avoids AGE Cypher planner overhead.
     pub(super) async fn pg_clear(&self) -> Result<()> {
         let pool = self.pool.get().await?;
+        let plain = super::plain::tables_present(&pool).await?;
+        let age = self.pool.graph_extension_available();
+        if plain && !age {
+            return super::plain::write::write::clear_namespace(&pool, &self.namespace).await;
+        }
         let graph = &self.graph_name;
         // Edges first (no FK, but keeps AGE label tables consistent), then nodes.
         let del_e = format!(r#"/* DATA-AGE-GRAPH-CLEAR */ DELETE FROM {graph}."EDGE""#);
@@ -354,6 +392,9 @@ impl PostgresAGEGraphStorage {
             .execute(&pool)
             .await
             .map_err(|e| StorageError::Database(format!("native clear nodes failed: {e}")))?;
+        if plain {
+            super::plain::write::write::clear_namespace(&pool, &self.namespace).await?;
+        }
         Ok(())
     }
 
@@ -367,6 +408,16 @@ impl PostgresAGEGraphStorage {
         &self,
         workspace_id: &uuid::Uuid,
     ) -> Result<(usize, usize)> {
+        if self.plain_writes().await? {
+            let pool = self.pool.get().await?;
+            if super::plain::tables_present(&pool).await? {
+                return super::plain::write::write::clear_workspace(
+                    self,
+                    &workspace_id.to_string(),
+                )
+                .await;
+            }
+        }
         let pool = self.pool.get().await?;
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))

@@ -127,11 +127,11 @@ pub trait GraphStorageMutateOps: Send + Sync {
         workspace_id: &str,
     ) -> Result<bool>;
 
-    /// Batch scoped edge delete: one storage round-trip with tenant/workspace fence
-    /// plus endpoint pairs via `ANY`.
+    /// Batch scoped edge delete: one sister `(source, target, rel_type)` inside
+    /// the tenant/workspace fence. Never removes every relationship between the endpoints.
     async fn delete_edges_scoped_batch(
         &self,
-        edges: &[(String, String)],
+        edges: &[(String, String, String)],
         tenant_id: &str,
         workspace_id: &str,
     ) -> Result<usize>;

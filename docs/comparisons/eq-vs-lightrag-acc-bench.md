@@ -50,6 +50,8 @@ Protocol: [SPEC-001 index](../../specs/001-benchmark/000-index.md). Business bri
 | Cold query p50    | 4447 ms   | 4359 ms   | **≈ tied (1.02×)** (peer `C1COLD_v1`, unchanged)                      |
 | Warm cache p50    | **82 ms** | 993 ms    | **EQ 0.083×** — labeled peer `EQ_LLM_CACHE_WARM_v1` (LLM+embed cache) |
 
+**v0.35.3 re-score** (2026-10-16, archive [`medical-mid-20261016T002647Z`](../../specs/001-benchmark/e2e/artifacts/history/medical-mid-20261016T002647Z/), same Acc profile, `valid: true`, n=200): EdgeQuake **0.7910**, LightRAG **0.7870**, Δ **+0.0040**, 95% CI **[-0.0238, +0.0306]**. Still a statistical tie. Evidence recall **0.893** versus **0.948**. Context relevancy **0.391** versus **0.490**. Not an Acc Beat. The August table above is the earlier publish pack and is not this cut.
+
 **Do not claim** “EdgeQuake beats LightRAG” on **Acc**, Acc mid Parity, or SOTA on GraphRAG-Bench. Acc Beat / Acc Equal mid remain **STOP** until [080 promote checklist](../../specs/001-benchmark/001-edgquake-improvements/080-phase-g-promote-checklist.md) is green (`ctx_rel ≥ 0.50`, Fact ER ≥ LR−0.03, medical-full). Acc ingest pin is **chunk 1200/100** (LR parity).
 
 **Allowed warm claim:** under matched LLM+embed cache, warm Mix wall **EdgeQuake beats LightRAG** (82 vs 993 ms). Fair cold engine truth stays `C1COLD_v1`.

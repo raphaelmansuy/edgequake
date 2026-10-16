@@ -179,30 +179,45 @@ impl ConversationService for InMemoryConversationService {
             .cloned()
             .collect();
 
-        // Sort
-        match sort {
-            ConversationSortField::UpdatedAt => {
-                items.sort_by_key(|item| item.updated_at);
+        let field = match sort {
+            ConversationSortField::UpdatedAt => "updated_at",
+            ConversationSortField::CreatedAt => "created_at",
+            ConversationSortField::Title => "title",
+        };
+        items.sort_by(|a, b| {
+            let primary = match sort {
+                ConversationSortField::UpdatedAt => a.updated_at.cmp(&b.updated_at),
+                ConversationSortField::CreatedAt => a.created_at.cmp(&b.created_at),
+                ConversationSortField::Title => a.title.cmp(&b.title),
+            };
+            let tied = primary.then(a.conversation_id.cmp(&b.conversation_id));
+            if sort_desc {
+                tied.reverse()
+            } else {
+                tied
             }
-            ConversationSortField::CreatedAt => {
-                items.sort_by_key(|item| item.created_at);
-            }
-            ConversationSortField::Title => {
-                items.sort_by(|a, b| a.title.cmp(&b.title));
-            }
-        }
-        if sort_desc {
-            items.reverse();
-        }
+        });
 
         let total = items.len();
-        let offset = super::offset_from_cursor(cursor.as_deref());
-        let page: Vec<_> = items.into_iter().skip(offset).take(limit).collect();
-        let taken = page.len();
+        let parsed = super::parse_list_cursor(cursor.as_deref());
+        let mut page = take_conversation_page(items, &parsed, field, sort_desc, limit);
+        let pagination =
+            finish_memory_page(&mut page, &parsed, field, sort_desc, limit, total, |item| {
+                if field == "title" {
+                    super::encode_title_cursor(sort_desc, &item.title, item.conversation_id)
+                } else {
+                    let at = if field == "created_at" {
+                        item.created_at
+                    } else {
+                        item.updated_at
+                    };
+                    super::encode_time_cursor(field, sort_desc, at, item.conversation_id)
+                }
+            });
 
         Ok(PaginatedConversations {
             items: page,
-            pagination: super::pagination_meta(offset, limit, taken, total),
+            pagination,
         })
     }
 
@@ -360,17 +375,45 @@ impl ConversationService for InMemoryConversationService {
             .cloned()
             .collect();
 
-        items.sort_by_key(|item| item.created_at);
+        items.sort_by(|a, b| {
+            a.created_at
+                .cmp(&b.created_at)
+                .then(a.message_id.cmp(&b.message_id))
+        });
 
         let total = items.len();
-        let offset = super::offset_from_cursor(cursor.as_deref());
-        let page: Vec<_> = items.into_iter().skip(offset).take(limit).collect();
-        let taken = page.len();
+        let parsed = super::parse_list_cursor(cursor.as_deref());
+        let mut page = take_message_page(items, &parsed, limit);
+        let pagination = finish_memory_page(
+            &mut page,
+            &parsed,
+            "created_at",
+            false,
+            limit,
+            total,
+            |item| super::encode_time_cursor("created_at", false, item.created_at, item.message_id),
+        );
 
         Ok(PaginatedMessages {
             items: page,
-            pagination: super::pagination_meta(offset, limit, taken, total),
+            pagination,
         })
+    }
+
+    async fn list_recent_messages(
+        &self,
+        conversation_id: Uuid,
+        limit: usize,
+    ) -> Result<Vec<Message>> {
+        let msgs = self.messages.read().unwrap();
+        let mut items: Vec<_> = msgs
+            .values()
+            .filter(|m| m.conversation_id == conversation_id)
+            .cloned()
+            .collect();
+        items.sort_by_key(|item| item.created_at);
+        let start = items.len().saturating_sub(limit);
+        Ok(items.split_off(start))
     }
 
     async fn create_folder(
@@ -529,6 +572,121 @@ impl ConversationService for InMemoryConversationService {
         }
 
         Ok(count)
+    }
+}
+
+fn cursor_matches(parsed: &super::ParsedCursor, field: &str, desc: bool) -> bool {
+    match parsed {
+        super::ParsedCursor::AfterTime {
+            field: cursor_field,
+            desc: cursor_desc,
+            ..
+        } => cursor_field == field && *cursor_desc == desc,
+        super::ParsedCursor::AfterTitle {
+            desc: cursor_desc, ..
+        } => field == "title" && *cursor_desc == desc,
+        super::ParsedCursor::Offset(_) => false,
+    }
+}
+
+fn take_conversation_page(
+    mut items: Vec<Conversation>,
+    parsed: &super::ParsedCursor,
+    field: &str,
+    desc: bool,
+    limit: usize,
+) -> Vec<Conversation> {
+    if cursor_matches(parsed, field, desc) {
+        items.retain(|item| conversation_is_after(item, parsed, field, desc));
+        items.truncate(limit.saturating_add(1).min(items.len()));
+        items
+    } else {
+        let offset = match parsed {
+            super::ParsedCursor::Offset(offset) => *offset,
+            _ => 0,
+        };
+        items.into_iter().skip(offset).take(limit).collect()
+    }
+}
+
+fn conversation_is_after(
+    item: &Conversation,
+    parsed: &super::ParsedCursor,
+    field: &str,
+    desc: bool,
+) -> bool {
+    match parsed {
+        super::ParsedCursor::AfterTime { at, id, .. } => {
+            let row_at = if field == "created_at" {
+                item.created_at
+            } else {
+                item.updated_at
+            };
+            if desc {
+                (row_at, item.conversation_id) < (*at, *id)
+            } else {
+                (row_at, item.conversation_id) > (*at, *id)
+            }
+        }
+        super::ParsedCursor::AfterTitle { title, id, .. } => {
+            if desc {
+                (&item.title, item.conversation_id) < (title, *id)
+            } else {
+                (&item.title, item.conversation_id) > (title, *id)
+            }
+        }
+        super::ParsedCursor::Offset(_) => true,
+    }
+}
+
+fn take_message_page(
+    mut items: Vec<Message>,
+    parsed: &super::ParsedCursor,
+    limit: usize,
+) -> Vec<Message> {
+    if cursor_matches(parsed, "created_at", false) {
+        if let super::ParsedCursor::AfterTime { at, id, .. } = parsed {
+            items.retain(|item| (item.created_at, item.message_id) > (*at, *id));
+        }
+        items.truncate(limit.saturating_add(1).min(items.len()));
+        items
+    } else {
+        let offset = match parsed {
+            super::ParsedCursor::Offset(offset) => *offset,
+            _ => 0,
+        };
+        items.into_iter().skip(offset).take(limit).collect()
+    }
+}
+
+fn finish_memory_page<T>(
+    items: &mut Vec<T>,
+    parsed: &super::ParsedCursor,
+    field: &str,
+    desc: bool,
+    limit: usize,
+    total: usize,
+    cursor_of: impl Fn(&T) -> String,
+) -> crate::types::PaginationMeta {
+    if cursor_matches(parsed, field, desc) {
+        let has_more = items.len() > limit;
+        if has_more {
+            items.truncate(limit);
+        }
+        let next = has_more.then(|| items.last().map(&cursor_of)).flatten();
+        super::keyset_page_meta(has_more, total, next)
+    } else {
+        let offset = match parsed {
+            super::ParsedCursor::Offset(offset) => *offset,
+            _ => 0,
+        };
+        let mut meta = super::pagination_meta(offset, limit, items.len(), total);
+        if meta.has_more {
+            if let Some(last) = items.last() {
+                meta.next_cursor = Some(cursor_of(last));
+            }
+        }
+        meta
     }
 }
 

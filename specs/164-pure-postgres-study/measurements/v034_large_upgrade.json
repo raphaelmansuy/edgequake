@@ -1,0 +1,17 @@
+{
+  "published_schema": "v0.34.0",
+  "published_head": 169,
+  "published_167_sha384": "a014ecdc029cf05cc500703f8ca9a961c3de8d92326c4094911dd70561cac4399007871855ce47187f191bfbcf543d1b",
+  "upgraded_head": 202,
+  "apply_through_169_ms": 2007.75,
+  "upgrade_170_through_202_ms": 3002.99,
+  "documents": 80000,
+  "chunks": 40000,
+  "conversations": 30000,
+  "tasks": 80000,
+  "failed_page_ms": 0.081,
+  "failed_page_on_workspace_index_ms": 0.051,
+  "ledger": "public._sqlx_migrations only",
+  "age_extension": "dropped at migration 171",
+  "row_counts_unchanged": true
+}

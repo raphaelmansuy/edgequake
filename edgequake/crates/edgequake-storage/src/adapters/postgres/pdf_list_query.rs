@@ -55,11 +55,27 @@ pub async fn list_pdfs_dynamic(
         status_str = String::new(); // Initialize to avoid uninitialized error
     }
 
+    // A passed cursor is a required bound. `created_at <= $n` lets a generic
+    // plan start at `(workspace_id, created_at)` instead of the global
+    // `created_at` index. The row comparison then stops inside a tie.
+    // Page numbers keep OFFSET. No scope and no cursor stays unscoped.
+    let keyset = filter.keyset_cursor();
+    if keyset.is_some() {
+        query_parts.push(format!(
+            " AND created_at <= ${at} AND (created_at, pdf_id) < (${at}, ${id})",
+            at = param_idx,
+            id = param_idx + 1
+        ));
+        param_idx += 2;
+    }
+
     query_parts.push(format!(
-        " ORDER BY created_at DESC LIMIT ${} OFFSET ${}",
-        param_idx,
-        param_idx + 1
+        " ORDER BY created_at DESC, pdf_id DESC LIMIT ${}",
+        param_idx
     ));
+    if keyset.is_none() {
+        query_parts.push(format!(" OFFSET ${}", param_idx + 1));
+    }
 
     let query_str = query_parts.join("");
     let mut query = sqlx::query(&query_str);
@@ -70,7 +86,13 @@ pub async fn list_pdfs_dynamic(
     if filter.processing_status.is_some() {
         query = query.bind(&status_str);
     }
-    query = query.bind(limit).bind(offset);
+    if let Some((at, id)) = keyset {
+        query = query.bind(at).bind(id);
+    }
+    query = query.bind(limit);
+    if keyset.is_none() {
+        query = query.bind(offset);
+    }
 
     let rows = query.fetch_all(pool).await?;
 

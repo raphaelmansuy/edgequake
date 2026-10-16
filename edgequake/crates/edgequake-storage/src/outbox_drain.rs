@@ -130,6 +130,39 @@ where
     }))
 }
 
+/// Global claim. No workspace predicate, so `idx_outbox_events_unprocessed`
+/// can return the oldest due rows and stop at `LIMIT`.
+const OUTBOX_CLAIM_OPEN: &str = r#"
+        UPDATE public.outbox_events
+        SET attempt_count = attempt_count + 1
+        WHERE id IN (
+            SELECT id FROM public.outbox_events
+            WHERE processed_at IS NULL
+              AND available_at <= now()
+            ORDER BY available_at, created_at
+            LIMIT $1
+            FOR UPDATE SKIP LOCKED
+        )
+        RETURNING id, aggregate_type, aggregate_id, event_type, payload, workspace_id, attempt_count
+        "#;
+
+/// Scoped claim. `workspace_id = $2` lets
+/// `idx_outbox_events_workspace_unprocessed` start at that workspace.
+const OUTBOX_CLAIM_SCOPED: &str = r#"
+        UPDATE public.outbox_events
+        SET attempt_count = attempt_count + 1
+        WHERE id IN (
+            SELECT id FROM public.outbox_events
+            WHERE processed_at IS NULL
+              AND available_at <= now()
+              AND workspace_id = $2
+            ORDER BY available_at, created_at
+            LIMIT $1
+            FOR UPDATE SKIP LOCKED
+        )
+        RETURNING id, aggregate_type, aggregate_id, event_type, payload, workspace_id, attempt_count
+        "#;
+
 /// One drain round (public for contracts / chaos).
 pub async fn drain_once<F, Fut>(
     pool: &PgPool,
@@ -140,26 +173,25 @@ where
     F: Fn(OutboxEvent) -> Fut + Send + Sync,
     Fut: std::future::Future<Output = Result<(), String>> + Send,
 {
-    let claimed = sqlx::query_as::<_, (Uuid, String, Uuid, String, Value, Option<Uuid>, i32)>(
-        r#"
-        UPDATE public.outbox_events
-        SET attempt_count = attempt_count + 1
-        WHERE id IN (
-            SELECT id FROM public.outbox_events
-            WHERE processed_at IS NULL
-              AND available_at <= now()
-              AND ($2::uuid IS NULL OR workspace_id = $2)
-            ORDER BY available_at, created_at
-            LIMIT $1
-            FOR UPDATE SKIP LOCKED
+    // `$2 IS NULL OR workspace_id = $2` hides the workspace from a generic
+    // plan, so a scoped drain walks every older event and throws the other
+    // workspaces away. Require the workspace when the caller set one.
+    let claimed = if let Some(workspace_id) = config.workspace_id {
+        sqlx::query_as::<_, (Uuid, String, Uuid, String, Value, Option<Uuid>, i32)>(
+            OUTBOX_CLAIM_SCOPED,
         )
-        RETURNING id, aggregate_type, aggregate_id, event_type, payload, workspace_id, attempt_count
-        "#,
-    )
-    .bind(config.batch)
-    .bind(config.workspace_id)
-    .fetch_all(pool)
-    .await
+        .bind(config.batch)
+        .bind(workspace_id)
+        .fetch_all(pool)
+        .await
+    } else {
+        sqlx::query_as::<_, (Uuid, String, Uuid, String, Value, Option<Uuid>, i32)>(
+            OUTBOX_CLAIM_OPEN,
+        )
+        .bind(config.batch)
+        .fetch_all(pool)
+        .await
+    }
     .map_err(|e| crate::error::StorageError::Database(format!("outbox claim failed: {e}")))?;
 
     if claimed.is_empty() {
@@ -308,5 +340,13 @@ mod tests {
         std::env::set_var(OUTBOX_DRAIN_ENV, "off");
         assert_eq!(OutboxDrainConfig::from_env().mode, DrainMode::Off);
         std::env::remove_var(OUTBOX_DRAIN_ENV);
+    }
+
+    #[test]
+    fn claim_sql_requires_the_workspace_only_when_scoped() {
+        assert!(OUTBOX_CLAIM_SCOPED.contains("workspace_id = $2"));
+        assert!(!OUTBOX_CLAIM_SCOPED.contains("$2::uuid IS NULL"));
+        assert!(!OUTBOX_CLAIM_OPEN.contains("$2"));
+        assert!(OUTBOX_CLAIM_OPEN.contains("ORDER BY available_at, created_at"));
     }
 }

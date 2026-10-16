@@ -1,0 +1,16 @@
+{
+  "spec": "164-product-popular-plan",
+  "scale": "200000 nodes / 499998 edges",
+  "database": "spec164bench",
+  "namespace": "spec164_age",
+  "shape": "hash aggregate of incident endpoints, then top-k, then property fetch",
+  "replaced": "correlated COUNT per node (nested loop)",
+  "correlated_explain_ms": 5319.519,
+  "plain_product_explain_ms": 633.066,
+  "plain_product_warm_ms": 455.303,
+  "age_product_shape_warm_ms": [261.043, 269.073],
+  "plain_harness_warm_ms": [441.025, 456.053, 461.554, 480.702],
+  "plain_over_age": 1.69,
+  "within_2x": true,
+  "explain": "measurements/explains/m_product_popular_hash.txt"
+}

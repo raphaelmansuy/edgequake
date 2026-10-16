@@ -218,6 +218,9 @@ impl EmbeddingIndex for TestEmbeddingIndex {
             supports_rerank: false,
         }
     }
+    fn uses_external_upsert(&self) -> bool {
+        true
+    }
     async fn upsert_batch(
         &self,
         _: ModelId,

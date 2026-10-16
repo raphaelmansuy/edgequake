@@ -283,10 +283,21 @@ impl PostgresAGEGraphStorage {
         }
 
         let pool = self.pool.get().await?;
-        let graph = &self.graph_name;
         let mut unique = node_ids.to_vec();
         unique.sort();
         unique.dedup();
+        if self.plain_writes().await? {
+            let mut tx = pool.begin().await.map_err(|e| {
+                StorageError::Database(format!("plain node delete begin failed: {e}"))
+            })?;
+            super::super::plain::write::write::delete_nodes(&mut tx, &self.namespace, &unique)
+                .await?;
+            tx.commit().await.map_err(|e| {
+                StorageError::Database(format!("plain node delete commit failed: {e}"))
+            })?;
+            return Ok(());
+        }
+        let graph = &self.graph_name;
 
         // Detach: edges where either end is in the delete set (COALESCE eq_* when present).
         let mut conn = pool
@@ -314,17 +325,45 @@ impl PostgresAGEGraphStorage {
                DELETE FROM {graph}."EDGE" e
                WHERE {src} = ANY($1::text[]) OR {tgt} = ANY($1::text[])"#
         );
+        let del_nodes = format!(
+            r#"/* DATA-AGE-GRAPH-DELETE-NODES-BATCH */
+               DELETE FROM {graph}."Node" n
+               WHERE {node_key} = ANY($1::text[])"#
+        );
+        let plain = super::super::plain::tables_present(&pool).await?;
+        if plain {
+            drop(conn);
+            let mut tx = pool.begin().await.map_err(|e| {
+                StorageError::Database(format!("dual node delete begin failed: {e}"))
+            })?;
+            sqlx::query(&del_edges)
+                .bind(&unique)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| {
+                    StorageError::Database(format!("native batch edge detach failed: {e}"))
+                })?;
+            sqlx::query(&del_nodes)
+                .bind(&unique)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| {
+                    StorageError::Database(format!("native batch node delete failed: {e}"))
+                })?;
+            super::super::plain::write::write::delete_nodes(&mut tx, &self.namespace, &unique)
+                .await?;
+            tx.commit().await.map_err(|e| {
+                StorageError::Database(format!("dual node delete commit failed: {e}"))
+            })?;
+            return Ok(());
+        }
+
         sqlx::query(&del_edges)
             .bind(&unique)
             .execute(&mut *conn)
             .await
             .map_err(|e| StorageError::Database(format!("native batch edge detach failed: {e}")))?;
 
-        let del_nodes = format!(
-            r#"/* DATA-AGE-GRAPH-DELETE-NODES-BATCH */
-               DELETE FROM {graph}."Node" n
-               WHERE {node_key} = ANY($1::text[])"#
-        );
         sqlx::query(&del_nodes)
             .bind(&unique)
             .execute(&mut *conn)
@@ -403,6 +442,23 @@ impl PostgresAGEGraphStorage {
         }
 
         let pool = self.pool.get().await?;
+        if self.plain_writes().await? {
+            let mut tx = pool.begin().await.map_err(|e| {
+                StorageError::Database(format!("plain scoped node delete begin failed: {e}"))
+            })?;
+            let deleted = super::super::plain::write::write::delete_nodes_scoped(
+                &mut tx,
+                &self.namespace,
+                &unique,
+                tenant_id,
+                workspace_id,
+            )
+            .await?;
+            tx.commit().await.map_err(|e| {
+                StorageError::Database(format!("plain scoped node delete commit failed: {e}"))
+            })?;
+            return Ok(deleted as usize);
+        }
         let graph = &self.graph_name;
         let mut conn = pool
             .acquire()
@@ -559,6 +615,17 @@ impl PostgresAGEGraphStorage {
         mode: crate::traits::GraphPropertyWriteMode,
     ) -> Result<()> {
         let pool = self.pool.get().await?;
+        if self.plain_writes().await? {
+            let mut tx = pool.begin().await.map_err(|e| {
+                StorageError::Database(format!("plain node upsert begin failed: {e}"))
+            })?;
+            super::super::plain::write::write::upsert_nodes(&mut tx, &self.namespace, nodes, mode)
+                .await?;
+            tx.commit().await.map_err(|e| {
+                StorageError::Database(format!("plain node upsert commit failed: {e}"))
+            })?;
+            return Ok(());
+        }
         let graph = &self.graph_name;
 
         let mut node_ids: Vec<String> = Vec::with_capacity(nodes.len());
@@ -611,6 +678,32 @@ impl PostgresAGEGraphStorage {
             graph = graph,
             properties_set = properties_set
         );
+
+        let plain = super::super::plain::tables_present(&pool).await?;
+        if plain {
+            let mut tx = pool.begin().await.map_err(|e| {
+                StorageError::Database(format!("dual node upsert begin failed: {e}"))
+            })?;
+            sqlx::query(&sql)
+                .bind(&node_ids)
+                .bind(&props_json)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| {
+                    StorageError::Database(format!("Native SQL node batch upsert failed: {e}"))
+                })?;
+            super::super::plain::write::write::mirror_nodes_from_age(
+                &mut tx,
+                graph,
+                &self.namespace,
+                &node_ids,
+            )
+            .await?;
+            tx.commit().await.map_err(|e| {
+                StorageError::Database(format!("dual node upsert commit failed: {e}"))
+            })?;
+            return Ok(());
+        }
 
         sqlx::query(&sql)
             .bind(&node_ids)

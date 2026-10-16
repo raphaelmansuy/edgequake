@@ -12,16 +12,25 @@ name: Migration Guard
 #            canonical bb40c61f... checksum, guaranteeing v0.10.12 → current
 #            upgrades succeed (regression test for issue #195).
 #
+# LAYER 4 — Product migrator (needs PostgreSQL + tags): replay a published
+#            v0.34.0 database (schema 169, published checksum of migration 167)
+#            with 80k documents through schema 202 via `edgequake migrate`.
+#            Raw `sqlx migrate run` (Layer 2) does not fold a split ledger,
+#            repair that checksum, or honor --confirm-drop.
+#
 # This workflow runs on:
-#   - Every push/PR touching migration files or the guard itself (Layer 1+2+3)
+#   - Every push/PR touching migration files, the migrator, or the guard
+#   - Study branches (spec/**) so the schema-train PR runs the proof
 #   - Every push/PR to main branches (Layer 1 always runs)
 #   - Manual dispatch
 
 on:
   push:
-    branches: [main, edgequake-main, "feat/**", "fix/**"]
+    branches: [main, edgequake-main, "feat/**", "fix/**", "spec/**"]
     paths:
       - "edgequake/migrations/**"
+      - "edgequake/crates/edgequake-api/**"
+      - "edgequake/src/**"
       - "scripts/check_migration_checksums.sh"
       - "scripts/check_epoch_coverage.sh"
       - "scripts/check_schema_train_docs.sh"
@@ -29,9 +38,11 @@ on:
       - "scripts/test_migration_e2e.sh"
       - ".github/workflows/migration-guard.yml"
   pull_request:
-    branches: [main, edgequake-main]
+    branches: [main, edgequake-main, "spec/**"]
     paths:
       - "edgequake/migrations/**"
+      - "edgequake/crates/edgequake-api/**"
+      - "edgequake/src/**"
       - "scripts/check_migration_checksums.sh"
       - "scripts/check_epoch_coverage.sh"
       - "scripts/check_schema_train_docs.sh"
@@ -98,14 +109,15 @@ jobs:
   migration-e2e:
     name: "Layer 2+3 — E2E migration + upgrade regression"
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     # WHY: only when migration files or the workflow itself changed
     # Layer 1 (static) already runs on all PRs.
 
     services:
       postgres:
-        # SPEC-150: AGE + pgvector required (M078 Node/EDGE class).
-        image: ghcr.io/raphaelmansuy/edgequake-postgres:latest
+        # SPEC-150 Layer 4 replays a v0.34 database that loaded Apache AGE.
+        # v0.35.5 postgres images do not ship the library. Keep this job on 0.35.4.
+        image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4
         env:
           POSTGRES_DB: edgequake_mig_guard
           POSTGRES_USER: edgequake_guard
@@ -122,6 +134,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Layer 4 runs `git show v0.34.0:edgequake/migrations/167_...`.
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
@@ -208,6 +224,19 @@ jobs:
           echo "PASS: Migration 001 has canonical checksum (bb40c61f...)"
           echo "      All v0.10.12 → current upgrades are guaranteed to succeed."
 
+      # ── Layer 4: product migrator on a published v0.34.0 database ──
+      # Connect to the maintenance DB so the test can CREATE DATABASE.
+      - name: "[Layer 4] v0.34.0 large-database upgrade"
+        working-directory: edgequake
+        env:
+          SQLX_OFFLINE: "true"
+          DATABASE_URL: postgresql://edgequake_guard:guard_password_123@localhost:5432/postgres
+          EDGEQUAKE_REQUIRE_POSTGRES_TESTS: "1"
+        run: |
+          cargo test -p edgequake-api --features postgres \
+            --test e2e_spec164_v034_large_upgrade \
+            -- --test-threads=1
+
       # ── Layer 3b: Full E2E test script ──────────────────────────────
       - name: "[Layer 3b] Full migration E2E test suite"
         env:
@@ -229,6 +258,7 @@ jobs:
           echo "  Layer 2 (fresh apply):     see step above"
           echo "  Layer 2b (idempotency):    see step above"
           echo "  Layer 3 (issue #195 regression): see step above"
+          echo "  Layer 4 (v0.34.0 large upgrade): see step above"
           echo "  Layer 3b (full E2E suite): see step above"
           echo ""
           echo "Migration guard is the last line of defense before a broken"

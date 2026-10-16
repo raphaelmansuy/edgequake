@@ -1060,39 +1060,35 @@ impl GraphStorageMutateOps for MemoryGraphStorage {
 
     async fn delete_edges_scoped_batch(
         &self,
-        edges: &[(String, String)],
+        edges: &[(String, String, String)],
         tenant_id: &str,
         workspace_id: &str,
     ) -> Result<usize> {
         if edges.is_empty() {
             return Ok(0);
         }
-        let mut unique: Vec<(String, String)> = edges.to_vec();
+        let mut unique: Vec<(String, String, String)> = edges.to_vec();
         unique.sort();
         unique.dedup();
-        let matching: Vec<(String, String)> = {
-            let edge_store = self.edges.read().map_err(super::lock::map_lock_err)?;
-            unique
-                .into_iter()
-                .filter(|(source, target)| {
-                    Self::find_edge_by_endpoints(&edge_store, source, target).is_some_and(
-                        |(_, props)| {
-                            props
-                                .get("tenant_id")
-                                .and_then(|v| v.as_str())
-                                .is_some_and(|t| t == tenant_id)
-                                && props
-                                    .get("workspace_id")
-                                    .and_then(|v| v.as_str())
-                                    .is_some_and(|w| w == workspace_id)
-                        },
-                    )
-                })
-                .collect()
-        };
-        let deleted = matching.len();
-        for (source, target) in matching {
-            self.delete_edge(&source, &target).await?;
+        let mut edge_store = self.edges.write().map_err(super::lock::map_lock_err)?;
+        let mut adjacency = self.adjacency.write().map_err(super::lock::map_lock_err)?;
+        let mut deleted = 0usize;
+        for (source, target, rel) in unique {
+            let key = Self::edge_key(&source, &target, &rel);
+            let matches = edge_store.get(&key).is_some_and(|props| {
+                props
+                    .get("tenant_id")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|t| t == tenant_id)
+                    && props
+                        .get("workspace_id")
+                        .and_then(|v| v.as_str())
+                        .is_some_and(|w| w == workspace_id)
+            });
+            if matches {
+                Self::remove_edge_triple(&mut edge_store, &mut adjacency, &source, &target, &rel);
+                deleted += 1;
+            }
         }
         Ok(deleted)
     }

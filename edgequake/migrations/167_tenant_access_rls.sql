@@ -10,7 +10,14 @@ DO $$ BEGIN
     END IF;
 END $$;
 GRANT edgequake_tenant_access TO CURRENT_USER;
-GRANT USAGE ON SCHEMA public, ag_catalog, edgequake TO edgequake_tenant_access;
+-- SPEC-164: a greenfield server without Apache AGE has no ag_catalog schema.
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'ag_catalog') THEN
+        GRANT USAGE ON SCHEMA public, ag_catalog, edgequake TO edgequake_tenant_access;
+    ELSE
+        GRANT USAGE ON SCHEMA public, edgequake TO edgequake_tenant_access;
+    END IF;
+END $$;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public, edgequake TO edgequake_tenant_access;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public, edgequake TO edgequake_tenant_access;
 
@@ -85,6 +92,8 @@ END $$;
 
 -- AGE inheritance does not propagate policies to child labels. Install on every label.
 -- Invoker security is deliberate: only the graph/table owner may provision policies.
+-- check_function_bodies would reject ag_catalog references when the extension is absent.
+SET check_function_bodies = off;
 CREATE FUNCTION public.install_graph_tenant_rls(graph_name text) RETURNS void
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
 DECLARE label record; predicate text;
@@ -108,7 +117,10 @@ BEGIN
     END LOOP;
 END $$;
 DO $$ DECLARE g record; BEGIN
-    FOR g IN SELECT name FROM ag_catalog.ag_graph LOOP
+    IF to_regnamespace('ag_catalog') IS NULL THEN
+        RETURN;
+    END IF;
+    FOR g IN EXECUTE 'SELECT name FROM ag_catalog.ag_graph' LOOP
         PERFORM public.install_graph_tenant_rls(g.name);
     END LOOP;
 END $$;

@@ -12,6 +12,16 @@ use edgequake_llm::traits::{ChatMessage, CompletionOptions, ImageData, LLMProvid
 use super::QueryEngine;
 use super::TokenStream;
 
+/// Acc gold scoring must keep every supporting clause. The product path may
+/// still return a partial answer when the context is incomplete.
+fn completeness_line(gold: bool) -> &'static str {
+    if gold {
+        "  - State every fact in the Context that answers the query, including each alternative, condition, or later clause. Do not stop after the first supporting fact."
+    } else {
+        "  - If the answer cannot be fully determined from the **Context**, state what information IS available and note what is missing. A partial answer with specific data is better than a generic \"insufficient information\" response."
+    }
+}
+
 fn answer_completion_options(reasoning_effort: Option<&str>) -> Option<CompletionOptions> {
     reasoning_effort
         .map(str::trim)
@@ -310,6 +320,7 @@ impl QueryEngine {
         } else {
             "  - Grounded arithmetic is allowed when BOTH operands (e.g. percentage and sample size N) are explicit in Context — compute the count (not the bare percentage) and cite both sources (see Citations & Page Grounding)."
         };
+        let completeness = completeness_line(gold);
 
         format!(
             r#"---Role---
@@ -331,7 +342,7 @@ The answer must integrate relevant facts from the Knowledge Graph and Document C
 2. Content & Grounding:
   - Strictly adhere to the provided context; DO NOT invent facts from general knowledge or assume missing numbers.
 {arith_line}
-  - If the answer cannot be fully determined from the **Context**, state what information IS available and note what is missing. A partial answer with specific data is better than a generic "insufficient information" response.
+{completeness}
 
 {grounding}
 
@@ -411,6 +422,7 @@ The answer must integrate relevant facts from the Knowledge Graph and Document C
         } else {
             "  - Grounded arithmetic is allowed when BOTH operands (e.g. percentage and sample size N) are explicit in Context — compute the count (not the bare percentage) and cite both sources (see Citations & Page Grounding)."
         };
+        let completeness = completeness_line(gold);
         format!(
             r#"---Role---
 
@@ -434,7 +446,7 @@ Prefer **specific named items from Context** (drug names, test names, staging sy
 2. Content & Grounding:
   - Strictly adhere to the provided context; DO NOT invent facts from general knowledge or assume missing numbers.
 {arith_line}
-  - If the answer cannot be fully determined from the **Context**, state what information IS available and note what is missing. A partial answer with specific data is better than a generic "insufficient information" response.
+{completeness}
 
 {grounding}
 

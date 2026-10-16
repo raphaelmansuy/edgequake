@@ -47,8 +47,11 @@ async fn document_id_by_track_id(
 ) -> Option<String> {
     let pool = pool?;
     match sqlx::query_scalar::<_, String>(
-        "SELECT id::text FROM public.documents \
-         WHERE track_id = $1 OR metadata->>'track_id' = $1 \
+        "SELECT id::text FROM ( \
+            SELECT id::text FROM public.documents WHERE track_id = $1 \
+            UNION ALL \
+            SELECT id::text FROM public.documents WHERE metadata->>'track_id' = $1 \
+         ) found \
          LIMIT 1",
     )
     .bind(track_id)

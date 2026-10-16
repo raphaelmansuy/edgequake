@@ -65,19 +65,40 @@ VSQL
 )
 fi
 
+AGE_SQL=""
+AGE_ASSERT=""
+if [ -n "${EQ_AGE_MIN:-}" ]; then
+  AGE_SQL=$(cat <<'ASQL'
+DO $$
+BEGIN
+  CREATE EXTENSION IF NOT EXISTS age;
+EXCEPTION WHEN OTHERS THEN
+  RAISE EXCEPTION 'Apache AGE failed to load: %', SQLERRM;
+END $$;
+ASQL
+)
+  AGE_ASSERT=$(cat <<ASQL
+  IF v_age IS NULL OR string_to_array(v_age, '.')::int[] < string_to_array('${EQ_AGE_MIN}', '.')::int[] THEN
+    RAISE EXCEPTION 'Apache AGE must be >= ${EQ_AGE_MIN} (got %)', v_age;
+  END IF;
+ASQL
+)
+else
+  AGE_ASSERT=$(cat <<'ASQL'
+  IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'age') THEN
+    RAISE EXCEPTION 'product image must not ship Apache AGE';
+  END IF;
+ASQL
+)
+fi
+
 docker exec -e PGPASSWORD="$PGPASSWORD" "$CONTAINER" psql -U edgequake -d edgequake -v ON_ERROR_STOP=1 <<SQL
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE EXTENSION IF NOT EXISTS btree_gin;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 ${VECTORSCALE_SQL}
-
-DO \$\$
-BEGIN
-  CREATE EXTENSION IF NOT EXISTS age;
-EXCEPTION WHEN OTHERS THEN
-  RAISE EXCEPTION 'Apache AGE failed to load: %', SQLERRM;
-END \$\$;
+${AGE_SQL}
 
 SELECT extname, extversion
 FROM pg_extension
@@ -96,9 +117,7 @@ BEGIN
   IF v_vector IS NULL OR string_to_array(v_vector, '.')::int[] < string_to_array('${EQ_PGVECTOR_MIN}', '.')::int[] THEN
     RAISE EXCEPTION 'pgvector must be >= ${EQ_PGVECTOR_MIN} (got %)', v_vector;
   END IF;
-  IF v_age IS NULL OR string_to_array(v_age, '.')::int[] < string_to_array('${EQ_AGE_MIN}', '.')::int[] THEN
-    RAISE EXCEPTION 'Apache AGE must be >= ${EQ_AGE_MIN} (got %)', v_age;
-  END IF;
+  ${AGE_ASSERT}
   IF '${EQ_PGVECTORSCALE_MIN}' <> '' THEN
     SELECT extversion INTO v_vs FROM pg_extension WHERE extname = 'vectorscale';
     IF v_vs IS NULL OR string_to_array(v_vs, '.')::int[] < string_to_array('${EQ_PGVECTORSCALE_MIN}', '.')::int[] THEN

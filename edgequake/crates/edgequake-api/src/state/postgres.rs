@@ -387,14 +387,45 @@ impl AppState {
             std::env::var("EDGEQUAKE_LLM_PROVIDER").unwrap_or_else(|_| "auto-detected".to_string())
         );
 
+        // GitHub #477: a finished migrate must serve the plain graph. Backfill
+        // any AGE label tables and mark `eq_graph_cutover.status = ready` before
+        // the pools are probed, so ingest and query do not keep `*_age=true`.
+        let cutover = edgequake_storage::finish_plain_graph_cutover(&admin_pool)
+            .await
+            .map_err(|e| format!("plain graph cutover failed: {e}"))?;
+        tracing::info!(
+            ready = cutover.ready,
+            graphs = cutover.graphs,
+            mismatches = cutover.mismatches,
+            age_absent = cutover.age_absent,
+            "plain graph cutover after migrate"
+        );
+        if !cutover.ready {
+            return Err(format!(
+                "plain graph cutover left the ledger on AGE (mismatches={}, note={})",
+                cutover.mismatches, cutover.note
+            )
+            .into());
+        }
+
         // SPEC-090: ingest pool for writes; query pool for QueryEngine reads.
+        // `from_existing` skips extension setup and leaves `graph_extension_available`
+        // false. The probe stays false once the cutover ledger is `ready`, even
+        // when the Apache AGE extension is still installed (GitHub #477).
         use edgequake_storage::adapters::postgres::PostgresPool;
         let ingest_pool = PostgresPool::from_existing(pool.clone(), pg_config.clone());
+        let ingest_age = ingest_pool.probe_graph_extension_available().await?;
         let query_pg = {
             let mut c = pg_config.clone();
             c.max_connections = pool_bundle.query_max;
             PostgresPool::from_existing(query_pool.clone(), c)
         };
+        let query_age = query_pg.probe_graph_extension_available().await?;
+        tracing::info!(
+            ingest_age,
+            query_age,
+            "probed Apache AGE on wrapped pools (GitHub #477)"
+        );
         let auth_enabled = std::env::var("EDGEQUAKE_AUTH_ENABLED")
             .map(|v| {
                 !matches!(

@@ -531,10 +531,17 @@ impl PdfDocumentStorage for PostgresPdfStorage {
         }
         let limit = i64::try_from(page_size)
             .map_err(|_| StorageError::InvalidInput("PDF page size exceeds i64".into()))?;
-        let offset = (page - 1)
-            .checked_mul(page_size)
-            .and_then(|n| i64::try_from(n).ok())
-            .ok_or_else(|| StorageError::InvalidInput("PDF page offset exceeds i64".into()))?;
+        let fetch_limit = limit
+            .checked_add(1)
+            .ok_or_else(|| StorageError::InvalidInput("PDF page size exceeds i64".into()))?;
+        let offset = if filter.keyset_cursor().is_some() {
+            0
+        } else {
+            (page - 1)
+                .checked_mul(page_size)
+                .and_then(|n| i64::try_from(n).ok())
+                .ok_or_else(|| StorageError::InvalidInput("PDF page offset exceeds i64".into()))?
+        };
 
         let status_filter = filter.processing_status.map(|s| s.as_str().to_string());
 
@@ -586,15 +593,20 @@ impl PdfDocumentStorage for PostgresPdfStorage {
             .await?
         };
 
-        // Get paginated items using helper
-        let items =
-            super::pdf_list_query::list_pdfs_dynamic(&self.pool, &filter, limit, offset).await?;
+        // Get paginated items using helper. One extra row tells `has_more`
+        // without a second scan of the skipped keys.
+        let mut items =
+            super::pdf_list_query::list_pdfs_dynamic(&self.pool, &filter, fetch_limit, offset)
+                .await?;
+        let has_more = items.len() > page_size;
+        items.truncate(page_size);
 
         Ok(PdfList {
             items,
             total_count,
             page,
             page_size,
+            has_more,
         })
     }
 

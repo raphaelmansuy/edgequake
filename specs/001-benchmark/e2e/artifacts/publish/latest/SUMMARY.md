@@ -22,32 +22,32 @@
 
 | SUT | Acc | F1 | cos |
 |-----|-----|----|-----|
-| EdgeQuake mix | 0.7915 | 0.7336 | 0.9655 |
-| LightRAG mix | 0.7859 | 0.7257 | 0.9663 |
-| Δ (EQ − LR) | +0.0057 | 0.0078 | -0.0008 |
+| EdgeQuake mix | 0.7525 | 0.6814 | 0.9657 |
+| LightRAG mix | 0.7810 | 0.7192 | 0.9665 |
+| Δ (EQ − LR) | -0.0285 | -0.0378 | -0.0008 |
 
-- **Δ Acc 95% CI (bootstrap):** [-0.0217, +0.0341] (n=200)
+- **Δ Acc 95% CI (bootstrap):** [-0.0784, -0.0013] (n=133)
 
 ## Retrieval (L2)
 
 | SUT | evidence_recall | context_relevancy |
 |-----|-----------------|-------------------|
-| EdgeQuake | 0.9316 | 0.4713 |
-| LightRAG | 0.9486 | 0.5100 |
+| EdgeQuake | 0.9222 | 0.4118 |
+| LightRAG | 0.9523 | 0.5001 |
 
 ## By question_type (EQ Acc)
 
-- **Fact Retrieval:** 0.7794
-- **Complex Reasoning:** 0.7967
-- **Contextual Summarize:** 0.8143
-- **Creative Generation:** 0.7758
+- **Fact Retrieval:** 0.6533
+- **Complex Reasoning:** 0.7479
+- **Contextual Summarize:** 0.8351
+- **Creative Generation:** 0.7736
 
 ## By question_type (LR Acc)
 
-- **Fact Retrieval:** 0.7560
-- **Complex Reasoning:** 0.7781
-- **Contextual Summarize:** 0.8436
-- **Creative Generation:** 0.7658
+- **Fact Retrieval:** 0.7402
+- **Complex Reasoning:** 0.7606
+- **Contextual Summarize:** 0.8405
+- **Creative Generation:** 0.7827
 
 ## Ops
 
@@ -55,17 +55,17 @@
 - LR empty-answer rate: 0.000
 - EQ empty-context rate: 0.000
 - LR empty-context rate: 0.000
-- EQ query p50/p95 ms: 5715 / 10631
-- LR query p50/p95 ms: 1325 / 2126
-- ingest wall s: 0.0
-- EQ/LR p50 ratio: 4.313 (SLO ≤1.5×: FAIL/WAIVE)
-- EQ stage p50 ms: keyword=1728, embed=2053, retrieve=70, generate=2930
+- EQ query p50/p95 ms: 5417 / 7290
+- LR query p50/p95 ms: 1315 / 1625
+- ingest wall s: 714.6
+- EQ/LR p50 ratio: 4.119 (SLO ≤1.5×: FAIL/WAIVE)
+- EQ stage p50 ms: keyword=1235, embed=1652, retrieve=183, generate=2167
 
 ## Pins
 
 ```json
 {
-  "edgequake_git_sha": "d88c3da36",
+  "edgequake_git_sha": "20c7845c0",
   "dataset_id": "GraphRAG-Bench/GraphRAG-Bench",
   "dataset_revision": "dc3a111e77dbaf8bbaf51ef331f3cfc9b1b5c546",
   "fixture_id": "medical_publish_question_ids_v1",
@@ -163,6 +163,7 @@
   "l2_bm25_union": true,
   "l2_bm25_mix_top_k": 30,
   "l2_bm25_mode": "fact_replace",
+  "l2_fact_bm25_pool": "mix",
   "mix_intent_weights": false,
   "intent_factual_bias": false,
   "answer_prompt": "default",

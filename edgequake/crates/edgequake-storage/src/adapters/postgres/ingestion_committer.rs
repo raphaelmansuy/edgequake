@@ -22,6 +22,43 @@ use crate::projection_manifest::{
 const COMMIT_OPERATION: &str = "ingestion.commit_batch";
 const DELETE_OPERATION: &str = "lifecycle.tombstone_document";
 
+const DOCUMENT_REVISION_PAGE_OPEN: &str = r#"
+            SELECT logical_id, revision, state, digest
+            FROM public.object_revisions r
+            WHERE tenant_id = $1
+              AND workspace_id = $2
+              AND kind = 'document'
+              AND revision = (
+                  SELECT MAX(r2.revision)
+                  FROM public.object_revisions r2
+                  WHERE r2.tenant_id = r.tenant_id
+                    AND r2.workspace_id = r.workspace_id
+                    AND r2.kind = 'document'
+                    AND r2.logical_id = r.logical_id
+              )
+            ORDER BY logical_id ASC
+            LIMIT $3
+"#;
+
+const DOCUMENT_REVISION_PAGE_AFTER: &str = r#"
+            SELECT logical_id, revision, state, digest
+            FROM public.object_revisions r
+            WHERE tenant_id = $1
+              AND workspace_id = $2
+              AND kind = 'document'
+              AND logical_id > $3
+              AND revision = (
+                  SELECT MAX(r2.revision)
+                  FROM public.object_revisions r2
+                  WHERE r2.tenant_id = r.tenant_id
+                    AND r2.workspace_id = r.workspace_id
+                    AND r2.kind = 'document'
+                    AND r2.logical_id = r.logical_id
+              )
+            ORDER BY logical_id ASC
+            LIMIT $4
+"#;
+
 /// PostgreSQL authority adapter for one bounded ingestion batch.
 #[derive(Clone)]
 pub struct PgIngestionCommitter {
@@ -476,32 +513,25 @@ impl DocumentReader for PgIngestionCommitter {
         let mut tx = super::rls::begin_tenant_transaction(&self.pool, scope)
             .await
             .map_err(AccessError::from)?;
-        let rows = sqlx::query_as::<_, (Uuid, i64, String, Vec<u8>)>(
-            r#"
-            SELECT logical_id, revision, state, digest
-            FROM public.object_revisions r
-            WHERE tenant_id = $1
-              AND workspace_id = $2
-              AND kind = 'document'
-              AND ($3::uuid IS NULL OR logical_id > $3)
-              AND revision = (
-                  SELECT MAX(r2.revision)
-                  FROM public.object_revisions r2
-                  WHERE r2.tenant_id = r.tenant_id
-                    AND r2.workspace_id = r.workspace_id
-                    AND r2.kind = 'document'
-                    AND r2.logical_id = r.logical_id
-              )
-            ORDER BY logical_id ASC
-            LIMIT $4
-            "#,
-        )
-        .bind(scope.tenant().into_uuid())
-        .bind(scope.workspace().into_uuid())
-        .bind(cursor)
-        .bind(limit + 1)
-        .fetch_all(&mut *tx)
-        .await
+        // `$3 IS NULL OR logical_id > $3` hides the cursor from a generic plan,
+        // so a late page walks every earlier revision. The first page has no
+        // cursor. The primary key already orders `(tenant, workspace, kind, logical_id)`.
+        let rows = if let Some(after) = cursor {
+            sqlx::query_as::<_, (Uuid, i64, String, Vec<u8>)>(DOCUMENT_REVISION_PAGE_AFTER)
+                .bind(scope.tenant().into_uuid())
+                .bind(scope.workspace().into_uuid())
+                .bind(after)
+                .bind(limit + 1)
+                .fetch_all(&mut *tx)
+                .await
+        } else {
+            sqlx::query_as::<_, (Uuid, i64, String, Vec<u8>)>(DOCUMENT_REVISION_PAGE_OPEN)
+                .bind(scope.tenant().into_uuid())
+                .bind(scope.workspace().into_uuid())
+                .bind(limit + 1)
+                .fetch_all(&mut *tx)
+                .await
+        }
         .map_err(|error| classify_sqlx("list document revisions", error))?;
 
         tx.commit()

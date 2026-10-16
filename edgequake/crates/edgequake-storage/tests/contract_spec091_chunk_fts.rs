@@ -62,4 +62,11 @@ async fn contract_spec091_chunk_fts_hit() {
         !hits.is_empty(),
         "typed chunk FTS must hit seeded content under workspace filter"
     );
+    let foreign = search_chunks_fts(&pool, "UniqueFtsTokenAlpha123", Some(Uuid::new_v4()), 10)
+        .await
+        .expect("foreign workspace fts");
+    assert!(
+        foreign.is_empty(),
+        "a different workspace must not see the seeded chunk"
+    );
 }

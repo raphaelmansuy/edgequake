@@ -39,6 +39,31 @@ pub async fn run_postgres_expandable_migrations(
     run_postgres_migrations_inner(pool, MigrationApplyMode::ExpandableOnly).await
 }
 
+/// Apply every pending migration except 171. `--confirm-drop` does not drop AGE.
+pub async fn run_postgres_migrations_except_age(
+    pool: &PgPool,
+) -> Result<MigrationBootstrapReport, sqlx::Error> {
+    if !migrate_cli_mode() {
+        return Err(sqlx::Error::Protocol(
+            "run_postgres_migrations_except_age is CLI-only (EDGEQUAKE_MIGRATE_CLI=1)".into(),
+        ));
+    }
+    run_postgres_migrations_inner(pool, MigrationApplyMode::ExceptAge).await
+}
+
+/// Apply SAFE SCHEMA plus migration 171 only. Other DROP OLD steps stay pending.
+pub async fn run_postgres_migrations_expandable_and_age(
+    pool: &PgPool,
+) -> Result<MigrationBootstrapReport, sqlx::Error> {
+    if !migrate_cli_mode() {
+        return Err(sqlx::Error::Protocol(
+            "run_postgres_migrations_expandable_and_age is CLI-only (EDGEQUAKE_MIGRATE_CLI=1)"
+                .into(),
+        ));
+    }
+    run_postgres_migrations_inner(pool, MigrationApplyMode::ExpandableAndAge).await
+}
+
 /// Apply embedded migrations **through** `max_version` inclusive (CLI only).
 ///
 /// Used when an irreversible drop is pending without `--confirm-drop`: apply
@@ -63,6 +88,10 @@ enum MigrationApplyMode {
     Through(i64),
     /// Apply every pending expandable; omit irreversible drop versions.
     ExpandableOnly,
+    /// Apply every pending migration except Apache AGE drop (171).
+    ExceptAge,
+    /// SAFE SCHEMA plus migration 171. Other irreversible drops stay pending.
+    ExpandableAndAge,
 }
 
 /// Apply each pending migration with stdout progress + `migration_run_step` telemetry.
@@ -74,6 +103,7 @@ async fn apply_pending_sequentially(
     pool: &PgPool,
     pending: &[&sqlx::migrate::Migration],
     run_id: Option<uuid::Uuid>,
+    runner_cfg: &runner::RunnerConfig,
 ) -> Result<(), sqlx::Error> {
     let total = pending.len();
     for (idx, migration) in pending.iter().enumerate() {
@@ -95,7 +125,20 @@ async fn apply_pending_sequentially(
             locking: false,
             no_tx: MIGRATOR.no_tx,
         };
-        match one.run(pool).await {
+        // sqlx creates and updates unqualified `_sqlx_migrations`. PostgreSQL
+        // puts `CREATE TABLE IF NOT EXISTS` in the first schema of search_path
+        // even when public already has the table. Migration 013 leaves the
+        // session on `ag_catalog, "$user", public`, and the next pool checkout
+        // then records the version outside public. Pin this checkout to public
+        // before sqlx looks up the ledger, and pin it again before the
+        // connection returns to the pool.
+        let mut conn = pool.acquire().await?;
+        pin_public_ledger(&mut conn).await?;
+        runner::apply_session_timeouts_on(&mut conn, runner_cfg, "ddl_access_exclusive").await?;
+        let applied = one.run_direct(&mut *conn).await;
+        let _ = pin_public_ledger(&mut conn).await;
+        drop(conn);
+        match applied {
             Ok(()) => {
                 let elapsed = started.elapsed();
                 progress::print_step_done(n, total, migration.version, desc, elapsed);
@@ -143,6 +186,13 @@ async fn apply_pending_sequentially(
     Ok(())
 }
 
+async fn pin_public_ledger(conn: &mut sqlx::PgConnection) -> Result<(), sqlx::Error> {
+    sqlx::query("SET search_path TO public")
+        .execute(&mut *conn)
+        .await?;
+    Ok(())
+}
+
 async fn run_postgres_migrations_inner(
     pool: &PgPool,
     mode: MigrationApplyMode,
@@ -174,7 +224,10 @@ async fn run_postgres_migrations_inner_locked(
     };
     let max_version = match mode {
         MigrationApplyMode::Through(v) => Some(v),
-        MigrationApplyMode::All | MigrationApplyMode::ExpandableOnly => None,
+        MigrationApplyMode::All
+        | MigrationApplyMode::ExpandableOnly
+        | MigrationApplyMode::ExceptAge
+        | MigrationApplyMode::ExpandableAndAge => None,
     };
     info!(
         target: "edgequake.migration",
@@ -186,6 +239,17 @@ async fn run_postgres_migrations_inner_locked(
         "Database migration bootstrap starting"
     );
 
+    if migrate_cli_mode() {
+        let folded = super::ledger::fold_stray_sqlx_ledgers(pool).await?;
+        if folded > 0 {
+            info!(
+                target: "edgequake.migration",
+                step = "fold_stray_ledgers",
+                folded,
+                "Copied stray _sqlx_migrations rows into public before pending detection"
+            );
+        }
+    }
     let applied_before = fetch_applied_versions(pool).await?;
     let defer_legacy_cutover_assert = edgequake_storage::any_legacy_rows(pool)
         .await
@@ -199,6 +263,11 @@ async fn run_postgres_migrations_inner_locked(
             MigrationApplyMode::Through(cap) => m.version <= cap,
             MigrationApplyMode::ExpandableOnly => {
                 include_in_expandable_apply(m.version, defer_legacy_cutover_assert)
+            }
+            MigrationApplyMode::ExceptAge => m.version != 171,
+            MigrationApplyMode::ExpandableAndAge => {
+                m.version == 171
+                    || include_in_expandable_apply(m.version, defer_legacy_cutover_assert)
             }
         })
         .collect();
@@ -336,6 +405,7 @@ async fn run_postgres_migrations_inner_locked(
             pending.len(),
             &irreversibles,
         );
+        progress::print_cutover_duration_note(pool).await;
         info!(
             target: "edgequake.migration",
             step = "sqlx_run",
@@ -346,7 +416,7 @@ async fn run_postgres_migrations_inner_locked(
         // Apply each pending migration individually so operators see progress.
         // Outer SPEC-150 advisory lock is held; disable sqlx's nested lock.
         // ignore_missing: already-applied versions are absent from this slice.
-        apply_pending_sequentially(pool, &pending, run_id).await?;
+        apply_pending_sequentially(pool, &pending, run_id, runner_cfg).await?;
         info!(
             target: "edgequake.migration",
             step = "sqlx_complete",
@@ -808,6 +878,23 @@ async fn run_postgres_migrations_inner_locked(
                 error = %e,
                 "Could not ensure next-month audit partition (will retry next boot)"
             );
+        }
+    }
+
+    // 205 records a no-op while Apache AGE is still installed, because 206
+    // cannot land until 205 is in the ledger. After a later `--drop-age`,
+    // 171 has removed the extension and 205 will not run again, so repeat
+    // the cleanup here. Missing the function means this database has not
+    // reached 205 yet.
+    if migrate_cli_mode() {
+        if let Err(e) = sqlx::query("SELECT public.eq_drop_empty_ag_catalog()")
+            .execute(pool)
+            .await
+        {
+            let msg = e.to_string();
+            if !msg.contains("does not exist") {
+                return Err(e);
+            }
         }
     }
 

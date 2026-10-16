@@ -27,6 +27,43 @@ use sqlx::Row;
 use super::config::{db_pool_role_from_env, resolve_pool_max_connections, PostgresConfig};
 use crate::error::{Result, StorageError};
 
+/// True when migration 170's ledger says graph IO is on the plain tables.
+async fn cutover_status_ready(pool: &PgPool) -> bool {
+    let table_exists: bool =
+        sqlx::query_scalar("SELECT to_regclass('public.eq_graph_cutover') IS NOT NULL")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(false);
+    if !table_exists {
+        return false;
+    }
+    let status: Option<String> =
+        sqlx::query_scalar("SELECT status FROM public.eq_graph_cutover WHERE id = 1")
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten();
+    status.as_deref() == Some("ready")
+}
+
+/// True after migration 171 has recorded that Apache AGE was dropped.
+async fn cutover_marks_age_absent(pool: &PgPool) -> bool {
+    let table_exists: bool =
+        sqlx::query_scalar("SELECT to_regclass('public.eq_graph_cutover') IS NOT NULL")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(false);
+    if !table_exists {
+        return false;
+    }
+    sqlx::query_scalar(
+        "SELECT COALESCE((SELECT age_absent FROM public.eq_graph_cutover WHERE id = 1), false)",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(false)
+}
+
 /// Default idle-in-transaction timeout (SPEC-112 / OLTP safety net).
 pub const DEFAULT_IDLE_IN_XACT_TIMEOUT_SECS: u64 = 60;
 
@@ -187,17 +224,23 @@ impl PostgresPool {
         self.graph_extension_available.load(Ordering::Relaxed)
     }
 
-    /// Probe `pg_extension` for AGE (used when pool was from_existing without setup).
+    /// Probe whether graph IO should use Apache AGE.
+    ///
+    /// The extension can remain installed after migrate. Once
+    /// `eq_graph_cutover.status` is `ready`, reads and writes stay on the plain
+    /// tables, so this returns false (GitHub #477). `EDGEQUAKE_GRAPH_READ`
+    /// does not reopen AGE label tables.
     pub async fn probe_graph_extension_available(&self) -> Result<bool> {
         let pool = self.get().await?;
-        let available: bool =
+        let installed: bool =
             sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')")
                 .fetch_one(&pool)
                 .await
                 .map_err(|e| StorageError::Database(format!("AGE extension probe failed: {e}")))?;
+        let use_age = installed && !cutover_status_ready(&pool).await;
         self.graph_extension_available
-            .store(available, Ordering::Relaxed);
-        Ok(available)
+            .store(use_age, Ordering::Relaxed);
+        Ok(use_age)
     }
 
     /// Get the configuration.
@@ -270,7 +313,21 @@ impl PostgresPool {
                 ))
             })?;
 
-        // Enable Apache AGE extension (fail-closed unless opt-out — SPEC-090 F-090-19)
+        // Enable Apache AGE extension (fail-closed unless opt-out — SPEC-090 F-090-19).
+        // SPEC-164 G11: after 171 the ledger records age_absent. Do not recreate the
+        // extension on a server that still has the package installed.
+        // A finished migrate (ledger `ready`) stays on the plain tables.
+        // `EDGEQUAKE_GRAPH_READ` does not create the extension or label tables.
+        // Before the ledger is ready, an installed AGE extension is still used.
+        let age_absent = cutover_marks_age_absent(pool).await;
+        let plain_ready = cutover_status_ready(pool).await;
+        if age_absent || plain_ready {
+            tracing::info!(age_absent, plain_ready, "graph IO will not use Apache AGE");
+            self.graph_extension_available
+                .store(false, Ordering::Relaxed);
+            return Ok(());
+        }
+
         let age_ok = match sqlx::query("CREATE EXTENSION IF NOT EXISTS age CASCADE")
             .execute(pool)
             .await
@@ -296,7 +353,19 @@ impl PostgresPool {
                 true
             }
             Err(e) => {
-                if Self::allow_no_graph_extension() {
+                // SPEC-164 EC-27: after confirm-drop, ag_catalog is gone. Boot on plain tables.
+                let catalog_present: bool = sqlx::query_scalar(
+                    "SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'ag_catalog')",
+                )
+                .fetch_one(pool)
+                .await
+                .unwrap_or(true);
+                if !catalog_present {
+                    tracing::warn!(
+                        "Apache AGE catalog is absent ({e}). Continuing on SPEC-164 plain graph tables."
+                    );
+                    false
+                } else if Self::allow_no_graph_extension() {
                     tracing::warn!(
                         "Apache AGE extension not available: {}. Graph operations will use fallback (EDGEQUAKE_ALLOW_NO_GRAPH=1).",
                         e
@@ -359,5 +428,46 @@ impl std::fmt::Debug for PostgresPool {
                 &self.pool.try_read().map(|g| g.is_some()).unwrap_or(false),
             )
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `from_existing` must not claim AGE until probed (GitHub #477).
+    #[tokio::test]
+    async fn from_existing_probe_matches_pg_extension() {
+        let url = std::env::var("DATABASE_URL")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        let Some(url) = url else {
+            eprintln!("SKIP: no DATABASE_URL for AGE probe check");
+            return;
+        };
+        let Ok(raw) = sqlx::PgPool::connect(&url).await else {
+            eprintln!("SKIP: cannot connect for AGE probe check");
+            return;
+        };
+        let wrapped = PostgresPool::from_existing(raw.clone(), PostgresConfig::default());
+        assert!(
+            !wrapped.graph_extension_available(),
+            "from_existing starts with graph_extension_available false"
+        );
+        let probed = wrapped
+            .probe_graph_extension_available()
+            .await
+            .expect("AGE probe");
+        eprintln!("AGE_PROBE available={probed}");
+        let installed: bool =
+            sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')")
+                .fetch_one(&raw)
+                .await
+                .expect("pg_extension lookup");
+        let ready = cutover_status_ready(&raw).await;
+        let expected = installed && !ready;
+        assert_eq!(probed, expected);
+        assert_eq!(wrapped.graph_extension_available(), expected);
     }
 }

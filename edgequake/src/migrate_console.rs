@@ -30,6 +30,8 @@ pub fn print_first_principles() {
     println!(
         "                   NEVER automatic. Needs {CANONICAL_CONFIRM_DROP_FLAG} + GREEN readiness."
     );
+    println!("  4. APACHE AGE   — left installed. Removing it is a separate question.");
+    println!("                   Default is keep. Drop only with --drop-age (or answer yes).");
     println!("  Server start never applies migrations; it only refuses when SAFE SCHEMA");
     println!("  is still missing. Optional DROP OLD may stay pending while you serve.");
     println!();
@@ -50,6 +52,12 @@ pub const CANONICAL_CONFIRM_DROP_FLAG: &str = "--confirm-drop";
 /// Consent tokens recognized on `edgequake migrate` apply path (LAW-137-1).
 pub const CONFIRM_DROP_FLAGS: &[&str] = &["--confirm-drop", "--drop-confirm"];
 
+/// Migration 171. Not part of `--confirm-drop`. The migrate question decides it.
+pub const AGE_DROP_MIGRATION: i64 = 171;
+
+/// `--drop-age` removes Apache AGE. `--keep-age` leaves it (the default).
+pub const AGE_DROP_FLAGS: &[&str] = &["--drop-age", "--keep-age"];
+
 /// True when `arg` is a DROP OLD consent flag (canonical or alias).
 pub fn is_confirm_drop_flag(arg: &str) -> bool {
     CONFIRM_DROP_FLAGS.contains(&arg)
@@ -60,11 +68,33 @@ pub fn drop_consent_from_args(args: &[String]) -> bool {
     args.iter().any(|a| is_confirm_drop_flag(a))
 }
 
+/// True when `arg` answers the Apache AGE question.
+pub fn is_age_drop_flag(arg: &str) -> bool {
+    AGE_DROP_FLAGS.contains(&arg)
+}
+
+/// `Some(true)` drops AGE, `Some(false)` keeps it, `None` means the operator
+/// has not answered yet. `--confirm-drop` does not answer this question.
+pub fn age_drop_choice_from_args(args: &[String]) -> Result<Option<bool>, &'static str> {
+    let drop_age = args.iter().any(|a| a == "--drop-age");
+    let keep_age = args.iter().any(|a| a == "--keep-age");
+    if drop_age && keep_age {
+        return Err("pass only one of --drop-age and --keep-age");
+    }
+    if drop_age {
+        return Ok(Some(true));
+    }
+    if keep_age {
+        return Ok(Some(false));
+    }
+    Ok(None)
+}
+
 /// First unknown `--flag` on the apply path (not a consent token).
 pub fn first_unknown_migrate_apply_flag(args: &[String]) -> Option<&str> {
     args.iter()
         .map(String::as_str)
-        .find(|a| a.starts_with("--") && !is_confirm_drop_flag(a))
+        .find(|a| a.starts_with("--") && !is_confirm_drop_flag(a) && !is_age_drop_flag(a))
 }
 
 /// Operator message when an apply-path flag is not a consent token (LAW-137-2).
@@ -73,13 +103,14 @@ pub fn unknown_migrate_apply_flag_message(flag: &str) -> String {
         format!(
             "unknown migrate flag '{flag}'. \
              Irreversible DROP OLD consent is `{CANONICAL_CONFIRM_DROP_FLAG}` \
-             (alias `--drop-confirm`)."
+             (alias `--drop-confirm`). Apache AGE is a separate question: \
+             `--drop-age` or `--keep-age`."
         )
     } else {
         format!(
             "unknown migrate flag '{flag}'. \
-             Apply path accepts only `{CANONICAL_CONFIRM_DROP_FLAG}` \
-             (alias `--drop-confirm`)."
+             Apply path accepts `{CANONICAL_CONFIRM_DROP_FLAG}` \
+             (alias `--drop-confirm`), plus `--drop-age` or `--keep-age`."
         )
     }
 }
@@ -153,12 +184,83 @@ pub fn classify_migrate_abort(msg: &str) -> MigrateAbortClass {
 
 /// Human one-liner for an irreversible drop version.
 pub fn irreversible_drop_plain(version: i64) -> &'static str {
-    match version {
-        KV_DROP_MIGRATION => "deletes the old key-value tables (eq_*_kv)",
-        VECTOR_DROP_MIGRATION => "deletes old chunk rows from eq_*_vectors",
-        FLEET_VECTOR_DROP_MIGRATION => "deletes all remaining eq_*_vectors tables",
-        _ => "irreversible drop",
+    edgequake_api::state::migration_bootstrap::irreversible_drop_plain(version)
+}
+
+/// Compact a version list: `172–174, 202`. Empty is `none`.
+pub fn format_version_span(versions: &[i64]) -> String {
+    if versions.is_empty() {
+        return "none".to_string();
     }
+    let mut sorted = versions.to_vec();
+    sorted.sort_unstable();
+    sorted.dedup();
+    let mut parts = Vec::new();
+    let mut start = sorted[0];
+    let mut prev = sorted[0];
+    for &version in &sorted[1..] {
+        if version == prev + 1 {
+            prev = version;
+            continue;
+        }
+        parts.push(span_piece(start, prev));
+        start = version;
+        prev = version;
+    }
+    parts.push(span_piece(start, prev));
+    parts.join(", ")
+}
+
+fn span_piece(start: i64, end: i64) -> String {
+    if start == end {
+        start.to_string()
+    } else {
+        format!("{start}–{end}")
+    }
+}
+
+/// Irreversible versions with their plain-English meaning.
+pub fn format_drop_list(versions: &[i64]) -> String {
+    if versions.is_empty() {
+        return "none".to_string();
+    }
+    let mut sorted = versions.to_vec();
+    sorted.sort_unstable();
+    sorted.dedup();
+    sorted
+        .into_iter()
+        .map(|version| format!("{version} ({})", irreversible_drop_plain(version)))
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+/// `202` or `none`. Never `Some(202)`.
+pub fn format_latest_schema(latest: Option<i64>) -> String {
+    match latest {
+        Some(version) => version.to_string(),
+        None => "none".to_string(),
+    }
+}
+
+/// Schema block for `edgequake migrate status`.
+pub fn format_schema_status(
+    db_schema: Option<i64>,
+    binary_schema: i64,
+    pending: usize,
+    drops: &[i64],
+) -> String {
+    let db_shown = format_latest_schema(db_schema);
+    let db_rel =
+        edgequake_api::state::migration_bootstrap::release_for_schema(db_schema.unwrap_or(0));
+    let bin_rel = edgequake_api::state::migration_bootstrap::release_for_schema(binary_schema);
+    let drop_line = if drops.is_empty() {
+        String::new()
+    } else {
+        format!("\n  drop old : {}", format_drop_list(drops))
+    };
+    format!(
+        "schema:\n  database : {db_shown} (≈ {db_rel})\n  binary   : {binary_schema} (≈ {bin_rel})\n  pending  : {pending}{drop_line}"
+    )
 }
 
 /// List pending migrations before apply.
@@ -181,6 +283,7 @@ fn is_irreversible_drop_version(version: i64) -> bool {
     version == KV_DROP_MIGRATION
         || version == VECTOR_DROP_MIGRATION
         || version == FLEET_VECTOR_DROP_MIGRATION
+        || version == 171
 }
 
 /// Class label for pending-migration lines (expandable vs irreversible).
@@ -191,6 +294,8 @@ pub fn migration_class_tag(version: i64) -> &'static str {
         "  [DROP OLD — irreversible chunk vectors]"
     } else if version == FLEET_VECTOR_DROP_MIGRATION {
         "  [DROP OLD — irreversible vector fleet]"
+    } else if version == 171 {
+        "  [DROP OLD — irreversible Apache AGE]"
     } else if version == 142 {
         "  [ASSERT — SPEC-105; after confirm-drop / empty residue]"
     } else if version >= 106 && !is_irreversible_drop_version(version) {
@@ -258,6 +363,11 @@ pub fn print_irreversible_pending_soft_exit(remaining: &[(i64, String)]) {
     eprintln!("    1. Take a backup");
     eprintln!("    2. edgequake migrate {CANONICAL_CONFIRM_DROP_FLAG}");
     eprintln!("    3. edgequake migrate            # applies deferred 142 assert");
+    if remaining.iter().any(|(v, _)| *v == AGE_DROP_MIGRATION) {
+        eprintln!(" Apache AGE stays installed. Dropping it is optional.");
+        eprintln!("    Question: edgequake migrate --drop-age");
+        eprintln!("    Keep it explicit: edgequake migrate --keep-age");
+    }
     eprintln!(" Preview anytime: edgequake migrate dry-run");
     eprintln!(" Rollback after a drop = restore from backup (no undo SQL).");
     eprintln!("══════════════════════════════════════════════════════════════════");
@@ -315,7 +425,7 @@ pub fn print_apply_intent(pending: &[(i64, String)], drop_confirmed: bool) {
         if irreversible.is_empty() {
             String::new()
         } else {
-            format!(" → {irreversible:?}")
+            format!(" → {}", format_drop_list(&irreversible))
         }
     );
     if !irreversible.is_empty() {
@@ -331,6 +441,16 @@ pub fn print_apply_intent(pending: &[(i64, String)], drop_confirmed: bool) {
         }
     }
     println!();
+}
+
+/// Printed when migration 171 is still pending. Default is to leave Apache AGE.
+pub fn print_age_decision(drop_age: bool) {
+    if drop_age {
+        println!("  Apache AGE: DROP. You answered yes to the migrate question.");
+    } else {
+        println!("  Apache AGE: KEEP. The extension stays installed.");
+        println!("  Drop it later only if you mean to: edgequake migrate --drop-age");
+    }
 }
 
 /// Operator checklist printed at the end of dry-run (and useful before apply).
@@ -468,8 +588,9 @@ pub fn print_applied_this_run(applied: &[(i64, String)]) {
 
 /// Final one-line summary (machine-friendly).
 pub fn print_summary(pending_before: usize, latest: Option<i64>, applied_count: usize) {
+    let latest = format_latest_schema(latest);
     println!(
-        "migrate ok: pending_before={pending_before} latest={latest:?} applied_this_run={applied_count}"
+        "migrate ok: pending_before={pending_before} latest={latest} applied_this_run={applied_count}"
     );
 }
 
@@ -992,6 +1113,21 @@ mod first_principles_tests {
             Some("--confirm-drp")
         );
         assert!(first_unknown_migrate_apply_flag(&["--confirm-drop".into()]).is_none());
+        assert!(first_unknown_migrate_apply_flag(&["--drop-age".into()]).is_none());
+        assert!(first_unknown_migrate_apply_flag(&["--keep-age".into()]).is_none());
+        assert_eq!(
+            age_drop_choice_from_args(&["--drop-age".into()]).unwrap(),
+            Some(true)
+        );
+        assert_eq!(
+            age_drop_choice_from_args(&["--keep-age".into()]).unwrap(),
+            Some(false)
+        );
+        assert_eq!(
+            age_drop_choice_from_args(&["--confirm-drop".into()]).unwrap(),
+            None
+        );
+        assert!(age_drop_choice_from_args(&["--drop-age".into(), "--keep-age".into()]).is_err());
         let msg = unknown_migrate_apply_flag_message("--confirm-drp");
         assert!(msg.contains(CANONICAL_CONFIRM_DROP_FLAG));
         assert!(msg.contains("--drop-confirm"));
@@ -1053,6 +1189,28 @@ mod first_principles_tests {
             classify_migrate_abort("PREFLIGHT_BINARY_OLDER: binary older than database"),
             MigrateAbortClass::BinaryOlder
         );
+    }
+
+    #[test]
+    fn version_spans_and_schema_status_are_plain_english() {
+        assert_eq!(format_version_span(&[]), "none");
+        assert_eq!(format_version_span(&[202]), "202");
+        assert_eq!(format_version_span(&[202, 170, 171, 170]), "170–171, 202");
+        assert_eq!(format_latest_schema(Some(202)), "202");
+        assert_eq!(format_latest_schema(None), "none");
+        let drops = format_drop_list(&[171, 125]);
+        assert!(drops.starts_with("125 ("), "{drops}");
+        assert!(drops.contains("Apache AGE"), "{drops}");
+        assert!(!drops.contains('['), "{drops}");
+        let status = format_schema_status(Some(169), 202, 33, &[171]);
+        assert!(status.contains("database : 169"), "{status}");
+        assert!(status.contains("binary   : 202"), "{status}");
+        assert!(status.contains("pending  : 33"), "{status}");
+        assert!(status.contains("drops Apache AGE"), "{status}");
+        assert!(!status.contains("Some("), "{status}");
+        let empty = format_schema_status(None, 202, 0, &[]);
+        assert!(empty.contains("database : none"), "{empty}");
+        assert!(!empty.contains("drop old"), "{empty}");
     }
 
     #[test]

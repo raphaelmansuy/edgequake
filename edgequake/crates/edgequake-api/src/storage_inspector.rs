@@ -496,6 +496,11 @@ impl StorageInspector {
         {
             Ok(g) => g,
             Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("ag_catalog") || msg.contains("does not exist") {
+                    self.check_plain_graph_lineage(report).await;
+                    return;
+                }
                 warn!(error = %e, "StorageInspector: failed to list ag_catalog.ag_graph");
                 // Fall back to configured graph only.
                 self.check_node_source_ids_gin_for(report, &self.config.graph_name)
@@ -512,6 +517,50 @@ impl StorageInspector {
 
         for graph in &graphs {
             self.check_node_source_ids_gin_for(report, graph).await;
+        }
+    }
+
+    /// SPEC-164 EC-24: plain adjacency is the lineage authority after AGE is gone.
+    async fn check_plain_graph_lineage(&self, report: &mut InspectorReport) {
+        let pk: bool = sqlx::query_scalar(
+            "SELECT EXISTS (
+                SELECT 1 FROM pg_constraint c
+                JOIN pg_class t ON t.oid = c.conrelid
+                JOIN pg_namespace n ON n.oid = t.relnamespace
+                WHERE n.nspname = 'public' AND t.relname = 'eq_graph_nodes'
+                  AND c.contype = 'p'
+            )",
+        )
+        .fetch_one(self.pool.as_ref())
+        .await
+        .unwrap_or(false);
+        if !pk {
+            report.add_schema_issue(SchemaDriftIssue {
+                check_name: "eq_graph_nodes_pk".into(),
+                severity: Severity::Warning,
+                description: "public.eq_graph_nodes primary key is missing".into(),
+                details: Some("Apply migration 170_spec164_plain_graph.sql".into()),
+            });
+        }
+        let gin: bool = sqlx::query_scalar(
+            "SELECT EXISTS (
+                SELECT 1 FROM pg_indexes
+                WHERE schemaname = 'public'
+                  AND indexname = 'idx_eq_graph_nodes_source_ids_gin'
+            )",
+        )
+        .fetch_one(self.pool.as_ref())
+        .await
+        .unwrap_or(false);
+        if !gin {
+            report.add_schema_issue(SchemaDriftIssue {
+                check_name: "idx_eq_graph_nodes_source_ids_gin".into(),
+                severity: Severity::Warning,
+                description:
+                    "Missing idx_eq_graph_nodes_source_ids_gin — lineage probes may sequential-scan"
+                        .into(),
+                details: Some("Apply migration 170_spec164_plain_graph.sql".into()),
+            });
         }
     }
 

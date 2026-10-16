@@ -278,7 +278,7 @@ Two tools show the result:
 
 - **TLS.** EdgeQuake does not terminate TLS. Put Caddy, nginx or a cloud load balancer in front.
 - **Bind address.** The server listens on `HOST` and `PORT` (defaults `0.0.0.0` and `8080`). Bind to `127.0.0.1` when a proxy on the same machine fronts it. The quickstart compose file publishes ports on `127.0.0.1` only.
-- **CORS.** `EDGEQUAKE_CORS_ORIGINS` is a comma-separated allow-list. Outside dev mode, an empty list denies all cross-origin requests. In dev mode, any origin is allowed.
+- **CORS.** `EDGEQUAKE_CORS_ORIGINS` is a comma-separated allow-list. Outside dev mode, an empty list denies all cross-origin requests. In dev mode the API echoes the request `Origin` and sends `Access-Control-Allow-Credentials: true` so a split-origin WebUI (`credentials: "include"`) can read the response. A wildcard `Access-Control-Allow-Origin: *` is never sent.
 - **Bulk delete.** Set `EDGEQUAKE_REQUIRE_DELETE_ALL_CONFIRM=true` to require the header `X-EdgeQuake-Confirm: delete-all-documents` for delete-all.
 - **Ollama shim.** The Ollama-compatible `/api/*` routes are on by default. Set `EDGEQUAKE_OLLAMA_COMPAT_ENABLED=false` to turn them off.
 - **Input limits.** Default document size is 50 MiB and query length is 10,000 characters. Text uploads accept `txt`, `md`, `json`, `csv`, `html`, `htm`, `xml`, `yaml` and `yml`. Images accept `png`, `jpg`, `jpeg`, `gif` and `webp`. PDFs use the PDF upload path. EdgeQuake does not scan files for malware.

@@ -13,6 +13,12 @@ use super::types::{
 pub trait EmbeddingIndex: Send + Sync {
     fn capabilities(&self) -> EmbeddingCapabilities;
 
+    /// The pgvector applier writes typed Postgres tables itself.
+    /// An index that stores somewhere else must take the batch.
+    fn uses_external_upsert(&self) -> bool {
+        false
+    }
+
     async fn upsert_batch(
         &self,
         model: ModelId,

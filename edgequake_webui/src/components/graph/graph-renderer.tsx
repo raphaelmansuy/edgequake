@@ -241,7 +241,7 @@ export function GraphRenderer({
   return (
     <div
       ref={containerRef}
-      className="relative h-full min-h-100 w-full rounded-lg bg-muted/20 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="absolute inset-0 rounded-lg bg-muted/20 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       data-graph-engine-id={engineId ?? undefined}
       data-graph-engine={engineId ? '1' : undefined}
       tabIndex={0}

@@ -3,7 +3,7 @@
 Acc (GraphRAG-Bench) = factuality_weight * F1 + (1-w) * embed_cosine(answer, gold).
 
 First principles (Acc lift while keeping a Mistral judge — Jul 2026):
-  1. Acc is F1-heavy → match *gold answer shape* (short, direct), not essays.
+  1. Acc is F1-heavy → state every context fact that answers the question. A one-sentence cap drops a later clause that was already retrieved.
   2. Do not refuse when evidence is present (over-refusal zeros Acc).
   3. Keep SUT embed / corpus / top-k fixed when changing style (one confound).
   4. Prefer a stronger *same-family* judge for statement decomposition
@@ -37,20 +37,24 @@ CONCISE_SYSTEM_PROMPT = (
     "If the answer is a single fact, state that fact directly."
 )
 
-# Gold-format: optimized for GraphRAG-Bench Acc (statement-F1 vs short gold).
+# Citation-free answer rules. Completeness matches LightRAG rag_response
+# ("extract all pieces of information that are directly relevant"). A one-sentence
+# cap is not part of that prompt and drops a second clause that is already in context.
 GOLD_SYSTEM_PROMPT = (
     "You are answering a GraphRAG-Bench medical question for accuracy scoring.\n"
     "Rules (strict):\n"
     "1) Use ONLY the retrieved context. Prefer facts that appear in the context.\n"
-    "2) Match gold answer style: usually ONE short sentence (or 2–4 short bullets "
-    "for multi-part questions). No markdown headings, no essays, no preamble.\n"
+    "2) State every context fact that answers the question. When the context gives "
+    "alternatives, conditions, or a second clause, include them. Do not stop after "
+    "the first supporting fact. No markdown headings and no preamble.\n"
     "3) Do NOT say 'Not answerable' / 'I cannot' if ANY context chunk is relevant "
-    "to the question — answer with the best supported fact from that context.\n"
+    "to the question — answer with the facts that context supports.\n"
     "4) Do NOT expand acronyms unless the context expands them; keep entity names "
     "as written in the context.\n"
     "5) Do NOT add caveats, differential diagnoses, or 'consult a specialist' "
     "unless the question asks for them.\n"
-    "6) If the question asks for a single method/fact, reply with that fact only.\n"
+    "6) When the question asks what applies, name each item the context states. "
+    "Do not collapse a list into a single example.\n"
     "7) Do NOT append citation markers, chunk ids, or brackets like [1], [16], "
     "(source), or 'according to chunk' — plain answer text only (gold has none)."
 )

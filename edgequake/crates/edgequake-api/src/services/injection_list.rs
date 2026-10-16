@@ -34,6 +34,7 @@ impl InjectionListPage {
 pub async fn list_injections_paged(
     kv_storage: &Arc<dyn KVStorage>,
     workspace_id: &str,
+    pool: crate::services::OptionalPgPool<'_>,
     limit: usize,
     offset: usize,
 ) -> edgequake_storage::error::Result<InjectionListPage> {
@@ -45,7 +46,7 @@ pub async fn list_injections_paged(
     if crate::services::injection_relational::injections_prefer_relational() {
         if let Some((rows, total)) = crate::services::injection_relational::typed_injection_list(
             workspace_id,
-            None,
+            pool,
             limit as i64,
             offset as i64,
         )
@@ -153,13 +154,13 @@ mod tests {
             .unwrap();
         }
 
-        let page = list_injections_paged(&kv, ws, 2, 0).await.unwrap();
+        let page = list_injections_paged(&kv, ws, None, 2, 0).await.unwrap();
         assert_eq!(page.total, 3);
         assert_eq!(page.items.len(), 2);
         assert_eq!(page.items[0].injection_id, "b");
         assert!(page.has_more());
 
-        let page2 = list_injections_paged(&kv, ws, 2, 2).await.unwrap();
+        let page2 = list_injections_paged(&kv, ws, None, 2, 2).await.unwrap();
         assert_eq!(page2.items.len(), 1);
         assert!(!page2.has_more());
     }

@@ -6,6 +6,26 @@ use crate::relevancy_prune::{
 
 use super::QueryEngine;
 
+/// Forms of a keyword that can appear in a graph node id.
+///
+/// Stored ids are [`edgequake_storage::normalize_entity_name`]: spaces become
+/// underscores and the result is uppercased (`intrathecal chemotherapy` →
+/// `INTRATHECAL_CHEMOTHERAPY`). Label search matches that id text. Searching
+/// only the spaced phrase drops the entity and can keep a question word that
+/// is a substring of a different id.
+pub(crate) fn keyword_graph_probes(keyword: &str) -> Vec<String> {
+    let mut probes = Vec::with_capacity(2);
+    let normalized = edgequake_storage::normalize_entity_name(keyword);
+    if !normalized.is_empty() {
+        probes.push(normalized);
+    }
+    let raw = keyword.trim();
+    if !raw.is_empty() && !probes.iter().any(|probe| probe.eq_ignore_ascii_case(raw)) {
+        probes.push(raw.to_string());
+    }
+    probes
+}
+
 // WHY: validate_keywords makes N graph search calls for N keywords.
 // Using parallel execution eliminates the N×RTT sequential latency.
 
@@ -274,11 +294,20 @@ impl QueryEngine {
                 let workspace = workspace_owned.clone();
                 async move {
                     let view = edgequake_storage::GraphReadView::from_arc(&graph);
-                    let exists = view
-                        .search_labels(&kw, 1, tenant.as_deref(), workspace.as_deref())
-                        .await
-                        .map(|labels| !labels.is_empty())
-                        .unwrap_or(false);
+                    let mut exists = false;
+                    // Node ids store the normalized name. The spaced keyword is
+                    // not a substring of that id, so try the normalized form
+                    // and keep the raw text when it already matches.
+                    for probe in keyword_graph_probes(&kw) {
+                        exists = view
+                            .search_labels(&probe, 1, tenant.as_deref(), workspace.as_deref())
+                            .await
+                            .map(|labels| !labels.is_empty())
+                            .unwrap_or(false);
+                        if exists {
+                            break;
+                        }
+                    }
                     (kw, exists)
                 }
             })
@@ -334,5 +363,24 @@ impl QueryEngine {
             validated_low_level,
             keywords.query_intent,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::keyword_graph_probes;
+
+    #[test]
+    fn spaced_entity_keyword_probes_the_stored_node_id() {
+        assert_eq!(
+            keyword_graph_probes("intrathecal chemotherapy")[0],
+            "INTRATHECAL_CHEMOTHERAPY"
+        );
+        assert_eq!(
+            keyword_graph_probes("cerebrospinal fluid (CSF)")[0],
+            "CEREBROSPINAL_FLUID_(CSF)"
+        );
+        assert_eq!(keyword_graph_probes("bladder cancer")[0], "BLADDER_CANCER");
+        assert_eq!(keyword_graph_probes("ALL"), vec!["ALL".to_string()]);
     }
 }

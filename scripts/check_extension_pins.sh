@@ -34,8 +34,15 @@ verify_profile() {
 
   check "PGVECTOR_VERSION=${EQ_PGVECTOR_VERSION}" "PGVECTOR_VERSION=${EQ_PGVECTOR_VERSION}"
   check "PGVECTOR default_version='${EQ_PGVECTOR_MIN}'" "default_version = '${EQ_PGVECTOR_MIN}'"
-  check "AGE_GIT_REF=${EQ_AGE_GIT_REF}" "AGE_GIT_REF=${EQ_AGE_GIT_REF}"
-  check "AGE default_version='${EQ_AGE_MIN}'" "default_version = '${EQ_AGE_MIN}'"
+  if [ -n "${EQ_AGE_MIN:-}" ]; then
+    check "AGE_GIT_REF=${EQ_AGE_GIT_REF}" "AGE_GIT_REF=${EQ_AGE_GIT_REF}"
+    check "AGE default_version='${EQ_AGE_MIN}'" "default_version = '${EQ_AGE_MIN}'"
+  elif grep -q "org.edgequake.age.version" "$dockerfile"; then
+    echo "FAIL product image $(basename "$dockerfile") must not label an AGE version"
+    fail=1
+  else
+    echo "OK   no Apache AGE ($profile)"
+  fi
   if [ -n "${EQ_PGVECTORSCALE_MIN:-}" ]; then
     check "PGVECTORSCALE_VERSION=${EQ_PGVECTORSCALE_VERSION}" "PGVECTORSCALE_VERSION=${EQ_PGVECTORSCALE_VERSION}"
     check "vectorscale default_version='${EQ_PGVECTORSCALE_MIN}'" "default_version = '${EQ_PGVECTORSCALE_MIN}'"
@@ -72,7 +79,10 @@ verify_docs_pgvector_pin() {
 
 case "$PROFILE" in
   all)
-    verify_profile pg16 && verify_profile pg17 && verify_profile pg18 && verify_profile pg18-vectorscale
+    verify_profile pg16
+    verify_profile pg17
+    verify_profile pg18
+    verify_profile pg18-vectorscale
     verify_docs_pgvector_pin
     ;;
   pg16|pg17|pg18|pg18-vectorscale)

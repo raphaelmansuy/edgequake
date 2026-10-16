@@ -256,10 +256,26 @@ pub struct ListPdfFilter {
     pub workspace_id: Option<Uuid>,
     /// Filter by status.
     pub processing_status: Option<PdfProcessingStatus>,
-    /// Pagination: page number (1-indexed).
+    /// Pagination: page number (1-indexed). Ignored for the row window when
+    /// both keyset fields are set.
     pub page: Option<usize>,
     /// Pagination: items per page.
     pub page_size: Option<usize>,
+    /// Keyset bound. Both this and [`Self::after_pdf_id`] must be set.
+    /// Rows are those that sort after `(created_at DESC, pdf_id DESC)`.
+    pub after_created_at: Option<DateTime<Utc>>,
+    /// Tie-break for [`Self::after_created_at`].
+    pub after_pdf_id: Option<Uuid>,
+}
+
+impl ListPdfFilter {
+    /// Cursor the caller passed. One field alone stays an offset page.
+    pub fn keyset_cursor(&self) -> Option<(DateTime<Utc>, Uuid)> {
+        match (self.after_created_at, self.after_pdf_id) {
+            (Some(at), Some(id)) => Some((at, id)),
+            _ => None,
+        }
+    }
 }
 
 /// Denormalized per-document stats written to the relational `documents` table
@@ -310,6 +326,8 @@ pub struct PdfList {
     pub page: usize,
     /// Page size.
     pub page_size: usize,
+    /// Another row exists after `items`.
+    pub has_more: bool,
 }
 
 // ============================================================================

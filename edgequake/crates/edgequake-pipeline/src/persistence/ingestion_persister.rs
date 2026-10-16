@@ -507,6 +507,44 @@ pub async fn persist_processing_result(
     .await
 }
 
+/// Merger wired with every sink the config provides (shared by both persist paths).
+fn build_merger(
+    graph_storage: Arc<dyn GraphStorage>,
+    vector_storage: Arc<dyn VectorStorage>,
+    config: &IngestionPersistConfig,
+    ctx: &IngestionPersistContext,
+) -> KnowledgeGraphMerger<dyn GraphStorage, dyn VectorStorage> {
+    // Fan-out follows the LLM that actually serves the merge, not the process default.
+    let merger_config = match config.llm_provider.as_ref() {
+        Some(llm) => config.merger_config.clone().for_provider(llm.name()),
+        None => config.merger_config.clone(),
+    };
+    let mut merger = KnowledgeGraphMerger::new(merger_config, graph_storage, vector_storage)
+        .with_tenant_context(ctx.tenant_id.clone(), ctx.workspace_id.clone())
+        .with_relational_sink(config.relational_sink.clone());
+
+    // Wire lineage sink if provided (SPEC-032 W-08)
+    if let Some(ref ls) = config.lineage_sink {
+        merger = merger.with_lineage_sink(ls.clone());
+    }
+
+    // 050 B7: placeholders need the same embedder as community reports.
+    if let Some(ref embedder) = config.text_embedder {
+        merger = merger.with_text_embedder(embedder.clone());
+    }
+    if let Some(ref fleet_index) = config.fleet_embedding_index {
+        merger = merger.with_fleet_embedding_index(fleet_index.clone());
+    }
+
+    if config.merger_config.use_llm_summarization {
+        if let Some(llm) = config.llm_provider.clone() {
+            let summarizer = Arc::new(LLMSummarizer::new(llm, SummarizerConfig::default()));
+            merger = merger.with_summarizer(summarizer);
+        }
+    }
+    merger
+}
+
 async fn persist_processing_result_impl(
     graph_storage: Arc<dyn GraphStorage>,
     vector_storage: Arc<dyn VectorStorage>,
@@ -640,6 +678,20 @@ async fn persist_processing_result_impl(
     }
 
     if committed_relational {
+        // The committer owns chunks, graph facts and chunk embeddings. Entity and
+        // relationship vectors are not in its command, so write them here or the
+        // Local/Global/Mix vector arms see an empty index.
+        let fleet = build_merger(graph_storage, vector_storage, config, ctx)
+            .persist_fleet_vectors(&result.extractions)
+            .await?;
+        tracing::info!(
+            document_id = %ctx.document_id,
+            entity_rows = fleet.entity_rows,
+            relationship_rows = fleet.relationship_rows,
+            entity_vectors = fleet.entity_vectors,
+            relationship_vectors = fleet.relationship_vectors,
+            "Durable commit: entity/relationship spine and fleet vectors written"
+        );
         return Ok(IngestionPersistOutput {
             chunk_vector_ids: Vec::new(),
             merge_stats: MergeStats::default(),
@@ -705,35 +757,7 @@ async fn persist_processing_result_impl(
         }
     }
 
-    // Fan-out follows the LLM that actually serves the merge, not the process default.
-    let merger_config = match config.llm_provider.as_ref() {
-        Some(llm) => config.merger_config.clone().for_provider(llm.name()),
-        None => config.merger_config.clone(),
-    };
-    let mut merger =
-        KnowledgeGraphMerger::new(merger_config, graph_storage.clone(), vector_storage.clone())
-            .with_tenant_context(ctx.tenant_id.clone(), ctx.workspace_id.clone())
-            .with_relational_sink(config.relational_sink.clone());
-
-    // Wire lineage sink if provided (SPEC-032 W-08)
-    if let Some(ref ls) = config.lineage_sink {
-        merger = merger.with_lineage_sink(ls.clone());
-    }
-
-    // 050 B7: placeholders need the same embedder as community reports.
-    if let Some(ref embedder) = config.text_embedder {
-        merger = merger.with_text_embedder(embedder.clone());
-    }
-    if let Some(ref fleet_index) = config.fleet_embedding_index {
-        merger = merger.with_fleet_embedding_index(fleet_index.clone());
-    }
-
-    if config.merger_config.use_llm_summarization {
-        if let Some(llm) = config.llm_provider.clone() {
-            let summarizer = Arc::new(LLMSummarizer::new(llm, SummarizerConfig::default()));
-            merger = merger.with_summarizer(summarizer);
-        }
-    }
+    let merger = build_merger(graph_storage.clone(), vector_storage.clone(), config, ctx);
 
     let merge_result = merger
         .merge_with_progress(
@@ -1428,6 +1452,91 @@ mod tests {
                 durable_commit_token: "test".into(),
             })
         }
+    }
+
+    #[derive(Default)]
+    struct CountingSink {
+        entity_rows: std::sync::atomic::AtomicUsize,
+    }
+
+    #[async_trait::async_trait]
+    impl RelationalEntitySink for CountingSink {
+        async fn upsert_entity(
+            &self,
+            _name: &str,
+            _entity_type: &str,
+            _description: &str,
+            _tenant_id: Option<&str>,
+            _workspace_id: Option<&str>,
+            _source_chunk_ids: &[String],
+        ) -> crate::error::Result<()> {
+            Ok(())
+        }
+
+        async fn upsert_entities_batch(
+            &self,
+            rows: &[crate::merger::EntitySinkRow],
+        ) -> crate::error::Result<()> {
+            self.entity_rows
+                .fetch_add(rows.len(), std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn remove_entity_sources(
+            &self,
+            _name: &str,
+            _workspace_id: Option<&str>,
+            _sources_to_remove: &[String],
+            _remaining: &[String],
+        ) -> crate::error::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// Regression: the durable committer returns before the merger, so the
+    /// entity spine (and with it the fleet vectors) used to stay empty.
+    #[tokio::test]
+    #[serial]
+    async fn durable_commit_still_writes_entity_spine() {
+        std::env::set_var("EDGEQUAKE_CHUNK_TEXT_AUTHORITY", "relational");
+        std::env::set_var("EDGEQUAKE_VECTOR_BACKEND", "legacy_tables");
+        let graph = Arc::new(MemoryGraphStorage::new("durable-spine"));
+        let vector = Arc::new(MemoryVectorStorage::new("durable-spine", 4));
+        vector.initialize().await.unwrap();
+        let sink = Arc::new(CountingSink::default());
+        let config = IngestionPersistConfig::from_settings(
+            IngestionPersistSettings::default(),
+            sink.clone(),
+            None,
+        )
+        .with_ingestion_authority(IngestionAuthority::DurableCommitter {
+            committer: Arc::new(AcceptingCommitter),
+            relational_chunks: Arc::new(edgequake_storage::MemoryChunkRepository::new()),
+            embedding_model_id: "test-model".into(),
+        });
+        let output = persist_processing_result(
+            graph,
+            vector,
+            &config,
+            &IngestionPersistContext::new(
+                uuid::Uuid::new_v4().to_string(),
+                Some(uuid::Uuid::new_v4().to_string()),
+                Some(uuid::Uuid::new_v4().to_string()),
+            )
+            .with_ingest_generation(1),
+            &sample_result(),
+            ChunkVectorBuildOptions::STANDARD,
+        )
+        .await
+        .expect("durable accept");
+
+        assert!(output.awaiting_projection);
+        assert!(
+            sink.entity_rows.load(std::sync::atomic::Ordering::SeqCst) > 0,
+            "durable path must still write the relational entity spine"
+        );
+        std::env::remove_var("EDGEQUAKE_VECTOR_BACKEND");
+        std::env::remove_var("EDGEQUAKE_CHUNK_TEXT_AUTHORITY");
     }
 
     #[tokio::test]

@@ -96,10 +96,58 @@ async fn postgres_prepares_source_derived_static_queries() {
         .execute(&mut *conn)
         .await
         .expect("AGE");
+    // Migration 171 drops the extension once the plain graph is ready. Legacy
+    // statements still name ag_catalog.ag_graph, so prepare needs the catalog
+    // for this connection only.
+    let age_was_present: bool =
+        sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')")
+            .fetch_one(&mut *conn)
+            .await
+            .expect("age extension probe");
+    if !age_was_present {
+        sqlx::query("CREATE EXTENSION age CASCADE")
+            .execute(&mut *conn)
+            .await
+            .expect("AGE catalog for static prepare");
+    }
     sqlx::query("SET search_path = ag_catalog, public")
         .execute(&mut *conn)
         .await
         .expect("AGE path");
+    let metrics_was_present: bool =
+        sqlx::query_scalar("SELECT to_regclass('public.workspace_metrics_history') IS NOT NULL")
+            .fetch_one(&mut *conn)
+            .await
+            .expect("metrics table probe");
+    if !metrics_was_present {
+        sqlx::query(
+            "CREATE TABLE public.workspace_metrics_history (
+                id UUID PRIMARY KEY,
+                workspace_id UUID NOT NULL,
+                recorded_at TIMESTAMPTZ NOT NULL,
+                trigger_type TEXT NOT NULL,
+                document_count BIGINT NOT NULL,
+                chunk_count BIGINT NOT NULL,
+                entity_count BIGINT NOT NULL,
+                relationship_count BIGINT NOT NULL,
+                embedding_count BIGINT NOT NULL,
+                storage_bytes BIGINT NOT NULL
+            )",
+        )
+        .execute(&mut *conn)
+        .await
+        .expect("metrics history fixture");
+    }
+    // The cutover creates this walker in the same transaction as the compare.
+    // Prepare sees the call on its own, so the signature has to exist first.
+    sqlx::query(
+        "CREATE OR REPLACE FUNCTION pg_temp.eq_neighbor_ids_age_servable(
+            text, text, text, int, int
+         ) RETURNS text[] LANGUAGE sql AS $$ SELECT ARRAY[]::text[] $$",
+    )
+    .execute(&mut *conn)
+    .await
+    .expect("servable neighbor stub");
     sqlx::query("SET statement_timeout = '5s'")
         .execute(&mut *conn)
         .await
@@ -152,6 +200,22 @@ async fn postgres_prepares_source_derived_static_queries() {
         results.push(serde_json::json!({"site": site, "verification": result,
             "prepare_elapsed_ms": start.elapsed().as_secs_f64() * 1000.0,
             "execution_verified": false, "performance_measured": false}));
+    }
+    if !metrics_was_present {
+        sqlx::query("DROP TABLE public.workspace_metrics_history")
+            .execute(&mut *conn)
+            .await
+            .expect("drop metrics fixture");
+    }
+    if !age_was_present {
+        sqlx::query("DEALLOCATE ALL")
+            .execute(&mut *conn)
+            .await
+            .expect("release prepared statements");
+        sqlx::query("DROP EXTENSION age CASCADE")
+            .execute(&mut *conn)
+            .await
+            .expect("restore age-absent database");
     }
     if let Ok(path) = std::env::var("EQ_QUERY_AUDIT_OUTPUT") {
         std::fs::write(

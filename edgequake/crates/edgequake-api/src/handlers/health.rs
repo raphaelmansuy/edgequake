@@ -97,10 +97,14 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
     let eq_id_schema = None;
 
     #[cfg(feature = "postgres")]
-    let graph_available = state
-        .migration_bootstrap
-        .as_ref()
-        .map(|r| r.migration_092.age_available);
+    let graph_available = {
+        let age = state
+            .migration_bootstrap
+            .as_ref()
+            .map(|r| r.migration_092.age_available)
+            .unwrap_or(false);
+        Some(age || plain_graph_ready(&state).await)
+    };
     #[cfg(not(feature = "postgres"))]
     let graph_available = None;
 
@@ -443,6 +447,26 @@ fn build_migration_health_snapshot(state: &AppState) -> Option<MigrationHealthSn
 #[cfg(not(feature = "postgres"))]
 fn build_migration_health_snapshot(_state: &AppState) -> Option<MigrationHealthSnapshot> {
     None
+}
+
+/// Plain graph after migration 171. `age_available` stays false once the
+/// extension is gone; this is the ledger the serving path actually uses.
+#[cfg(feature = "postgres")]
+async fn plain_graph_ready(state: &AppState) -> bool {
+    let Some(pool) = state.optional_pg_pool() else {
+        return false;
+    };
+    sqlx::query_scalar::<_, bool>(
+        "SELECT COALESCE((
+            SELECT status = 'ready' AND age_absent IS TRUE
+            FROM public.eq_graph_cutover
+            WHERE id = 1
+         ), false)
+         AND to_regclass('public.eq_graph_nodes') IS NOT NULL",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(false)
 }
 
 /// Query database schema health from _sqlx_migrations table.

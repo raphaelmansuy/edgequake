@@ -68,8 +68,10 @@ pub async fn put_injection(
         .kv_storage
         .upsert(&[(meta_key.clone(), meta.clone())])
         .await?;
-    // SPEC-091 Wave B6: typed dual-write (warn-only).
-    crate::services::injection_relational::typed_injection_upsert(&meta, None).await;
+    // SPEC-091: injection family is relational, so the KV upsert above is a no-op.
+    // The documents row is the record GET and list actually read.
+    crate::services::injection_relational::typed_injection_upsert(&meta, state.optional_pg_pool())
+        .await;
 
     info!(
         workspace_id = %workspace_id,
@@ -130,6 +132,7 @@ pub async fn list_injections(
     let page = crate::services::list_injections_paged(
         &state.storage.kv_storage,
         &workspace_id,
+        state.optional_pg_pool(),
         query.limit,
         query.offset,
     )
@@ -231,7 +234,11 @@ pub async fn delete_injection(
         let _ = state.storage.kv_storage.delete(&kv_ids_to_delete).await;
     }
     // SPEC-091 Wave B6: typed row parity (warn-only).
-    crate::services::injection_relational::typed_injection_delete(&injection_id, None).await;
+    crate::services::injection_relational::typed_injection_delete(
+        &injection_id,
+        state.optional_pg_pool(),
+    )
+    .await;
 
     info!(
         injection_id = %injection_id,

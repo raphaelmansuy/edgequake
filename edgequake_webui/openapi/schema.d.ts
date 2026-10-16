@@ -4822,7 +4822,10 @@ export interface components {
              *     Liveness `/health` stays HTTP 200 with `status: degraded`.
              */
             eq_id_schema?: boolean | null;
-            /** @description Apache AGE extension available (PostgreSQL only, SPEC-090 F-090-19). */
+            /**
+             * @description Graph queries can run. True when Apache AGE is loaded, or when the
+             *     SPEC-164 plain graph ledger is ready (PostgreSQL only).
+             */
             graph_available?: boolean | null;
             /** @description Graph storage status. */
             graph_storage: boolean;
@@ -10550,6 +10553,7 @@ export interface components {
         /**
          * @description Pagination information for PDF listing.
          * @example {
+         *       "next_cursor": {},
          *       "page": {},
          *       "page_size": {},
          *       "total_count": {},
@@ -10557,6 +10561,8 @@ export interface components {
          *     }
          */
         PdfPaginationInfo: {
+            /** @description Pass this as `cursor` to read the next page without walking skipped rows. */
+            next_cursor?: string | null;
             /** @description Current page (1-indexed). */
             page: number;
             /** @description Page size. */
@@ -16939,6 +16945,8 @@ export interface operations {
                 page?: number;
                 /** @description Page size */
                 page_size?: number;
+                /** @description Keyset cursor from next_cursor. Replaces the page offset. */
+                cursor?: string;
             };
             header?: never;
             path?: never;

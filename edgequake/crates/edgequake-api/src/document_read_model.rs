@@ -145,49 +145,17 @@ pub async fn list_relational_document_summaries(
         pool,
         tenant_ctx,
         crate::read_path::MAX_LIST_METADATA_ENTRIES,
+        None,
+        RelationalCreatedBounds::default(),
+        &[],
     )
     .await?
     .documents)
 }
 
-/// Bounded relational list with truncation flag (GH-400).
+/// Columns the documents page renders. `content` stays out (GH-400).
 #[cfg(feature = "postgres")]
-pub async fn list_relational_document_summaries_limited(
-    pool: crate::services::OptionalPgPool<'_>,
-    tenant_ctx: &TenantContext,
-    max_entries: usize,
-) -> Result<RelationalDocumentList, crate::error::ApiError> {
-    use crate::error::ApiError;
-    use sqlx::Row;
-
-    let pool = pool.ok_or_else(|| ApiError::Internal("PostgreSQL pool not available".into()))?;
-    let max_entries = max_entries.max(1);
-
-    let workspace_id = tenant_ctx
-        .workspace_id
-        .as_ref()
-        .and_then(|w| Uuid::parse_str(w).ok())
-        .ok_or_else(|| ApiError::BadRequest("workspace_id required".into()))?;
-
-    let tenant_uuid = tenant_ctx
-        .tenant_id
-        .as_ref()
-        .and_then(|t| Uuid::parse_str(t).ok());
-
-    let timeout_ms = edgequake_storage::interactive_statement_timeout_ms();
-    let mut conn = pool
-        .acquire()
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to acquire PG connection: {e}")))?;
-    let mut timed = edgequake_storage::LocalTimeoutTx::begin(&mut conn, timeout_ms)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to begin interactive list TX: {e}")))?;
-
-    // Fetch one extra row to detect truncation without a second COUNT.
-    let fetch_limit = (max_entries as i64).saturating_add(1);
-    let rows = sqlx::query(
-        r#"
-        SELECT
+const DOCUMENT_LIST_PROJECTION: &str = r#"
             id::text AS id,
             title,
             status,
@@ -220,19 +188,731 @@ pub async fn list_relational_document_summaries_limited(
             (metadata->>'output_tokens')::bigint AS output_tokens,
             (metadata->>'total_tokens')::bigint AS total_tokens,
             metadata->>'current_stage' AS current_stage
-        FROM public.documents
-        WHERE workspace_id = $1
-          AND ($2::uuid IS NULL OR tenant_id IS NULL OR tenant_id = $2)
-        ORDER BY created_at DESC
-        LIMIT $3
-        "#,
+"#;
+
+#[cfg(feature = "postgres")]
+const DOCUMENT_PAGE_COLUMNS: &str = "id, title, status, chunk_count, entity_count, file_size_bytes, track_id, error_message, created_at, updated_at, metadata";
+
+/// One required arm of a status chip. Literals come from this list, not from
+/// the request, so the statement can name the index column.
+#[cfg(feature = "postgres")]
+#[derive(Debug)]
+enum ChipArm {
+    Status(&'static str),
+    /// `current_stage` equality. Rows whose `status` is already covered by a
+    /// status arm of the same chip are excluded, so a row is returned once.
+    Stage(&'static str),
+}
+
+#[cfg(feature = "postgres")]
+#[derive(Debug)]
+enum RelationalListFilter {
+    Open,
+    /// Bound `status = $n` values. `completed` is two values.
+    Statuses(Vec<String>),
+    /// Fixed chip. Each arm is an equality the index can stop after LIMIT.
+    Chip(&'static [ChipArm]),
+}
+
+#[cfg(feature = "postgres")]
+static PENDING_ARMS: &[ChipArm] = &[
+    ChipArm::Status("pending"),
+    ChipArm::Status("queued"),
+    ChipArm::Stage("queued"),
+];
+
+#[cfg(feature = "postgres")]
+static PROCESSING_ARMS: &[ChipArm] = &[
+    ChipArm::Status("processing"),
+    ChipArm::Stage("converting"),
+    ChipArm::Stage("preprocessing"),
+    ChipArm::Stage("chunking"),
+    ChipArm::Stage("extracting"),
+    ChipArm::Stage("gleaning"),
+    ChipArm::Stage("merging"),
+    ChipArm::Stage("summarizing"),
+    ChipArm::Stage("embedding"),
+    ChipArm::Stage("storing"),
+    ChipArm::Stage("projecting"),
+    ChipArm::Stage("indexing"),
+];
+
+/// Statuses the list keeps for `status=unknown`. The column is `NOT NULL`,
+/// so a SQL `NULL` arm never matches. `queued` cannot be stored.
+#[cfg(feature = "postgres")]
+static UNKNOWN_ARMS: &[ChipArm] = &[
+    ChipArm::Status("chunking"),
+    ChipArm::Status("extracting"),
+    ChipArm::Status("embedding"),
+    ChipArm::Status("indexing"),
+    ChipArm::Status("deleting"),
+    ChipArm::Status("delete_failed"),
+];
+
+/// How the list requires a passed status.
+///
+/// `unknown` is the complement of the known chips. `NOT IN` seq-scans
+/// (9.568 ms, 79,950 removed). One equality per stored complement value
+/// stops on `idx_documents_workspace_status_created`. `all` stays open.
+/// `pending` and `processing` also match `current_stage`. Each of those
+/// values is its own arm: `current_stage = ANY($n)` hides the stage from a
+/// generic plan and walks every newer row (12.428 ms, 79,950 removed).
+/// `completed` is the stored pair `completed` and `indexed`. Every other
+/// passed value is one `status` equality.
+#[cfg(feature = "postgres")]
+fn relational_list_filter(raw: Option<&str>) -> RelationalListFilter {
+    let Some(raw) = raw.map(str::trim).filter(|s| !s.is_empty()) else {
+        return RelationalListFilter::Open;
+    };
+    match raw.to_ascii_lowercase().as_str() {
+        "all" => RelationalListFilter::Open,
+        "unknown" => RelationalListFilter::Chip(UNKNOWN_ARMS),
+        "pending" => RelationalListFilter::Chip(PENDING_ARMS),
+        "processing" => RelationalListFilter::Chip(PROCESSING_ARMS),
+        "completed" => {
+            RelationalListFilter::Statuses(vec!["completed".to_string(), "indexed".to_string()])
+        }
+        other => RelationalListFilter::Statuses(vec![other.to_string()]),
+    }
+}
+
+/// Page of documents for one workspace.
+///
+/// A generic plan cannot treat `$n IS NULL OR tenant_id = $n` as an index
+/// condition, so `ORDER BY created_at` walks the global time index and drops
+/// every newer row that belongs to someone else. When the caller names a
+/// tenant, each arm is an equality the composite index can stop after LIMIT.
+/// `id DESC` is the tie-break that index stores; without it the planner still
+/// prefers the global `created_at` index. Rows with no tenant stay visible.
+///
+/// A passed status is required the same way. `status = 'failed'` on the global
+/// time index walks every newer indexed row (8.523 ms, 79,950 removed).
+/// `idx_documents_workspace_status_created` stops at the page (0.021 ms).
+/// `status_count` is 0, 1, or 2.
+///
+/// A passed `created_at` bound is required too. `$n IS NULL OR created_at <= $n`
+/// is a filter on the time index and removes the newer rows (10.637 ms,
+/// 79,950 removed). `created_at <= $n` is an index condition on
+/// `idx_documents_created_at` or `idx_documents_workspace_created` and stops
+/// at the page (0.026 ms). No new index: both already lead with the column
+/// the list sorts by.
+#[cfg(feature = "postgres")]
+fn document_list_statement(
+    tenant_scoped: bool,
+    status_count: usize,
+    bounds: CreatedAtPredicate,
+    titles: TitlePredicate,
+) -> String {
+    let projection = DOCUMENT_LIST_PROJECTION;
+    let page = DOCUMENT_PAGE_COLUMNS;
+    let order = "ORDER BY created_at DESC, id DESC";
+    let start = 2 + usize::from(tenant_scoped) + status_count;
+    let created = bounds.fragment(start);
+    let (title_sql, limit) = titles.after(bounds, start);
+    match (tenant_scoped, status_count) {
+        (false, 0) => format!(
+            "SELECT {projection}
+             FROM public.documents
+             WHERE workspace_id = $1{created}{title_sql}
+             ORDER BY created_at DESC
+             LIMIT {limit}"
+        ),
+        (true, 0) => format!(
+            "SELECT {projection}
+             FROM (
+               (
+                 SELECT {page}
+                 FROM public.documents
+                 WHERE workspace_id = $1 AND tenant_id = $2{created}{title_sql}
+                 {order}
+                 LIMIT {limit}
+               )
+               UNION ALL
+               (
+                 SELECT {page}
+                 FROM public.documents
+                 WHERE workspace_id = $1 AND tenant_id IS NULL{created}{title_sql}
+                 {order}
+                 LIMIT {limit}
+               )
+             ) page
+             {order}
+             LIMIT {limit}"
+        ),
+        (false, 1) => format!(
+            "SELECT {projection}
+             FROM public.documents
+             WHERE workspace_id = $1 AND status = $2{created}{title_sql}
+             {order}
+             LIMIT {limit}"
+        ),
+        (false, 2) => format!(
+            "SELECT {projection}
+             FROM (
+               (
+                 SELECT {page}
+                 FROM public.documents
+                 WHERE workspace_id = $1 AND status = $2{created}{title_sql}
+                 {order}
+                 LIMIT {limit}
+               )
+               UNION ALL
+               (
+                 SELECT {page}
+                 FROM public.documents
+                 WHERE workspace_id = $1 AND status = $3{created}{title_sql}
+                 {order}
+                 LIMIT {limit}
+               )
+             ) page
+             {order}
+             LIMIT {limit}"
+        ),
+        (true, 1) => format!(
+            "SELECT {projection}
+             FROM (
+               (
+                 SELECT {page}
+                 FROM public.documents
+                 WHERE workspace_id = $1 AND tenant_id = $2 AND status = $3{created}{title_sql}
+                 {order}
+                 LIMIT {limit}
+               )
+               UNION ALL
+               (
+                 SELECT {page}
+                 FROM public.documents
+                 WHERE workspace_id = $1 AND tenant_id IS NULL AND status = $3{created}{title_sql}
+                 {order}
+                 LIMIT {limit}
+               )
+             ) page
+             {order}
+             LIMIT {limit}"
+        ),
+        (true, 2) => format!(
+            "SELECT {projection}
+             FROM (
+               (
+                 SELECT {page}
+                 FROM public.documents
+                 WHERE workspace_id = $1 AND tenant_id = $2 AND status = $3{created}{title_sql}
+                 {order}
+                 LIMIT {limit}
+               )
+               UNION ALL
+               (
+                 SELECT {page}
+                 FROM public.documents
+                 WHERE workspace_id = $1 AND tenant_id = $2 AND status = $4{created}{title_sql}
+                 {order}
+                 LIMIT {limit}
+               )
+               UNION ALL
+               (
+                 SELECT {page}
+                 FROM public.documents
+                 WHERE workspace_id = $1 AND tenant_id IS NULL AND status = $3{created}{title_sql}
+                 {order}
+                 LIMIT {limit}
+               )
+               UNION ALL
+               (
+                 SELECT {page}
+                 FROM public.documents
+                 WHERE workspace_id = $1 AND tenant_id IS NULL AND status = $4{created}{title_sql}
+                 {order}
+                 LIMIT {limit}
+               )
+             ) page
+             {order}
+             LIMIT {limit}"
+        ),
+        _ => document_list_statement(tenant_scoped, 0, bounds, titles),
+    }
+}
+
+/// Inclusive `created_at` bounds for one document page.
+///
+/// Both ends empty keeps the unscoped statement. A caller that passes a bound
+/// gets that comparison as a required predicate.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RelationalCreatedBounds {
+    pub from: Option<chrono::DateTime<chrono::Utc>>,
+    pub to: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[cfg(feature = "postgres")]
+#[derive(Clone, Copy, Default)]
+struct CreatedAtPredicate {
+    from: bool,
+    to: bool,
+}
+
+#[cfg(feature = "postgres")]
+impl CreatedAtPredicate {
+    fn from_bounds(bounds: RelationalCreatedBounds) -> Self {
+        Self {
+            from: bounds.from.is_some(),
+            to: bounds.to.is_some(),
+        }
+    }
+
+    /// ` AND created_at >= $start ...`, or empty when the caller passed no bound.
+    fn fragment(self, start: usize) -> String {
+        match (self.from, self.to) {
+            (false, false) => String::new(),
+            (true, false) => format!(" AND created_at >= ${start}"),
+            (false, true) => format!(" AND created_at <= ${start}"),
+            (true, true) => {
+                format!(
+                    " AND created_at >= ${start} AND created_at <= ${}",
+                    start + 1
+                )
+            }
+        }
+    }
+
+    fn limit_placeholder(self, start: usize) -> String {
+        let slot = start + usize::from(self.from) + usize::from(self.to);
+        format!("${slot}")
+    }
+}
+
+/// Required title substrings. Zero keeps the statement free of `LIKE`.
+///
+/// Each needle is its own `lower(title) LIKE`, so a custom plan can use
+/// `idx_documents_title_trgm` or stop on the time index. `LIKE ANY($array)`
+/// is not an index condition on a generic plan.
+#[cfg(feature = "postgres")]
+#[derive(Clone, Copy, Default)]
+struct TitlePredicate {
+    count: usize,
+}
+
+#[cfg(feature = "postgres")]
+impl TitlePredicate {
+    /// SQL fragment and the LIMIT placeholder. Patterns bind after the dates.
+    fn after(self, bounds: CreatedAtPredicate, start: usize) -> (String, String) {
+        let pattern_start = start + usize::from(bounds.from) + usize::from(bounds.to);
+        if self.count == 0 {
+            return (String::new(), bounds.limit_placeholder(start));
+        }
+        let likes: Vec<String> = (0..self.count)
+            .map(|offset| {
+                format!(
+                    "lower(title) LIKE '%' || lower(${}) || '%' ESCAPE '\\'",
+                    pattern_start + offset
+                )
+            })
+            .collect();
+        let sql = format!(" AND ({})", likes.join(" OR "));
+        let limit = format!("${}", pattern_start + self.count);
+        (sql, limit)
+    }
+}
+
+/// Ids for a query document filter.
+///
+/// The filter used to load every workspace id (37.104 ms, 80,000 rows, 3,094
+/// buffers) and drop dates in memory. A required `created_at` bound is an
+/// index condition. The same statement returns the 50 oldest rows in 0.056 ms
+/// and 18 buffers. `$1` is the workspace uuid and `$2` is its text form, so
+/// dates start at `$3`.
+#[cfg(feature = "postgres")]
+fn document_filter_statement(
+    bounds: CreatedAtPredicate,
+    titles: TitlePredicate,
+    explicit_ids: bool,
+) -> String {
+    let start = 3;
+    let created = bounds.fragment(start);
+    let (title_sql, _) = titles.after(bounds, start);
+    let date_slots = usize::from(bounds.from) + usize::from(bounds.to);
+    let mut parts = Vec::new();
+    if titles.count > 0 {
+        parts.push(filter_scope_union(&format!("{created}{title_sql}")));
+    }
+    if explicit_ids {
+        let slot = start + date_slots + titles.count;
+        parts.push(filter_scope_union(&format!(
+            "{created} AND id = ANY(${slot}::uuid[])"
+        )));
+    }
+    if parts.is_empty() {
+        parts.push(filter_scope_union(&created));
+    }
+    parts.join("\nUNION\n")
+}
+
+#[cfg(feature = "postgres")]
+fn filter_scope_union(extra: &str) -> String {
+    let projection = "id::text AS id, COALESCE(title, '') AS title, created_at, \
+         COALESCE(tenant_id::text, metadata->>'tenant_id') AS tenant_id, \
+         CASE WHEN workspace_id = $1 THEN workspace_id::text ELSE metadata->>'workspace_id' END AS workspace_id";
+    format!(
+        "SELECT {projection}
+         FROM public.documents
+         WHERE workspace_id = $1{extra}
+         UNION
+         SELECT {projection}
+         FROM public.documents
+         WHERE metadata->>'workspace_id' = $2
+           AND workspace_id IS DISTINCT FROM $1{extra}"
     )
-    .bind(workspace_id)
-    .bind(tenant_uuid)
-    .bind(fetch_limit)
-    .fetch_all(timed.as_mut())
-    .await
-    .map_err(|e| ApiError::Internal(format!("Failed to list relational documents: {e}")))?;
+}
+
+/// One document the query filter still has to tenant-check.
+#[cfg(feature = "postgres")]
+#[derive(Debug, Clone)]
+pub struct RelationalFilterCandidate {
+    pub id: String,
+    pub title: String,
+    pub created_at: String,
+    pub tenant_id: Option<String>,
+    pub workspace_id: Option<String>,
+}
+
+/// Documents matching a query filter's date, title pattern, or explicit ids.
+///
+/// The caller passes at least one of those. The open membership statement stays
+/// on the path that asks for every id.
+#[cfg(feature = "postgres")]
+pub async fn filter_relational_document_candidates(
+    pool: &sqlx::PgPool,
+    workspace_id: Uuid,
+    bounds: RelationalCreatedBounds,
+    title_patterns: &[String],
+    explicit_ids: &[Uuid],
+) -> Result<Vec<RelationalFilterCandidate>, crate::error::ApiError> {
+    use crate::error::ApiError;
+    use sqlx::Row;
+
+    if title_patterns.len() > 16 {
+        return Err(ApiError::BadRequest(
+            "document_pattern accepts at most 16 titles".into(),
+        ));
+    }
+    let timeout_ms = edgequake_storage::interactive_statement_timeout_ms();
+    let mut conn = pool
+        .acquire()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to acquire PG connection: {e}")))?;
+    let mut timed = edgequake_storage::LocalTimeoutTx::begin(&mut conn, timeout_ms)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to begin document-filter TX: {e}")))?;
+    sqlx::query("SET LOCAL plan_cache_mode = force_custom_plan")
+        .execute(timed.as_mut())
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to set document-filter plan mode: {e}")))?;
+
+    let created = CreatedAtPredicate::from_bounds(bounds);
+    let titles = TitlePredicate {
+        count: title_patterns.len(),
+    };
+    let sql = document_filter_statement(created, titles, !explicit_ids.is_empty());
+    let mut query = sqlx::query(&sql)
+        .bind(workspace_id)
+        .bind(workspace_id.to_string());
+    if let Some(from) = bounds.from {
+        query = query.bind(from);
+    }
+    if let Some(to) = bounds.to {
+        query = query.bind(to);
+    }
+    for pattern in title_patterns {
+        query = query.bind(escape_title_like_needle(pattern));
+    }
+    if !explicit_ids.is_empty() {
+        query = query.bind(explicit_ids);
+    }
+    let rows = query
+        .fetch_all(timed.as_mut())
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to filter relational documents: {e}")))?;
+    timed
+        .commit()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to commit document-filter TX: {e}")))?;
+
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
+            RelationalFilterCandidate {
+                id: row.get("id"),
+                title: row.get("title"),
+                created_at: created_at.to_rfc3339(),
+                tenant_id: row.get("tenant_id"),
+                workspace_id: row.get("workspace_id"),
+            }
+        })
+        .collect())
+}
+
+/// `pending` and `processing` also match `current_stage`.
+///
+/// One equality per value, then `UNION ALL`, so each arm stops at LIMIT.
+/// `current_stage = ANY($n)` is not an index condition on a generic plan
+/// (10.739 ms, 79,950 newer rows removed). A stage arm skips rows whose
+/// `status` is already a status arm of the same chip, so a row comes back once.
+#[cfg(feature = "postgres")]
+fn chip_list_statement(
+    tenant_scoped: bool,
+    arms: &[ChipArm],
+    bounds: CreatedAtPredicate,
+    titles: TitlePredicate,
+) -> String {
+    let projection = DOCUMENT_LIST_PROJECTION;
+    let page = DOCUMENT_PAGE_COLUMNS;
+    let order = "ORDER BY created_at DESC, id DESC";
+    let start = 2 + usize::from(tenant_scoped);
+    let created = bounds.fragment(start);
+    let (title_sql, limit) = titles.after(bounds, start);
+    let exclusions = chip_status_exclusions(arms);
+    let scopes: Vec<&str> = if tenant_scoped {
+        vec![
+            "workspace_id = $1 AND tenant_id = $2",
+            "workspace_id = $1 AND tenant_id IS NULL",
+        ]
+    } else {
+        vec!["workspace_id = $1"]
+    };
+    let mut unions = Vec::new();
+    for scope in scopes {
+        for arm in arms {
+            let filter = chip_arm_filter(arm, &exclusions);
+            unions.push(format!(
+                "(
+                   SELECT {page}
+                   FROM public.documents
+                   WHERE {scope} AND {filter}{created}{title_sql}
+                   {order}
+                   LIMIT {limit}
+                 )"
+            ));
+        }
+    }
+    let body = unions.join("\n               UNION ALL\n               ");
+    format!(
+        "SELECT {projection}
+         FROM (
+               {body}
+         ) page
+         {order}
+         LIMIT {limit}"
+    )
+}
+
+#[cfg(feature = "postgres")]
+fn chip_status_exclusions(arms: &[ChipArm]) -> String {
+    let mut sql = String::new();
+    for arm in arms {
+        if let ChipArm::Status(status) = arm {
+            sql.push_str(" AND status IS DISTINCT FROM ");
+            sql.push_str(&sql_ident_literal(status));
+        }
+    }
+    sql
+}
+
+#[cfg(feature = "postgres")]
+fn chip_arm_filter(arm: &ChipArm, exclusions: &str) -> String {
+    match arm {
+        ChipArm::Status(status) => format!("status = {}", sql_ident_literal(status)),
+        ChipArm::Stage(stage) => {
+            format!("current_stage = {}{exclusions}", sql_ident_literal(stage))
+        }
+    }
+}
+
+/// Chip literals are a fixed allowlist. They are not the request string.
+#[cfg(feature = "postgres")]
+fn sql_ident_literal(value: &str) -> String {
+    debug_assert!(
+        value.bytes().all(|b| b.is_ascii_lowercase() || b == b'_'),
+        "chip literal must be a lowercase identifier"
+    );
+    format!("'{value}'")
+}
+
+/// Status chips for the same scope as the document page.
+///
+/// The count must read every matching row. It must not read other tenants.
+/// `tenant_id = $2 OR tenant_id IS NULL` is a bitmap of two index ranges once
+/// the plan sees the real tenant. A generic plan still guesses half the table
+/// and seq-scans, so this statement is planned with `force_custom_plan`.
+#[cfg(feature = "postgres")]
+fn document_status_statement(tenant_scoped: bool) -> String {
+    let predicate = if tenant_scoped {
+        "WHERE workspace_id = $1 AND (tenant_id = $2 OR tenant_id IS NULL)"
+    } else {
+        "WHERE workspace_id = $1"
+    };
+    format!(
+        "SELECT bucket, COUNT(*)::bigint AS n
+         FROM (
+            SELECT CASE
+                WHEN lower(COALESCE(status, '')) IN ('pending', 'queued')
+                  OR lower(COALESCE(metadata->>'current_stage', '')) = 'queued'
+                    THEN 'pending'
+                WHEN lower(COALESCE(status, '')) IN ('processing', 'deleting')
+                  OR lower(COALESCE(metadata->>'current_stage', '')) IN (
+                        'converting','preprocessing','chunking','extracting','gleaning',
+                        'merging','summarizing','embedding','storing','projecting',
+                        'indexing','deleting'
+                     )
+                    THEN 'processing'
+                WHEN lower(COALESCE(status, '')) IN ('completed', 'indexed')
+                    THEN 'completed'
+                WHEN lower(COALESCE(status, '')) = 'partial_failure'
+                    THEN 'partial_failure'
+                WHEN lower(COALESCE(status, '')) = 'failed'
+                    THEN 'failed'
+                WHEN lower(COALESCE(status, '')) = 'cancelled'
+                    THEN 'cancelled'
+                ELSE 'unknown'
+            END AS bucket
+            FROM public.documents
+            {predicate}
+         ) s
+         GROUP BY bucket"
+    )
+}
+
+/// Workspace wipe. Each arm is an equality so a generic plan can use an index
+/// instead of reading every other tenant in the table.
+#[cfg(feature = "postgres")]
+fn document_workspace_delete_statement(tenant_scoped: bool) -> &'static str {
+    if tenant_scoped {
+        "WITH doomed AS (
+            SELECT id FROM public.documents
+            WHERE workspace_id = $1 AND tenant_id = $2
+            UNION
+            SELECT id FROM public.documents
+            WHERE workspace_id = $1 AND tenant_id IS NULL
+            UNION
+            SELECT id FROM public.documents
+            WHERE workspace_id IS NULL
+              AND metadata->>'workspace_id' = $3
+              AND tenant_id = $2
+            UNION
+            SELECT id FROM public.documents
+            WHERE workspace_id IS NULL
+              AND metadata->>'workspace_id' = $3
+              AND tenant_id IS NULL
+        )
+        DELETE FROM public.documents d
+        USING doomed
+        WHERE d.id = doomed.id"
+    } else {
+        "WITH doomed AS (
+            SELECT id FROM public.documents
+            WHERE workspace_id = $1
+            UNION
+            SELECT id FROM public.documents
+            WHERE workspace_id IS NULL
+              AND metadata->>'workspace_id' = $2
+        )
+        DELETE FROM public.documents d
+        USING doomed
+        WHERE d.id = doomed.id"
+    }
+}
+
+/// Bounded relational list with truncation flag (GH-400).
+#[cfg(feature = "postgres")]
+pub async fn list_relational_document_summaries_limited(
+    pool: crate::services::OptionalPgPool<'_>,
+    tenant_ctx: &TenantContext,
+    max_entries: usize,
+    status: Option<&str>,
+    bounds: RelationalCreatedBounds,
+    title_patterns: &[String],
+) -> Result<RelationalDocumentList, crate::error::ApiError> {
+    use crate::error::ApiError;
+    use sqlx::Row;
+
+    if title_patterns.len() > 16 {
+        return Err(ApiError::BadRequest(
+            "document_pattern accepts at most 16 titles".into(),
+        ));
+    }
+    let pool = pool.ok_or_else(|| ApiError::Internal("PostgreSQL pool not available".into()))?;
+    let max_entries = max_entries.max(1);
+
+    let workspace_id = tenant_ctx
+        .workspace_id
+        .as_ref()
+        .and_then(|w| Uuid::parse_str(w).ok())
+        .ok_or_else(|| ApiError::BadRequest("workspace_id required".into()))?;
+
+    let tenant_uuid = tenant_ctx
+        .tenant_id
+        .as_ref()
+        .and_then(|t| Uuid::parse_str(t).ok());
+
+    let timeout_ms = edgequake_storage::interactive_statement_timeout_ms();
+    let mut conn = pool
+        .acquire()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to acquire PG connection: {e}")))?;
+    let mut timed = edgequake_storage::LocalTimeoutTx::begin(&mut conn, timeout_ms)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to begin interactive list TX: {e}")))?;
+
+    // A generic plan of `lower(title) LIKE` always starts at the trigram index
+    // and reads every title when the letter matches the table (46.237 ms).
+    // The custom plan keeps a common letter on the time index.
+    if !title_patterns.is_empty() {
+        sqlx::query("SET LOCAL plan_cache_mode = force_custom_plan")
+            .execute(timed.as_mut())
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to set list plan mode: {e}")))?;
+    }
+
+    // Fetch one extra row to detect truncation without a second COUNT.
+    let fetch_limit = (max_entries as i64).saturating_add(1);
+    let filter = relational_list_filter(status);
+    let created = CreatedAtPredicate::from_bounds(bounds);
+    let titles = TitlePredicate {
+        count: title_patterns.len(),
+    };
+    let (sql, status_binds) = match filter {
+        RelationalListFilter::Open => (
+            document_list_statement(tenant_uuid.is_some(), 0, created, titles),
+            Vec::new(),
+        ),
+        RelationalListFilter::Statuses(values) => {
+            let sql = document_list_statement(tenant_uuid.is_some(), values.len(), created, titles);
+            (sql, values)
+        }
+        RelationalListFilter::Chip(arms) => (
+            chip_list_statement(tenant_uuid.is_some(), arms, created, titles),
+            Vec::new(),
+        ),
+    };
+    let mut query = sqlx::query(&sql).bind(workspace_id);
+    if let Some(tenant_id) = tenant_uuid {
+        query = query.bind(tenant_id);
+    }
+    for status_value in &status_binds {
+        query = query.bind(status_value);
+    }
+    if let Some(from) = bounds.from {
+        query = query.bind(from);
+    }
+    if let Some(to) = bounds.to {
+        query = query.bind(to);
+    }
+    for pattern in title_patterns {
+        query = query.bind(escape_title_like_needle(pattern));
+    }
+    let rows = query
+        .bind(fetch_limit)
+        .fetch_all(timed.as_mut())
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to list relational documents: {e}")))?;
 
     timed
         .commit()
@@ -307,6 +987,162 @@ pub async fn list_relational_document_summaries_limited(
     })
 }
 
+/// One document whose title contains the scope-picker query.
+#[cfg(feature = "postgres")]
+#[derive(Debug, Clone)]
+pub struct RelationalTitleHit {
+    pub id: String,
+    pub title: String,
+    pub status: String,
+    pub created_at: Option<String>,
+}
+
+/// Escape `\`, `%`, and `_` so a title query is a literal substring.
+#[cfg(feature = "postgres")]
+fn escape_title_like_needle(query: &str) -> String {
+    let mut out = String::with_capacity(query.len());
+    for ch in query.chars() {
+        if matches!(ch, '\\' | '%' | '_') {
+            out.push('\\');
+        }
+        out.push(ch);
+    }
+    out
+}
+
+/// Title search for the scope picker.
+///
+/// The picker used to read the newest 2,001 documents and drop titles in
+/// memory. On 80,000 documents the 50 oldest `uniquezephyr` titles are not
+/// in that page (0 hits). Requiring `lower(title) LIKE` on
+/// `idx_documents_created_at` still removes those 79,950 newer rows
+/// (38.139 ms, 2,557 buffers).
+///
+/// `idx_documents_title_trgm` is a GIN on `lower(title)`. A generic plan
+/// always starts there and, for a one-letter query that matches every row,
+/// reads all 80,000 titles (46.237 ms). This statement is planned with
+/// `force_custom_plan`: a common letter stops on the time index (0.104 ms)
+/// and a rare title stops on the trigram index.
+#[cfg(feature = "postgres")]
+fn document_title_search_statement(tenant_scoped: bool, ready_only: bool) -> String {
+    let status = if ready_only {
+        " AND status IN ('completed', 'indexed')"
+    } else {
+        ""
+    };
+    let order = "ORDER BY created_at DESC, id DESC";
+    let cols = "id::text AS id, title, status, created_at";
+    if tenant_scoped {
+        let like = "lower(title) LIKE '%' || lower($3) || '%' ESCAPE '\\'";
+        format!(
+            "SELECT id, title, status, created_at
+             FROM (
+               (
+                 SELECT {cols}
+                 FROM public.documents
+                 WHERE workspace_id = $1 AND tenant_id = $2 AND {like}{status}
+                 {order}
+                 LIMIT $4
+               )
+               UNION ALL
+               (
+                 SELECT {cols}
+                 FROM public.documents
+                 WHERE workspace_id = $1 AND tenant_id IS NULL AND {like}{status}
+                 {order}
+                 LIMIT $4
+               )
+             ) page
+             {order}
+             LIMIT $4"
+        )
+    } else {
+        let like = "lower(title) LIKE '%' || lower($2) || '%' ESCAPE '\\'";
+        format!(
+            "SELECT {cols}
+             FROM public.documents
+             WHERE workspace_id = $1 AND {like}{status}
+             {order}
+             LIMIT $3"
+        )
+    }
+}
+
+/// Documents whose title contains `query`, newest first.
+///
+/// `ready_only` keeps the scope picker's default `completed` bucket
+/// (`completed` and `indexed`). `status=all` passes `ready_only = false`.
+#[cfg(feature = "postgres")]
+pub async fn search_relational_document_titles(
+    pool: crate::services::OptionalPgPool<'_>,
+    tenant_ctx: &TenantContext,
+    query: &str,
+    ready_only: bool,
+    limit: usize,
+) -> Result<Vec<RelationalTitleHit>, crate::error::ApiError> {
+    use crate::error::ApiError;
+    use sqlx::Row;
+
+    let needle = escape_title_like_needle(query.trim());
+    if needle.is_empty() {
+        return Ok(Vec::new());
+    }
+    let pool = pool.ok_or_else(|| ApiError::Internal("PostgreSQL pool not available".into()))?;
+    let limit = (limit.max(1) as i64).min(51);
+
+    let workspace_id = tenant_ctx
+        .workspace_id
+        .as_ref()
+        .and_then(|w| Uuid::parse_str(w).ok())
+        .ok_or_else(|| ApiError::BadRequest("workspace_id required".into()))?;
+    let tenant_uuid = tenant_ctx
+        .tenant_id
+        .as_ref()
+        .and_then(|t| Uuid::parse_str(t).ok());
+
+    let timeout_ms = edgequake_storage::interactive_statement_timeout_ms();
+    let mut conn = pool
+        .acquire()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to acquire PG connection: {e}")))?;
+    let mut timed = edgequake_storage::LocalTimeoutTx::begin(&mut conn, timeout_ms)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to begin title-search TX: {e}")))?;
+    sqlx::query("SET LOCAL plan_cache_mode = force_custom_plan")
+        .execute(timed.as_mut())
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to set title-search plan mode: {e}")))?;
+
+    let sql = document_title_search_statement(tenant_uuid.is_some(), ready_only);
+    let mut q = sqlx::query(&sql).bind(workspace_id);
+    if let Some(tenant_id) = tenant_uuid {
+        q = q.bind(tenant_id);
+    }
+    let rows = q
+        .bind(&needle)
+        .bind(limit)
+        .fetch_all(timed.as_mut())
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to search document titles: {e}")))?;
+    timed
+        .commit()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to commit title-search TX: {e}")))?;
+
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
+            RelationalTitleHit {
+                id: row.get("id"),
+                title: row.get("title"),
+                status: row.get("status"),
+                created_at: Some(created_at.to_rfc3339()),
+            }
+        })
+        .collect())
+}
+
 /// Workspace-wide status bucket counts from `documents` (GH-400).
 ///
 /// Cheap aggregate (no row body) so interactive list can report global chips
@@ -342,43 +1178,26 @@ pub async fn count_relational_document_statuses(
         .await
         .map_err(|e| ApiError::Internal(format!("Failed to begin status-count TX: {e}")))?;
 
+    // A generic plan prices `tenant_id = $n` as half the table and seq-scans.
+    // Replan with the bound tenant so a small tenant reads only its rows.
+    sqlx::query("SET LOCAL plan_cache_mode = force_custom_plan")
+        .execute(timed.as_mut())
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to set status-count plan mode: {e}")))?;
+
     // Bucket using status + metadata current_stage (parity with list.rs chips).
-    let rows = sqlx::query(
-        r#"
-        SELECT bucket, COUNT(*)::bigint AS n
-        FROM (
-            SELECT CASE
-                WHEN lower(COALESCE(status, '')) IN ('pending', 'queued')
-                  OR lower(COALESCE(metadata->>'current_stage', '')) = 'queued'
-                    THEN 'pending'
-                WHEN lower(COALESCE(status, '')) IN ('processing', 'deleting')
-                  OR lower(COALESCE(metadata->>'current_stage', '')) IN (
-                        'converting','preprocessing','chunking','extracting','gleaning',
-                        'merging','summarizing','embedding','storing','projecting',
-                        'indexing','deleting'
-                     )
-                    THEN 'processing'
-                WHEN lower(COALESCE(status, '')) IN ('completed', 'indexed')
-                    THEN 'completed'
-                WHEN lower(COALESCE(status, '')) = 'partial_failure'
-                    THEN 'partial_failure'
-                WHEN lower(COALESCE(status, '')) = 'failed'
-                    THEN 'failed'
-                WHEN lower(COALESCE(status, '')) = 'cancelled'
-                    THEN 'cancelled'
-                ELSE 'unknown'
-            END AS bucket
-            FROM public.documents
-            WHERE workspace_id = $1
-              AND ($2::uuid IS NULL OR tenant_id IS NULL OR tenant_id = $2)
-        ) s
-        GROUP BY bucket
-        "#,
-    )
-    .bind(workspace_id)
-    .bind(tenant_uuid)
-    .fetch_all(timed.as_mut())
-    .await
+    let rows = if let Some(tenant_id) = tenant_uuid {
+        sqlx::query(&document_status_statement(true))
+            .bind(workspace_id)
+            .bind(tenant_id)
+            .fetch_all(timed.as_mut())
+            .await
+    } else {
+        sqlx::query(&document_status_statement(false))
+            .bind(workspace_id)
+            .fetch_all(timed.as_mut())
+            .await
+    }
     .map_err(|e| {
         ApiError::Internal(format!("Failed to count relational document statuses: {e}"))
     })?;
@@ -461,20 +1280,34 @@ pub async fn relational_document_scope(
         .as_ref()
         .and_then(|t| Uuid::parse_str(t).ok());
 
-    let row = sqlx::query(
-        r#"
-        SELECT workspace_id::text AS workspace_id, status, track_id
-        FROM public.documents
-        WHERE id = $1
-          AND workspace_id = $2
-          AND ($3::uuid IS NULL OR tenant_id IS NULL OR tenant_id = $3)
-        "#,
-    )
-    .bind(doc_uuid)
-    .bind(workspace_id)
-    .bind(tenant_uuid)
-    .fetch_optional(pool)
-    .await
+    let row = if let Some(tenant_id) = tenant_uuid {
+        sqlx::query(
+            r#"
+            SELECT workspace_id::text AS workspace_id, status, track_id
+            FROM public.documents
+            WHERE id = $1
+              AND workspace_id = $2
+              AND (tenant_id IS NULL OR tenant_id = $3)
+            "#,
+        )
+        .bind(doc_uuid)
+        .bind(workspace_id)
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await
+    } else {
+        sqlx::query(
+            r#"
+            SELECT workspace_id::text AS workspace_id, status, track_id
+            FROM public.documents
+            WHERE id = $1 AND workspace_id = $2
+            "#,
+        )
+        .bind(doc_uuid)
+        .bind(workspace_id)
+        .fetch_optional(pool)
+        .await
+    }
     .map_err(|e| ApiError::Internal(format!("Failed to lookup relational document: {e}")))?;
 
     Ok(row.map(|r| RelationalDocumentScope {
@@ -562,19 +1395,32 @@ pub async fn delete_relational_document(
         .as_ref()
         .and_then(|t| Uuid::parse_str(t).ok());
 
-    let result = sqlx::query(
-        r#"
-        DELETE FROM public.documents
-        WHERE id = $1
-          AND workspace_id = $2
-          AND ($3::uuid IS NULL OR tenant_id IS NULL OR tenant_id = $3)
-        "#,
-    )
-    .bind(doc_uuid)
-    .bind(workspace_id)
-    .bind(tenant_uuid)
-    .execute(pool)
-    .await
+    let result = if let Some(tenant_id) = tenant_uuid {
+        sqlx::query(
+            r#"
+            DELETE FROM public.documents
+            WHERE id = $1
+              AND workspace_id = $2
+              AND (tenant_id IS NULL OR tenant_id = $3)
+            "#,
+        )
+        .bind(doc_uuid)
+        .bind(workspace_id)
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+    } else {
+        sqlx::query(
+            r#"
+            DELETE FROM public.documents
+            WHERE id = $1 AND workspace_id = $2
+            "#,
+        )
+        .bind(doc_uuid)
+        .bind(workspace_id)
+        .execute(pool)
+        .await
+    }
     .map_err(|e| {
         ApiError::Internal(format!(
             "Failed to delete relational document {document_id}: {e}"
@@ -618,32 +1464,24 @@ pub async fn delete_relational_documents_for_workspace(
 
     // Wave B3/C + SPEC-091 IW1 (GAP-091-24): shell-written documents may carry
     // the workspace in metadata JSONB while the FK-guarded `workspace_id`
-    // column stays NULL. Two indexed predicates (UNION) beat an OR that
-    // defeats both the `(workspace_id, created_at)` btree and the expression
-    // index on `metadata->>'workspace_id'` (migration 128).
+    // column stays NULL. Each arm is an equality so the planner can use the
+    // workspace btree or the expression index on `metadata->>'workspace_id'`
+    // (migration 128) instead of reading every other tenant.
     let workspace_id_str = tenant_ctx.workspace_id.clone();
-    let result = sqlx::query(
-        r#"
-        WITH doomed AS (
-            SELECT id FROM public.documents
-            WHERE workspace_id = $1
-              AND ($2::uuid IS NULL OR tenant_id IS NULL OR tenant_id = $2)
-            UNION
-            SELECT id FROM public.documents
-            WHERE workspace_id IS NULL
-              AND metadata->>'workspace_id' = $3
-              AND ($2::uuid IS NULL OR tenant_id IS NULL OR tenant_id = $2)
-        )
-        DELETE FROM public.documents d
-        USING doomed
-        WHERE d.id = doomed.id
-        "#,
-    )
-    .bind(workspace_id)
-    .bind(tenant_uuid)
-    .bind(workspace_id_str)
-    .execute(pool)
-    .await
+    let result = if let Some(tenant_id) = tenant_uuid {
+        sqlx::query(document_workspace_delete_statement(true))
+            .bind(workspace_id)
+            .bind(tenant_id)
+            .bind(workspace_id_str)
+            .execute(pool)
+            .await
+    } else {
+        sqlx::query(document_workspace_delete_statement(false))
+            .bind(workspace_id)
+            .bind(workspace_id_str)
+            .execute(pool)
+            .await
+    }
     .map_err(|e| ApiError::Internal(format!("Failed to bulk-delete relational documents: {e}")))?;
 
     Ok(result.rows_affected())
@@ -948,6 +1786,294 @@ pub async fn reconcile_entity_counts_with_graph(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "postgres")]
+    #[test]
+    fn status_page_requires_the_status_column() {
+        assert!(matches!(
+            relational_list_filter(None),
+            RelationalListFilter::Open
+        ));
+        assert!(matches!(
+            relational_list_filter(Some("all")),
+            RelationalListFilter::Open
+        ));
+        match relational_list_filter(Some("unknown")) {
+            RelationalListFilter::Chip(arms) => assert!(std::ptr::eq(arms, UNKNOWN_ARMS)),
+            other => panic!("unknown must be the unknown chip, got {other:?}"),
+        }
+        match relational_list_filter(Some("pending")) {
+            RelationalListFilter::Chip(arms) => assert!(std::ptr::eq(arms, PENDING_ARMS)),
+            other => panic!("pending must be the pending chip, got {other:?}"),
+        }
+        match relational_list_filter(Some("processing")) {
+            RelationalListFilter::Chip(arms) => assert!(std::ptr::eq(arms, PROCESSING_ARMS)),
+            other => panic!("processing must be the processing chip, got {other:?}"),
+        }
+        match relational_list_filter(Some("failed")) {
+            RelationalListFilter::Statuses(values) => {
+                assert_eq!(values, vec!["failed".to_string()]);
+            }
+            other => panic!("failed must be one status equality, got {other:?}"),
+        }
+        match relational_list_filter(Some("completed")) {
+            RelationalListFilter::Statuses(values) => {
+                assert_eq!(values, vec!["completed".to_string(), "indexed".to_string()]);
+            }
+            other => panic!("completed must be two status equalities, got {other:?}"),
+        }
+
+        let open = document_list_statement(
+            false,
+            0,
+            CreatedAtPredicate::default(),
+            TitlePredicate::default(),
+        );
+        assert!(!open.contains("status ="));
+        assert!(open.contains("ORDER BY created_at DESC"));
+        assert!(open.contains("LIMIT $2"));
+        assert!(!open.contains("created_at <="));
+        assert!(!open.contains("created_at >="));
+
+        let failed = document_list_statement(
+            false,
+            1,
+            CreatedAtPredicate::default(),
+            TitlePredicate::default(),
+        );
+        assert!(failed.contains("workspace_id = $1 AND status = $2"));
+        assert!(failed.contains("ORDER BY created_at DESC, id DESC"));
+        assert!(failed.contains("LIMIT $3"));
+        assert!(!failed.contains("IS NULL OR"));
+
+        let completed = document_list_statement(
+            false,
+            2,
+            CreatedAtPredicate::default(),
+            TitlePredicate::default(),
+        );
+        assert!(completed.contains("status = $2"));
+        assert!(completed.contains("status = $3"));
+        assert!(completed.contains("UNION ALL"));
+
+        let tenant = document_list_statement(
+            true,
+            1,
+            CreatedAtPredicate::default(),
+            TitlePredicate::default(),
+        );
+        assert!(tenant.contains("tenant_id = $2 AND status = $3"));
+        assert!(tenant.contains("tenant_id IS NULL AND status = $3"));
+        assert!(!tenant.contains("$2::uuid IS NULL"));
+
+        let pending = chip_list_statement(
+            false,
+            PENDING_ARMS,
+            CreatedAtPredicate::default(),
+            TitlePredicate::default(),
+        );
+        assert!(pending.contains("status = 'pending'"));
+        assert!(pending.contains("status = 'queued'"));
+        assert!(pending.contains("current_stage = 'queued'"));
+        assert!(pending.contains("status IS DISTINCT FROM 'pending'"));
+        assert!(pending.contains("status IS DISTINCT FROM 'queued'"));
+        assert!(pending.contains("ORDER BY created_at DESC, id DESC"));
+        assert!(pending.contains("LIMIT $2"));
+        assert!(!pending.contains("IS NULL OR"));
+        assert!(!pending.contains("ANY("));
+
+        let processing = chip_list_statement(
+            false,
+            PROCESSING_ARMS,
+            CreatedAtPredicate::default(),
+            TitlePredicate::default(),
+        );
+        assert!(processing.contains("status = 'processing'"));
+        assert!(processing.contains("current_stage = 'extracting'"));
+        assert!(processing.contains("status IS DISTINCT FROM 'processing'"));
+        assert!(!processing.contains("= ANY("));
+
+        let pending_tenant = chip_list_statement(
+            true,
+            PENDING_ARMS,
+            CreatedAtPredicate::default(),
+            TitlePredicate::default(),
+        );
+        assert!(pending_tenant.contains("tenant_id = $2 AND status = 'pending'"));
+        assert!(pending_tenant.contains("tenant_id IS NULL AND current_stage = 'queued'"));
+        assert!(pending_tenant.contains("LIMIT $3"));
+
+        let unknown = chip_list_statement(
+            false,
+            UNKNOWN_ARMS,
+            CreatedAtPredicate::default(),
+            TitlePredicate::default(),
+        );
+        assert!(unknown.contains("status = 'chunking'"));
+        assert!(unknown.contains("status = 'extracting'"));
+        assert!(unknown.contains("status = 'embedding'"));
+        assert!(unknown.contains("status = 'indexing'"));
+        assert!(unknown.contains("status = 'deleting'"));
+        assert!(unknown.contains("status = 'delete_failed'"));
+        assert!(unknown.contains("UNION ALL"));
+        assert!(unknown.contains("ORDER BY created_at DESC, id DESC"));
+        assert!(unknown.contains("LIMIT $2"));
+        assert!(!unknown.contains("NOT IN"));
+        assert!(!unknown.contains("IS NULL OR"));
+        assert!(!unknown.contains("ANY("));
+    }
+
+    #[cfg(feature = "postgres")]
+    #[test]
+    fn date_page_requires_created_at() {
+        let open = document_list_statement(
+            false,
+            0,
+            CreatedAtPredicate {
+                from: false,
+                to: true,
+            },
+            TitlePredicate::default(),
+        );
+        assert!(open.contains("workspace_id = $1 AND created_at <= $2"));
+        assert!(open.contains("ORDER BY created_at DESC"));
+        assert!(!open.contains("id DESC"));
+        assert!(open.contains("LIMIT $3"));
+        assert!(!open.contains("IS NULL OR"));
+
+        let ranged = document_list_statement(
+            true,
+            1,
+            CreatedAtPredicate {
+                from: true,
+                to: true,
+            },
+            TitlePredicate::default(),
+        );
+        assert!(ranged
+            .contains("tenant_id = $2 AND status = $3 AND created_at >= $4 AND created_at <= $5"));
+        assert!(ranged.contains(
+            "tenant_id IS NULL AND status = $3 AND created_at >= $4 AND created_at <= $5"
+        ));
+        assert!(ranged.contains("LIMIT $6"));
+
+        let pending = chip_list_statement(
+            false,
+            PENDING_ARMS,
+            CreatedAtPredicate {
+                from: true,
+                to: false,
+            },
+            TitlePredicate::default(),
+        );
+        assert!(pending.contains("status = 'pending' AND created_at >= $2"));
+        assert!(pending.contains(
+            "current_stage = 'queued' AND status IS DISTINCT FROM 'pending' AND status IS DISTINCT FROM 'queued' AND created_at >= $2"
+        ));
+        assert!(pending.contains("LIMIT $3"));
+        assert!(!pending.contains("IS NULL"));
+        assert!(!pending.contains("LIKE"));
+    }
+
+    #[cfg(feature = "postgres")]
+    #[test]
+    fn query_filter_requires_the_passed_predicate() {
+        let dated = document_filter_statement(
+            CreatedAtPredicate {
+                from: false,
+                to: true,
+            },
+            TitlePredicate::default(),
+            false,
+        );
+        assert!(dated.contains("workspace_id = $1 AND created_at <= $3"));
+        assert!(dated.contains("metadata->>'workspace_id' = $2"));
+        assert!(dated.contains("workspace_id IS DISTINCT FROM $1 AND created_at <= $3"));
+        assert!(!dated.contains("LIKE"));
+        assert!(!dated.contains("ANY("));
+        assert!(!dated.contains("IS NULL OR"));
+        assert!(!dated.contains("LIMIT"));
+
+        let titled = document_filter_statement(
+            CreatedAtPredicate::default(),
+            TitlePredicate { count: 1 },
+            false,
+        );
+        assert!(titled.contains("lower(title) LIKE '%' || lower($3) || '%' ESCAPE '\\'"));
+        assert!(!titled.contains("created_at <="));
+        assert!(!titled.contains("created_at >="));
+
+        let both = document_filter_statement(
+            CreatedAtPredicate {
+                from: true,
+                to: false,
+            },
+            TitlePredicate { count: 1 },
+            true,
+        );
+        assert!(both.contains(
+            "created_at >= $3 AND (lower(title) LIKE '%' || lower($4) || '%' ESCAPE '\\')"
+        ));
+        assert!(both.contains("created_at >= $3 AND id = ANY($5::uuid[])"));
+        assert_eq!(both.matches("UNION").count(), 3);
+    }
+
+    #[cfg(feature = "postgres")]
+    #[test]
+    fn title_pattern_requires_like() {
+        let open = document_list_statement(
+            false,
+            0,
+            CreatedAtPredicate::default(),
+            TitlePredicate { count: 1 },
+        );
+        assert!(open.contains(
+            "workspace_id = $1 AND (lower(title) LIKE '%' || lower($2) || '%' ESCAPE '\\')"
+        ));
+        assert!(open.contains("LIMIT $3"));
+        assert!(!open.contains("ANY("));
+        assert!(!open.contains("IS NULL OR"));
+
+        let two = document_list_statement(
+            false,
+            0,
+            CreatedAtPredicate {
+                from: false,
+                to: true,
+            },
+            TitlePredicate { count: 2 },
+        );
+        assert!(two.contains("created_at <= $2 AND (lower(title) LIKE '%' || lower($3) || '%' ESCAPE '\\' OR lower(title) LIKE '%' || lower($4) || '%' ESCAPE '\\')"));
+        assert!(two.contains("LIMIT $5"));
+
+        let pending = chip_list_statement(
+            true,
+            PENDING_ARMS,
+            CreatedAtPredicate::default(),
+            TitlePredicate { count: 1 },
+        );
+        assert!(pending.contains(
+            "tenant_id = $2 AND status = 'pending' AND (lower(title) LIKE '%' || lower($3) || '%' ESCAPE '\\')"
+        ));
+        assert!(pending.contains("LIMIT $4"));
+    }
+
+    #[cfg(feature = "postgres")]
+    #[test]
+    fn title_search_requires_the_title_predicate() {
+        assert_eq!(escape_title_like_needle("100%_a\\b"), "100\\%\\_a\\\\b");
+        let ready = document_title_search_statement(true, true);
+        assert!(ready.contains("lower(title) LIKE '%' || lower($3) || '%' ESCAPE '\\'"));
+        assert!(ready.contains("tenant_id = $2"));
+        assert!(ready.contains("tenant_id IS NULL"));
+        assert!(ready.contains("status IN ('completed', 'indexed')"));
+        assert!(ready.contains("LIMIT $4"));
+        assert!(!ready.contains("IS NULL OR"));
+        let all = document_title_search_statement(false, false);
+        assert!(all.contains("lower(title) LIKE '%' || lower($2) || '%' ESCAPE '\\'"));
+        assert!(!all.contains("status IN"));
+        assert!(all.contains("LIMIT $3"));
+    }
 
     #[test]
     fn merge_document_count_prefers_higher_value() {

@@ -23,7 +23,7 @@ pub async fn repair_migration_125_checksum_if_needed(pool: &PgPool) -> Result<bo
     }
 
     let current: Option<String> = sqlx::query_scalar(
-        "SELECT encode(checksum, 'hex') FROM _sqlx_migrations \
+        "SELECT encode(checksum, 'hex') FROM public._sqlx_migrations \
          WHERE version = $1 AND success = true",
     )
     .bind(MIGRATION_125_VERSION)
@@ -48,7 +48,7 @@ pub async fn repair_migration_125_checksum_if_needed(pool: &PgPool) -> Result<bo
     }
 
     sqlx::query(
-        "UPDATE _sqlx_migrations SET checksum = decode($1, 'hex') \
+        "UPDATE public._sqlx_migrations SET checksum = decode($1, 'hex') \
          WHERE version = $2 AND success = true",
     )
     .bind(M125_CHECKSUM_FIXED_SPEC111)

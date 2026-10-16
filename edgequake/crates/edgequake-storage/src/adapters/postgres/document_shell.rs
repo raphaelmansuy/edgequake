@@ -464,16 +464,32 @@ pub async fn shell_staging_keys_page(
     limit: i64,
 ) -> Result<Vec<String>, StorageError> {
     let limit = limit.clamp(1, 5000);
-    let rows: Vec<(String, bool)> = sqlx::query_as(
-        "SELECT id::text, (NULLIF(content, '') IS NOT NULL) FROM public.documents \
-         WHERE metadata->>'_shell' = 'staging' \
-           AND ($1::uuid IS NULL OR id > $1) \
-         ORDER BY id LIMIT $2",
-    )
-    .bind(after_id)
-    .bind(limit)
-    .fetch_all(pool)
-    .await
+    // `ORDER BY id` would name the text output column, so the keyset could not
+    // follow `idx_documents_staging_shell`. Order and seek on the uuid column.
+    // A cursor requires `id > $1`; the first page has no cursor predicate.
+    let rows: Vec<(String, bool)> = if let Some(after) = after_id {
+        sqlx::query_as(
+            "SELECT documents.id::text, (NULLIF(documents.content, '') IS NOT NULL) \
+             FROM public.documents \
+             WHERE documents.metadata->>'_shell' = 'staging' \
+               AND documents.id > $1 \
+             ORDER BY documents.id LIMIT $2",
+        )
+        .bind(after)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+    } else {
+        sqlx::query_as(
+            "SELECT documents.id::text, (NULLIF(documents.content, '') IS NOT NULL) \
+             FROM public.documents \
+             WHERE documents.metadata->>'_shell' = 'staging' \
+             ORDER BY documents.id LIMIT $1",
+        )
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+    }
     .map_err(|e| StorageError::Database(format!("staging shell key scan failed: {e}")))?;
     let mut keys = Vec::with_capacity(rows.len() * 2);
     for (id, has_content) in rows {

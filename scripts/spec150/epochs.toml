@@ -1,6 +1,9 @@
 # SPEC-150 epoch table — schema-distinct release points
 #
-# v0.35.1 owns schema 207. v0.35.2, v0.35.3, and v0.35.4 serve the same migration set.
+# v0.35.1 owns schema 207. v0.35.2, v0.35.3, v0.35.4, and v0.35.5 serve the same migration set.
+# Pin the next train under [unreleased] (hash, max, files) until that tag exists.
+
+[unreleased]
 
 [[epoch]]
 tag = "v0.2.0"
@@ -317,4 +320,4 @@ key = true
 replay = true
 # max mig 207 (AGE lineage discovery under row security, GitHub #478)
 # hash 6c9f5db14719d62f (205 numbered migration files)
-# Schema-identical aliases: v0.35.2 v0.35.3 v0.35.4
+# schema-identical aliases: v0.35.2 v0.35.3 v0.35.4 v0.35.5

@@ -417,6 +417,22 @@ impl PostgresAGEGraphStorage {
             .map(|(t,)| if t < 0.0 { 0 } else { t as usize })
             .unwrap_or(0))
     }
+
+    /// O(1) estimate for a public plain-graph table (SPEC-164).
+    async fn plain_reltuples(&self, table: &str) -> Result<usize> {
+        let pool = self.pool.get().await?;
+        let n: Option<f32> = sqlx::query_scalar(
+            "SELECT c.reltuples
+             FROM pg_class c
+             JOIN pg_namespace n ON n.oid = c.relnamespace
+             WHERE n.nspname = 'public' AND c.relname = $1",
+        )
+        .bind(table)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| StorageError::Database(format!("plain reltuples failed: {e}")))?;
+        Ok(n.map(|t| if t < 0.0 { 0 } else { t as usize }).unwrap_or(0))
+    }
 }
 
 mod analytics_ops;
@@ -424,8 +440,11 @@ mod edges_ops;
 mod graph_storage_impl;
 mod lifecycle_ops;
 mod nodes_ops;
+mod plain;
 mod query_ops;
 mod scan_ops;
+
+pub use plain::{finish_plain_graph_cutover, CutoverReport};
 
 /// SPEC-089 e2e hook: last prefix count passed to GIN node-count reconcile.
 pub use analytics_ops::LAST_SOURCE_PREFIX_COUNT_LEN;

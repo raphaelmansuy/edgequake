@@ -1,4 +1,4 @@
-//! SPEC-054 / specs/054 — verified AGE + pgvector performance e2e.
+//! SPEC-054 / specs/054 — verified pgvector and plain-graph performance e2e.
 //!
 //! Run:
 //! ```bash
@@ -11,7 +11,7 @@
 //!   (observed ~3ms on 2k-row table)
 //! - Q3: native upsert 500 nodes < 500ms (observed ~50ms)
 //! - Q2: get_nodes_batch 100 ids < 50ms (observed ~2ms)
-//! - Index: EXPLAIN on UNIQUE node_id uses Index Scan
+//! - Index: filtered HNSW EXPLAIN uses an index path
 
 #![cfg(feature = "postgres")]
 
@@ -24,7 +24,7 @@ use edgequake_storage::traits::{
     GraphStorage, GraphStorageAnalyticsOps, GraphStorageMutateOps, GraphStorageReadOps,
     MetadataFilter, VectorStorage,
 };
-use edgequake_storage::{PgVectorStorage, PostgresAGEGraphStorage, PostgresConfig};
+use edgequake_storage::{PgVectorStorage, PostgresAGEGraphStorage};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -140,7 +140,6 @@ async fn e2e_native_upsert_batch_get_and_unique_index_plan() {
 
     let storage = PostgresAGEGraphStorage::new(config.clone());
     storage.initialize().await.expect("graph init");
-    let graph = storage.graph_name().to_string();
 
     let nodes: Vec<(String, HashMap<String, serde_json::Value>)> = (0..500)
         .map(|i| {
@@ -182,8 +181,6 @@ async fn e2e_native_upsert_batch_get_and_unique_index_plan() {
         "OK Q2/Q3: native upsert 500 in {upsert_elapsed:?}; get_nodes_batch(100) in {batch_elapsed:?}"
     );
 
-    assert_unique_index_plan(&config, &graph, "PERF_NODE_0").await;
-
     match prev {
         Some(v) => std::env::set_var("EDGEQUAKE_NATIVE_GRAPH_WRITES", v),
         None => std::env::remove_var("EDGEQUAKE_NATIVE_GRAPH_WRITES"),
@@ -192,7 +189,7 @@ async fn e2e_native_upsert_batch_get_and_unique_index_plan() {
     let _ = storage.clear().await;
 }
 
-/// L1-a AGE portion: batched source-prefix counts must beat N sequential
+/// Batched source-prefix counts must beat N sequential
 /// round-trips and finish under 200ms for ~20 prefixes on a warm graph.
 #[tokio::test]
 async fn e2e_batched_source_prefix_counts_under_budget() {
@@ -272,7 +269,7 @@ async fn e2e_batched_source_prefix_counts_under_budget() {
         "L1-a FAIL: batch {batch_elapsed:?} looks like N+1 vs single {one_elapsed:?}"
     );
     eprintln!(
-        "OK L1-a AGE: batched {doc_count} prefixes in {batch_elapsed:?} (single={one_elapsed:?})"
+        "OK L1-a: batched {doc_count} prefixes in {batch_elapsed:?} (single={one_elapsed:?})"
     );
 
     match prev {
@@ -280,32 +277,4 @@ async fn e2e_batched_source_prefix_counts_under_budget() {
         None => std::env::remove_var("EDGEQUAKE_NATIVE_GRAPH_WRITES"),
     }
     let _ = storage.clear().await;
-}
-
-async fn assert_unique_index_plan(config: &PostgresConfig, graph: &str, node_id: &str) {
-    let pool = postgres_test_config::contract_pg_pool(config).await;
-    // Expression matches idx_node_prop_node_id_unique definition.
-    let sql = format!(
-        r#"EXPLAIN (FORMAT TEXT)
-           SELECT id FROM {graph}."Node"
-           WHERE ag_catalog.agtype_to_json(properties)->>'node_id' = $1
-           LIMIT 1"#
-    );
-    let plan_rows: Vec<(String,)> = sqlx::query_as(&sql)
-        .bind(node_id)
-        .fetch_all(&pool)
-        .await
-        .expect("EXPLAIN");
-    let plan = plan_rows
-        .into_iter()
-        .map(|r| r.0)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        plan.contains("Index Scan")
-            || plan.contains("Index Only Scan")
-            || plan.contains("idx_node_prop_node_id_unique"),
-        "UNIQUE expression index must be used for node_id lookup; plan was:\n{plan}"
-    );
-    eprintln!("OK Index: node_id EXPLAIN uses index path:\n{plan}");
 }

@@ -6,14 +6,34 @@
 #[test]
 fn contract_find_nodes_by_source_prefixes_uses_gin_join_probes() {
     let scan = include_str!("../src/adapters/postgres/graph/scan_ops.rs");
+    // Issue #478: the indexed probe SQL lives in migration 207. The tenant
+    // role calls it through a security-definer lookup so FORCE RLS does not
+    // hide the lineage GIN indexes.
+    let sql = include_str!("../../../migrations/207_age_lineage_discovery_rls.sql");
     assert!(
-        scan.contains("generate_series"),
+        sql.contains("generate_series"),
         "modern discovery must probe chunk ids via generate_series JOIN"
     );
     assert!(
-        scan.contains("unnest($1::text[])"),
+        sql.contains("unnest($1::text[])"),
         "modern discovery must unnest exact source ids for GIN @>"
     );
+    assert!(
+        sql.contains("SECURITY DEFINER"),
+        "lineage lookup must run as the bypass owner"
+    );
+    assert!(
+        sql.contains("OFFSET 0"),
+        "singular citation equality must stay an index condition"
+    );
+    for name in [
+        "eq_age_lineage_discover_nodes",
+        "eq_age_lineage_discover_edges",
+        "eq_age_lineage_discover_edges_singular",
+    ] {
+        assert!(scan.contains(name), "AGE discovery must call {name}");
+        assert!(sql.contains(name), "migration 207 must define {name}");
+    }
     assert!(
         scan.contains("pg_find_nodes_by_source_prefixes"),
         "node discovery entrypoint must remain"
@@ -27,38 +47,57 @@ fn contract_find_nodes_by_source_prefixes_uses_gin_join_probes() {
 #[test]
 fn contract_modern_discovery_targets_child_node_and_edge_tables() {
     let scan = include_str!("../src/adapters/postgres/graph/scan_ops.rs");
+    let sql = include_str!("../../../migrations/207_age_lineage_discovery_rls.sql");
 
-    // Hot path must query indexed child tables, not AGE parents.
+    // Hot path queries indexed child tables inside the lookup, not AGE parents.
     assert!(
-        scan.contains(r#"."Node" v"#) || scan.contains(".\"Node\" v"),
-        "node discovery must FROM child \"Node\""
+        sql.contains("'Node'"),
+        "node discovery must FROM child Node"
     );
     assert!(
-        scan.contains(r#"."EDGE" e"#) || scan.contains(".\"EDGE\" e"),
-        "edge discovery must FROM child \"EDGE\""
+        sql.contains("'EDGE'"),
+        "edge discovery must FROM child EDGE"
+    );
+    assert!(
+        sql.contains("eq_source_id") && sql.contains("eq_target_id"),
+        "edge modern path must resolve endpoints via eq_* (no parent text-cast JOINs)"
+    );
+    assert!(
+        sql.contains("-> 'source_ids'") && sql.contains("-> 'source_chunk_ids'"),
+        "modern path must probe both lineage GIN expressions"
+    );
+    assert!(
+        sql.contains("->>'source_chunk_id'") && sql.contains("->>'source_document_id'"),
+        "singular path must match the citation btree expressions"
+    );
+    assert!(
+        !sql.contains("_ag_label_edge"),
+        "edge modern hot path must not scan AGE parent _ag_label_edge"
+    );
+    assert!(
+        !sql.contains("start_id::text"),
+        "edge modern hot path must not text-cast JOIN on start_id"
     );
 
-    // Extract modern edge SQL region (between modern_sql for edges and legacy enable check).
     let edge_fn = scan
         .find("pub(super) async fn pg_find_edges_by_source_prefixes")
         .expect("edge discovery fn");
     let edge_body = &scan[edge_fn..];
-    let modern_end = edge_body
-        .find("if Self::source_prefix_legacy_enabled()")
-        .unwrap_or(edge_body.len().min(4500));
-    let modern_edge = &edge_body[..modern_end];
-
     assert!(
-        modern_edge.contains("eq_source_id") && modern_edge.contains("eq_target_id"),
-        "edge modern path must resolve endpoints via eq_* (no parent text-cast JOINs)"
+        edge_body.contains("eq_age_lineage_discover_edges"),
+        "edge discovery must call the security-definer lookup"
     );
     assert!(
-        !modern_edge.contains("_ag_label_edge"),
-        "edge modern hot path must not scan AGE parent _ag_label_edge"
+        edge_body.contains("eq_age_lineage_discover_edges_singular"),
+        "singular citation discovery must call the security-definer lookup"
     );
     assert!(
-        !modern_edge.contains("start_id::text"),
-        "edge modern hot path must not text-cast JOIN on start_id"
+        !edge_body.contains("_ag_label_edge"),
+        "edge discovery must not scan AGE parent _ag_label_edge"
+    );
+    assert!(
+        !edge_body.contains("start_id::text"),
+        "edge discovery must not text-cast JOIN on start_id"
     );
 }
 

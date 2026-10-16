@@ -1,0 +1,8 @@
+                                                    QUERY PLAN                                                     
+-------------------------------------------------------------------------------------------------------------------
+ Function Scan on age_incident  (cost=0.25..10.25 rows=1000 width=32) (actual time=0.524..0.525 rows=3.00 loops=1)
+   Buffers: shared hit=360
+ Planning Time: 0.040 ms
+ Execution Time: 0.817 ms
+(4 rows)
+

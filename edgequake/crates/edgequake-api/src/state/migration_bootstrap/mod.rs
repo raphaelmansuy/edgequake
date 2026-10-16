@@ -23,7 +23,9 @@ pub mod runner;
 pub use support_sql::*;
 
 pub use apply::{
-    run_postgres_expandable_migrations, run_postgres_migrations, run_postgres_migrations_through,
+    run_postgres_expandable_migrations, run_postgres_migrations,
+    run_postgres_migrations_except_age, run_postgres_migrations_expandable_and_age,
+    run_postgres_migrations_through,
 };
 pub use ledger::{
     boot_gate_downgrade_message, boot_gate_pending_message, expandable_apply_versions,
@@ -34,7 +36,8 @@ pub use ledger::{
     schema_drift, warn_if_removed_boot_flag_set, SchemaDrift,
 };
 pub use progress::{
-    duration_class, format_step_done, format_step_start, format_upgrade_path, is_heavy_step,
+    cutover_duration_note, duration_class, format_step_done, format_step_start,
+    format_upgrade_path, irreversible_drop_plain, is_heavy_step, print_cutover_duration_note,
     print_step_done, print_step_start, print_upgrade_path, release_for_schema,
 };
 pub use readiness::{

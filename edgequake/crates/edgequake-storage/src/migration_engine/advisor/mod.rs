@@ -166,7 +166,7 @@ fn family_mode(spec: &FamilySpec) -> FamilyMode {
 /// old databases that predate the `_sqlx_migrations` bookkeeping).
 async fn drop_migration_applied(pool: &PgPool, version: i64) -> Result<bool, StorageError> {
     match sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM _sqlx_migrations WHERE version = $1 AND success)",
+        "SELECT EXISTS(SELECT 1 FROM public._sqlx_migrations WHERE version = $1 AND success)",
     )
     .bind(version)
     .fetch_one(pool)

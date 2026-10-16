@@ -103,6 +103,90 @@ pub(in crate::adapters::postgres) fn vector_query_statement_timeout_ms() -> u32 
     ms.saturating_sub(GRAPH_QUERY_PG_HEADROOM_MS).max(1)
 }
 
+/// Env: cap for plain-graph cutover statements (GitHub #494).
+///
+/// Unset or empty means `0` (disabled). This is not
+/// `EDGEQUAKE_MIGRATE_STATEMENT_TIMEOUT`: a short migrate override must not
+/// become the cutover cap.
+pub const CUTOVER_STATEMENT_TIMEOUT_ENV: &str = "EDGEQUAKE_CUTOVER_STATEMENT_TIMEOUT";
+
+/// Literal passed to `SET LOCAL statement_timeout` / `transaction_timeout`.
+///
+/// `0` disables the timeout. Any other value must be a short unit literal
+/// such as `50ms`, `5s`, or `30min`.
+pub(in crate::adapters::postgres) fn cutover_statement_timeout_literal() -> Result<String> {
+    let raw = std::env::var(CUTOVER_STATEMENT_TIMEOUT_ENV).unwrap_or_default();
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok("0".to_string());
+    }
+    if !valid_cutover_timeout_literal(trimmed) {
+        return Err(StorageError::InvalidConfig(format!(
+            "{CUTOVER_STATEMENT_TIMEOUT_ENV}={trimmed:?} is not 0 or a unit literal (50ms, 5s, 30min)"
+        )));
+    }
+    Ok(trimmed.to_string())
+}
+
+fn valid_cutover_timeout_literal(value: &str) -> bool {
+    if value == "0" {
+        return true;
+    }
+    if value.len() >= 32 {
+        return false;
+    }
+    let unit_at = value
+        .find(|c: char| !c.is_ascii_digit())
+        .unwrap_or(value.len());
+    if unit_at == 0 || unit_at == value.len() {
+        return false;
+    }
+    matches!(&value[unit_at..], "ms" | "s" | "min" | "h" | "d")
+}
+
+fn render_timeout_literal(literal: &str) -> String {
+    if literal == "0" {
+        "0".to_string()
+    } else {
+        format!("'{literal}'")
+    }
+}
+
+/// `SET LOCAL` the cutover statement budget on an open transaction.
+///
+/// Role and database defaults return at COMMIT or ROLLBACK
+/// ([SET](https://www.postgresql.org/docs/current/sql-set.html)). Call this
+/// only after `BEGIN`. A session `SET` would survive on a pooled connection
+/// if `RESET ALL` did not run.
+///
+/// PostgreSQL 17 `transaction_timeout` still cancels the whole transaction
+/// when `statement_timeout` is 0, so the same literal is applied when that
+/// setting exists. PostgreSQL 16 has no such GUC.
+pub(in crate::adapters::postgres) async fn apply_local_cutover_timeout(
+    conn: &mut PgConnection,
+) -> Result<()> {
+    let literal = cutover_statement_timeout_literal()?;
+    let rendered = render_timeout_literal(&literal);
+    sqlx::query(&format!("SET LOCAL statement_timeout = {rendered}"))
+        .execute(&mut *conn)
+        .await
+        .map_err(|e| StorageError::Database(format!("SET LOCAL statement_timeout failed: {e}")))?;
+    let transaction_timeout: Option<String> =
+        sqlx::query_scalar("SELECT current_setting('transaction_timeout', true)")
+            .fetch_one(&mut *conn)
+            .await
+            .unwrap_or(None);
+    if transaction_timeout.is_some() {
+        sqlx::query(&format!("SET LOCAL transaction_timeout = {rendered}"))
+            .execute(&mut *conn)
+            .await
+            .map_err(|e| {
+                StorageError::Database(format!("SET LOCAL transaction_timeout failed: {e}"))
+            })?;
+    }
+    Ok(())
+}
+
 /// Community snapshot scan statement budget (GH-404).
 ///
 /// Default 30s per page so a bad plan is cancelled in Postgres instead of
@@ -151,6 +235,32 @@ mod tests {
         assert!(vector_query_statement_timeout_ms() < 2_000);
         if let Some(v) = prev {
             std::env::set_var("EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS", v);
+        }
+    }
+
+    #[test]
+    fn cutover_timeout_literal_defaults_accepts_units_and_rejects_injection() {
+        let prev = std::env::var(CUTOVER_STATEMENT_TIMEOUT_ENV).ok();
+        std::env::remove_var(CUTOVER_STATEMENT_TIMEOUT_ENV);
+        assert_eq!(cutover_statement_timeout_literal().unwrap(), "0");
+        std::env::set_var(CUTOVER_STATEMENT_TIMEOUT_ENV, "  ");
+        assert_eq!(cutover_statement_timeout_literal().unwrap(), "0");
+        for ok in ["0", "50ms", "5s", "30min", "1h", "1d"] {
+            std::env::set_var(CUTOVER_STATEMENT_TIMEOUT_ENV, ok);
+            assert_eq!(cutover_statement_timeout_literal().unwrap(), ok);
+        }
+        for bad in [
+            "30 min", "'30min'", "30min;", "1;select", "min", "-1s", "1.5s",
+        ] {
+            std::env::set_var(CUTOVER_STATEMENT_TIMEOUT_ENV, bad);
+            assert!(
+                cutover_statement_timeout_literal().is_err(),
+                "{bad} must be rejected"
+            );
+        }
+        match prev {
+            Some(v) => std::env::set_var(CUTOVER_STATEMENT_TIMEOUT_ENV, v),
+            None => std::env::remove_var(CUTOVER_STATEMENT_TIMEOUT_ENV),
         }
     }
 

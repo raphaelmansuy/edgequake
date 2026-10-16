@@ -35,8 +35,11 @@ for profile in pg16 pg17 pg18; do
   EQ_POSTGRES_PROFILE="$profile" source "$PINS"
   : "${EQ_POSTGRES_MAJOR:?}"
   : "${EQ_PGVECTOR_MIN:?}"
-  : "${EQ_AGE_MIN:?}"
-  echo "  OK $profile → PG${EQ_POSTGRES_MAJOR} pgvector>=${EQ_PGVECTOR_MIN} AGE>=${EQ_AGE_MIN}"
+  if [ -n "${EQ_AGE_MIN:-}" ]; then
+    echo "FAIL $profile product image must not pin Apache AGE (got ${EQ_AGE_MIN})" >&2
+    exit 1
+  fi
+  echo "  OK $profile → PG${EQ_POSTGRES_MAJOR} pgvector>=${EQ_PGVECTOR_MIN} AGE absent"
 done
 
 if [[ "$BATTLE" -eq 1 ]]; then

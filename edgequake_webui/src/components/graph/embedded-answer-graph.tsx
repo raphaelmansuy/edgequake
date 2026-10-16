@@ -28,7 +28,7 @@ export function EmbeddedAnswerGraph({
   fallback,
 }: EmbeddedAnswerGraphProps) {
   return (
-    <div className="h-full min-h-0" data-testid="companion-graph-canvas">
+    <div className="relative h-full min-h-0" data-testid="companion-graph-canvas">
       <GraphRenderer
         nodes={nodes}
         edges={edges}

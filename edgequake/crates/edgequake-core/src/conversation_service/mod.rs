@@ -31,7 +31,10 @@ mod in_memory;
 mod pagination;
 
 pub use in_memory::InMemoryConversationService;
-pub(crate) use pagination::{offset_from_cursor, pagination_meta};
+pub(crate) use pagination::{
+    encode_time_cursor, encode_title_cursor, keyset_page_meta, pagination_meta, parse_list_cursor,
+    ParsedCursor,
+};
 
 use async_trait::async_trait;
 use uuid::Uuid;
@@ -132,6 +135,16 @@ pub trait ConversationService: Send + Sync {
         cursor: Option<String>,
         limit: usize,
     ) -> Result<PaginatedMessages>;
+
+    /// Newest `limit` messages, oldest of that page first.
+    ///
+    /// Used by chat history. The offset list starts at the beginning of the
+    /// thread, so a large limit reads messages that are then discarded.
+    async fn list_recent_messages(
+        &self,
+        conversation_id: Uuid,
+        limit: usize,
+    ) -> Result<Vec<Message>>;
 
     // ============ Folder Operations ============
 
@@ -296,6 +309,10 @@ mod tests {
         assert_eq!(page1.pagination.total, Some(25));
         assert!(page1.pagination.has_more);
         let cursor = page1.pagination.next_cursor.clone().expect("next_cursor");
+        assert!(
+            cursor.starts_with("k1.title.asc."),
+            "next page must be a title keyset, got {cursor}"
+        );
 
         let page2 = service
             .list_conversations(
@@ -313,6 +330,29 @@ mod tests {
         assert_eq!(page2.items.len(), 5);
         assert!(!page2.pagination.has_more);
         assert!(page2.pagination.next_cursor.is_none());
+        let mut titles: Vec<_> = page1
+            .items
+            .iter()
+            .chain(page2.items.iter())
+            .map(|item| item.title.clone())
+            .collect();
+        titles.sort();
+        titles.dedup();
+        assert_eq!(titles.len(), 25);
+
+        let decimal = service
+            .list_conversations(
+                tenant_id,
+                user_id,
+                ConversationFilter::default(),
+                ConversationSortField::Title,
+                false,
+                Some("20".into()),
+                20,
+            )
+            .await
+            .unwrap();
+        assert_eq!(decimal.items.len(), 5);
     }
 
     #[tokio::test]
@@ -366,8 +406,25 @@ mod tests {
             .unwrap();
 
         assert_eq!(msgs.items.len(), 2);
-        assert_eq!(msgs.items[0].content, "Hello");
-        assert_eq!(msgs.items[1].content, "Hi there!");
+        let contents: Vec<_> = msgs
+            .items
+            .iter()
+            .map(|item| item.content.as_str())
+            .collect();
+        assert!(contents.contains(&"Hello"));
+        assert!(contents.contains(&"Hi there!"));
+        assert!(
+            msgs.items[0].created_at < msgs.items[1].created_at
+                || (msgs.items[0].created_at == msgs.items[1].created_at
+                    && msgs.items[0].message_id < msgs.items[1].message_id)
+        );
+
+        let recent = service
+            .list_recent_messages(conv.conversation_id, 1)
+            .await
+            .unwrap();
+        assert_eq!(recent.len(), 1);
+        assert_eq!(recent[0].content, "Hi there!");
     }
 
     #[tokio::test]

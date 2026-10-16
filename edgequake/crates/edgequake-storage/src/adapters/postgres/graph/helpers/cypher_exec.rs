@@ -82,6 +82,7 @@ impl PostgresAGEGraphStorage {
         params: &serde_json::Value,
     ) -> Result<()> {
         let pool = self.pool.get().await?;
+        super::super::plain::refuse_cypher_opt_out(&pool).await?;
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
@@ -110,6 +111,7 @@ impl PostgresAGEGraphStorage {
         columns: &[&str],
     ) -> Result<Vec<sqlx::postgres::PgRow>> {
         let pool = self.pool.get().await?;
+        super::super::plain::refuse_cypher_opt_out(&pool).await?;
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
@@ -146,6 +148,7 @@ impl PostgresAGEGraphStorage {
         cypher: &str,
     ) -> Result<()> {
         let pool = self.pool.get().await?;
+        super::super::plain::refuse_cypher_opt_out(&pool).await?;
         let tag = Self::dollar_quote_tag(cypher);
         let sql = format!(
             "{} SELECT * FROM cypher('{}', {} {} {}) AS (a agtype);",

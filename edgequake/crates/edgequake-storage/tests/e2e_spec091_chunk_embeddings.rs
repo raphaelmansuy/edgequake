@@ -204,3 +204,84 @@ async fn e2e_spec091_typed_dim_1024_upsert_search() {
 
     w3::cleanup_workspace(&pool, ws).await;
 }
+
+#[tokio::test]
+async fn e2e_spec091_chunk_search_by_id_and_document() {
+    let Some(cfg) = require_or_skip_postgres("spec091_w3_id_document") else {
+        return;
+    };
+    let _g = w3::w3_lock().lock().await;
+    let pool = contract_pg_pool(&cfg).await;
+    let ws = w3::seed_workspace(&pool, "port-id").await;
+    let doc_a = w3::seed_document(&pool, ws).await;
+    let doc_b = w3::seed_document(&pool, ws).await;
+    let dim: usize = 768;
+    let index = edgequake_storage::PgChunkEmbeddingIndex::new(pool.clone(), "w3-model-id");
+
+    let chunk_a = w3::seed_chunk(&pool, doc_a, ws, 0, "content a").await;
+    let chunk_b = w3::seed_chunk(&pool, doc_b, ws, 0, "content b").await;
+    let rows = vec![
+        row(chunk_a, ws, w3::make_embedding(dim, 1)),
+        row(chunk_b, ws, w3::make_embedding(dim, 2)),
+    ];
+    index
+        .upsert_batch(ModelId(Uuid::nil()), &rows)
+        .await
+        .expect("upsert");
+
+    let base = VectorQuery {
+        model_id: ModelId(Uuid::nil()),
+        model_revision: "test-current".into(),
+        workspace_id: Some(WorkspaceId::new(ws)),
+        document_ids: None,
+        tenant_id: None,
+        modalities: None,
+        filter_ids: None,
+        vector_type: Some("chunk".into()),
+        embedding: w3::make_embedding(dim, 1),
+        limit: 5,
+    };
+
+    let by_uuid = index
+        .search(&VectorQuery {
+            filter_ids: Some(vec![chunk_a.to_string()]),
+            ..base.clone()
+        })
+        .await
+        .expect("uuid id search");
+    assert_eq!(by_uuid.len(), 1);
+    assert_eq!(by_uuid[0].chunk_id.0, chunk_a);
+
+    let legacy = format!("{doc_b}-chunk-0");
+    let by_legacy = index
+        .search(&VectorQuery {
+            filter_ids: Some(vec![legacy]),
+            ..base.clone()
+        })
+        .await
+        .expect("legacy id search");
+    assert_eq!(by_legacy.len(), 1);
+    assert_eq!(by_legacy[0].chunk_id.0, chunk_b);
+
+    let by_document = index
+        .search(&VectorQuery {
+            document_ids: Some(vec![doc_a]),
+            ..base.clone()
+        })
+        .await
+        .expect("document search");
+    assert_eq!(by_document.len(), 1);
+    assert_eq!(by_document[0].chunk_id.0, chunk_a);
+
+    let excluded = index
+        .search(&VectorQuery {
+            document_ids: Some(vec![doc_a]),
+            filter_ids: Some(vec![chunk_b.to_string()]),
+            ..base
+        })
+        .await
+        .expect("id outside the document");
+    assert!(excluded.is_empty());
+
+    w3::cleanup_workspace(&pool, ws).await;
+}

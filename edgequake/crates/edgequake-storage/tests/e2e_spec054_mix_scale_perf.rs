@@ -139,7 +139,6 @@ async fn e2e_explain_snapshots_hot_paths() {
 
     let graph = PostgresAGEGraphStorage::new(config.clone());
     graph.initialize().await.expect("graph init");
-    let graph_name = graph.graph_name().to_string();
 
     let mut nodes = Vec::with_capacity(50);
     let mut prefixes = Vec::new();
@@ -157,12 +156,6 @@ async fn e2e_explain_snapshots_hot_paths() {
     }
     graph.upsert_nodes_batch(&nodes).await.expect("upsert");
 
-    // Batch get EXPLAIN — UNIQUE index
-    assert_unique_node_id_plan(&config, &graph_name, "EXPLAIN_NODE_0").await;
-
-    // Lineage GIN EXPLAIN
-    assert_source_ids_gin_plan(&config, &graph_name).await;
-
     // Warm batched counts (correctness + latency smoke)
     let counts = graph
         .node_counts_by_source_prefixes(&prefixes[..10])
@@ -179,7 +172,7 @@ async fn e2e_explain_snapshots_hot_paths() {
         None => std::env::remove_var("EDGEQUAKE_NATIVE_GRAPH_WRITES"),
     }
     let _ = graph.clear().await;
-    eprintln!("OK EXPLAIN snapshots: UNIQUE node_id + source_ids GIN paths verified");
+    eprintln!("OK plain-table batch counts and batch get");
 }
 
 async fn assert_filtered_hnsw_explain(config: &PostgresConfig, table: &str) {
@@ -224,69 +217,4 @@ async fn assert_filtered_hnsw_explain(config: &PostgresConfig, table: &str) {
         "EXPLAIN ANALYZE BUFFERS should report buffer stats; plan was:\n{plan}"
     );
     eprintln!("OK EXPLAIN (ANALYZE, BUFFERS) filtered ANN:\n{plan}");
-}
-
-async fn assert_unique_node_id_plan(config: &PostgresConfig, graph: &str, node_id: &str) {
-    let pool = postgres_test_config::contract_pg_pool(config).await;
-    let sql = format!(
-        r#"EXPLAIN (FORMAT TEXT)
-           SELECT id FROM {graph}."Node"
-           WHERE ag_catalog.agtype_to_json(properties)->>'node_id' = $1
-           LIMIT 1"#
-    );
-    let plan_rows: Vec<(String,)> = sqlx::query_as(&sql)
-        .bind(node_id)
-        .fetch_all(&pool)
-        .await
-        .expect("EXPLAIN node_id");
-    let plan = plan_rows
-        .into_iter()
-        .map(|r| r.0)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        plan.contains("Index Scan")
-            || plan.contains("Index Only Scan")
-            || plan.contains("idx_node_prop_node_id_unique"),
-        "UNIQUE node_id EXPLAIN must use index; plan was:\n{plan}"
-    );
-    eprintln!("OK EXPLAIN node_id UNIQUE:\n{plan}");
-}
-
-async fn assert_source_ids_gin_plan(config: &PostgresConfig, graph: &str) {
-    let pool = postgres_test_config::contract_pg_pool(config).await;
-    // SPEC-084 / GH-331: same child "Node" locality as production count SQL + SPEC-071.
-    let sql = format!(
-        r#"EXPLAIN (FORMAT TEXT)
-           SELECT count(DISTINCT v.id)::BIGINT
-           FROM {graph}."Node" v
-           CROSS JOIN unnest($1::text[]) AS c(chunk_id)
-           WHERE ((ag_catalog.agtype_to_json(v.properties))::jsonb -> 'source_ids')
-                 @> to_jsonb(c.chunk_id)"#
-    );
-    let probes = vec!["explain-doc-0-chunk-0".to_string()];
-    let plan_rows: Vec<(String,)> = sqlx::query_as(&sql)
-        .bind(&probes)
-        .fetch_all(&pool)
-        .await
-        .expect("EXPLAIN GIN");
-    let plan = plan_rows
-        .into_iter()
-        .map(|r| r.0)
-        .collect::<Vec<_>>()
-        .join("\n");
-    let plan_lc = plan.to_lowercase();
-    assert!(
-        plan_lc.contains("idx_node_source_ids_gin")
-            || plan_lc.contains("bitmap")
-            || plan.contains("Index Scan")
-            || plan.contains("Index Only Scan")
-            || plan_lc.contains("gin"),
-        "source_ids GIN EXPLAIN must use child Node index; plan was:\n{plan}"
-    );
-    assert!(
-        !plan.contains("_ag_label_vertex"),
-        "GH-331: count/EXPLAIN must not scan parent _ag_label_vertex; plan was:\n{plan}"
-    );
-    eprintln!("OK EXPLAIN source_ids GIN:\n{plan}");
 }

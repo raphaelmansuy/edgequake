@@ -239,27 +239,65 @@ async fn search_documents_inner(
     // documents" while the explorer still has nodes.
     #[cfg(feature = "postgres")]
     if pg_runtime.pool.is_some() {
-        match crate::document_read_model::list_relational_document_summaries(
-            pg_runtime.pool.as_ref(),
-            &tenant_ctx,
-        )
-        .await
-        {
-            Ok(relational) if !relational.is_empty() => {
-                let extra = relational
-                    .iter()
-                    .map(search_candidate_from_summary)
-                    .collect();
-                candidates = merge_search_candidates(candidates, extra);
+        if let Some(ref q) = query_lower {
+            let ready_only = !params
+                .status
+                .as_deref()
+                .is_some_and(|s| s.eq_ignore_ascii_case("all"));
+            match crate::document_read_model::search_relational_document_titles(
+                pg_runtime.pool.as_ref(),
+                &tenant_ctx,
+                q,
+                ready_only,
+                page_size.saturating_add(1),
+            )
+            .await
+            {
+                Ok(hits) if !hits.is_empty() => {
+                    let extra = hits
+                        .into_iter()
+                        .map(|hit| SearchCandidate {
+                            id: hit.id,
+                            title: hit.title,
+                            status: hit.status,
+                            created_at: hit.created_at,
+                        })
+                        .collect();
+                    candidates = merge_search_candidates(candidates, extra);
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!(
+                        error = %e,
+                        tenant = ?tenant_ctx.tenant_id,
+                        workspace = ?tenant_ctx.workspace_id,
+                        "Relational title search failed — scope picker may miss documents"
+                    );
+                }
             }
-            Ok(_) => {}
-            Err(e) => {
-                tracing::error!(
-                    error = %e,
-                    tenant = ?tenant_ctx.tenant_id,
-                    workspace = ?tenant_ctx.workspace_id,
-                    "Relational document backfill failed — scope picker may show 0 docs"
-                );
+        } else {
+            match crate::document_read_model::list_relational_document_summaries(
+                pg_runtime.pool.as_ref(),
+                &tenant_ctx,
+            )
+            .await
+            {
+                Ok(relational) if !relational.is_empty() => {
+                    let extra = relational
+                        .iter()
+                        .map(search_candidate_from_summary)
+                        .collect();
+                    candidates = merge_search_candidates(candidates, extra);
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!(
+                        error = %e,
+                        tenant = ?tenant_ctx.tenant_id,
+                        workspace = ?tenant_ctx.workspace_id,
+                        "Relational document backfill failed — scope picker may show 0 docs"
+                    );
+                }
             }
         }
     }

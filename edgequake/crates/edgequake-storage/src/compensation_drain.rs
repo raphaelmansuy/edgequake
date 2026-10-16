@@ -101,7 +101,39 @@ where
     }))
 }
 
-async fn drain_once<F, Fut>(
+/// Global claim. Omits the workspace predicate so
+/// `idx_compensation_quarantine_due` can stop at the batch.
+const QUARANTINE_CLAIM_OPEN: &str = r#"
+        UPDATE public.compensation_quarantine
+        SET status = 'processing', attempt_count = attempt_count + 1, updated_at = now()
+        WHERE entry_id IN (
+            SELECT entry_id FROM public.compensation_quarantine
+            WHERE status IN ('pending', 'failed') AND next_attempt_at <= now()
+            ORDER BY next_attempt_at
+            LIMIT $1
+            FOR UPDATE SKIP LOCKED
+        )
+        RETURNING entry_id, document_id, workspace_id, payload, attempt_count
+        "#;
+
+/// Scoped claim. `workspace_id = $2` uses
+/// `idx_compensation_quarantine_workspace_next`.
+const QUARANTINE_CLAIM_SCOPED: &str = r#"
+        UPDATE public.compensation_quarantine
+        SET status = 'processing', attempt_count = attempt_count + 1, updated_at = now()
+        WHERE entry_id IN (
+            SELECT entry_id FROM public.compensation_quarantine
+            WHERE status IN ('pending', 'failed')
+              AND next_attempt_at <= now()
+              AND workspace_id = $2
+            ORDER BY next_attempt_at
+            LIMIT $1
+            FOR UPDATE SKIP LOCKED
+        )
+        RETURNING entry_id, document_id, workspace_id, payload, attempt_count
+        "#;
+
+pub async fn drain_once<F, Fut>(
     pool: &PgPool,
     config: &DrainConfig,
     applier: &F,
@@ -110,27 +142,22 @@ where
     F: Fn(QuarantineEntry) -> Fut + Send + Sync,
     Fut: std::future::Future<Output = Result<(), String>> + Send,
 {
-    // Claim atomically; SKIP LOCKED lets API replicas share the work.
-    // GAP-091-13: `$2` scopes the claim to one workspace when set (NULL = global).
-    let claimed = sqlx::query_as::<_, (Uuid, Uuid, Option<Uuid>, Value, i32)>(
-        r#"
-        UPDATE public.compensation_quarantine
-        SET status = 'processing', attempt_count = attempt_count + 1, updated_at = now()
-        WHERE entry_id IN (
-            SELECT entry_id FROM public.compensation_quarantine
-            WHERE status IN ('pending', 'failed') AND next_attempt_at <= now()
-              AND ($2::uuid IS NULL OR workspace_id = $2)
-            ORDER BY next_attempt_at
-            LIMIT $1
-            FOR UPDATE SKIP LOCKED
-        )
-        RETURNING entry_id, document_id, workspace_id, payload, attempt_count
-        "#,
-    )
-    .bind(config.batch)
-    .bind(config.workspace_id)
-    .fetch_all(pool)
-    .await
+    // `$2 IS NULL OR workspace_id = $2` hides the workspace from a generic
+    // plan. A scoped drain then reads every other workspace's due rows.
+    // The global claim omits that predicate so `(next_attempt_at)` can stop
+    // at the batch. A scoped claim requires `workspace_id = $2`.
+    let claimed = if let Some(workspace_id) = config.workspace_id {
+        sqlx::query_as::<_, (Uuid, Uuid, Option<Uuid>, Value, i32)>(QUARANTINE_CLAIM_SCOPED)
+            .bind(config.batch)
+            .bind(workspace_id)
+            .fetch_all(pool)
+            .await
+    } else {
+        sqlx::query_as::<_, (Uuid, Uuid, Option<Uuid>, Value, i32)>(QUARANTINE_CLAIM_OPEN)
+            .bind(config.batch)
+            .fetch_all(pool)
+            .await
+    }
     .map_err(|e| crate::error::StorageError::Database(format!("drain claim failed: {e}")))?;
 
     if claimed.is_empty() {
@@ -219,5 +246,13 @@ mod tests {
         let cfg = DrainConfig::from_env();
         assert!(cfg.max_attempts <= 6);
         assert!(cfg.interval.as_secs() >= 5);
+    }
+
+    #[test]
+    fn claim_sql_requires_the_workspace_only_when_scoped() {
+        assert!(QUARANTINE_CLAIM_SCOPED.contains("workspace_id = $2"));
+        assert!(!QUARANTINE_CLAIM_SCOPED.contains("$2::uuid IS NULL"));
+        assert!(!QUARANTINE_CLAIM_OPEN.contains("$2"));
+        assert!(QUARANTINE_CLAIM_OPEN.contains("ORDER BY next_attempt_at"));
     }
 }

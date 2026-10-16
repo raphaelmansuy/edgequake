@@ -286,7 +286,7 @@ impl GraphStorageMutateOps for PostgresAGEGraphStorage {
 
     async fn delete_edges_scoped_batch(
         &self,
-        edges: &[(String, String)],
+        edges: &[(String, String, String)],
         tenant_id: &str,
         workspace_id: &str,
     ) -> Result<usize> {

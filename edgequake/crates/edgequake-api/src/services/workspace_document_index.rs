@@ -23,12 +23,55 @@ pub fn register_membership_pool(pool: impl Into<std::sync::Arc<sqlx::PgPool>>) {
     crate::services::relational_sidecar_store::register_sidecar_pool(pool);
 }
 
+/// Every document id in a workspace.
+///
+/// `workspace_id = $1 OR metadata->>'workspace_id' = $2` hides both predicates
+/// from a generic plan, so membership seq-scans every document. Each arm is an
+/// equality. A custom plan uses `idx_documents_workspace_created` and
+/// `idx_documents_metadata_workspace_expr`. Shell rows may still carry the
+/// workspace only in metadata, so that arm stays.
+const MEMBERSHIP_SQL: &str = "\
+SELECT id FROM public.documents WHERE workspace_id = $1 \
+UNION \
+SELECT id FROM public.documents \
+WHERE metadata->>'workspace_id' = $2 \
+  AND workspace_id IS DISTINCT FROM $1";
+
+/// Newest `LIMIT` document ids. The interactive list asks for a page, not
+/// every id. `ORDER BY created_at DESC` lets `idx_documents_workspace_created`
+/// stop. A custom plan is required: when one workspace owns the table, a
+/// generic plan walks `idx_documents_created_at` and removes every other row.
+const MEMBERSHIP_PAGE_SQL: &str = "\
+SELECT id FROM ( \
+  ( \
+    SELECT id, created_at FROM public.documents \
+    WHERE workspace_id = $1 \
+    ORDER BY created_at DESC \
+    LIMIT $3 \
+  ) \
+  UNION ALL \
+  ( \
+    SELECT id, created_at FROM public.documents \
+    WHERE metadata->>'workspace_id' = $2 \
+      AND workspace_id IS DISTINCT FROM $1 \
+    ORDER BY created_at DESC \
+    LIMIT $3 \
+  ) \
+) page \
+ORDER BY created_at DESC \
+LIMIT $3";
+
 /// Relational membership: `documents.id` for a workspace, when cut over.
+///
+/// `limit` is the SQL `LIMIT` (pass `max_entries + 1` so the caller can see
+/// truncation). `None` returns every matching id.
 /// Returns `None` (→ KV fallback) when the flag is off, no pool is registered,
-/// the workspace id is not a UUID, or the query fails (warn-logged).
+/// or the workspace id is not a UUID. A query error is an authoritative empty
+/// list (warn-logged).
 async fn relational_workspace_doc_ids(
     pool: crate::services::OptionalPgPool<'_>,
     workspace_id: &str,
+    limit: Option<i64>,
 ) -> Option<Vec<String>> {
     #[cfg(feature = "postgres")]
     {
@@ -40,21 +83,13 @@ async fn relational_workspace_doc_ids(
         }
         let pool = pool?;
         let ws = uuid::Uuid::parse_str(workspace_id).ok()?;
-        // Wave B3/C: shell-written documents may carry the workspace in the
-        // metadata JSONB while the FK-guarded `workspace_id` column stays NULL
-        // (e.g. workspaces not present as DB rows). Match either source so
-        // membership is correct regardless of which representation is set.
-        match sqlx::query_scalar::<_, uuid::Uuid>(
-            "SELECT id FROM public.documents \
-             WHERE workspace_id = $1 \
-                OR metadata->>'workspace_id' = $2",
-        )
-        .bind(ws)
-        .bind(workspace_id)
-        .fetch_all(pool)
-        .await
-        {
-            Ok(rows) => Some(rows.iter().map(uuid::Uuid::to_string).collect()),
+        let sql = if limit.is_some() {
+            MEMBERSHIP_PAGE_SQL
+        } else {
+            MEMBERSHIP_SQL
+        };
+        match membership_ids(pool, sql, ws, workspace_id, limit).await {
+            Ok(rows) => Some(rows.into_iter().map(|id| id.to_string()).collect()),
             Err(e) => {
                 tracing::warn!(
                     workspace_id = %workspace_id,
@@ -67,9 +102,35 @@ async fn relational_workspace_doc_ids(
     }
     #[cfg(not(feature = "postgres"))]
     {
-        let _ = (pool, workspace_id);
+        let _ = (pool, workspace_id, limit);
         None
     }
+}
+
+#[cfg(feature = "postgres")]
+async fn membership_ids(
+    pool: &sqlx::PgPool,
+    sql: &str,
+    ws: uuid::Uuid,
+    workspace_id: &str,
+    limit: Option<i64>,
+) -> Result<Vec<uuid::Uuid>, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    // Generic plans treat `workspace_id = $1` as "most of the table" when one
+    // workspace owns it, then seq-scan. The custom plan uses the index for the
+    // value that was actually bound.
+    sqlx::query("SET LOCAL plan_cache_mode = force_custom_plan")
+        .execute(&mut *tx)
+        .await?;
+    let mut query = sqlx::query_scalar::<_, uuid::Uuid>(sql)
+        .bind(ws)
+        .bind(workspace_id);
+    if let Some(limit) = limit {
+        query = query.bind(limit);
+    }
+    let rows = query.fetch_all(&mut *tx).await?;
+    tx.commit().await?;
+    Ok(rows)
 }
 
 /// Sync workspace index entry from a document metadata KV write.
@@ -175,7 +236,7 @@ pub async fn list_workspace_metadata_keys_detailed(
     pool: crate::services::OptionalPgPool<'_>,
     workspace_id: &str,
 ) -> Result<WorkspaceMetadataKeyList, StorageError> {
-    if let Some(doc_ids) = relational_workspace_doc_ids(pool, workspace_id).await {
+    if let Some(doc_ids) = relational_workspace_doc_ids(pool, workspace_id, None).await {
         return Ok(WorkspaceMetadataKeyList {
             keys: doc_ids
                 .iter()
@@ -230,10 +291,10 @@ pub async fn list_workspace_metadata_keys_limited_detailed(
     max_entries: usize,
 ) -> Result<WorkspaceMetadataKeyList, StorageError> {
     let max_entries = max_entries.clamp(1, 1_000_000);
-    if let Some(doc_ids) = relational_workspace_doc_ids(pool, workspace_id).await {
-        // Relational branch: bounded in-memory — the relational read path
-        // scales via `idx_documents_tenant_workspace`, and Wave C replaces
-        // metadata keys wholesale, so a SQL LIMIT here would be throwaway.
+    // One extra id so truncation is known without reading the rest of the workspace.
+    let fetch_limit = i64::try_from(max_entries.saturating_add(1)).unwrap_or(i64::MAX);
+    if let Some(doc_ids) = relational_workspace_doc_ids(pool, workspace_id, Some(fetch_limit)).await
+    {
         let truncated = doc_ids.len() > max_entries;
         let keys: Vec<String> = doc_ids
             .iter()
@@ -280,7 +341,7 @@ pub async fn list_workspace_document_ids(
     pool: crate::services::OptionalPgPool<'_>,
     workspace_id: &str,
 ) -> Result<Vec<String>, StorageError> {
-    if let Some(doc_ids) = relational_workspace_doc_ids(pool, workspace_id).await {
+    if let Some(doc_ids) = relational_workspace_doc_ids(pool, workspace_id, None).await {
         return Ok(doc_ids);
     }
     let prefix = kv_keys::workspace_doc_index_prefix(workspace_id);
@@ -304,6 +365,19 @@ mod tests {
     use super::*;
     use edgequake_storage::MemoryKVStorage;
     use std::sync::Arc;
+
+    #[test]
+    fn membership_page_requires_each_arm_and_stops_at_the_limit() {
+        assert!(MEMBERSHIP_PAGE_SQL.contains("WHERE workspace_id = $1"));
+        assert!(MEMBERSHIP_PAGE_SQL.contains("metadata->>'workspace_id' = $2"));
+        assert!(MEMBERSHIP_PAGE_SQL.contains("workspace_id IS DISTINCT FROM $1"));
+        assert!(MEMBERSHIP_PAGE_SQL.contains("ORDER BY created_at DESC"));
+        assert!(MEMBERSHIP_PAGE_SQL.contains("LIMIT $3"));
+        assert!(!MEMBERSHIP_PAGE_SQL.contains("OR metadata->>'workspace_id'"));
+        assert!(MEMBERSHIP_SQL.contains("UNION"));
+        assert!(MEMBERSHIP_SQL.contains("WHERE workspace_id = $1"));
+        assert!(!MEMBERSHIP_SQL.contains("OR metadata->>'workspace_id'"));
+    }
 
     #[test]
     fn authoritative_empty_list_is_terminal_for_readers() {

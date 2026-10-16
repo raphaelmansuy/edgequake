@@ -399,6 +399,21 @@ impl QueryEngine {
             );
         }
 
+        let tenant = request.tenant_id();
+        let workspace = request.workspace_id();
+        if let Err(err) = crate::graph_seed_admit::expand_entities_named_in_query(
+            self.graph_read(),
+            &mut context,
+            &request.query,
+            tenant.as_deref(),
+            workspace.as_deref(),
+            self.kv_storage.as_deref(),
+        )
+        .await
+        {
+            tracing::warn!(error = %err, "named-entity edge expansion failed");
+        }
+
         let (truncated_entities, truncated_relationships, truncated_chunks) = balance_context(
             context.entities.clone(),
             context.relationships.clone(),

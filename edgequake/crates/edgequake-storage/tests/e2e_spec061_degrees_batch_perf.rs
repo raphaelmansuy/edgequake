@@ -1,4 +1,4 @@
-//! SPEC-061 — `node_degrees_batch` p95 + index EXPLAIN.
+//! SPEC-061 — `node_degrees_batch` p95 on the plain graph tables.
 #![cfg(feature = "postgres")]
 
 #[path = "support/perf_harness.rs"]
@@ -8,9 +8,7 @@ mod postgres_test_config;
 
 use edgequake_storage::traits::{GraphStorage, GraphStorageMutateOps, GraphStorageReadOps};
 use edgequake_storage::PostgresAGEGraphStorage;
-use perf_harness::{
-    assert_plan_uses_index, finish_report, join_plan_rows, samples_after_warmup, PlanKind,
-};
+use perf_harness::{finish_report, samples_after_warmup};
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -27,7 +25,6 @@ async fn e2e_spec061_node_degrees_batch_p95() {
 
     let graph = PostgresAGEGraphStorage::new(config.clone());
     graph.initialize().await.expect("init");
-    let graph_name = graph.graph_name().to_string();
 
     // Star: hub-0..9 each connect to 100 leaves → enough degree signal
     let mut nodes = Vec::new();
@@ -72,24 +69,6 @@ async fn e2e_spec061_node_degrees_batch_p95() {
         false,
         format!("N={NODE_N}"),
     );
-
-    let pool = postgres_test_config::contract_pg_pool(&config).await;
-    let sql = format!(
-        r#"EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
-           SELECT e.eq_source_id AS sid
-           FROM {graph_name}."EDGE" e
-           WHERE e.eq_source_id = ANY($1::text[])
-           LIMIT 50"#
-    );
-    let probe = vec!["DEG_0".to_string(), "DEG_10".to_string()];
-    let plan_rows: Vec<(String,)> = sqlx::query_as(&sql)
-        .bind(&probe)
-        .fetch_all(&pool)
-        .await
-        .expect("EXPLAIN degrees");
-    let plan = join_plan_rows(plan_rows);
-    assert_plan_uses_index(&plan, &[PlanKind::Index, PlanKind::Bitmap]);
-    eprintln!("OK SPEC-061 degrees EXPLAIN:\n{plan}");
 
     match prev {
         Some(v) => std::env::set_var("EDGEQUAKE_NATIVE_GRAPH_WRITES", v),

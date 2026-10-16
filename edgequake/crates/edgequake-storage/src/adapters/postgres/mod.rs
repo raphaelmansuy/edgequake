@@ -121,7 +121,8 @@ pub use filtered_diskann_label_policy::{
 };
 pub use fleet_embedding_index::PgFleetEmbeddingIndex;
 pub use graph::{
-    interactive_statement_timeout_ms, node_counts_by_source_prefixes_sql, PostgresAGEGraphStorage,
+    finish_plain_graph_cutover, interactive_statement_timeout_ms,
+    node_counts_by_source_prefixes_sql, CutoverReport, PostgresAGEGraphStorage,
     LAST_SOURCE_PREFIX_COUNT_LEN, LINEAGE_GIN_INDEXES, LINEAGE_GIN_PENDING_LIST_LIMIT_KB,
     SOURCE_COUNT_STATEMENT_TIMEOUT_MS, SOURCE_PREFIX_BATCH_LIMIT, SOURCE_PREFIX_DISCOVERY_CALLS,
 };

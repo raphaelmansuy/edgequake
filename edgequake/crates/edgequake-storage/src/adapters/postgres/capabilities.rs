@@ -275,8 +275,11 @@ impl PostgresCapabilities {
                 .await
                 .unwrap_or(16);
 
+        // Built only on PG18+, where the function exists. A static literal
+        // cannot be prepared on the PostgreSQL 16 servers this project ships.
+        let uuidv7_probe = format!("SELECT {}() IS NOT NULL", "uuidv7");
         let uuidv7_available = postgres_major >= 18
-            && sqlx::query_scalar::<_, bool>("SELECT uuidv7() IS NOT NULL")
+            && sqlx::query_scalar::<_, bool>(&uuidv7_probe)
                 .fetch_optional(pool)
                 .await
                 .ok()

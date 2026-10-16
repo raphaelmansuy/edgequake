@@ -265,6 +265,7 @@ pub(crate) async fn run_reprocess_failed(
                     processing_status: Some(PdfProcessingStatus::Failed),
                     page: Some(1),
                     page_size: Some(remaining),
+                    ..Default::default()
                 })
                 .await
                 .map_err(|e| ApiError::Internal(format!("Failed to list failed PDFs: {}", e)))?;

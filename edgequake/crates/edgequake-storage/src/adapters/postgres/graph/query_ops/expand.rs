@@ -203,6 +203,15 @@ impl PostgresAGEGraphStorage {
         if node_ids.is_empty() {
             return Ok(Vec::new());
         }
+        if self.plain_reads_ready().await? {
+            return super::super::plain::read::read::edges_for_node_set(
+                self,
+                node_ids,
+                tenant_id,
+                workspace_id,
+            )
+            .await;
+        }
 
         let pool = self.pool.get().await?;
         let mut conn = pool.acquire().await.map_err(|e| {
@@ -221,17 +230,31 @@ impl PostgresAGEGraphStorage {
             EdgeTenantFilterMode::LegacyNullAsWildcard,
         );
 
-        // SPEC-090 F-090-10: bind `= ANY($1::text[])` (referenced twice) so the plan
-        // cache is stable and string interpolation is not the injection defense.
-        // Native SQL: filter on edge properties directly.
-        // Migration 036 adds expression indexes on these properties for fast lookups.
+        // Q-GRAPH-006: child "EDGE" + eq_source_id / eq_target_id btree.
+        // The parent `_ag_label_edge` agtype path was ~212× slower at 200k nodes.
+        // COALESCE(eq_*, agtype) cannot use that btree; use the columns directly
+        // unless EDGEQUAKE_EQ_ID_FALLBACK asks for the NULL-backfill path.
+        let eq_present = self.eq_columns_present(&mut conn).await?;
+        let (src, tgt) = if eq_present && !super::super::helpers::eq_id_fallback_env_enabled() {
+            ("e.eq_source_id".to_string(), "e.eq_target_id".to_string())
+        } else if eq_present {
+            (
+                super::super::helpers::coalesce_endpoint("e", "source"),
+                super::super::helpers::coalesce_endpoint("e", "target"),
+            )
+        } else {
+            (
+                super::super::helpers::prop_only_endpoint("e", "source"),
+                super::super::helpers::prop_only_endpoint("e", "target"),
+            )
+        };
         let sql = format!(
             r#"SELECT ag_catalog.agtype_to_json(e.properties) AS edge_props
-               FROM {}."_ag_label_edge" e
-               WHERE ag_catalog.agtype_to_json(e.properties)->>'source_id' = ANY($1::text[])
-                 AND ag_catalog.agtype_to_json(e.properties)->>'target_id' = ANY($1::text[])
-                 {}"#,
-            self.graph_name, extra_where
+               FROM {}."EDGE" e
+               WHERE {src} = ANY($1::text[])
+                 AND {tgt} = ANY($1::text[])
+                 {extra_where}"#,
+            self.graph_name
         );
 
         // SPEC-089 Wave 3 / F-336-10: PG kill aligned with run_timed_graph_query.

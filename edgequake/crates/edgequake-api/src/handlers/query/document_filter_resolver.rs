@@ -54,12 +54,32 @@ pub async fn resolve_document_filter(
         return Ok(Some(ids));
     }
 
+    let patterns = parse_patterns(filter.document_pattern.as_deref());
+    // `document_pattern: ""` is a membership constraint that matches nothing.
+    if has_pattern && patterns.is_empty() && !has_explicit_ids {
+        return Ok(Some(Vec::new()));
+    }
+
     // KV scan required (date filter, pattern, or date + explicit IDs combined)
     let tenant_ctx = TenantContext {
         tenant_id: tenant_id.clone(),
         workspace_id: workspace_id.clone(),
         user_id: None,
     };
+    // A passed date or title is a required predicate on `documents`. The open
+    // membership read stays for a workspace with no selective filter.
+    #[cfg(feature = "postgres")]
+    if let Some(metadata_values) =
+        relational_filter_metadata(pool, &tenant_ctx, filter, &patterns).await?
+    {
+        return Ok(Some(match_metadata(
+            &metadata_values,
+            filter,
+            &patterns,
+            has_explicit_ids,
+            has_pattern,
+        )));
+    }
     // Membership is `public.documents` after the KV cutover. A missing pool
     // makes date and title-pattern filters match nothing.
     let metadata_values: Vec<serde_json::Value> =
@@ -74,53 +94,13 @@ pub async fn resolve_document_filter(
         return Ok(Some(Vec::new()));
     }
 
-    let patterns = parse_patterns(filter.document_pattern.as_deref());
-
-    // Explicit ID set for O(1) membership checks
-    let explicit_id_set: std::collections::HashSet<&str> = filter
-        .document_ids
-        .as_ref()
-        .map(|ids| ids.iter().map(String::as_str).collect())
-        .unwrap_or_default();
-
-    let mut matched_ids = Vec::new();
-
-    for value in &metadata_values {
-        let obj = match value.as_object() {
-            Some(o) => o,
-            None => continue,
-        };
-        let doc_id = match obj.get("id").and_then(|v| v.as_str()) {
-            Some(id) => id,
-            None => continue,
-        };
-
-        // Date range is AND-applied across all candidates
-        if !passes_date_filter(obj, &filter.date_from, &filter.date_to, doc_id) {
-            continue;
-        }
-
-        // Membership: explicit ID OR pattern match
-        // If neither IDs nor pattern → date-only filter (all pass date check)
-        let passes_membership = if has_explicit_ids || has_pattern {
-            let in_explicit = explicit_id_set.contains(doc_id);
-            let in_pattern = !patterns.is_empty() && {
-                let title = obj
-                    .get("title")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_lowercase();
-                patterns.iter().any(|p| title.contains(p.as_str()))
-            };
-            in_explicit || in_pattern
-        } else {
-            true
-        };
-
-        if passes_membership {
-            matched_ids.push(doc_id.to_string());
-        }
-    }
+    let matched_ids = match_metadata(
+        &metadata_values,
+        filter,
+        &patterns,
+        has_explicit_ids,
+        has_pattern,
+    );
 
     debug!(
         has_explicit_ids,
@@ -155,6 +135,137 @@ fn parse_patterns(pattern: Option<&str>) -> Vec<String> {
         .unwrap_or_default()
 }
 
+fn match_metadata(
+    metadata_values: &[serde_json::Value],
+    filter: &DocumentFilter,
+    patterns: &[String],
+    has_explicit_ids: bool,
+    has_pattern: bool,
+) -> Vec<String> {
+    let explicit_id_set: std::collections::HashSet<&str> = filter
+        .document_ids
+        .as_ref()
+        .map(|ids| ids.iter().map(String::as_str).collect())
+        .unwrap_or_default();
+    let mut matched_ids = Vec::new();
+    for value in metadata_values {
+        let obj = match value.as_object() {
+            Some(o) => o,
+            None => continue,
+        };
+        let doc_id = match obj.get("id").and_then(|v| v.as_str()) {
+            Some(id) => id,
+            None => continue,
+        };
+        if !passes_date_filter(obj, &filter.date_from, &filter.date_to, doc_id) {
+            continue;
+        }
+        let passes_membership = if has_explicit_ids || has_pattern {
+            let in_explicit = explicit_id_set.contains(doc_id);
+            let in_pattern = !patterns.is_empty() && {
+                let title = obj
+                    .get("title")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_lowercase();
+                patterns.iter().any(|p| title.contains(p.as_str()))
+            };
+            in_explicit || in_pattern
+        } else {
+            true
+        };
+        if passes_membership {
+            matched_ids.push(doc_id.to_string());
+        }
+    }
+    matched_ids
+}
+
+/// `None` keeps the KV scan: no pool, a non-UUID workspace, or a date Postgres
+/// cannot parse. Parsed bounds become required `created_at` predicates.
+#[cfg(feature = "postgres")]
+async fn relational_filter_metadata(
+    pool: crate::services::OptionalPgPool<'_>,
+    tenant_ctx: &TenantContext,
+    filter: &DocumentFilter,
+    patterns: &[String],
+) -> Result<Option<Vec<serde_json::Value>>, crate::error::ApiError> {
+    let Some(pool) = pool else {
+        return Ok(None);
+    };
+    let Some(workspace) = tenant_ctx
+        .workspace_id
+        .as_deref()
+        .and_then(|id| uuid::Uuid::parse_str(id).ok())
+    else {
+        return Ok(None);
+    };
+    if patterns.len() > 16 {
+        return Ok(None);
+    }
+    let Some(from) = optional_filter_bound(filter.date_from.as_deref()) else {
+        return Ok(None);
+    };
+    let Some(to) = optional_filter_bound(filter.date_to.as_deref()) else {
+        return Ok(None);
+    };
+    let explicit_raw = filter.document_ids.as_deref().unwrap_or(&[]);
+    let mut explicit_ids = Vec::with_capacity(explicit_raw.len());
+    for id in explicit_raw {
+        let Ok(parsed) = uuid::Uuid::parse_str(id) else {
+            return Ok(None);
+        };
+        explicit_ids.push(parsed);
+    }
+    let hits = crate::document_read_model::filter_relational_document_candidates(
+        pool,
+        workspace,
+        crate::document_read_model::RelationalCreatedBounds { from, to },
+        patterns,
+        &explicit_ids,
+    )
+    .await?;
+    Ok(Some(
+        hits.into_iter()
+            .map(|hit| {
+                let mut value = serde_json::json!({
+                    "id": hit.id,
+                    "title": hit.title,
+                    "created_at": hit.created_at,
+                });
+                if let Some(tenant_id) = hit.tenant_id {
+                    value["tenant_id"] = serde_json::Value::String(tenant_id);
+                }
+                if let Some(workspace_id) = hit.workspace_id {
+                    value["workspace_id"] = serde_json::Value::String(workspace_id);
+                }
+                value
+            })
+            .filter(|value| {
+                crate::workspace_scope::metadata_matches_tenant_context(value, tenant_ctx)
+            })
+            .collect(),
+    ))
+}
+
+#[cfg(feature = "postgres")]
+fn optional_filter_bound(raw: Option<&str>) -> Option<Option<chrono::DateTime<chrono::Utc>>> {
+    let Some(raw) = raw.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Some(None);
+    };
+    parse_filter_instant(raw).map(Some)
+}
+
+fn parse_filter_instant(raw: &str) -> Option<chrono::DateTime<chrono::Utc>> {
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(raw) {
+        return Some(dt.with_timezone(&chrono::Utc));
+    }
+    chrono::NaiveDate::parse_from_str(raw, "%Y-%m-%d")
+        .ok()
+        .and_then(|date| date.and_hms_opt(0, 0, 0))
+        .map(|naive| naive.and_utc())
+}
+
 /// Check whether a document passes the date range filter.
 /// Returns `true` if both date boundaries are satisfied (or not set).
 fn passes_date_filter(
@@ -167,7 +278,7 @@ fn passes_date_filter(
 
     if let Some(ref df) = date_from {
         match created_at {
-            Some(ca) if ca >= df.as_str() => {}
+            Some(ca) if created_on_side(ca, df, true) => {}
             Some(_) => return false,
             None => {
                 warn!(document_id = %doc_id, "No created_at field — excluded by date_from filter");
@@ -178,7 +289,7 @@ fn passes_date_filter(
 
     if let Some(ref dt) = date_to {
         match created_at {
-            Some(ca) if ca <= dt.as_str() => {}
+            Some(ca) if created_on_side(ca, dt, false) => {}
             Some(_) => return false,
             None => {
                 warn!(document_id = %doc_id, "No created_at field — excluded by date_to filter");
@@ -188,6 +299,26 @@ fn passes_date_filter(
     }
 
     true
+}
+
+/// Inclusive. Parsed instants agree with the SQL `timestamptz` bound.
+fn created_on_side(created: &str, bound: &str, from: bool) -> bool {
+    match (parse_filter_instant(created), parse_filter_instant(bound)) {
+        (Some(created), Some(bound)) => {
+            if from {
+                created >= bound
+            } else {
+                created <= bound
+            }
+        }
+        _ => {
+            if from {
+                created >= bound
+            } else {
+                created <= bound
+            }
+        }
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

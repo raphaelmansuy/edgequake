@@ -62,7 +62,7 @@ pub fn grounding_instructions_gold_compat() -> &'static str {
     r#"2b. Evidence Grounding (gold-compatible — no citation markers):
   - Prefer facts from Document Chunks whose content matches the question's evidence need (page= labels are hints only).
   - When a Document Chunk or Knowledge Graph fact SUPPORTS the asked claim, answer it. Do NOT refuse merely because the wording is imperfect or the answer is partial.
-  - Prefer a partial answer that states what IS in context over "Not answerable".
+  - State every context fact that answers the question, including a later clause, alternative, or condition. Do not stop after the first supporting fact. Prefer that complete answer over "Not answerable".
   - Refuse with "Not answerable" / insufficient evidence ONLY when no Document Chunk and no Knowledge Graph fact supports the asked claim. Do NOT invent values from general knowledge.
   - Do NOT append citation markers, chunk ids, brackets like [1] or [16], "(source)", or a References section — plain answer text only.
   - Grounded arithmetic (W3-arith): if the question asks how many / a headcount / a count of people and the Context explicitly states BOTH (a) a percentage/rate and (b) a sample size N (e.g. "1,503 adults", "n=710") that together determine that count, you MUST compute count = round(percentage/100 × N), answer with that short integer (not the percentage). Worked example: Context has "Not good" = 36% and sample "1,503 adults" → answer 541 (not 36 or 36%). Do NOT invent missing percentages or sample sizes. Do NOT refuse merely because the count is not printed as a literal integer when both operands are present."#
@@ -212,9 +212,11 @@ pub fn allows_honest_refusal(instructions: &str) -> bool {
 /// True if policy is entailment-first (answer when evidence supports) — 020 A1.
 pub fn is_entailment_first(instructions: &str) -> bool {
     let lower = instructions.to_lowercase();
-    lower.contains("supports the asked claim")
-        && lower.contains("prefer a partial answer")
-        && lower.contains("only when no")
+    let answers_when_supported =
+        lower.contains("supports the asked claim") && lower.contains("only when no");
+    let keeps_supported_facts = lower.contains("prefer a partial answer")
+        || lower.contains("do not stop after the first supporting fact");
+    answers_when_supported && keeps_supported_facts
 }
 
 /// True if policy permits grounded %×N composition (026 / 032 W3-arith).

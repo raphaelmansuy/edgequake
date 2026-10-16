@@ -1099,6 +1099,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
+name = "chacha20"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65c35e4b699c7e15ccbe7ee35c005e4fc0a278d22238a2857e6ce2dadeda1b06"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.3.0",
+ "rand_core 0.10.1",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1838,7 +1849,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake"
-version = "0.34.0"
+version = "0.35.5"
 dependencies = [
  "anyhow",
  "axum",
@@ -1868,7 +1879,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-api"
-version = "0.34.0"
+version = "0.35.5"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -1928,7 +1939,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-audit"
-version = "0.34.0"
+version = "0.35.5"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1944,7 +1955,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-auth"
-version = "0.34.0"
+version = "0.35.5"
 dependencies = [
  "argon2",
  "async-trait",
@@ -1962,7 +1973,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-core"
-version = "0.34.0"
+version = "0.35.5"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1989,7 +2000,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-fake-llm"
-version = "0.34.0"
+version = "0.35.5"
 dependencies = [
  "axum",
  "reqwest 0.12.28",
@@ -2040,7 +2051,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-migrate-manifest"
-version = "0.34.0"
+version = "0.35.5"
 dependencies = [
  "serde",
  "sha2 0.10.9",
@@ -2050,7 +2061,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-observability"
-version = "0.34.0"
+version = "0.35.5"
 dependencies = [
  "futures",
  "http 1.4.2",
@@ -2071,7 +2082,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-pdf"
-version = "0.34.0"
+version = "0.35.5"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -2119,7 +2130,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-pipeline"
-version = "0.34.0"
+version = "0.35.5"
 dependencies = [
  "async-trait",
  "axum",
@@ -2150,7 +2161,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-query"
-version = "0.34.0"
+version = "0.35.5"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2176,7 +2187,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-rate-limiter"
-version = "0.34.0"
+version = "0.35.5"
 dependencies = [
  "anyhow",
  "axum",
@@ -2196,7 +2207,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-secrets"
-version = "0.34.0"
+version = "0.35.5"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -2210,7 +2221,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-storage"
-version = "0.34.0"
+version = "0.35.5"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2238,7 +2249,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-storage-contracts"
-version = "0.34.0"
+version = "0.35.5"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2251,7 +2262,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-tasks"
-version = "0.34.0"
+version = "0.35.5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2706,8 +2717,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "r-efi 6.0.0",
+ "rand_core 0.10.1",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -4649,15 +4663,16 @@ dependencies = [
 
 [[package]]
 name = "quinn-proto"
-version = "0.11.15"
+version = "0.11.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fcb935c5bec503c2f0e306bdd3e58bb9029dcb14fa8d9ac76e3a5256ac0763e"
+checksum = "a9746dbde176634f4f2f1faf2404e30a31b2bc1e9cafb5329c95d8177a18c9fc"
 dependencies = [
  "aws-lc-rs",
  "bytes",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "lru-slab",
- "rand 0.9.4",
+ "rand 0.10.3",
+ "rand_pcg",
  "ring",
  "rustc-hash 2.1.2",
  "rustls",
@@ -4727,6 +4742,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rand"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65c9fb96cbc91e3478eaae79a69fcd3f1ae4ad052e471fe6732fff548984b4af"
+dependencies = [
+ "chacha20",
+ "getrandom 0.4.3",
+ "rand_core 0.10.1",
+]
+
+[[package]]
 name = "rand_chacha"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4763,6 +4789,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c"
 dependencies = [
  "getrandom 0.3.4",
+]
+
+[[package]]
+name = "rand_core"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
+
+[[package]]
+name = "rand_pcg"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "caa0f4137e1c0a72f4c651489402276c8e8e1cf081f3b0ba156d2cbeef09e86a"
+dependencies = [
+ "rand_core 0.10.1",
 ]
 
 [[package]]
@@ -5223,9 +5264,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.45"
+version = "0.23.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
+checksum = "48e13bd8c0e9365c43cfa5c9e8f9ad49d3c8444926c9aac819e0e4dc503c8fdf"
 dependencies = [
  "aws-lc-rs",
  "once_cell",

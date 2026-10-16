@@ -28,6 +28,11 @@ RUN_REPORTS=()
 
 # Forbidden host ports (SPEC-93 isolation)
 FORBIDDEN_PORTS="8787 55432 8080 5173 8000 5433 9000 9001 3100 5001"
+# Stay below the default ephemeral range (32768–60999). Ports inside that
+# range look free to a LISTEN probe while a client socket or TIME_WAIT still
+# owns them, and `docker run -p` then fails with "address already in use".
+PORT_MIN=20000
+PORT_MAX=32000
 
 need() { command -v "$1" >/dev/null || { echo "missing $1"; exit 1; }; }
 need docker
@@ -37,18 +42,37 @@ need python3
 need psql
 need pg_dump
 
+port_is_free() {
+  local p="$1"
+  if echo " $FORBIDDEN_PORTS " | grep -q " $p "; then
+    return 1
+  fi
+  # Bind the same way Docker publishes (0.0.0.0, no SO_REUSEADDR) so a port
+  # held by an ephemeral client socket is not treated as free.
+  python3 - "$p" <<'PY'
+import socket, sys
+port = int(sys.argv[1])
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+try:
+    sock.bind(("0.0.0.0", port))
+except OSError:
+    sys.exit(1)
+finally:
+    sock.close()
+PY
+}
+
 pick_port() {
   local p
   for _ in $(seq 1 50); do
-    p=$((45000 + RANDOM % 10000))
-    if echo " $FORBIDDEN_PORTS " | grep -q " $p "; then continue; fi
-    if ! lsof -nP -iTCP:"$p" -sTCP:LISTEN >/dev/null 2>&1; then
+    p=$((PORT_MIN + RANDOM % (PORT_MAX - PORT_MIN + 1)))
+    if port_is_free "$p"; then
       echo "$p"
-      return
+      return 0
     fi
   done
-  echo "no free port" >&2
-  exit 1
+  echo "no free port in ${PORT_MIN}-${PORT_MAX}" >&2
+  return 1
 }
 
 cleanup() {
@@ -68,11 +92,18 @@ ensure_pg_image() {
     echo "$tag"
     return
   fi
-  local df="edgequake/docker/Dockerfile.postgres"
-  [[ "$major" == "17" ]] && df="edgequake/docker/Dockerfile.postgres.pg17"
-  [[ "$major" == "18" ]] && df="edgequake/docker/Dockerfile.postgres.pg18"
-  echo "Building $tag from $df (AGE+pgvector)…" >&2
-  docker build -t "$tag" -f "$df" edgequake/docker >&2
+  # v0.32 and v0.33 replay migration 167, which writes ag_catalog. Product
+  # images from v0.35.5 do not ship Apache AGE, so this matrix stays on the
+  # last image that does. Do not build the current Dockerfiles here.
+  local remote="ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4"
+  if [[ "$major" == "16" ]]; then
+    remote="ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4-pg16"
+  elif [[ "$major" == "17" ]]; then
+    remote="ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4-pg17"
+  fi
+  echo "Pulling $remote for epoch replay (Apache AGE required)…" >&2
+  docker pull "$remote" >&2
+  docker tag "$remote" "$tag"
   echo "$tag"
 }
 
@@ -118,29 +149,63 @@ for block in text[1:]:
 PY
 }
 
-start_pg() {
-  local major="$1" port="$2"
-  local img
-  img=$(ensure_pg_image "$major")
-  local name="eq150-pg${major}-${port}"
-  docker rm -f "$name" >/dev/null 2>&1 || true
-  if ! docker run -d --name "$name" \
-    -e POSTGRES_USER=edgequake -e POSTGRES_PASSWORD=edgequake -e POSTGRES_DB=edgequake \
-    -p "${port}:5432" "$img" >/dev/null; then
-    echo "docker run failed for $name" >&2
-    return 1
-  fi
+wait_pg() {
+  local name="$1" port="$2" url state
+  url=$(db_url "$port")
+  local _
   for _ in $(seq 1 90); do
+    state=$(docker inspect -f '{{.State.Status}}' "$name" 2>/dev/null || echo missing)
+    if [[ "$state" == "exited" || "$state" == "dead" || "$state" == "missing" ]]; then
+      echo "container exited: $name" >&2
+      docker logs "$name" >&2 || true
+      return 1
+    fi
+    # docker exec can succeed before the published host port accepts connections.
     if docker exec -e PGPASSWORD=edgequake "$name" \
-      psql -U edgequake -d edgequake -v ON_ERROR_STOP=1 -c 'SELECT 1' >/dev/null 2>&1; then
-      echo "$name"
+      psql -U edgequake -d edgequake -v ON_ERROR_STOP=1 -c 'SELECT 1' >/dev/null 2>&1 \
+      && psql "$url" -v ON_ERROR_STOP=1 -c 'SELECT 1' >/dev/null 2>&1; then
       return 0
     fi
     sleep 1
   done
   echo "postgres not ready: $name" >&2
   docker logs "$name" >&2 || true
-  docker rm -f "$name" >/dev/null 2>&1 || true
+  return 1
+}
+
+# stdout: "<port> <container>". Retries a new host port when Docker cannot bind.
+start_pg() {
+  local major="$1"
+  local prefer="${2:-}"
+  local img attempt port name err
+  img=$(ensure_pg_image "$major")
+  for attempt in 1 2 3 4 5 6; do
+    if [[ "$attempt" -eq 1 && -n "$prefer" ]]; then
+      port="$prefer"
+    else
+      port=$(pick_port) || return 1
+    fi
+    name="eq150-pg${major}-${port}"
+    docker rm -f "$name" >/dev/null 2>&1 || true
+    err=$(mktemp)
+    if docker run -d --name "$name" \
+      -e POSTGRES_USER=edgequake -e POSTGRES_PASSWORD=edgequake -e POSTGRES_DB=edgequake \
+      -p "127.0.0.1:${port}:5432" "$img" >/dev/null 2>"$err"; then
+      rm -f "$err"
+      if wait_pg "$name" "$port"; then
+        echo "$port $name"
+        return 0
+      fi
+      echo "postgres not ready: $name (attempt $attempt)" >&2
+    else
+      echo "docker run failed for $name (attempt $attempt)" >&2
+      cat "$err" >&2 || true
+      rm -f "$err"
+    fi
+    docker rm -f "$name" >/dev/null 2>&1 || true
+    sleep 1
+  done
+  echo "PG start failed for major=$major" >&2
   return 1
 }
 
@@ -151,26 +216,40 @@ db_url() {
 
 replay_epoch() {
   local tag="$1" url="$2"
-  local tmp
+  local tmp rc=0
   tmp=$(mktemp -d)
-  git archive "$tag" edgequake/migrations | tar -x -C "$tmp"
-  # sqlx migrate run against the tag's migration set
-  (
-    cd "$tmp/edgequake"
-    DATABASE_URL="$url" sqlx migrate run --source migrations
-  )
+  # run_one calls this under `set +e`. A trailing `rm` would hide sqlx's status.
+  git archive "$tag" edgequake/migrations | tar -x -C "$tmp" || rc=$?
+  if [[ $rc -eq 0 ]]; then
+    (
+      cd "$tmp/edgequake"
+      DATABASE_URL="$url" sqlx migrate run --source migrations
+    ) || rc=$?
+  fi
   rm -rf "$tmp"
+  return "$rc"
 }
 
 run_one() {
   local tag="$1" major="$2" mode="$3"
-  local port container url bin report_dir t0 t1 status
+  local port container url bin report_dir t0 t1 status started
   report_dir="$REPORT_ROOT/pg${major}"
   RUN_REPORTS+=("$report_dir/${tag}.json")
   mkdir -p "$report_dir"
-  port=$(pick_port)
-  container=$(start_pg "$major" "$port")
-  url=$(db_url "$port")
+  # Command substitution does not abort under `set -e` when start_pg fails.
+  started=$(start_pg "$major") || true
+  if [[ -z "$started" ]]; then
+    echo "PG start failed for $tag on PG$major" >&2
+    status="pg_start_fail"
+    port=""
+    container=""
+    url=""
+  else
+    port="${started%% *}"
+    container="${started#* }"
+    url=$(db_url "$port")
+    status="ok"
+  fi
   bin=$(resolve_head_bin)
 
   # FORCE_REPLAY=1 skips GHCR image boots (deterministic checksum replay).
@@ -178,11 +257,13 @@ run_one() {
     mode="replay"
   fi
 
-  echo "=== $tag → HEAD on PG$major (mode=$mode, port=$port) ==="
+  echo "=== $tag → HEAD on PG$major (mode=$mode, port=${port:-none}) ==="
   t0=$(date +%s)
-  status="ok"
 
   set +e
+  if [[ "$status" != "ok" ]]; then
+    :
+  else
   if [[ "$mode" == "image" ]]; then
     # Prefer image when available; fall back to replay on pull failure.
     if ! docker pull "ghcr.io/raphaelmansuy/edgequake:${tag#v}" >/dev/null 2>&1; then
@@ -225,12 +306,16 @@ run_one() {
           psql -U edgequake -d edgequake -c 'SELECT 1' >/dev/null 2>&1; then
           echo "  recreating PG container for retry…" >&2
           docker rm -f "$container" >/dev/null 2>&1 || true
-          port=$(pick_port)
-          container=$(start_pg "$major" "$port") || true
-          url=$(db_url "$port")
-          if [[ -n "$container" ]]; then
+          started=$(start_pg "$major") || true
+          if [[ -n "$started" ]]; then
+            port="${started%% *}"
+            container="${started#* }"
+            url=$(db_url "$port")
             replay_epoch "$tag" "$url" || true
             psql "$url" -v ON_ERROR_STOP=0 -f "$SEED_SQL" >/dev/null 2>&1 || true
+          else
+            container=""
+            echo "  PG recreate failed" >&2
           fi
         fi
         if [[ -n "$container" ]]; then
@@ -259,17 +344,22 @@ run_one() {
     if [[ "${SKIP_SCHEMA_DIFF:-0}" == "1" ]]; then
       echo "  (SKIP_SCHEMA_DIFF=1 — ledger proof only)" >&2
     else
-    local fresh_port fresh_c fresh_url
-    fresh_port=$(pick_port)
-    # Under `set +e`, `$(start_pg …)` must not use `exit` (that only kills the
-    # subshell and leaves an empty name → `pg_dump failed for :`).
-    if ! fresh_c=$(start_pg "$major" "$fresh_port"); then
+    local fresh_port fresh_c fresh_url fresh_started
+    # Under `set +e`, a failed `$(start_pg)` leaves an empty name. start_pg
+    # already retries bind failures; one extra call covers a dead daemon.
+    fresh_started=$(start_pg "$major") || true
+    if [[ -z "$fresh_started" ]]; then
       echo "fresh PG start failed for schema dump (tag=$tag pg=$major); retrying once" >&2
-      fresh_port=$(pick_port)
-      if ! fresh_c=$(start_pg "$major" "$fresh_port"); then
-        echo "fresh PG start failed again for schema dump (tag=$tag pg=$major)" >&2
-        status="dump_fail"
-      fi
+      fresh_started=$(start_pg "$major") || true
+    fi
+    if [[ -z "$fresh_started" ]]; then
+      echo "fresh PG start failed again for schema dump (tag=$tag pg=$major)" >&2
+      status="dump_fail"
+      fresh_port=""
+      fresh_c=""
+    else
+      fresh_port="${fresh_started%% *}"
+      fresh_c="${fresh_started#* }"
     fi
     if [[ "$status" == "ok" && -n "$fresh_c" ]]; then
       fresh_url=$(db_url "$fresh_port")
@@ -333,15 +423,20 @@ run_one() {
         rm -f "$report_dir/${tag}-schema.diff"
       fi
     fi
-    docker rm -f "$fresh_c" >/dev/null 2>&1 || true
+    if [[ -n "$fresh_c" ]]; then
+      docker rm -f "$fresh_c" >/dev/null 2>&1 || true
     fi
+    fi
+  fi
   fi
   set -e
 
   t1=$(date +%s)
   local dur=$((t1 - t0))
-  local ledger_max
-  ledger_max=$(psql "$url" -Atc "SELECT COALESCE(MAX(version),0) FROM _sqlx_migrations WHERE success" 2>/dev/null || echo 0)
+  local ledger_max=0
+  if [[ -n "$url" ]]; then
+    ledger_max=$(psql "$url" -Atc "SELECT COALESCE(MAX(version),0) FROM _sqlx_migrations WHERE success" 2>/dev/null || echo 0)
+  fi
 
   python3 - "$report_dir/${tag}.json" "$tag" "$major" "$status" "$dur" "$ledger_max" <<'PY'
 import json,sys
@@ -353,29 +448,80 @@ json.dump({
 print(f"  → status={status} duration={dur}s ledger_max={ledger}")
 PY
 
-  docker rm -f "$container" >/dev/null 2>&1 || true
+  if [[ -n "$container" ]]; then
+    docker rm -f "$container" >/dev/null 2>&1 || true
+  fi
   [[ "$status" == "ok" ]]
 }
 
-# Chaos: concurrent migrate → one exit 75
+# True once some other session holds edgequake.migrate.run.
+# pg_try_advisory_lock returns true when *this* probe acquired it; that
+# session exits and releases, and the probe keeps waiting.
+wait_until_migrate_lock_held() {
+  local url="$1" hold_pid="$2"
+  local i got
+  for i in $(seq 1 40); do
+    if ! kill -0 "$hold_pid" 2>/dev/null; then
+      echo "  → FAIL lock holder exited before the lock was visible"
+      return 1
+    fi
+    got=$(psql "$url" -Atqc "SELECT pg_try_advisory_lock(hashtext('edgequake.migrate.run'))" 2>/dev/null || true)
+    got="${got//[[:space:]]/}"
+    if [[ "$got" == "f" ]]; then
+      echo "  → run lock is held (probe $i)"
+      return 0
+    fi
+    sleep 0.25
+  done
+  echo "  → FAIL advisory lock was not held after 10s"
+  return 1
+}
+
+# Chaos: concurrent migrate → one exit 75.
+# The second migrate is the default command (AGE stays). It must still exit 75
+# when only the AGE drop remains, which is the steady state after --confirm-drop.
 chaos_lock() {
   local major=16
-  local port container url bin hold_pid
-  port=$(pick_port)
-  container=$(start_pg "$major" "$port")
+  local port container url bin hold_pid rc hold_sql started
+  started=$(start_pg "$major") || true
+  if [[ -z "$started" ]]; then
+    echo "  → FAIL chaos PG start"
+    return 1
+  fi
+  port="${started%% *}"
+  container="${started#* }"
   url=$(db_url "$port")
   bin=$(resolve_head_bin)
   echo "=== chaos: concurrent migrate lock ==="
-  DATABASE_URL="$url" "$bin" migrate --confirm-drop >/dev/null 2>&1 || true
-  # Hold advisory lock on a long-lived session (psql exits release locks).
-  psql "$url" -v ON_ERROR_STOP=1 -c \
-    "SELECT pg_advisory_lock(hashtext('edgequake.migrate.run')); SELECT pg_sleep(60);" \
-    >/dev/null 2>&1 &
+  if ! DATABASE_URL="$url" "$bin" migrate --confirm-drop >/tmp/eq150-chaos-prep.log 2>&1; then
+    echo "  → FAIL preparatory migrate"
+    cat /tmp/eq150-chaos-prep.log
+    docker rm -f "$container" >/dev/null 2>&1 || true
+    return 1
+  fi
+  # One DO block: lock, then sleep, on a session that stays open.
+  hold_sql=$(cat <<'SQL'
+DO $$
+BEGIN
+  PERFORM pg_advisory_lock(hashtext('edgequake.migrate.run'));
+  PERFORM pg_sleep(90);
+END
+$$;
+SQL
+)
+  psql "$url" -v ON_ERROR_STOP=1 -c "$hold_sql" >/tmp/eq150-chaos-holder.log 2>&1 &
   hold_pid=$!
-  sleep 1
+  if ! wait_until_migrate_lock_held "$url" "$hold_pid"; then
+    echo "----- /tmp/eq150-chaos-holder.log -----"
+    cat /tmp/eq150-chaos-holder.log 2>/dev/null || true
+    kill "$hold_pid" 2>/dev/null || true
+    wait "$hold_pid" 2>/dev/null || true
+    docker rm -f "$container" >/dev/null 2>&1 || true
+    return 1
+  fi
   set +e
   EDGEQUAKE_MIGRATE_LOCK_DEADLINE=5 DATABASE_URL="$url" "$bin" migrate >/tmp/eq150-chaos-lock.log 2>&1
-  local rc=$?
+  rc=$?
   set -e
   kill "$hold_pid" 2>/dev/null || true
   wait "$hold_pid" 2>/dev/null || true
@@ -384,7 +530,11 @@ chaos_lock() {
     echo "  → PASS concurrent lock (rc=$rc)"
     return 0
   fi
-  echo "  → FAIL concurrent lock (rc=$rc); see /tmp/eq150-chaos-lock.log"
+  echo "  → FAIL concurrent lock (rc=$rc)"
+  echo "----- /tmp/eq150-chaos-lock.log -----"
+  cat /tmp/eq150-chaos-lock.log 2>/dev/null || true
+  echo "----- /tmp/eq150-chaos-holder.log -----"
+  cat /tmp/eq150-chaos-holder.log 2>/dev/null || true
   return 1
 }
 

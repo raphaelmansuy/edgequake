@@ -83,6 +83,9 @@ impl PostgresAGEGraphStorage {
         offset: usize,
         limit: usize,
     ) -> Result<PagedGraphResult<GraphNode>> {
+        if self.plain_reads_ready().await? {
+            return super::plain::scan::scan::list_nodes(self, filter, offset, limit).await;
+        }
         let pool = self.pool.get().await?;
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
@@ -132,6 +135,9 @@ impl PostgresAGEGraphStorage {
         offset: usize,
         limit: usize,
     ) -> Result<PagedGraphResult<GraphEdge>> {
+        if self.plain_reads_ready().await? {
+            return super::plain::scan::scan::list_edges(self, filter, offset, limit).await;
+        }
         let pool = self.pool.get().await?;
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
@@ -372,6 +378,9 @@ impl PostgresAGEGraphStorage {
     ) -> Result<crate::traits::KeysetPage<GraphNode>> {
         use crate::traits::KeysetPage;
 
+        if self.plain_reads_ready().await? {
+            return super::plain::scan::scan::scan_nodes_after(self, filter, after, limit).await;
+        }
         let limit = limit.max(1);
         let pool = self.pool.get().await?;
         let mut conn = pool.acquire().await.map_err(|e| {
@@ -451,6 +460,9 @@ impl PostgresAGEGraphStorage {
     ) -> Result<crate::traits::KeysetPage<GraphEdge>> {
         use crate::traits::KeysetPage;
 
+        if self.plain_reads_ready().await? {
+            return super::plain::scan::scan::scan_edges_after(self, filter, after, limit).await;
+        }
         let limit = limit.max(1);
         let pool = self.pool.get().await?;
         let mut conn = pool.acquire().await.map_err(|e| {
@@ -586,6 +598,14 @@ impl PostgresAGEGraphStorage {
             return Ok(Vec::new());
         }
         SOURCE_PREFIX_DISCOVERY_CALLS.fetch_add(1, Ordering::Relaxed);
+        if self.plain_reads_ready().await? {
+            return super::plain::scan::scan::find_nodes_by_source_prefixes(
+                self,
+                filter,
+                source_prefixes,
+            )
+            .await;
+        }
 
         let (exact_ids, chunk_prefixes) = Self::source_prefix_probe_sets(source_prefixes);
         if exact_ids.is_empty() {
@@ -600,12 +620,10 @@ impl PostgresAGEGraphStorage {
         let tenant_where_v = Self::build_node_where_clause_for_discovery(filter);
         let props_expr = "ag_catalog.agtype_to_json(v.properties)";
         let probe_limit = super::helpers::SOURCE_CHUNK_PROBE_LIMIT as i32;
-        let modern_sql = super::helpers::lineage_discovery_sql(
-            &format!("{props_expr} AS props"),
-            &format!(r#"{}."Node" v"#, self.graph_name),
-            props_expr,
-            &tenant_where_v,
-        );
+        // Issue #478: the tenant role cannot use lineage GIN indexes while the
+        // AGE guard calls agtype_to_json. Migration 207 looks up as the bypass
+        // owner and applies the session tenant inside the indexed plan.
+        let modern_sql = "SELECT props FROM public.eq_age_lineage_discover_nodes($1, $2, $3, $4)";
 
         // SPEC-089 Wave 3 / F-336-08 / LAW-H2: kill discovery CROSS JOIN probes.
         let timeout_ms = super::helpers::SOURCE_DISCOVERY_STATEMENT_TIMEOUT_MS;
@@ -634,7 +652,8 @@ impl PostgresAGEGraphStorage {
         )
         .await?;
         let mut by_id: HashMap<String, GraphNode> = HashMap::new();
-        let modern_rows = match sqlx::query(&modern_sql)
+        let modern_rows = match sqlx::query(modern_sql)
+            .bind(&self.graph_name)
             .bind(&exact_ids)
             .bind(&chunk_prefixes)
             .bind(probe_limit)
@@ -704,6 +723,14 @@ impl PostgresAGEGraphStorage {
             return Ok(Vec::new());
         }
         SOURCE_PREFIX_DISCOVERY_CALLS.fetch_add(1, Ordering::Relaxed);
+        if self.plain_reads_ready().await? {
+            return super::plain::scan::scan::find_edges_by_source_prefixes(
+                self,
+                filter,
+                source_prefixes,
+            )
+            .await;
+        }
 
         let (exact_ids, chunk_prefixes) = Self::source_prefix_probe_sets(source_prefixes);
         if exact_ids.is_empty() {
@@ -734,12 +761,10 @@ impl PostgresAGEGraphStorage {
             super::helpers::prop_only_endpoint("e", "target")
         };
 
-        let modern_sql = super::helpers::lineage_discovery_sql(
-            &format!("{props_expr} AS props, {src_expr} AS source_id, {tgt_expr} AS target_id"),
-            &format!(r#"{}."EDGE" e"#, self.graph_name),
-            props_expr,
-            &format!("({tenant_where_e}) AND {src_expr} IS NOT NULL AND {tgt_expr} IS NOT NULL"),
-        );
+        // Issue #478: same security-definer lookup as node discovery. Endpoint
+        // expressions (eq_* or properties) are chosen inside the function.
+        let modern_sql = "SELECT props, source_id, target_id \
+             FROM public.eq_age_lineage_discover_edges($1, $2, $3, $4)";
 
         let timeout_ms = super::helpers::SOURCE_DISCOVERY_STATEMENT_TIMEOUT_MS;
         let legacy_sql = if Self::source_prefix_legacy_enabled() {
@@ -775,7 +800,8 @@ impl PostgresAGEGraphStorage {
         .await?;
         // SPEC-098 D-30 / Symptom F: collapse on (src, tgt, rel), not (src, tgt).
         let mut by_key: HashMap<(String, String, String), GraphEdge> = HashMap::new();
-        let modern_rows = match sqlx::query(&modern_sql)
+        let modern_rows = match sqlx::query(modern_sql)
+            .bind(&self.graph_name)
             .bind(&exact_ids)
             .bind(&chunk_prefixes)
             .bind(probe_limit)
@@ -809,42 +835,14 @@ impl PostgresAGEGraphStorage {
             }
         }
 
-        // SPEC-098 Symptom F: poisoned source_ids leave singular source_chunk_id /
-        // source_document_id as the only citation. Bounded exact probes (no SeqScan
-        // unnest of source_chunk_ids arrays — SPEC-071).
-        let singular_sql = format!(
-            r#"
-            WITH probes AS (
-              SELECT unnest($1::text[]) AS probe_id
-              UNION ALL
-              SELECT pref || gs.i::text
-              FROM unnest($2::text[]) AS pref
-              CROSS JOIN generate_series(0, $3::int - 1) AS gs(i)
-            )
-            SELECT
-                ag_catalog.agtype_to_json(e.properties) AS props,
-                {src} AS source_id,
-                {tgt} AS target_id
-            FROM {graph}."EDGE" e
-            WHERE {tenant_where}
-              AND {src} IS NOT NULL
-              AND {tgt} IS NOT NULL
-              AND (
-                -- SPEC-119 / LAW-119-2: btree expression must match (no ::jsonb on ->>).
-                -- ::jsonb cast defeats idx_edge_source_chunk_id / idx_edge_source_document_id
-                -- (same class as GH-362). Modern GIN path above keeps ::jsonb -> 'source_ids'.
-                {props}->>'source_chunk_id' IN (SELECT probe_id FROM probes)
-                OR {props}->>'source_document_id' IN (SELECT probe_id FROM probes)
-              )
-            LIMIT 5000
-            "#,
-            props = props_expr,
-            graph = self.graph_name,
-            tenant_where = tenant_where_e,
-            src = src_expr,
-            tgt = tgt_expr,
-        );
-        let singular_rows = match sqlx::query(&singular_sql)
+        // SPEC-098 Symptom F / issue #478: singular citations go through the
+        // same security-definer lookup. LATERAL equality + OFFSET 0 inside the
+        // function keeps idx_edge_source_chunk_id / idx_edge_source_document_id
+        // under FORCE RLS (a hashed IN (SELECT probe) seq-scans).
+        let singular_sql = "SELECT props, source_id, target_id \
+            FROM public.eq_age_lineage_discover_edges_singular($1, $2, $3, $4)";
+        let singular_rows = match sqlx::query(singular_sql)
+            .bind(&self.graph_name)
             .bind(&exact_ids)
             .bind(&chunk_prefixes)
             .bind(probe_limit)
@@ -905,6 +903,14 @@ impl PostgresAGEGraphStorage {
     ) -> Result<Option<GraphEdge>> {
         if relationship_id.is_empty() {
             return Ok(None);
+        }
+        if self.plain_reads_ready().await? {
+            return super::plain::scan::scan::find_edge_by_relationship_id(
+                self,
+                filter,
+                relationship_id,
+            )
+            .await;
         }
 
         let pool = self.pool.get().await?;

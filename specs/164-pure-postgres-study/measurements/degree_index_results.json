@@ -1,0 +1,28 @@
+{
+  "graph": "spec164bench eq_graph_* namespace spec164_age",
+  "scale": {"nodes": 200000, "edges": 499998},
+  "before_ms": {
+    "popular_warm_explain": 615.814,
+    "search_like_1_explain": 840.485,
+    "search_like_199999_explain": 625.042,
+    "search_labels_person_explain": 54.602,
+    "popular_labels_explain": 32.071
+  },
+  "after_ms": {
+    "popular_degree_index": 0.171,
+    "search_like_1_degree_index": 0.143,
+    "search_like_199999_degree_index_only": 242.988,
+    "search_like_199999_trgm": 1.133,
+    "search_like_zzzznope_trgm": 0.060,
+    "search_labels_person_trgm": 0.051
+  },
+  "plans": {
+    "popular": "Index Scan idx_eq_graph_nodes_degree, LIMIT 20, stops",
+    "search_broad": "Index Scan idx_eq_graph_nodes_degree plus residual LIKE, stops at 20",
+    "search_selective": "BitmapOr gin_trgm node_id and description, sort by degree",
+    "search_miss": "BitmapOr gin_trgm, 0 rows"
+  },
+  "degree_backfill_mismatches": 0,
+  "trigger_conflict_reinsert_mismatches": 0,
+  "self_loop": "n1 degree 5 -> 7 -> 5 (counts both ends)"
+}

@@ -9,7 +9,10 @@ use super::capabilities::{DocumentIdGenerator, PostgresCapabilities};
 pub async fn allocate_document_id(pool: &PgPool, caps: &PostgresCapabilities) -> String {
     match caps.document_id_generator {
         DocumentIdGenerator::UuidV7 => {
-            let id: Option<String> = sqlx::query_scalar("SELECT uuidv7()::text")
+            // Same call as the capability probe. Kept dynamic so a PostgreSQL 16
+            // catalog prepare does not require a function that exists only on PG18.
+            let sql = format!("SELECT {}()::text", "uuidv7");
+            let id: Option<String> = sqlx::query_scalar(&sql)
                 .fetch_optional(pool)
                 .await
                 .ok()

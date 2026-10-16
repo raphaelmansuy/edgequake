@@ -1,0 +1,8 @@
+                                      QUERY PLAN                                       
+---------------------------------------------------------------------------------------
+ Result  (cost=0.00..0.26 rows=1 width=8) (actual time=1.245..1.245 rows=1.00 loops=1)
+   Buffers: shared hit=322
+ Planning Time: 0.037 ms
+ Execution Time: 1.594 ms
+(4 rows)
+

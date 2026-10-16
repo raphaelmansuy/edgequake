@@ -13,11 +13,11 @@ Source of truth: `edgequake/docker/extension-pins.sh`. The default image uses Po
 
 | Profile | PostgreSQL | pgvector | Apache AGE | Image tag (GHCR) | Local build file |
 |---|---|---|---|---|---|
-| pg18 (default) | 18 | 0.8.5 | 1.8.0 | `latest` | `edgequake/docker/Dockerfile.postgres.pg18` |
-| pg17 | 17 | 0.8.5 | 1.7.0 | `latest-pg17` | `edgequake/docker/Dockerfile.postgres.pg17` |
-| pg16 (legacy) | 16 | 0.8.5 | 1.6.0 | `latest-pg16` | `edgequake/docker/Dockerfile.postgres` |
+| pg18 (default) | 18 | 0.8.5 | not included | `latest` | `edgequake/docker/Dockerfile.postgres.pg18` |
+| pg17 | 17 | 0.8.5 | not included | `latest-pg17` | `edgequake/docker/Dockerfile.postgres.pg17` |
+| pg16 (legacy) | 16 | 0.8.5 | not included | `latest-pg16` | `edgequake/docker/Dockerfile.postgres` |
 
-Extensions in every image: `vector`, `age`, `pg_trgm`, `btree_gin`, and `uuid-ossp`. An optional PG18 image with vectorscale (DiskANN) is built from `edgequake/docker/Dockerfile.postgres.pg18-vectorscale`.
+Extensions in every product image: `vector`, `pg_trgm`, `btree_gin`, and `uuid-ossp`. Apache AGE is not included from v0.35.5. v0.35.4 is the last image that has it. An optional PG18 image with vectorscale (DiskANN) is built from `edgequake/docker/Dockerfile.postgres.pg18-vectorscale` and is not published by the release workflow.
 
 ## How the code handles versions
 

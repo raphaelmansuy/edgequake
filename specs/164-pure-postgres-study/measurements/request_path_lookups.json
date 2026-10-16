@@ -1,0 +1,695 @@
+{
+  "database": "spec164plans",
+  "postgres": "16.15",
+  "collation": "C.UTF-8",
+  "scale": {
+    "documents": 80000,
+    "pending_tasks": 80000,
+    "chunk_entity_links": 80000,
+    "chunks": 40000,
+    "conversations": 30000,
+    "messages_on_one_conversation": 20004,
+    "pdf_documents": 30000,
+    "pdf_list_probe_extra_newer_foreign_rolled_back": 40000
+  },
+  "note": "EXPLAIN (ANALYZE, BUFFERS). A top-k or a miss must not read the rest of the table. Exact counts that answer with one number per row of a set still read that set.",
+  "queries": [
+    {
+      "name": "document track_id miss",
+      "before_ms": 20.470,
+      "before_plan": "Seq Scan, 80000 rows removed. OR cannot use idx_documents_track_id alone",
+      "after_ms": 0.031,
+      "after_plan": "Append of idx_documents_track_id and idx_documents_metadata_track_id, 0 rows"
+    },
+    {
+      "name": "document track_id column hit t80000",
+      "before_ms": 17.633,
+      "before_plan": "Seq Scan, 79959 rows removed",
+      "after_ms": 0.034,
+      "after_plan": "Index Scan idx_documents_track_id, metadata arm never executed"
+    },
+    {
+      "name": "document metadata track_id hit meta-50",
+      "after_ms": 0.020,
+      "after_plan": "Index Scan idx_documents_metadata_track_id after the column arm misses"
+    },
+    {
+      "name": "pending queue rank, 3 ids",
+      "before_ms": 56.960,
+      "before_plan": "WindowAgg over 80000 pending rows, 79997 filtered",
+      "after_ms": 9.808,
+      "after_plan": "Index Only Scan idx_tasks_claimable_pending per id. Ranks match the window: 0, 99, 39999, 78999"
+    },
+    {
+      "name": "chunk entity prefix miss doc-1-chunk-79999%",
+      "before_ms": 15.268,
+      "before_plan": "Seq Scan, 79999 rows removed. Default btree will not range a LIKE under C.UTF-8",
+      "after_ms": 0.047,
+      "after_plan": "Index Scan idx_cel_ws_chunk_pat, Index Cond ~>=~ / ~<~"
+    },
+    {
+      "name": "chunk entity prefix page doc-1-chunk-1%",
+      "after_ms": 3.970,
+      "after_plan": "Bitmap index scan of the pattern index, 11111 matching rows"
+    },
+    {
+      "name": "document list LIMIT 50, skewed newer foreign workspace, after ANALYZE",
+      "after_ms": 0.056,
+      "after_plan": "Index Scan idx_documents_workspace_created, stops at 50"
+    },
+    {
+      "name": "task list LIMIT 50",
+      "after_ms": 0.063,
+      "after_plan": "Index Only Scan Backward tasks_history_created_at_track_id_idx"
+    },
+    {
+      "name": "task list keyset before task-40000",
+      "after_ms": 0.066,
+      "after_plan": "Index Only Scan Backward, row comparison Index Cond"
+    },
+    {
+      "name": "document status buckets, one workspace of 80000",
+      "after_ms": 44.020,
+      "after_plan": "Seq Scan. Exact CASE over status and metadata must read the workspace. Not a top-k."
+    },
+    {
+      "name": "injection list LIMIT 20 miss",
+      "before_ms": 17.379,
+      "before_plan": "Index Scan idx_documents_workspace_created, 80000 rows removed by source_type filter",
+      "after_ms": 0.013,
+      "after_plan": "Index Only Scan idx_documents_workspace_injection, 0 rows"
+    },
+    {
+      "name": "injection count miss",
+      "before_ms": 10.051,
+      "before_plan": "Seq Scan, 80000 rows removed",
+      "after_ms": 0.037,
+      "after_plan": "Index Only Scan idx_documents_workspace_injection, 0 rows"
+    },
+    {
+      "name": "chunk FTS rare term uniquezephyr LIMIT 20",
+      "after_ms": 2.686,
+      "after_plan": "Bitmap Index Scan idx_chunks_content_tsv, 40 matches, then rank sort"
+    },
+    {
+      "name": "chunk FTS common term medical LIMIT 20",
+      "after_ms": 25.996,
+      "after_plan": "Parallel Seq Scan. The term matches 39960 of 40000 chunks, so the GIN is not cheaper. Exact ts_rank still scores the matches."
+    },
+    {
+      "name": "workspace membership, metadata-only workspace of 30",
+      "after_ms": 0.041,
+      "after_plan": "BitmapOr of idx_documents_workspace_created and idx_documents_metadata_workspace_expr"
+    },
+    {
+      "name": "staging shell page",
+      "after_ms": 0.203,
+      "after_plan": "Index Only Scan idx_documents_staging_shell"
+    },
+    {
+      "name": "claim pending LIMIT 64",
+      "after_ms": 2.094,
+      "after_plan": "Index Scan tasks_history_created_at_idx, stops at 64"
+    },
+    {
+      "name": "chunks for one document",
+      "after_ms": 0.118,
+      "after_plan": "Index Scan chunks_unique_doc_index"
+    },
+    {
+      "name": "shared entities for 3 names",
+      "after_ms": 0.101,
+      "after_plan": "Index Scan idx_cel_entity_workspace"
+    },
+    {
+      "name": "pdf list LIMIT 50, 40000 newer foreign-workspace rows",
+      "before_ms": 5.827,
+      "before_plan": "Index Scan idx_pdf_documents_created, Filter workspace, 40049 rows removed, 1200 buffers",
+      "after_ms": 0.056,
+      "after_plan": "Index Scan idx_pdf_documents_workspace_created, Index Cond workspace_id, stops at 50, 6 buffers"
+    },
+    {
+      "name": "pdf list by status",
+      "after_ms": 0.190,
+      "after_plan": "Index Scan idx_pdf_documents_workspace_status"
+    },
+    {
+      "name": "pdf checksum lookup",
+      "after_ms": 0.033,
+      "after_plan": "Index Scan idx_pdf_documents_workspace_checksum_unique"
+    },
+    {
+      "name": "conversation list LIMIT 50",
+      "after_ms": 0.335,
+      "after_plan": "Index Scan idx_conversations_tenant_user, 45 buffers. Already stops at the page."
+    },
+    {
+      "name": "conversation title rare uniquezephyr LIMIT 20",
+      "after_ms": 6.293,
+      "after_plan": "Bitmap Index Scan idx_conversations_title_fts, 300 index rows, 60 after the user filter"
+    },
+    {
+      "name": "conversation title common medical LIMIT 20",
+      "after_ms": 0.218,
+      "after_plan": "Index Scan idx_conversations_tenant_user plus title filter, stops at 20"
+    },
+    {
+      "name": "message page 0, conversation of 20004",
+      "after_ms": 0.139,
+      "after_plan": "Index Scan idx_messages_conversation, stops at the page"
+    },
+    {
+      "name": "message OFFSET 15000",
+      "after_ms": 9.538,
+      "after_plan": "Bitmap of all 20004 messages then sort. The OFFSET API is unchanged; scan_*_after is the bounded page where it exists."
+    },
+    {
+      "name": "active pdf task miss",
+      "after_ms": 0.084,
+      "after_plan": "Index Scan idx_tasks_workspace_pdf_id"
+    },
+    {
+      "name": "task list LIMIT 50, 40000 newer foreign-workspace rows",
+      "before_ms": 33.919,
+      "before_plan": "Index Scan idx_tasks_created, Filter tenant and workspace, 40000 rows removed, 80397 buffers",
+      "after_ms": 0.100,
+      "after_plan": "Index Only Scan idx_tasks_tenant_workspace_created_track, stops at 50, 11 buffers"
+    },
+    {
+      "name": "task keyset before 2026-10-01 12:00 task-40000",
+      "after_ms": 0.105,
+      "after_plan": "Index Only Scan, row comparison in Index Cond, stops at 50"
+    },
+    {
+      "name": "conversation list ORDER BY created_at DESC LIMIT 50",
+      "before_ms": 57.017,
+      "before_plan": "Seq Scan, 15000 rows removed, top-N heapsort of 15000, 2116 buffers",
+      "after_ms": 0.069,
+      "after_plan": "Index Scan idx_conversations_tenant_user_created, stops at 50, 4 buffers"
+    },
+    {
+      "name": "conversation list ORDER BY title DESC LIMIT 50",
+      "before_ms": 5.581,
+      "before_plan": "Seq Scan, 15000 rows removed, top-N heapsort of 15000",
+      "after_ms": 0.065,
+      "after_plan": "Index Scan Backward idx_conversations_tenant_user_title, stops at 50"
+    },
+    {
+      "name": "task list status=failed LIMIT 50, 80000 newer pending rows in the same workspace",
+      "before_ms": 16.198,
+      "before_plan": "Index Scan idx_tasks_tenant_workspace_created_track, Filter status, 80000 rows removed, 2298 buffers",
+      "after_ms": 0.054,
+      "after_plan": "Index Only Scan idx_tasks_tenant_workspace_status_created_track, stops at 50, 12 buffers"
+    },
+    {
+      "name": "task list task_type=scan LIMIT 50, 80000 newer insert rows in the same workspace",
+      "before_ms": 9.551,
+      "before_plan": "Index Scan idx_tasks_tenant_workspace_created_track, Filter task_type, 80000 rows removed, 2298 buffers",
+      "after_ms": 0.056,
+      "after_plan": "Index Only Scan idx_tasks_tenant_workspace_type_created_track, stops at 50, 12 buffers"
+    },
+    {
+      "name": "task list ORDER BY updated_at DESC LIMIT 50, 40000 newer foreign-workspace rows",
+      "before_ms": 2.979,
+      "before_plan": "Index Scan idx_tasks_updated, Filter tenant and workspace, 40000 rows removed, 969 buffers",
+      "after_ms": 0.052,
+      "after_plan": "Index Only Scan idx_tasks_tenant_workspace_updated_track, stops at 50, 10 buffers"
+    },
+    {
+      "name": "workspace stats document totals, 40000 foreign documents",
+      "before_ms": 46.525,
+      "before_plan": "Three Seq Scans of documents, 40000 rows removed each time, 6447 buffers. Same totals: 80000 documents, chunk_count 0, storage_bytes 0",
+      "after_ms": 17.502,
+      "after_plan": "One Seq Scan, 40000 rows removed once, 2149 buffers. A 50-row workspace uses idx_documents_workspace_created and stops at 50 (0.101 ms)"
+    },
+    {
+      "name": "workspace embedding count, 50 rows beside 20000 embeddings in another workspace",
+      "before_ms": 2.453,
+      "before_plan": "Hash Join. Seq Scan of all 20050 chunk_embeddings plus Index Scan of 50 chunks, 283 buffers. Counts matched",
+      "after_ms": 0.027,
+      "after_plan": "Index Only Scan idx_chunk_embeddings_workspace, 50 rows, 4 buffers. The 20000-row workspace seq-scans chunk_embeddings only (2.303 ms, 248 buffers) instead of also scanning 40000 chunks (13.471 ms, 1583 buffers)"
+    },
+    {
+      "name": "conversation folder page ORDER BY updated_at DESC LIMIT 50, 5000 oldest of 15000 in the folder",
+      "before_ms": 5.204,
+      "before_plan": "Index Scan idx_conversations_tenant_user, Filter folder_id, 10001 rows removed, 10706 buffers",
+      "after_ms": 0.086,
+      "after_plan": "Index Scan idx_conversations_tenant_user_folder_updated, folder_id is an index condition, stops at 50, 51 buffers"
+    },
+    {
+      "name": "conversation pinned page ORDER BY updated_at DESC LIMIT 50, 4999 oldest of 15000 pinned",
+      "before_ms": 3.889,
+      "before_plan": "Index Scan idx_conversations_tenant_user, Filter is_pinned, 10001 rows removed, 10476 buffers",
+      "after_ms": 0.065,
+      "after_plan": "Index Scan idx_conversations_tenant_user_pinned_updated, is_pinned is an index condition, stops at 50, 52 buffers. A generic plan of is_pinned = $3 uses this index. A partial WHERE is_pinned index is not implied by that prepared predicate"
+    },
+    {
+      "name": "conversation unfiled page ORDER BY updated_at DESC LIMIT 50, 10001 newest of 15000 filed",
+      "before_ms": 2.196,
+      "before_plan": "Index Scan on (tenant_id, user_id, updated_at DESC), Filter folder_id IS NULL, 10001 rows removed, 10078 buffers. Measured on a committed copy of the 30000 conversations",
+      "after_ms": 0.046,
+      "after_plan": "Index Scan idx_conversations_tenant_user_unfiled_updated, folder_id IS NULL is the partial predicate, stops at 50, 53 buffers. SELECT * is 0.028 ms and 53 buffers"
+    },
+    {
+      "name": "task status=failed ORDER BY updated_at DESC LIMIT 50, 80000 newer pending rows",
+      "before_ms": 11.424,
+      "before_plan": "Index Scan on (tenant_id, workspace_id, updated_at DESC, track_id DESC), Filter status, 80000 rows removed, 17340 buffers",
+      "after_ms": 0.054,
+      "after_plan": "Index Scan (tenant_id, workspace_id, status, updated_at DESC), status is an index condition, stops at 50, 11 buffers"
+    },
+    {
+      "name": "task_type=scan ORDER BY updated_at DESC LIMIT 50, 80000 newer insert rows",
+      "before_ms": 6.808,
+      "before_plan": "Index Scan idx_tasks_updated, Filter tenant, workspace, and task_type, 80000 rows removed, 1606 buffers",
+      "after_ms": 0.049,
+      "after_plan": "Index Scan (tenant_id, workspace_id, task_type, updated_at DESC), task_type is an index condition, stops at 50, 11 buffers"
+    },
+    {
+      "name": "conversation folder page ORDER BY created_at DESC LIMIT 50, 4999 oldest of 15000 filed",
+      "before_ms": 1.123,
+      "before_plan": "Index Scan (tenant_id, user_id, created_at DESC), Filter folder_id, 10001 rows removed, 348 buffers",
+      "after_ms": 0.055,
+      "after_plan": "Index Scan (tenant_id, user_id, folder_id, created_at DESC), folder_id is an index condition, stops at 50, 5 buffers. Generic plan of folder_id = $3 uses this index"
+    },
+    {
+      "name": "conversation folder page ORDER BY title DESC LIMIT 50, 4999 oldest of 15000 filed",
+      "before_ms": 1.124,
+      "before_plan": "Index Scan Backward (tenant_id, user_id, title), Filter folder_id, 10001 rows removed, 422 buffers",
+      "after_ms": 0.029,
+      "after_plan": "Index Scan Backward (tenant_id, user_id, folder_id, title), stops at 50, 5 buffers"
+    },
+    {
+      "name": "conversation pinned page ORDER BY created_at DESC LIMIT 50, 4999 oldest of 15000 pinned",
+      "before_ms": 0.819,
+      "before_plan": "Index Scan (tenant_id, user_id, created_at DESC), Filter is_pinned, 10001 rows removed, 290 buffers",
+      "after_ms": 0.037,
+      "after_plan": "Index Scan (tenant_id, user_id, is_pinned, created_at DESC), stops at 50, 6 buffers. Generic plan of is_pinned = $3 uses this index"
+    },
+    {
+      "name": "conversation pinned page ORDER BY title DESC LIMIT 50, 4999 oldest of 15000 pinned",
+      "before_ms": 0.792,
+      "before_plan": "Index Scan Backward (tenant_id, user_id, title), Filter is_pinned, 10001 rows removed, 324 buffers",
+      "after_ms": 0.033,
+      "after_plan": "Index Scan Backward (tenant_id, user_id, is_pinned, title), stops at 50, 7 buffers"
+    },
+    {
+      "name": "conversation unfiled page ORDER BY created_at DESC LIMIT 50, 10001 newest of 15000 filed",
+      "before_ms": 1.242,
+      "before_plan": "Index Scan (tenant_id, user_id, created_at DESC), Filter folder_id IS NULL, 10001 rows removed, 343 buffers. Measured on a vacuumed copy",
+      "after_ms": 0.032,
+      "after_plan": "Index Scan (tenant_id, user_id, created_at DESC) WHERE folder_id IS NULL, stops at 50, 5 buffers. Generic plan uses the partial index"
+    },
+    {
+      "name": "conversation unfiled page ORDER BY title DESC LIMIT 50, 10001 newest of 15000 filed",
+      "before_ms": 1.128,
+      "before_plan": "Index Scan Backward (tenant_id, user_id, title), Filter folder_id IS NULL, 10001 rows removed, 488 buffers. Measured on a vacuumed copy",
+      "after_ms": 0.050,
+      "after_plan": "Index Scan Backward (tenant_id, user_id, title) WHERE folder_id IS NULL, stops at 50, 5 buffers"
+    },
+    {
+      "name": "conversation archived=false page ORDER BY created_at DESC LIMIT 50, 10001 newest archived",
+      "before_ms": 0.941,
+      "before_plan": "Index Scan (tenant_id, user_id, created_at DESC), Filter NOT is_archived, 10001 rows removed, 344 buffers",
+      "after_ms": 0.052,
+      "after_plan": "Index Scan (tenant_id, user_id, is_archived, created_at DESC), stops at 50, 5 buffers. Generic plan of is_archived = $3 uses this index"
+    },
+    {
+      "name": "conversation archived=false page ORDER BY title DESC LIMIT 50, 10001 newest archived",
+      "before_ms": 2.802,
+      "before_plan": "Index Scan Backward (tenant_id, user_id, title), Filter NOT is_archived, 10001 rows removed, 489 buffers",
+      "after_ms": 0.052,
+      "after_plan": "Index Scan Backward (tenant_id, user_id, is_archived, title), stops at 50, 5 buffers"
+    },
+    {
+      "name": "task list status=failed AND task_type=scan ORDER BY created_at DESC LIMIT 50, 40000 newer failed inserts",
+      "before_ms": 5.624,
+      "before_plan": "Index Scan (tenant_id, workspace_id, status, created_at DESC, track_id DESC), Filter task_type, 40000 rows removed, 956 buffers",
+      "after_ms": 0.068,
+      "after_plan": "Index Only Scan (tenant_id, workspace_id, status, task_type, created_at DESC, track_id DESC), stops at 50, 5 buffers. Generic plan of status = $3 AND task_type = $4 uses this index. A status-only page still uses the status index"
+    },
+    {
+      "name": "task list status=failed AND task_type=scan ORDER BY updated_at DESC LIMIT 50, 40000 newer failed inserts",
+      "before_ms": 5.402,
+      "before_plan": "Index Scan (tenant_id, workspace_id, status, updated_at DESC), Filter task_type, 40000 rows removed, 867 buffers",
+      "after_ms": 0.050,
+      "after_plan": "Index Scan (tenant_id, workspace_id, status, task_type, updated_at DESC), stops at 50, 6 buffers. Generic plan uses this index"
+    },
+    {
+      "name": "workspace chunk FTS LIMIT 20, 2000 foreign chunks share the term",
+      "before_ms": 2.437,
+      "before_plan": "Generic plan. Bitmap of every content_tsv match (2020 chunks), then 2020 document lookups that discard the other workspace, 8250 buffers. On the live table chunk workspace_id matches the document",
+      "after_ms": 1.009,
+      "after_plan": "Generic plan. BitmapAnd of idx_chunks_content_tsv and (workspace_id), heap fetch 20 chunks, 170 buffers. The scoped statement is c.workspace_id = $2 OR c.workspace_id IS NULL plus the document predicate"
+    },
+    {
+      "name": "conversation title search LIMIT 50, 10000 matches belong to another user",
+      "before_ms": 1.922,
+      "before_plan": "Generic plan. Bitmap of idx_conversations_title_fts, then filter tenant and user, 10000 rows removed, 577 buffers",
+      "after_ms": 1.259,
+      "after_plan": "Generic plan. Bitmap of idx_conversations_tenant_user_title_fts (tenant_id, user_id, title tsvector), 50 rows, 24 buffers. List SQL unchanged"
+    },
+    {
+      "name": "workspace chunk FTS LIMIT 20 scoped to one document, 2000 chunks share the term",
+      "before_ms": 2.294,
+      "before_plan": "Generic plan. Bitmap of content_tsv, then filter document_id = ANY($4), 1999 rows removed, 291 buffers",
+      "after_ms": 0.044,
+      "after_plan": "Generic plan. Bitmap of idx_chunks_document for the required array, 1 row, 8 buffers. No new index"
+    },
+    {
+      "name": "conversation title search inside one folder, 10000 title matches and 50 in the folder",
+      "before_ms": 1.159,
+      "before_plan": "Generic plan. BitmapAnd of the user title GIN (10050 index entries) and idx_conversations_folder, heap fetch 50, 26 buffers",
+      "after_ms": 0.169,
+      "after_plan": "Generic plan. Bitmap of idx_conversations_tenant_user_folder_title_fts, 50 index entries, 24 buffers. List SQL unchanged"
+    },
+    {
+      "name": "pinned conversation title search, 10000 title matches and 50 pinned",
+      "before_ms": 2.725,
+      "before_plan": "Generic plan. User title GIN bitmap, then filter is_pinned. Rows removed 9950, 464 buffers",
+      "after_ms": 0.205,
+      "after_plan": "Generic plan. Bitmap of idx_conversations_tenant_user_flags_title_fts on is_pinned, 50 rows, 24 buffers"
+    },
+    {
+      "name": "archived conversation title search, 10000 title matches and 50 archived",
+      "before_ms": 2.211,
+      "before_plan": "Generic plan. User title GIN bitmap, then filter is_archived. Rows removed 9950, 464 buffers",
+      "after_ms": 0.158,
+      "after_plan": "Generic plan. Bitmap of idx_conversations_tenant_user_flags_title_fts on is_archived, 50 rows, 25 buffers. Same index as pinned search"
+    },
+    {
+      "name": "workspace chunk search limited to chart modality, 2000 term matches and 20 chart rows",
+      "before_ms": 2.908,
+      "before_plan": "Generic plan. Content GIN bitmap of 10060 entries, then filter modality. Rows removed 1980, 621 buffers",
+      "after_ms": 0.225,
+      "after_plan": "Generic plan. Index scan of idx_chunks_modality for the required modality predicate, 20 rows, 87 buffers"
+    },
+    {
+      "name": "chunk search filtered by one legacy key, 2000 term matches",
+      "before_ms": 2.287,
+      "before_plan": "Generic plan. Content GIN bitmap of 6040 entries, then filter the id. Rows removed 1999, 392 buffers",
+      "after_ms": 0.112,
+      "after_plan": "Generic plan. Lookup of idx_chunks_legacy_chunk_key for that key, 1 row, 7 buffers. UUID ids use chunks_pkey (0.067 ms, 9 buffers). OFFSET 0 keeps the lookup from starting at the term index"
+    },
+    {
+      "name": "queue metrics for one workspace, 500 tasks there and 79500 elsewhere",
+      "before_ms": 5.162,
+      "before_plan": "Generic plan. Seq scan of tasks_history. Rows removed by filter 79500, 1549 buffers",
+      "after_ms": 0.161,
+      "after_plan": "Generic plan. Index only scan of idx_tasks_tenant_workspace_status for the required tenant and workspace, 500 rows, 14 buffers. No new index"
+    },
+    {
+      "name": "document list LIMIT 50, 79500 newer documents owned by another tenant",
+      "before_ms": 15.106,
+      "before_plan": "Generic plan after VACUUM. Index scan idx_documents_created_at, filter workspace and tenant. Rows removed 79500, 2449 buffers. The same plan returns in 0.055 ms when the caller owns the newest rows",
+      "after_ms": 0.041,
+      "after_plan": "Generic plan. Merge append of idx_documents_workspace_tenant_created and idx_documents_workspace_null_tenant_created, each stopped at LIMIT. 50 rows, 7 buffers. A page for the tenant that owns the newest rows is 0.084 ms, 12 buffers. Point lookup by id still filters one primary-key row"
+    },
+    {
+      "name": "workspace chunk search for one tenant, 200 term matches there and 39761 elsewhere",
+      "before_ms": 21.106,
+      "before_plan": "Generic plan. Content GIN bitmap of 39960 entries, then filter tenant. Rows removed 39761, 2259 buffers. The tenant that owns the term still joins every match to its document (118 ms, 160507 buffers) because the rank needs those rows",
+      "after_ms": 2.351,
+      "after_plan": "Generic plan. BitmapAnd of idx_chunks_content_tsv and idx_chunks_tenant_workspace, 199 rows, 819 buffers, no tenant rows removed. No new index. The same large-tenant search stays a rank of its own matches"
+    },
+    {
+      "name": "document status buckets, 500 rows for the caller and 79500 for another tenant",
+      "before_ms": 5.193,
+      "before_plan": "Generic plan. Seq scan. Rows removed by filter 79500, 2906 buffers. The count must read every matching row, not the other tenant",
+      "after_ms": 0.345,
+      "after_plan": "Custom plan. BitmapOr of idx_documents_tenant_workspace and the null-tenant index, 500 rows, 19 buffers. force_custom_plan, because a generic plan still seq-scans this OR. Counting the tenant that owns 79500 rows seq-scans and removes the other 480, which is the cost of that answer"
+    },
+    {
+      "name": "chunk ANN for one tenant, 200 embeddings there and 39800 elsewhere",
+      "before_ms": 1.968,
+      "before_plan": "Custom plan. Search already sets force_custom_plan. Index scan of idx_chunks_tenant_workspace, 200 rows, then chunk_embeddings_pkey. No other-tenant rows removed, 1051 buffers",
+      "after_ms": 1.968,
+      "after_plan": "No SQL change. The custom plan already starts at the tenant. The large tenant still ranks its own embeddings"
+    },
+    {
+      "name": "scoped outbox claim LIMIT 50, 79500 older events in another workspace",
+      "before_ms": 10.054,
+      "before_plan": "Generic plan. Index scan idx_outbox_events_unprocessed, filter workspace. Rows removed 79500, 1369 buffers. A drain with no workspace stops at 50 on that index (0.027 ms, 3 buffers)",
+      "after_ms": 0.042,
+      "after_plan": "Generic plan. Index scan idx_outbox_events_workspace_unprocessed, Index Cond workspace_id and available_at. 50 rows, 4 buffers. The large workspace is the same shape (0.038 ms). No workspace predicate stays on idx_outbox_events_unprocessed"
+    },
+    {
+      "name": "scoped quarantine claim LIMIT 50, 79500 older rows in another workspace",
+      "before_ms": 8.153,
+      "before_plan": "Generic plan. Parallel seq scan. Rows removed by filter 39750 per worker, 1346 buffers. A drain with no workspace also seq-scans every due row (12.133 ms) because (status, next_attempt_at) cannot order pending and failed together",
+      "after_ms": 0.037,
+      "after_plan": "Generic plan. Index scan idx_compensation_quarantine_workspace_next, 50 rows, 4 buffers. The global claim uses idx_compensation_quarantine_due and stops at 50 (0.086 ms, 103 buffers, the lock of those rows)"
+    },
+    {
+      "name": "provider connection list, 50 rows for the caller, 20 shared, and 79500 for another tenant",
+      "before_ms": 6.584,
+      "before_plan": "Generic plan. Seq scan. Rows removed by filter 79500, 1534 buffers. A list with no tenant reads every connection, which is the answer",
+      "after_ms": 0.082,
+      "after_plan": "Generic plan. Merge append of provider_connections_tenant_id_slug_key for the tenant and provider_connections_tenant_idx for tenant_id IS NULL. 70 rows, 9 buffers. No new index"
+    },
+    {
+      "name": "staging shell keyset LIMIT 50 after 79500 earlier staging documents",
+      "before_ms": 6.398,
+      "before_plan": "Generic plan. Index only scan of idx_documents_staging_shell, then filter the optional cursor. Rows removed 79501, 409 buffers. ORDER BY id named the text output, so the index order could not stop the page",
+      "after_ms": 0.098,
+      "after_plan": "Generic plan. Index scan of idx_documents_staging_shell with Index Cond id > cursor, ordered by documents.id. 50 rows, 53 buffers. The first page with no cursor stops at 50 (0.096 ms, 28 buffers). No new index"
+    },
+    {
+      "name": "document revision page LIMIT 50 after 79500 earlier logical ids",
+      "before_ms": 11.54,
+      "before_plan": "Generic plan. Index only scan of object_revisions_pkey, then filter the optional cursor. Rows removed 79501, 1344 buffers. The first page with no cursor already stops at 50",
+      "after_ms": 0.138,
+      "after_plan": "Generic plan. Index only scan of object_revisions_pkey with Index Cond logical_id > cursor. 50 rows, 156 buffers. No new index"
+    },
+    {
+      "name": "scoped projection claim LIMIT 50, 79500 older deliveries for another provider",
+      "before_ms": 8.25,
+      "before_plan": "Generic plan. Index only scan of idx_projection_deliveries_due, then filter the provider. Rows removed 79500, 573 buffers. A claim with no provider stops at 50 on that index (0.037 ms, 4 buffers)",
+      "after_ms": 0.178,
+      "after_plan": "Generic plan. Nested loop from the binding into idx_projection_deliveries_binding_due. 50 rows, 7 buffers. The unscoped claim stays on idx_projection_deliveries_due"
+    },
+    {
+      "name": "fair pending sample LIMIT 50, 79950 older tasks held and 50 unheld",
+      "before_ms": 14.492,
+      "before_plan": "Generic plan. Index scan tasks_history_created_at_idx, filter the hold OR. Rows removed 79949, 2075 buffers",
+      "after_ms": 0.128,
+      "after_plan": "Generic plan. Merge append. Unheld arm is an index scan of idx_tasks_pending_unheld_created and stops at 50. Due-hold arm uses idx_tasks_fairness_hold_until and returns 0. 6 buffers, no held rows removed"
+    },
+    {
+      "name": "fair pending workspace claim LIMIT 1, same 79950 held rows",
+      "before_ms": 12.184,
+      "before_plan": "Generic plan. Index scan tasks_history_created_at_idx, filter workspace and the hold OR. Rows removed 79949, 2075 buffers",
+      "after_ms": 0.101,
+      "after_plan": "Generic plan. Lateral index scan of idx_tasks_pending_unheld_workspace, Index Cond workspace_id, stops at 1. Due-hold arm uses idx_tasks_fairness_hold_until and returns 0. 7 buffers. The at_cap join reads the claimable rows in that workspace (50) and does not visit the held rows"
+    },
+    {
+      "name": "fair stale sample LIMIT 50, 79950 future leases and 50 expired",
+      "before_ms": 23.737,
+      "before_plan": "Generic plan. Index scan backward idx_tasks_created, filter the lease OR and the hold OR. Rows removed 79950, 160064 buffers",
+      "after_ms": 0.211,
+      "after_plan": "Generic plan. Expired unheld arm is an index only scan of idx_tasks_processing_expired_unheld, Index Cond lease_expires_at < now(), 50 rows, 5 buffers. Null-lease arm uses idx_tasks_processing_unleased_created and returns 0. Future leases are not visited"
+    },
+    {
+      "name": "chunk ANN filtered by one id, 40000 embeddings",
+      "before_ms": 12.264,
+      "before_plan": "Custom plan. Search sets force_custom_plan. Parallel seq scan of chunks, filter id::text = ANY OR legacy key. Rows removed 20000 per worker, 2765 buffers",
+      "after_ms": 0.078,
+      "after_plan": "Custom plan. Index only scan of chunks_pkey for that id, then chunk_embeddings_pkey. 1 row, 13 buffers. A legacy key uses idx_chunks_legacy_chunk_key (0.051 ms, 6 buffers). No new index"
+    },
+    {
+      "name": "chunk ANN for one document, 40000 embeddings and 1 chunk in that document",
+      "before_ms": 7.995,
+      "before_plan": "Generic plan. Parallel seq scan, filter the optional document predicate. Rows removed 20000 per worker, 2760 buffers. The request path sets force_custom_plan, which already starts at idx_chunks_document (0.147 ms, 11 buffers)",
+      "after_ms": 0.177,
+      "after_plan": "Generic plan. Bitmap index scan of idx_chunks_document, 1 row, 12 buffers. The custom plan stays on that index (0.032 ms). No new index"
+    },
+    {
+      "name": "chunk ANN limited to chart modality, 20 chart rows and 39980 others",
+      "before_ms": 7.995,
+      "before_plan": "Generic plan. Same optional statement as the document filter: parallel seq scan, 20000 rows removed per worker, 2760 buffers. The custom plan already uses idx_chunks_modality (0.186 ms, 82 buffers)",
+      "after_ms": 0.478,
+      "after_plan": "Generic plan. Index scan of idx_chunks_modality, 20 rows, 85 buffers. No new index"
+    },
+    {
+      "name": "entity ANN filtered by one id, 40000 embeddings",
+      "before_ms": 9.778,
+      "before_plan": "Custom plan. Parallel seq scan of entities, filter id::text = ANY OR entity:name. Rows removed 20000 per worker, 1494 buffers",
+      "after_ms": 0.076,
+      "after_plan": "Custom plan. Index only scan of entities_pkey, then entity_embeddings_pkey. 1 row, 10 buffers. A legacy entity:name uses idx_entities_name (0.061 ms, 8 buffers). No new index"
+    },
+    {
+      "name": "entity ANN for one document, 20 entities carry it and 39980 do not",
+      "before_ms": 7.363,
+      "before_plan": "Generic plan. Parallel seq scan, filter the optional source_ids overlap. Rows removed 19990 per worker, 1721 buffers. Requiring the predicate without an index still seq-scans (6.850 ms)",
+      "after_ms": 0.279,
+      "after_plan": "Generic plan. Bitmap index scan of idx_entities_source_ids, 20 rows, 83 buffers. Custom plan is 0.103 ms on the same index"
+    },
+    {
+      "name": "relationship ANN filtered by one id, 40000 embeddings",
+      "before_ms": 27.276,
+      "before_plan": "Custom plan. Seq scan of relationships, join filter id::text = ANY OR source->target:type. Rows removed 39999, 2258 buffers",
+      "after_ms": 0.234,
+      "after_plan": "Custom plan. Index only scan of relationships_pkey, then relationship_embeddings_pkey. 1 row. A legacy source->target:type uses idx_entities_name and idx_relationships_source (0.202 ms, 20 edges of that source). No new index"
+    },
+    {
+      "name": "relationship ANN for one document, 20 relationships cite its chunk and 39980 do not",
+      "before_ms": 6.57,
+      "before_plan": "Generic plan. Seq scan of relationships, filter the optional source_chunk_ids overlap. Rows removed 39980, 2282 buffers",
+      "after_ms": 1.018,
+      "after_plan": "Generic plan. Bitmap index scan of idx_relationships_source_chunk_ids, 20 rows, 149 buffers. The chunk ids stay an uncorrelated InitPlan. No new index"
+    },
+    {
+      "name": "report ANN filtered by one id, 40000 embeddings",
+      "before_ms": 0.72,
+      "before_plan": "Generic plan. Index scan of idx_report_embeddings_hnsw_d768, then filter report_id. Rows removed 391, 306 buffers. The same plan returned no row for an id that exists when that id was not among the visited neighbors (0.711 ms). Custom plan for a visited id already used report_embeddings_pkey (0.078 ms)",
+      "after_ms": 0.069,
+      "after_plan": "Generic plan. Index scan of report_embeddings_pkey, Index Cond model_id and report_id = ANY. 1 row, 4 buffers. The id the HNSW filter missed is found the same way (0.133 ms). No new index"
+    },
+    {
+      "name": "chat history of a 20004-message conversation, keep the newest 64",
+      "before_ms": 2.362,
+      "before_plan": "Generic plan. Index scan of idx_messages_conversation forward, LIMIT 10000. 10000 rows, 229 buffers. Those are the oldest 10000, so the 64 kept from the end of that page are not the newest messages",
+      "after_ms": 0.047,
+      "after_plan": "Generic plan. Index scan backward of idx_messages_conversation, LIMIT 64, then sort those 64 ascending. 64 rows, 5 buffers. No new index"
+    },
+    {
+      "name": "conversation list page after 14980 newer rows, 15000 conversations for one user and two updated_at values",
+      "before_ms": 2.878,
+      "before_plan": "Generic plan. Index scan of idx_conversations_tenant_user, Index Cond updated_at <= cursor, then filter the id tie-break. Rows removed 14980, 310 buffers. The same ORDER BY on the first page reads all 15000 (3.568 ms, 318 buffers) because updated_at is not unique. OFFSET 14980 with that ORDER BY is 11.711 ms, 318 buffers. ORDER BY updated_at alone stops the first page at 20 (0.071 ms, 6 buffers) and does not order the ties",
+      "after_ms": 0.051,
+      "after_plan": "Generic plan. Index only scan of idx_conversations_tenant_user_updated_id, Index Cond the row comparison, 19 rows, 4 buffers. The first page stops at 20 (0.029 ms, 4 buffers). An unfiled page uses idx_conversations_tenant_user_unfiled_updated_id the same way (0.031 ms, 4 buffers). A decimal cursor still uses OFFSET. Migration 196"
+    },
+    {
+      "name": "message list page after 15000 older messages, 20004 in one conversation",
+      "before_ms": 2.577,
+      "before_plan": "Generic plan. Index scan of idx_messages_conversation, then OFFSET 15000. 15050 rows, 341 buffers. A keyset on that index stops when created_at is unique (0.106 ms, 5 buffers, 1 row filtered)",
+      "after_ms": 0.042,
+      "after_plan": "Generic plan. Index only scan of idx_messages_conversation_created_id, Index Cond the row comparison, 50 rows, 5 buffers. The first page stops at 50 (0.025 ms, 4 buffers). A decimal cursor still uses OFFSET. Migration 196"
+    },
+    {
+      "name": "pdf list page after 14950 newer rows, 15000 PDFs in one workspace",
+      "before_ms": 4.036,
+      "before_plan": "Generic plan. Index scan of idx_pdf_documents_workspace_created, Index Cond workspace_id, then OFFSET 14950. 15000 rows, 825 buffers. A status page at OFFSET 14000 reads 14050 rows and removes 586 (3.872 ms, 806 buffers). A keyset that only compares the row, with 20000 foreign PDFs just older than the cursor, uses idx_pdf_documents_created and removes 19999 (6.655 ms, 40247 buffers)",
+      "after_ms": 0.086,
+      "after_plan": "Generic plan. Index scan of idx_pdf_documents_created, Index Cond created_at <= cursor, 49 rows, 1 removed, 6 buffers. The same predicate on the foreign set uses idx_pdf_documents_workspace_created_id and stops at 50 (0.029 ms, 7 buffers). A status keyset uses idx_pdf_documents_workspace_status_created_id (0.047 ms, 4 buffers). The first page stops at 20 (0.033 ms, 3 buffers). An unscoped keyset uses idx_pdf_documents_created_id (0.030 ms, 3 buffers). A page number still uses OFFSET. Migration 197"
+    },
+    {
+      "name": "document lineage for a missing document, 80000 chunk_entity_links",
+      "before_ms": 5.947,
+      "before_plan": "Generic plan. Seq scan of chunk_entity_links, filter chunk_id LIKE prefix and workspace. Rows removed 80000, 988 buffers. A custom plan of the same LIKE uses idx_cel_ws_chunk_pat and stops (2.889 ms cold, 3 buffers)",
+      "after_ms": 0.014,
+      "after_plan": "Generic plan. Index only scan of chunk_entity_links_pkey, Index Cond chunk_id >= prefix and chunk_id < successor and workspace_id. 0 rows, 3 buffers. A document that owns every link still reads those rows. No new index"
+    },
+    {
+      "name": "entity ANN limited to chart modality, 20 chart rows and 39980 text rows",
+      "before_ms": 8.383,
+      "before_plan": "Generic plan. Seq scan of entities, filter the optional modality predicate. Rows removed 39980, 2503 buffers. The first cold run of that statement was 13.999 ms with 1181 buffer reads. Requiring the predicate without an index is the same scan",
+      "after_ms": 0.634,
+      "after_plan": "Generic plan. Index scan of idx_entities_modality, Index Cond modality = ANY, 20 rows, 83 buffers. A workspace bind stays optional and does not change that start. Migration 198"
+    },
+    {
+      "name": "shared entities for two names, 80000 chunk_entity_links and 800 links each",
+      "before_ms": 1.859,
+      "before_plan": "Generic plan. Bitmap heap scan of idx_cel_entity_workspace, 1600 rows, 817 buffers. The count needs chunk_id, so every match is fetched from the heap. The first cold run was 32.793 ms with 810 buffer reads",
+      "after_ms": 0.763,
+      "after_plan": "Generic plan. Index only scan of idx_cel_entity_workspace_chunk, 1600 rows, 26 buffers, 0 heap fetches. Migration 199"
+    },
+    {
+      "name": "shared entities for every name on one document, 80000 chunk_entity_links and 100 names",
+      "before_ms": 50.525,
+      "before_plan": "Generic plan. Bitmap heap scan of idx_cel_entity_workspace, 80000 rows, 1188 buffers, 988 heap blocks. COUNT DISTINCT still sorts those rows. The rows are every link for the names the document page just loaded",
+      "after_ms": 32.946,
+      "after_plan": "Generic plan. Index only scan of idx_cel_entity_workspace_chunk, 80000 rows, 1101 buffers, 0 heap fetches, then an incremental sort. Migration 199. The document's own array_agg is already an index-only scan of chunk_entity_links_pkey (98.715 ms warm) because those 80000 links are the answer"
+    },
+    {
+      "name": "workspace membership page of 2001 ids, 80000 documents in that workspace",
+      "before_ms": 10.596,
+      "before_plan": "Generic plan. Seq scan, workspace_id = $1 OR metadata workspace, 80000 rows, 3091 buffers. The list then keeps 2000 ids in memory",
+      "after_ms": 0.746,
+      "after_plan": "Custom plan. Index scan of idx_documents_created_at stops at 2001 because those newest rows are the workspace, 81 buffers, 0 removed. Each arm is an equality and LIMIT $3"
+    },
+    {
+      "name": "workspace membership page of 2001 ids, 40000 newer documents in another workspace",
+      "before_ms": 13.241,
+      "before_plan": "Generic plan. Seq scan of the OR removes 40000 foreign rows, 3091 buffers, then returns all 80000 matches",
+      "after_ms": 0.718,
+      "after_plan": "Index scan of idx_documents_workspace_created, Index Cond workspace_id, stops at 2001, 85 buffers. The metadata arm is idx_documents_metadata_workspace_expr and returns 0"
+    },
+    {
+      "name": "workspace membership for an empty workspace, 80000 documents elsewhere",
+      "before_ms": 4.817,
+      "before_plan": "Generic plan. Seq scan of workspace_id = $1 removes 80000 rows, 3091 buffers. The same OR is the membership statement",
+      "after_ms": 0.01,
+      "after_plan": "Custom plan. Index scan of idx_documents_workspace_created and idx_documents_metadata_workspace_expr, 0 rows, 6 buffers. A bounded miss of the page statement is 0.029 ms"
+    },
+    {
+      "name": "document list status=failed LIMIT 50, 50 oldest failed and 79950 newer indexed rows",
+      "before_ms": 8.523,
+      "before_plan": "Generic plan. Index scan of idx_documents_created_at, filter workspace and status. Rows removed 79950, 2558 buffers. The first run was 35.847 ms with 701 buffer reads. The list without the predicate reads the newest 2001 indexed rows in 0.457 ms and then drops them, so those 50 failed documents never appear",
+      "after_ms": 0.021,
+      "after_plan": "Generic plan. Index only scan of idx_documents_workspace_status_created, Index Cond workspace_id and status, stops at 50, 14 buffers. Migration 200. The tenant arm is idx_documents_workspace_tenant_status_created, 0.043 ms, 14 buffers"
+    },
+    {
+      "name": "document list pending chip LIMIT 50, 50 oldest current_stage=queued and 79950 newer indexed rows",
+      "before_ms": 12.595,
+      "before_plan": "Generic plan. Index scan of idx_documents_created_at with status IN ('pending','queued') OR current_stage = 'queued'. Rows removed 79950, 2558 buffers. The newest 2001 rows include 0 of those queued-stage documents, so the open page drops them. current_stage = ANY($stages) is the same walk: 9.287 ms, 80000 removed",
+      "after_ms": 0.055,
+      "after_plan": "Generic plan. Merge append of one equality per arm. The stage arm is an index scan of idx_documents_workspace_stage_created and stops at 50, 11 buffers. Status arms return 0. Full union 17 buffers, 50 rows. Migration 201. Tenant union 0.048 ms, 25 buffers, on idx_documents_workspace_tenant_stage_created. A common status = 'pending' page is an index-only scan of idx_documents_workspace_status_created and stops at 50 (0.037 ms)"
+    },
+    {
+      "name": "document title search LIMIT 50, 50 oldest uniquezephyr titles and 79950 newer rows",
+      "before_ms": 38.139,
+      "before_plan": "Generic plan. Index scan of idx_documents_created_at, filter lower(title) LIKE. Rows removed 79950, 2557 buffers. The newest 2001 rows include 0 of those titles, so the scope picker drops them. A generic plan of the trigram index reads every title when the letter matches all 80000 rows (46.237 ms)",
+      "after_ms": 0.168,
+      "after_plan": "Custom plan. Tenant union. Bitmap index scan of idx_documents_title_trgm stops at 50, 17 buffers. Migration 202. A one-letter query that matches every title stays on idx_documents_created_at and stops at 50 (0.104 ms, 21 buffers). A miss is 0.009 ms"
+    },
+    {
+      "name": "document list date_to LIMIT 50, 50 oldest rows at or before 2026-10-10 15:53:36.736335+00 and 79950 newer rows",
+      "before_ms": 15.294,
+      "before_plan": "Generic plan. Index scan of idx_documents_created_at, filter ($2 IS NULL OR created_at <= $2) and workspace. Rows removed 79950, 2500 buffers. The open page of the newest 2001 rows includes 0 of those old documents, so the in-memory date filter drops the page",
+      "after_ms": 0.022,
+      "after_plan": "Generic plan. Index scan of idx_documents_created_at, Index Cond created_at <= $2, filter workspace, stops at 50, 15 buffers. No new index. With 40000 newer rows moved to another workspace the plan uses idx_documents_workspace_created, Index Cond workspace_id and created_at <= $2, 0.038 ms, 15 buffers. A from-and-to range is the same index condition and stops at 50 (0.026 ms, 15 buffers)"
+    },
+    {
+      "name": "document list title pattern LIMIT 50, 50 oldest uniquezephyr titles and 79950 newer rows",
+      "before_ms": 32.087,
+      "before_plan": "Generic plan without the trigram index. Index scan of idx_documents_created_at, filter lower(title) LIKE. Rows removed 79950, 2558 buffers. The newest 2001 rows include 0 of those titles (open page 0.663 ms, 78 buffers). A generic plan that always starts at idx_documents_title_trgm reads all 80000 titles when the letter matches every row (42.622 ms, 1511 buffers)",
+      "after_ms": 0.067,
+      "after_plan": "Custom plan. Bitmap index scan of idx_documents_title_trgm stops at 50, 23 buffers. Migration 202, no new index. A one-letter query stays on idx_documents_created_at and stops at 50 (0.033 ms, 18 buffers)"
+    },
+    {
+      "name": "query document filter date_to, 50 oldest ids and 79950 newer rows",
+      "before_ms": 37.104,
+      "before_plan": "Custom plan of the open membership UNION. Seq scan of workspace_id returns all 80000 ids, 3094 buffers. The query filter then drops dates in memory",
+      "after_ms": 0.056,
+      "after_plan": "Custom plan. Index scan of idx_documents_created_at, Index Cond created_at <= $3, plus idx_documents_metadata_workspace_expr, 50 rows, 18 buffers. No new index. A generic plan of the same statement is 0.319 ms and also stops at 50"
+    },
+    {
+      "name": "workspace chunk FTS LIMIT 50, term common matches 39960 of 40000 chunks",
+      "before_ms": 117.887,
+      "before_plan": "Generic plan with idx_chunks_workspace present. Bitmap of idx_chunks_content_tsv, then a document primary-key lookup for every hit (39960 loops, 161286 buffers) before LIMIT 50. A 20-row term stays on the content GIN (0.149 ms, 87 buffers)",
+      "after_ms": 18.523,
+      "after_plan": "Custom plan of the same statement. Parallel scan scores the matching chunks, then the document join stops at 50 (200 buffers). The 20-row term stays on idx_chunks_content_tsv (0.094 ms, 87 buffers). No new index. Id-filtered FTS still starts at chunks_pkey; workspace and document are required on that statement when the caller passes them"
+    },
+    {
+      "name": "conversation title search LIMIT 50, term medical matches 14940 of one user's 15000 conversations",
+      "before_ms": 4.114,
+      "before_plan": "Generic plan with idx_conversations_tenant_user_title_fts. Bitmap of that GIN returns 14940 rows, 312 buffers, then top-N sort. The index was created inside the measurement transaction because the study schema is at 170 and migration 186 is the product index",
+      "after_ms": 0.161,
+      "after_plan": "Custom plan. Index scan of idx_conversations_tenant_user_updated_id stops at 50, 53 buffers. A rare title uniquezephyr uses idx_conversations_tenant_user_title_fts and returns the matches in 0.214 ms, 82 buffers. No new index"
+    },
+    {
+      "name": "chunk FTS search_chunks_fts LIMIT 50, term common matches 39960 of 40000 chunks in the passed workspace",
+      "before_ms": 93.346,
+      "before_plan": "Generic plan with idx_chunks_workspace present. Bitmap of idx_chunks_content_tsv, then a document primary-key lookup for every hit (39960 loops, 161286 buffers) because ($2 IS NULL OR d.workspace_id = $2) is a filter. The first run was 253.508 ms. Requiring the predicate on a generic plan is still 93.532 ms and the same 39960 lookups",
+      "after_ms": 13.693,
+      "after_plan": "Custom plan. Parallel scan scores the matching chunks (20 rows removed by the workspace predicate), then the document join stops at 50 (200 buffers, 2991 shared hits). No new index. The unscoped call has no workspace, so it does not join documents and does not keep an IS NULL predicate"
+    },
+    {
+      "name": "document list status=unknown LIMIT 50, 50 oldest deleting rows and 79950 newer indexed rows",
+      "before_ms": 9.568,
+      "before_plan": "Generic plan. Parallel seq scan, filter status <> ALL of the known statuses. Rows removed 26650 per worker, 3189 buffers, 50 deleting rows. The first run was 10.566 ms. The open page on idx_documents_created_at returns the 50 newest indexed rows in 0.022 ms and then the handler drops them, so those deleting documents never appear",
+      "after_ms": 0.052,
+      "after_plan": "Generic plan. Merge append of one status equality per complement value. The deleting arm is an index-only scan of idx_documents_workspace_status_created and stops at 50, 14 buffers. Empty arms return 0 in 3 buffers each. Full union 29 buffers, 50 rows. The first run was 0.092 ms. No new index: migration 200. The column is NOT NULL, so there is no SQL NULL arm. all stays on the open page"
+    }
+  ]
+}

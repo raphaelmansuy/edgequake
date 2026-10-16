@@ -14,6 +14,7 @@
 
 use uuid::Uuid;
 
+use edgequake_storage::conversation_storage::ListWindow;
 use edgequake_storage::{PostgresConfig, PostgresConversationStorage};
 
 #[path = "support/postgres_test_config.rs"]
@@ -55,6 +56,114 @@ fn create_test_ids() -> (Uuid, Uuid, Option<Uuid>) {
 // ============================================================================
 // Conversation CRUD Tests
 // ============================================================================
+
+#[tokio::test]
+async fn title_search_returns_only_the_matching_conversation() {
+    let config = require_postgres!();
+    let pool = create_test_pool(&config).await;
+    let tenant_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let slug = format!("ts{}", &tenant_id.simple().to_string()[..10]);
+
+    sqlx::query("INSERT INTO tenants (tenant_id, name, slug) VALUES ($1, 'Title Search', $2)")
+        .bind(tenant_id)
+        .bind(&slug)
+        .execute(&pool)
+        .await
+        .expect("insert tenant");
+    let user_result = sqlx::query(
+        "INSERT INTO users (user_id, tenant_id, email, username) VALUES ($1, $2, $3, $4)",
+    )
+    .bind(user_id)
+    .bind(tenant_id)
+    .bind(format!("{slug}@example.com"))
+    .bind(&slug)
+    .execute(&pool)
+    .await;
+    if let Err(error) = user_result {
+        let _ = sqlx::query("DELETE FROM tenants WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .execute(&pool)
+            .await;
+        panic!("insert user: {error}");
+    }
+
+    let storage = PostgresConversationStorage::new(pool.clone());
+    let pinned = storage
+        .create_conversation(
+            tenant_id,
+            user_id,
+            None,
+            "Pinned Conversation".to_string(),
+            "hybrid".to_string(),
+            None,
+        )
+        .await
+        .expect("create pinned conversation");
+    storage
+        .create_conversation(
+            tenant_id,
+            user_id,
+            None,
+            "Active Conversation".to_string(),
+            "hybrid".to_string(),
+            None,
+        )
+        .await
+        .expect("create active conversation");
+
+    let (matched, matched_total) = storage
+        .list_conversations(
+            tenant_id,
+            user_id,
+            None,
+            None,
+            None,
+            None,
+            Some("Pinned"),
+            "updated_at",
+            true,
+            10,
+            ListWindow::Offset(0),
+        )
+        .await
+        .expect("search titles");
+    let (missed, missed_total) = storage
+        .list_conversations(
+            tenant_id,
+            user_id,
+            None,
+            None,
+            None,
+            None,
+            Some("nomatchzephyr"),
+            "updated_at",
+            true,
+            10,
+            ListWindow::Offset(0),
+        )
+        .await
+        .expect("search a missing title");
+
+    let _ = sqlx::query("DELETE FROM conversations WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(&pool)
+        .await;
+    let _ = sqlx::query("DELETE FROM users WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&pool)
+        .await;
+    let _ = sqlx::query("DELETE FROM tenants WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(&pool)
+        .await;
+
+    assert_eq!(matched_total, 1);
+    assert_eq!(matched.len(), 1);
+    assert_eq!(matched[0].conversation_id, pinned.conversation_id);
+    assert_eq!(missed_total, 0);
+    assert!(missed.is_empty());
+}
 
 #[tokio::test]
 async fn test_create_conversation() {
@@ -160,7 +269,9 @@ async fn test_list_messages_empty() {
     let storage = PostgresConversationStorage::new(pool);
 
     // List messages for non-existent conversation
-    let result = storage.list_messages(Uuid::new_v4(), 10, 0).await;
+    let result = storage
+        .list_messages(Uuid::new_v4(), 10, ListWindow::Offset(0))
+        .await;
     assert!(result.is_ok());
     let (messages, total) = result.unwrap();
     assert!(messages.is_empty());
@@ -379,6 +490,95 @@ mod full_workflow_tests {
     }
 
     #[tokio::test]
+    async fn test_list_recent_messages_returns_the_newest_page() {
+        let config = require_postgres!();
+        let pool = create_test_pool(&config).await;
+        let Some((tenant_id, user_id, workspace_id)) = setup_test_fixtures(&pool).await else {
+            eprintln!("Skipping recent-message test: could not create fixtures");
+            return;
+        };
+        let storage = PostgresConversationStorage::new(pool.clone());
+        let conv = storage
+            .create_conversation(
+                tenant_id,
+                user_id,
+                Some(workspace_id),
+                "Recent tail".to_string(),
+                "hybrid".to_string(),
+                None,
+            )
+            .await
+            .expect("conversation");
+        let mut ids = Vec::new();
+        for i in 0..5 {
+            let msg = storage
+                .create_message(
+                    conv.conversation_id,
+                    None,
+                    "user",
+                    &format!("m{i}"),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    false,
+                )
+                .await
+                .expect("message");
+            sqlx::query("UPDATE messages SET created_at = $2 WHERE message_id = $1")
+                .bind(msg.message_id)
+                .bind(
+                    chrono::DateTime::parse_from_rfc3339(&format!("2026-01-0{}T00:00:00Z", i + 1))
+                        .unwrap(),
+                )
+                .execute(&pool)
+                .await
+                .expect("stamp created_at");
+            ids.push(msg.message_id);
+        }
+
+        let recent = storage
+            .list_recent_messages(conv.conversation_id, 2)
+            .await
+            .expect("recent");
+        assert_eq!(recent.len(), 2);
+        assert_eq!(recent[0].message_id, ids[3]);
+        assert_eq!(recent[1].message_id, ids[4]);
+
+        let (oldest, total) = storage
+            .list_messages(conv.conversation_id, 2, ListWindow::Offset(0))
+            .await
+            .expect("oldest page");
+        assert_eq!(total, 5);
+        assert_eq!(oldest[0].message_id, ids[0]);
+        assert_eq!(oldest[1].message_id, ids[1]);
+
+        let (keyed, keyed_total) = storage
+            .list_messages(
+                conv.conversation_id,
+                2,
+                ListWindow::AfterTime {
+                    at: oldest[1].created_at,
+                    id: oldest[1].message_id,
+                },
+            )
+            .await
+            .expect("keyset page");
+        assert_eq!(keyed_total, 5);
+        assert_eq!(keyed.len(), 2);
+        assert_eq!(keyed[0].message_id, ids[2]);
+        assert_eq!(keyed[1].message_id, ids[3]);
+
+        sqlx::query("DELETE FROM messages WHERE conversation_id = $1")
+            .bind(conv.conversation_id)
+            .execute(&pool)
+            .await
+            .expect("delete messages");
+        cleanup_fixtures(&pool, tenant_id).await;
+    }
+
+    #[tokio::test]
     async fn test_full_conversation_workflow() {
         let config = require_postgres!();
         let pool = create_test_pool(&config).await;
@@ -472,7 +672,7 @@ mod full_workflow_tests {
 
         // 5. List messages
         let (messages, total) = storage
-            .list_messages(conv_id, 10, 0)
+            .list_messages(conv_id, 10, ListWindow::Offset(0))
             .await
             .expect("Failed to list messages");
         assert_eq!(total, 2);
@@ -526,7 +726,7 @@ mod full_workflow_tests {
             .expect("Failed to delete message");
 
         let (messages_after, total_after) = storage
-            .list_messages(conv_id, 10, 0)
+            .list_messages(conv_id, 10, ListWindow::Offset(0))
             .await
             .expect("Failed to list after delete");
         assert_eq!(messages_after.len(), 1);
@@ -814,7 +1014,7 @@ mod full_workflow_tests {
                 "updated_at",
                 true,
                 10,
-                0,
+                ListWindow::Offset(0),
             )
             .await
             .expect("Failed to list");
@@ -834,7 +1034,7 @@ mod full_workflow_tests {
                 "updated_at",
                 true,
                 10,
-                0,
+                ListWindow::Offset(0),
             )
             .await
             .expect("Failed to list pinned");
@@ -854,12 +1054,50 @@ mod full_workflow_tests {
                 "updated_at",
                 true,
                 10,
-                0,
+                ListWindow::Offset(0),
             )
             .await
             .expect("Failed to list archived");
         assert_eq!(archived_total, 1);
         assert_eq!(archived[0].title, "Archived Conversation");
+
+        let (matched, matched_total) = storage
+            .list_conversations(
+                tenant_id,
+                user_id,
+                None,
+                None,
+                None,
+                None,
+                Some("Pinned"),
+                "updated_at",
+                true,
+                10,
+                ListWindow::Offset(0),
+            )
+            .await
+            .expect("Failed to search titles");
+        assert_eq!(matched_total, 1);
+        assert_eq!(matched[0].title, "Pinned Conversation");
+
+        let (missed, missed_total) = storage
+            .list_conversations(
+                tenant_id,
+                user_id,
+                None,
+                None,
+                None,
+                None,
+                Some("nomatchzephyr"),
+                "updated_at",
+                true,
+                10,
+                ListWindow::Offset(0),
+            )
+            .await
+            .expect("Failed to search a missing title");
+        assert_eq!(missed_total, 0);
+        assert!(missed.is_empty());
 
         // Cleanup
         let _ = storage

@@ -1,0 +1,82 @@
+{
+  "database": "spec164bench",
+  "namespace": "spec164_age",
+  "scale": {"nodes": 200000, "edges": 499998},
+  "postgres": "16.15",
+  "note": "EXPLAIN (ANALYZE, BUFFERS) on the plain graph. Times are execution time in ms. A plan is acceptable when a top-k, a miss, or a keyset page does not read the rest of the table.",
+  "queries": [
+    {
+      "name": "scan_edges_after late cursor",
+      "before_ms": 137.016,
+      "before_plan": "Index Only Scan pkey + filter, 466665 rows removed",
+      "after_ms": 0.068,
+      "after_plan": "Index Only Scan pkey, row comparison Index Cond, InitPlan split_part"
+    },
+    {
+      "name": "find_edge_by_relationship_id miss",
+      "before_ms": 272.349,
+      "before_plan": "Seq Scan, 499998 rows removed",
+      "after_ms": 0.019,
+      "after_plan": "BitmapOr of idx_eq_graph_edges_prop_id and idx_eq_graph_edges_pair_key"
+    },
+    {
+      "name": "list_nodes entity_type miss",
+      "before_ms": 239.137,
+      "before_plan": "Index Scan pkey, filter UPPER(COALESCE), 200000 rows removed",
+      "after_ms": 0.034,
+      "after_plan": "Index Scan idx_eq_graph_nodes_type_upper, Index Cond upper(entity_type)"
+    },
+    {
+      "name": "list_edges rel_type miss",
+      "before_ms": 28.674,
+      "before_plan": "Parallel Seq Scan, 499998 rows removed",
+      "after_ms": 0.052,
+      "after_plan": "Index Only Scan idx_eq_graph_edges_rel"
+    },
+    {
+      "name": "list_edges rel_type page",
+      "before_ms": null,
+      "after_ms": 0.065,
+      "after_plan": "Index Only Scan idx_eq_graph_edges_rel LIMIT 50"
+    },
+    {
+      "name": "popular_labels",
+      "before_ms": 156.502,
+      "before_plan": "Parallel Seq Scan + hash aggregate, 12494 heap blocks",
+      "after_ms": 15.479,
+      "after_plan": "Parallel Index Only Scan idx_eq_graph_nodes_ws_type"
+    },
+    {
+      "name": "distinct entity types",
+      "before_ms": 82.818,
+      "before_plan": "Seq Scan + external merge sort",
+      "after_ms": 30.867,
+      "after_plan": "Index Only Scan idx_eq_graph_nodes_ws_type Group"
+    },
+    {
+      "name": "nodes_with_degrees 8 ids",
+      "before_ms": 2.746,
+      "before_plan": "BitmapOr join, heap fetch of incident edges",
+      "after_ms": 0.094,
+      "after_plan": "two Index Only Scan counts per id"
+    },
+    {
+      "name": "list_nodes page 0",
+      "before_ms": 0.050,
+      "after_ms": 0.050,
+      "after_plan": "Index Only Scan pkey LIMIT 50, already bounded"
+    },
+    {
+      "name": "list_nodes offset 100000",
+      "before_ms": 105.792,
+      "after_ms": 105.792,
+      "after_plan": "OFFSET must visit skipped keys. scan_nodes_after is the O(k) page."
+    },
+    {
+      "name": "list_nodes count",
+      "before_ms": 9.756,
+      "after_ms": 9.756,
+      "after_plan": "Parallel Index Only Scan idx_eq_graph_nodes_tenant_ws. Exact count reads the namespace."
+    }
+  ]
+}

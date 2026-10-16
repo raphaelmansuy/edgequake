@@ -633,6 +633,7 @@ pub async fn delete_workspace(
                     processing_status: None,
                     page: Some(1),
                     page_size: Some(10_000),
+                    ..Default::default()
                 };
 
                 if let Ok(pdf_list) = pdf_storage.list_pdfs(filter).await {

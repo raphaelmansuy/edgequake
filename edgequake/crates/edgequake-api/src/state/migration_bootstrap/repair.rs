@@ -49,7 +49,7 @@ pub(crate) async fn repair_known_production_fossils(pool: &PgPool) -> Result<usi
         };
         let current_hex = hex::encode(&*mig.checksum);
         let stored: Option<String> = sqlx::query_scalar(
-            "SELECT encode(checksum, 'hex') FROM _sqlx_migrations \
+            "SELECT encode(checksum, 'hex') FROM public._sqlx_migrations \
              WHERE version = $1 AND success = true",
         )
         .bind(entry.version)
@@ -68,7 +68,7 @@ pub(crate) async fn repair_known_production_fossils(pool: &PgPool) -> Result<usi
             continue;
         }
         sqlx::query(
-            "UPDATE _sqlx_migrations SET checksum = decode($1, 'hex') \
+            "UPDATE public._sqlx_migrations SET checksum = decode($1, 'hex') \
              WHERE version = $2 AND success = true \
                AND encode(checksum, 'hex') = $3",
         )

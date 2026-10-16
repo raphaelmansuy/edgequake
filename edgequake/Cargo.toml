@@ -55,6 +55,11 @@ required-features = []
 name = "spec115_mistral_ingest"
 path = "examples/spec115_mistral_ingest.rs"
 
+[[example]]
+name = "upgrade_visibility"
+path = "examples/upgrade_visibility.rs"
+required-features = ["postgres"]
+
 [features]
 default = ["postgres", "vision", "otel"]
 otel = ["edgequake-observability/otel", "edgequake-api/otel"]
@@ -115,7 +120,7 @@ name = "graphrag_bench"
 harness = false
 
 [workspace.package]
-version = "0.34.0"
+version = "0.35.5"
 edition = "2021"
 rust-version = "1.95"
 license = "Apache-2.0"

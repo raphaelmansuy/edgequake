@@ -3,7 +3,7 @@ title: "What's new"
 description: "Per-release highlights moved out of the README."
 ---
 
-This page lists the highlights of each release from v0.34.0 back to v0.24.0, newest first. Most entries name the schema number, so you can plan a database migration before you upgrade. For the full change list, see the [CHANGELOG](CHANGELOG.md), and for the upgrade steps, see the linked upgrade guide.
+This page lists the highlights of each release from v0.35.1 back to v0.24.0, newest first. Most entries name the schema number, so you can plan a database migration before you upgrade. For the full change list, see the [CHANGELOG](CHANGELOG.md), and for the upgrade steps, see the linked upgrade guide.
 
 ## Schema train at a glance
 
@@ -25,11 +25,32 @@ timeline
     v0.32.2 : 168 pinned
     v0.33.0 : 169
     v0.34.0 : 169 pinned
+    v0.35.0 : 206
+    v0.35.1 : 207
 ```
 
-The timeline shows the schema number each release leaves the database at, from v0.23.0 through v0.34.0.
+The timeline shows the schema number each release leaves the database at, from v0.23.0 through v0.35.1.
 
 Run `edgequake migrate` when you move to a release with a higher number. The [upgrading guide](operations/upgrading.md) covers the steps.
+
+### What's new in 0.35.1
+
+Patch on v0.35.0. Schema moves **206 → 207**. After migrate, graph IO stays on the plain tables. `EDGEQUAKE_GRAPH_READ=age` does not move a ready cutover back onto Apache AGE. Lineage lookup uses migration 207. Credentialed CORS echoes the request origin. SPEC-001 Acc is attested from the existing 2026-08-15 medical-mid pack; the key available for this cut returned HTTP 401, so retrieval was not re-scored.
+
+Upgrade: **[upgrade-to-0.35.1.md](operations/upgrade-to-0.35.1.md)** ·
+changelog: [CHANGELOG.md](CHANGELOG.md).
+
+### What's new in 0.35.0
+
+Minor: plain PostgreSQL graph for GraphRAG (SPEC-164). Apache AGE is optional.
+Schema moves **169 → 206**. Fresh install works on Postgres with pgvector and
+without AGE (RDS / Cloud SQL class). Dropping AGE is a migrate question
+(`--drop-age`); the default is keep. SPEC-001 Acc is attested from the existing
+2026-08-15 medical-mid pack; retrieval was not re-scored.
+
+Upgrade: **[upgrade-to-0.35.0.md](operations/upgrade-to-0.35.0.md)** ·
+study: **[SPEC-164](../specs/164-pure-postgres-study/README.md)** ·
+changelog: [CHANGELOG.md](CHANGELOG.md).
 
 ### What's new in 0.34.0
 

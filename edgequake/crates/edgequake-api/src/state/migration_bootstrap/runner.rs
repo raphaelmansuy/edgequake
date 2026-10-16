@@ -131,6 +131,20 @@ pub async fn apply_session_timeouts(
     cfg: &RunnerConfig,
     lock_class: &str,
 ) -> Result<(), sqlx::Error> {
+    let mut conn = pool.acquire().await?;
+    apply_session_timeouts_on(&mut conn, cfg, lock_class).await
+}
+
+/// Apply session timeouts on the connection that will run migration SQL.
+///
+/// `Pool::execute` checks out an arbitrary session. A timeout set that way does
+/// not cover the later `Migrator` checkout, so the apply loop calls this on
+/// the same connection it passes to sqlx.
+pub async fn apply_session_timeouts_on(
+    conn: &mut sqlx::PgConnection,
+    cfg: &RunnerConfig,
+    lock_class: &str,
+) -> Result<(), sqlx::Error> {
     let stmt = cfg
         .statement_timeout
         .clone()
@@ -140,13 +154,13 @@ pub async fn apply_session_timeouts(
     validate_timeout_literal(&cfg.lock_timeout)?;
     validate_timeout_literal(&stmt)?;
     sqlx::query("SET application_name = 'edgequake-migrate'")
-        .execute(pool)
+        .execute(&mut *conn)
         .await?;
     sqlx::query(&format!("SET lock_timeout = '{}'", cfg.lock_timeout))
-        .execute(pool)
+        .execute(&mut *conn)
         .await?;
     sqlx::query(&format!("SET statement_timeout = '{stmt}'"))
-        .execute(pool)
+        .execute(&mut *conn)
         .await?;
     Ok(())
 }

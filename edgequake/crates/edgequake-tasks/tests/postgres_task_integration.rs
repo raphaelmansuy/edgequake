@@ -1030,3 +1030,93 @@ mod task_scheduling {
             .await;
     }
 }
+
+mod queue_metrics_scope {
+    use super::*;
+    use edgequake_tasks::postgres::PostgresTaskStorage;
+    use edgequake_tasks::storage::TaskStorage;
+
+    #[tokio::test]
+    async fn metrics_for_one_workspace_leave_out_the_other() {
+        let pool = require_postgres!();
+        let tenant_a: Uuid =
+            sqlx::query_scalar("INSERT INTO tenants (name) VALUES ($1) RETURNING tenant_id")
+                .bind(format!("metrics-a-{}", Uuid::new_v4()))
+                .fetch_one(&pool)
+                .await
+                .expect("tenant A");
+        let tenant_b: Uuid =
+            sqlx::query_scalar("INSERT INTO tenants (name) VALUES ($1) RETURNING tenant_id")
+                .bind(format!("metrics-b-{}", Uuid::new_v4()))
+                .fetch_one(&pool)
+                .await
+                .expect("tenant B");
+        let workspace_a: Uuid = sqlx::query_scalar(
+            "INSERT INTO workspaces (tenant_id, name) VALUES ($1, $2) RETURNING workspace_id",
+        )
+        .bind(tenant_a)
+        .bind(format!("ws-a-{}", Uuid::new_v4()))
+        .fetch_one(&pool)
+        .await
+        .expect("workspace A");
+        let workspace_b: Uuid = sqlx::query_scalar(
+            "INSERT INTO workspaces (tenant_id, name) VALUES ($1, $2) RETURNING workspace_id",
+        )
+        .bind(tenant_b)
+        .bind(format!("ws-b-{}", Uuid::new_v4()))
+        .fetch_one(&pool)
+        .await
+        .expect("workspace B");
+        let track_a = format!("metrics-a-{}", Uuid::new_v4());
+        let track_b = format!("metrics-b-{}", Uuid::new_v4());
+
+        for (track, tenant, workspace) in [
+            (&track_a, tenant_a, workspace_a),
+            (&track_b, tenant_b, workspace_b),
+        ] {
+            sqlx::query(
+                r#"
+                INSERT INTO tasks (
+                    track_id, tenant_id, workspace_id, task_type, status, priority,
+                    retry_count, max_retries, payload
+                ) VALUES ($1, $2, $3, 'document_ingestion', 'pending', 0, 0, 3, '{}'::jsonb)
+                "#,
+            )
+            .bind(track)
+            .bind(tenant)
+            .bind(workspace)
+            .execute(&pool)
+            .await
+            .expect("insert scoped task");
+        }
+
+        let storage = PostgresTaskStorage::new(pool.clone());
+        let metrics_a = storage
+            .get_queue_metrics_filtered(Some(tenant_a), Some(workspace_a))
+            .await
+            .expect("metrics for workspace A");
+        assert_eq!(metrics_a.pending_count, 1);
+
+        let metrics_b = storage
+            .get_queue_metrics_filtered(Some(tenant_b), Some(workspace_b))
+            .await
+            .expect("metrics for workspace B");
+        assert_eq!(metrics_b.pending_count, 1);
+
+        let _ = sqlx::query("DELETE FROM tasks WHERE track_id = $1 OR track_id = $2")
+            .bind(&track_a)
+            .bind(&track_b)
+            .execute(&pool)
+            .await;
+        let _ = sqlx::query("DELETE FROM workspaces WHERE workspace_id = $1 OR workspace_id = $2")
+            .bind(workspace_a)
+            .bind(workspace_b)
+            .execute(&pool)
+            .await;
+        let _ = sqlx::query("DELETE FROM tenants WHERE tenant_id = $1 OR tenant_id = $2")
+            .bind(tenant_a)
+            .bind(tenant_b)
+            .execute(&pool)
+            .await;
+    }
+}

@@ -15,6 +15,8 @@ concurrency:
 env:
   RUST_TOOLCHAIN: 1.95.0
   SPEC013_CARGO_TEST_ARGS: --test-threads=1
+  # Debug PDF cancel future overflows the 2 MiB cargo-test thread. Same pin as ci.yml.
+  RUST_MIN_STACK: "16777216"
 
 jobs:
   spec013-proof:

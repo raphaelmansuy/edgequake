@@ -56,11 +56,19 @@ pub async fn typed_injection_upsert(meta: &Value, pool: crate::services::Optiona
         let mut stored = meta.clone();
         stored["source_type"] = Value::String("injection".to_string());
 
+        // The documents row is the injection. Tenant RLS hides a row whose
+        // tenant_id is null, so the workspace list misses it and the worker
+        // cannot update it. Copy the tenant from the workspace that owns it.
         let result = sqlx::query(
             r#"
-            INSERT INTO public.documents (id, workspace_id, title, content, status, metadata)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO public.documents (id, tenant_id, workspace_id, title, content, status, metadata)
+            VALUES (
+                $1,
+                (SELECT w.tenant_id FROM public.workspaces w WHERE w.workspace_id = $2),
+                $2, $3, $4, $5, $6
+            )
             ON CONFLICT (id) DO UPDATE SET
+                tenant_id = COALESCE(EXCLUDED.tenant_id, documents.tenant_id),
                 workspace_id = EXCLUDED.workspace_id,
                 title = EXCLUDED.title,
                 content = EXCLUDED.content,

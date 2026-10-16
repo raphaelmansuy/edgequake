@@ -6,6 +6,8 @@ All notable changes to the EdgeQuake articles are tracked here. See the root CHA
 
 ### Added
 
+- **017-plain-postgres-graph/**: Why Apache AGE is optional for EdgeQuake
+  GraphRAG; measured proof and RDS / Cloud SQL unlock (v0.35.0).
 - **016-mcp/**: MCP integration announcement post (<1300 chars) following WHY→WHAT→HOW→CLIMAX→CONCLUSION structure
 - CHANGELOG.md for articles directory.
 

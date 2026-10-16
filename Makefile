@@ -1326,6 +1326,7 @@ VISIBLE_MIGRATE_STEP = \
 	if ( cd $(BACKEND_DIR) && \
 		DATABASE_URL="$$_EFF_DB_URL" \
 		EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
+		EDGEQUAKE_MIGRATE_DROP_AGE="$${EDGEQUAKE_MIGRATE_DROP_AGE:-}" \
 		cargo run -- migrate ) 2>&1 | tee "$$_mig_log"; then \
 		rm -f "$$_mig_log"; \
 	else \
@@ -1357,6 +1358,7 @@ migrate: db-start db-wait ## Update the database schema only (does not start the
 	@echo "  It does not start the API or the website."
 	@echo ""
 	@$(LOAD_EFF_DB_URL); \
+	export EDGEQUAKE_MIGRATE_DROP_AGE=ask; \
 	$(VISIBLE_MIGRATE_STEP); \
 	echo ""; \
 	echo "$(GREEN)✓ Database schema is up to date.$(RESET)"; \
@@ -3282,6 +3284,10 @@ spec013-e2e-mistral-rust-live: db-wait ## Mistral workspace + ingest tests (Post
 		--test e2e_spec013_mistral_live -- --ignored --nocapture
 
 SPEC013_CARGO_TEST_ARGS ?= --test-threads=1
+# Debug PDF/ingest futures overflow the default ~2 MiB cargo-test thread
+# (thread 'spec013_pdf_cancel_while_processing_is_accepted' has overflowed its stack).
+# Match ci.yml / release_gates.sh. Production tokio workers already use 16 MiB.
+SPEC013_RUST_MIN_STACK ?= 16777216
 
 spec013-proof-preflight: db-wait ## Fail fast if SPEC-013 proof prerequisites are missing or unsafe
 	@_DB=$$(cat /tmp/edgequake-db-url 2>/dev/null); \
@@ -3310,11 +3316,14 @@ spec013-proof: spec013-proof-preflight ## Deterministic SPEC-013 proof (PostgreS
 	else \
 		echo "$(YELLOW)→ In-process only (no SPEC013_LIVE_API_URL — avoids DB worker contention)$(RESET)"; \
 	fi; \
-	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" SPEC013_LIVE_API_URL="$$_LIVE" cargo test -p edgequake-api --features postgres \
+	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" SPEC013_LIVE_API_URL="$$_LIVE" \
+		RUST_MIN_STACK="$(SPEC013_RUST_MIN_STACK)" cargo test -p edgequake-api --features postgres \
 		--test e2e_spec013_github_issues -- $(SPEC013_CARGO_TEST_ARGS) --nocapture; \
-	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" EDGEQUAKE_REQUIRE_MISTRAL_TESTS=1 cargo test -p edgequake-api --features postgres \
+	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" EDGEQUAKE_REQUIRE_MISTRAL_TESTS=1 \
+		RUST_MIN_STACK="$(SPEC013_RUST_MIN_STACK)" cargo test -p edgequake-api --features postgres \
 		--test e2e_spec013_mistral_pdf_query -- $(SPEC013_CARGO_TEST_ARGS) --nocapture; \
-	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 cargo test -p edgequake-storage --features postgres \
+	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 \
+		RUST_MIN_STACK="$(SPEC013_RUST_MIN_STACK)" cargo test -p edgequake-storage --features postgres \
 		--test postgres_workspace_vector_stats -- $(SPEC013_CARGO_TEST_ARGS) --nocapture
 	@echo "$(GREEN)✓ SPEC-013 proof passed$(RESET)"
 
@@ -3380,9 +3389,11 @@ spec013-proof-pr: spec013-proof-preflight-pr ## Fast PR gate: mock API + vector 
 	@echo "$(BOLD)$(BLUE)SPEC-013 PR proof (mock + storage)$(RESET)"
 	@_DB=$$(cat /tmp/edgequake-db-url 2>/dev/null); \
 	[ -n "$$_DB" ] || _DB="$(DATABASE_URL)"; \
-	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" cargo test -p edgequake-api --features postgres \
+	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" RUST_MIN_STACK="$(SPEC013_RUST_MIN_STACK)" \
+		cargo test -p edgequake-api --features postgres \
 		--test e2e_spec013_github_issues -- $(SPEC013_CARGO_TEST_ARGS) --nocapture && \
-	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 cargo test -p edgequake-storage --features postgres \
+	cd $(BACKEND_DIR) && DATABASE_URL="$$_DB" EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 \
+		RUST_MIN_STACK="$(SPEC013_RUST_MIN_STACK)" cargo test -p edgequake-storage --features postgres \
 		--test postgres_workspace_vector_stats -- $(SPEC013_CARGO_TEST_ARGS) --nocapture
 	@echo "$(GREEN)✓ SPEC-013 PR proof passed$(RESET)"
 

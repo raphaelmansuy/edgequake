@@ -18,9 +18,6 @@ echo "== SPEC-090 multi-pool isolation =="
 cargo test -p edgequake-storage --features postgres --test e2e_spec090_multi_pool -- --nocapture
 echo "== SPEC-090 claim bounded + task verify =="
 cargo test -p edgequake-tasks --features postgres --test e2e_spec090_claim_bounded -- --nocapture
-echo "== SPEC-089 regression (node counts) =="
-cargo test -p edgequake-storage --features postgres --test e2e_issue336_node_counts_bounded -- --nocapture
-cargo test -p edgequake-storage --features postgres --test e2e_issue331_node_counts_child_gin -- --nocapture
 echo "== migration checksums =="
 "$ROOT/scripts/check_migration_checksums.sh"
 echo "PASS: SPEC-090 scaling smoke"

@@ -14,30 +14,31 @@ impl PostgresAGEGraphStorage {
         }
 
         self.pool.initialize().await?;
-        self.create_graph().await?;
-
-        // CRITICAL: Create indexes for query performance
-        // Without these, Cypher queries like MATCH (n:Node {node_id: 'xxx'}) scan all vertices
-        // SPEC-069: ensure_indexes is boot-owned + single-flight; sets indexes_verified
-        // when eq_* schema is ready so delete/ingest hot paths skip DDL.
-        self.ensure_indexes().await?;
-
-        // SPEC-032 W-01: Bootstrap critical btree indexes CONCURRENTLY for
-        // existing databases. For graphs with >=10K nodes, this runs
-        // CREATE INDEX CONCURRENTLY (non-blocking). For empty/new graphs,
-        // a regular CREATE INDEX is used (fast).
-        // Edge cases: AGE not installed, graph not yet created, INVALID index → all handled.
-        self.bootstrap_concurrent_indexes().await?;
-
-        // Re-check after concurrent bootstrap — mark verified when catalog is ready.
-        if !self.indexes_verified.load(Ordering::Acquire) {
-            let pool = self.pool.get().await?;
-            let mut conn = pool.acquire().await.map_err(|e| {
-                StorageError::Connection(format!("Failed to acquire connection: {}", e))
-            })?;
-            if self.eq_id_schema_ready(&mut conn).await? {
-                self.indexes_verified.store(true, Ordering::Release);
+        let pool = self.pool.get().await?;
+        super::plain::refuse_cypher_opt_out(&pool).await?;
+        let plain_tables = super::plain::tables_present(&pool).await?;
+        if self.pool.graph_extension_available() {
+            self.create_graph().await?;
+            // SPEC-069: ensure_indexes is boot-owned + single-flight.
+            self.ensure_indexes().await?;
+            self.bootstrap_concurrent_indexes().await?;
+            if !self.indexes_verified.load(Ordering::Acquire) {
+                let mut conn = pool.acquire().await.map_err(|e| {
+                    StorageError::Connection(format!("Failed to acquire connection: {}", e))
+                })?;
+                if self.eq_id_schema_ready(&mut conn).await? {
+                    self.indexes_verified.store(true, Ordering::Release);
+                }
             }
+        } else if !plain_tables {
+            return Err(StorageError::Database(
+                "Apache AGE is unavailable and SPEC-164 plain graph tables are missing".into(),
+            ));
+        } else {
+            self.indexes_verified.store(true, Ordering::Release);
+        }
+        if plain_tables {
+            super::plain::register_graph(&pool, &self.graph_name, &self.namespace).await?;
         }
 
         self.initialized.store(true, Ordering::Relaxed);
@@ -60,10 +61,21 @@ impl PostgresAGEGraphStorage {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
 
-        // Probe the Node label table — succeeds even when empty (0 rows).
-        let sql = format!(r#"SELECT 1 FROM {}."Node" LIMIT 1"#, self.graph_name);
-        if sqlx::query(&sql).fetch_optional(&mut *conn).await.is_ok() {
-            return Ok(());
+        if self.plain_reads_ready().await? {
+            let ok =
+                sqlx::query("SELECT 1 FROM public.eq_graph_nodes WHERE namespace = $1 LIMIT 1")
+                    .bind(&self.namespace)
+                    .fetch_optional(&mut *conn)
+                    .await
+                    .is_ok();
+            if ok {
+                return Ok(());
+            }
+        } else {
+            let sql = format!(r#"SELECT 1 FROM {}."Node" LIMIT 1"#, self.graph_name);
+            if sqlx::query(&sql).fetch_optional(&mut *conn).await.is_ok() {
+                return Ok(());
+            }
         }
 
         // Graph may not be initialized yet — fall back to connection-level ping.

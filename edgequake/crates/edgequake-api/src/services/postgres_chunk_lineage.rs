@@ -20,9 +20,27 @@ use crate::middleware::TenantContext;
 #[cfg(feature = "postgres")]
 use crate::services::entity_graph_lookup::lookup_entity_node_for_context;
 
-/// Chunk ID prefix pattern for a document (`{document_id}-chunk-`).
-pub fn document_chunk_id_pattern(document_id: &str) -> String {
-    format!("{document_id}-chunk-%")
+/// Inclusive/exclusive bounds for chunk ids of one document.
+///
+/// `chunk_id LIKE $prefix` hides the prefix from a generic plan, so a miss
+/// seq-scans every link. `chunk_id >= lower AND chunk_id < upper` is an index
+/// condition on `chunk_entity_links_pkey`.
+pub fn document_chunk_id_bounds(document_id: &str) -> (String, String) {
+    let lower = format!("{document_id}-chunk-");
+    let upper = prefix_successor(&lower).unwrap_or_else(|| format!("{lower}\u{10FFFF}"));
+    (lower, upper)
+}
+
+/// Smallest string strictly greater than every string with this prefix.
+fn prefix_successor(prefix: &str) -> Option<String> {
+    let mut bytes = prefix.as_bytes().to_vec();
+    while let Some(last) = bytes.pop() {
+        if last < 0xff {
+            bytes.push(last + 1);
+            return String::from_utf8(bytes).ok();
+        }
+    }
+    None
 }
 
 /// Load document-scoped entities/relationships from `chunk_entity_links` /
@@ -38,17 +56,18 @@ pub async fn load_document_lineage_from_chunk_links(
         ApiError::BadRequest("Workspace context required for document lineage".into())
     })?;
 
-    let chunk_pattern = document_chunk_id_pattern(document_id);
+    let (chunk_lower, chunk_upper) = document_chunk_id_bounds(document_id);
 
     let entity_rows: Vec<(String, Vec<String>)> = sqlx::query_as(
         "SELECT entity_name, array_agg(DISTINCT chunk_id ORDER BY chunk_id) AS source_chunks
          FROM chunk_entity_links
-         WHERE workspace_id = $1 AND chunk_id LIKE $2
+         WHERE workspace_id = $1 AND chunk_id >= $2 AND chunk_id < $3
          GROUP BY entity_name
          ORDER BY entity_name",
     )
     .bind(workspace_id)
-    .bind(&chunk_pattern)
+    .bind(&chunk_lower)
+    .bind(&chunk_upper)
     .fetch_all(pool)
     .await
     .map_err(|e| ApiError::Internal(format!("chunk_entity_links query failed: {e}")))?;
@@ -59,6 +78,9 @@ pub async fn load_document_lineage_from_chunk_links(
 
     let entity_names: Vec<String> = entity_rows.iter().map(|(n, _)| n.clone()).collect();
 
+    // `idx_cel_entity_workspace_chunk` covers chunk_id, so this count
+    // is an index-only scan. The heap index stops at the names but
+    // still fetches every link.
     let shared_entities: HashSet<String> = sqlx::query_scalar(
         "SELECT entity_name
          FROM chunk_entity_links
@@ -149,12 +171,13 @@ pub async fn load_document_lineage_from_chunk_links(
         "SELECT source_entity, target_entity,
                 array_agg(DISTINCT chunk_id ORDER BY chunk_id) AS source_chunks
          FROM chunk_relation_links
-         WHERE workspace_id = $1 AND chunk_id LIKE $2
+         WHERE workspace_id = $1 AND chunk_id >= $2 AND chunk_id < $3
          GROUP BY source_entity, target_entity
          ORDER BY source_entity, target_entity",
     )
     .bind(workspace_id)
-    .bind(&chunk_pattern)
+    .bind(&chunk_lower)
+    .bind(&chunk_upper)
     .fetch_all(pool)
     .await
     .map_err(|e| ApiError::Internal(format!("chunk_relation_links query failed: {e}")))?;
@@ -187,11 +210,17 @@ pub async fn load_document_lineage_from_chunk_links(
 
 #[cfg(test)]
 mod tests {
-    use super::document_chunk_id_pattern;
+    use super::document_chunk_id_bounds;
 
     #[test]
-    fn chunk_pattern_matches_document_chunks() {
-        let pattern = document_chunk_id_pattern("019f419f-e29e-7cc9-ae40-cb6b28286f45");
-        assert_eq!(pattern, "019f419f-e29e-7cc9-ae40-cb6b28286f45-chunk-%");
+    fn chunk_bounds_cover_one_document_prefix() {
+        let (lower, upper) = document_chunk_id_bounds("019f419f-e29e-7cc9-ae40-cb6b28286f45");
+        assert_eq!(lower, "019f419f-e29e-7cc9-ae40-cb6b28286f45-chunk-");
+        assert_eq!(upper, "019f419f-e29e-7cc9-ae40-cb6b28286f45-chunk.");
+        let inside = format!("{lower}12");
+        assert!(inside >= lower && inside < upper);
+        assert!(upper >= lower);
+        let other = "019f419f-e29e-7cc9-ae40-cb6b28286f45-chunka";
+        assert!(other >= upper.as_str());
     }
 }

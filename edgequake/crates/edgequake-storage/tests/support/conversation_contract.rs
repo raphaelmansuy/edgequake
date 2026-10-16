@@ -1,5 +1,6 @@
 //! Shared conversation CRUD contract (SPEC-017 P1).
 
+use edgequake_storage::conversation_storage::ListWindow;
 use edgequake_storage::ConversationStorage;
 use uuid::Uuid;
 
@@ -60,7 +61,7 @@ pub async fn assert_conversation_crud_contract_with_ids<S: ConversationStorage +
             "created_at",
             false,
             10,
-            0,
+            ListWindow::Offset(0),
         )
         .await
         .unwrap();
@@ -68,7 +69,7 @@ pub async fn assert_conversation_crud_contract_with_ids<S: ConversationStorage +
     assert_eq!(listed[0].conversation_id, conv.conversation_id);
 
     let (_, msg_total) = storage
-        .list_messages(conv.conversation_id, 10, 0)
+        .list_messages(conv.conversation_id, 10, ListWindow::Offset(0))
         .await
         .unwrap();
     assert_eq!(msg_total, 1);

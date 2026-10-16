@@ -81,8 +81,47 @@ impl PgChunkEmbeddingIndex {
         Ok(id.map(ModelId))
     }
 
-    fn search_sql(dim: i32, cast: &str) -> String {
-        format!(
+    /// `$4 IS NULL OR document_id = ANY($4)` hides the document from a generic
+    /// plan, so the scan reads every chunk and then keeps one document.
+    /// When the caller passes documents, the statement requires the predicate
+    /// and `idx_chunks_document` starts at those rows.
+    const DOCUMENT_PREDICATE_OPTIONAL: &'static str =
+        "AND ($4::uuid[] IS NULL OR c.document_id = ANY($4))";
+    const DOCUMENT_PREDICATE_REQUIRED: &'static str = "AND c.document_id = ANY($4)";
+
+    /// `$6 IS NULL OR modality = ANY($6)` hides the modality from a generic
+    /// plan. When the caller passes modalities, the statement requires the
+    /// predicate and `idx_chunks_modality` starts at those rows.
+    const MODALITY_PREDICATE_OPTIONAL: &'static str =
+        "AND ($6::text[] IS NULL OR c.modality = ANY($6))";
+    const MODALITY_PREDICATE_REQUIRED: &'static str = "AND c.modality = ANY($6)";
+
+    fn apply_selective_predicates(sql: String, documents: bool, modality: bool) -> String {
+        let sql = if documents {
+            sql.replace(
+                Self::DOCUMENT_PREDICATE_OPTIONAL,
+                Self::DOCUMENT_PREDICATE_REQUIRED,
+            )
+        } else {
+            sql
+        };
+        if modality {
+            sql.replace(
+                Self::MODALITY_PREDICATE_OPTIONAL,
+                Self::MODALITY_PREDICATE_REQUIRED,
+            )
+        } else {
+            sql
+        }
+    }
+
+    /// Unscoped chunk ANN. Workspace and tenant stay optional: requiring
+    /// either one makes a generic plan read every embedding in a large scope
+    /// instead of stopping on the HNSW index. Search still replans with the
+    /// actual binds. Document, modality, and id each have their own statement
+    /// when the caller passes them.
+    fn search_sql(dim: i32, cast: &str, documents: bool, modality: bool) -> String {
+        let sql = format!(
             r#"
             SELECT ce.chunk_id,
                    1.0 - ((ce.embedding::{cast}) <=> $1::{cast}) AS score
@@ -93,17 +132,63 @@ impl PgChunkEmbeddingIndex {
               AND ($3::uuid IS NULL OR ce.workspace_id = $3)
               AND ($4::uuid[] IS NULL OR c.document_id = ANY($4))
               AND ($5::uuid IS NULL OR c.tenant_id = $5)
-              AND ($6::text[] IS NULL OR c.metadata->>'modality' = ANY($6))
-              AND (
-                    $7::text[] IS NULL
-                    OR c.id::text = ANY($7)
-                    OR c.metadata->>'legacy_chunk_key' = ANY($7)
-                  )
-              AND ($8::text IS NULL OR lower($8) = 'chunk')
+              AND ($6::text[] IS NULL OR c.modality = ANY($6))
+              AND ($7::text IS NULL OR lower($7) = 'chunk')
             ORDER BY (ce.embedding::{cast}) <=> $1::{cast}
-            LIMIT $9
+            LIMIT $8
             "#
-        )
+        );
+        Self::apply_selective_predicates(sql, documents, modality)
+    }
+
+    /// Id-filtered chunk ANN. `$7 IS NULL OR id::text = ANY($7)` cannot use
+    /// `chunks_pkey`, so the plan seq-scans every chunk and keeps the
+    /// requested id. This statement looks each id up first. `OFFSET 0` keeps
+    /// that lookup from being pulled into the distance index. Legacy keys
+    /// compare the stored `legacy_chunk_key` column (migration 203). Equality
+    /// on that text column is leakproof, so forced row security can use
+    /// `idx_chunks_tenant_legacy_key`. `metadata->>'legacy_chunk_key'` is not
+    /// leakproof and makes each key re-read the tenant's chunks. Values that
+    /// parse as UUIDs use `chunks_pkey`.
+    fn search_sql_in_ids(dim: i32, cast: &str, documents: bool, modality: bool) -> String {
+        let sql = format!(
+            r#"
+            SELECT ce.chunk_id,
+                   1.0 - ((ce.embedding::{cast}) <=> $1::{cast}) AS score
+            FROM (
+                SELECT c.id
+                FROM unnest($7::text[]) AS wanted(key)
+                JOIN LATERAL (
+                    SELECT c.id
+                    FROM chunks c
+                    WHERE c.legacy_chunk_key = wanted.key
+                    OFFSET 0
+                ) c ON true
+                UNION
+                SELECT c.id
+                FROM unnest($8::uuid[]) AS wanted(id)
+                JOIN LATERAL (
+                    SELECT c.id
+                    FROM chunks c
+                    WHERE c.id = wanted.id
+                    OFFSET 0
+                ) c ON true
+            ) hit
+            JOIN chunk_embeddings ce
+              ON ce.chunk_id = hit.id
+             AND ce.model_id = $2
+             AND ce.dimensions = {dim}
+            JOIN chunks c ON c.id = hit.id
+            WHERE ($3::uuid IS NULL OR ce.workspace_id = $3)
+              AND ($4::uuid[] IS NULL OR c.document_id = ANY($4))
+              AND ($5::uuid IS NULL OR c.tenant_id = $5)
+              AND ($6::text[] IS NULL OR c.modality = ANY($6))
+              AND ($9::text IS NULL OR lower($9) = 'chunk')
+            ORDER BY (ce.embedding::{cast}) <=> $1::{cast}
+            LIMIT $10
+            "#
+        );
+        Self::apply_selective_predicates(sql, documents, modality)
     }
 }
 
@@ -229,20 +314,40 @@ impl EmbeddingIndex for PgChunkEmbeddingIndex {
             s
         };
 
-        let q = super::typed_ann_search::TypedAnnSearch::ordered_sql(
-            &Self::search_sql(dim, &cast),
-            req.limit,
-        );
-        let rows = sqlx::query(&q)
+        let documents = req.document_ids.as_ref().is_some();
+        let modality = req.modalities.as_ref().is_some();
+        let in_ids = req.filter_ids.as_ref().is_some();
+        let uuid_ids: Vec<Uuid> = req
+            .filter_ids
+            .iter()
+            .flatten()
+            .filter_map(|id| Uuid::parse_str(id).ok())
+            .collect();
+        let inner = if in_ids {
+            Self::search_sql_in_ids(dim, &cast, documents, modality)
+        } else {
+            Self::search_sql(dim, &cast, documents, modality)
+        };
+        let q = super::typed_ann_search::TypedAnnSearch::ordered_sql(&inner, req.limit);
+        let query = sqlx::query(&q)
             .bind(&vector)
             .bind(model_id.0)
             .bind(req.workspace_id.map(|id| id.into_uuid()))
             .bind(req.document_ids.as_deref())
             .bind(req.tenant_id.map(|id| id.into_uuid()))
-            .bind(req.modalities.as_deref())
-            .bind(req.filter_ids.as_deref())
-            .bind(req.vector_type.as_deref())
-            .bind(candidate_limit as i64)
+            .bind(req.modalities.as_deref());
+        let query = if in_ids {
+            query
+                .bind(req.filter_ids.as_deref())
+                .bind(&uuid_ids)
+                .bind(req.vector_type.as_deref())
+                .bind(candidate_limit as i64)
+        } else {
+            query
+                .bind(req.vector_type.as_deref())
+                .bind(candidate_limit as i64)
+        };
+        let rows = query
             .fetch_all(tx.as_mut())
             .await
             .map_err(StorageError::from)?;
@@ -275,12 +380,40 @@ mod tests {
     use super::PgChunkEmbeddingIndex;
 
     #[test]
-    fn typed_search_sql_keeps_all_filter_predicates() {
-        let sql = PgChunkEmbeddingIndex::search_sql(1536, "halfvec(1536)");
-        assert!(sql.contains("c.document_id = ANY($4)"));
-        assert!(sql.contains("c.tenant_id = $5"));
-        assert!(sql.contains("c.metadata->>'modality' = ANY($6)"));
-        assert!(sql.contains("c.id::text = ANY($7)"));
-        assert!(sql.contains("c.metadata->>'legacy_chunk_key' = ANY($7)"));
+    fn typed_search_requires_a_passed_document_or_modality() {
+        let open = PgChunkEmbeddingIndex::search_sql(1536, "halfvec(1536)", false, false);
+        assert!(open.contains("$4::uuid[] IS NULL OR c.document_id = ANY($4)"));
+        assert!(open.contains("$6::text[] IS NULL OR c.modality = ANY($6)"));
+        assert!(open.contains("$3::uuid IS NULL OR ce.workspace_id = $3"));
+        assert!(open.contains("$5::uuid IS NULL OR c.tenant_id = $5"));
+        assert!(!open.contains("id::text = ANY"));
+
+        let documents = PgChunkEmbeddingIndex::search_sql(1536, "halfvec(1536)", true, false);
+        assert!(documents.contains("AND c.document_id = ANY($4)"));
+        assert!(!documents.contains("$4::uuid[] IS NULL"));
+        assert!(documents.contains("$5::uuid IS NULL OR c.tenant_id = $5"));
+
+        let modality = PgChunkEmbeddingIndex::search_sql(1536, "halfvec(1536)", false, true);
+        assert!(modality.contains("AND c.modality = ANY($6)"));
+        assert!(!modality.contains("$6::text[] IS NULL"));
+    }
+
+    #[test]
+    fn typed_search_by_id_looks_up_each_id() {
+        let sql = PgChunkEmbeddingIndex::search_sql_in_ids(1536, "halfvec(1536)", false, false);
+        assert!(sql.contains("OFFSET 0"));
+        assert!(sql.contains("c.legacy_chunk_key = wanted.key"));
+        assert!(!sql.contains("metadata->>'legacy_chunk_key'"));
+        assert!(sql.contains("c.id = wanted.id"));
+        assert!(!sql.contains("$7::text[] IS NULL"));
+        assert!(!sql.contains("id::text = ANY"));
+        assert!(sql.contains("LIMIT $10"));
+
+        let scoped = PgChunkEmbeddingIndex::search_sql_in_ids(1536, "halfvec(1536)", true, true);
+        assert!(scoped.contains("AND c.document_id = ANY($4)"));
+        assert!(!scoped.contains("$4::uuid[] IS NULL"));
+        assert!(scoped.contains("AND c.modality = ANY($6)"));
+        assert!(!scoped.contains("$6::text[] IS NULL"));
+        assert!(scoped.contains("OFFSET 0"));
     }
 }

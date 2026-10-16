@@ -1,0 +1,149 @@
+{
+  "spec": "164-inventory",
+  "scale": "m_inv (200k/500k)",
+  "medians": [
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-A",
+      "op_id": "OP-164-09",
+      "median_ms": 165.302,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-B",
+      "op_id": "OP-164-09",
+      "median_ms": 0.779,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-A",
+      "op_id": "OP-164-10",
+      "median_ms": 0.763,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-B",
+      "op_id": "OP-164-10",
+      "median_ms": 0.883,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-A",
+      "op_id": "OP-164-11",
+      "median_ms": 1892.838,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-B",
+      "op_id": "OP-164-11",
+      "median_ms": 1239.675,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-A",
+      "op_id": "OP-164-12",
+      "median_ms": 1.11,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-B",
+      "op_id": "OP-164-12",
+      "median_ms": 0.555,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-A",
+      "op_id": "OP-164-13",
+      "median_ms": 182.841,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-B",
+      "op_id": "OP-164-13",
+      "median_ms": 0.557,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-A",
+      "op_id": "OP-164-14",
+      "median_ms": 0.682,
+      "n": 5
+    },
+    {
+      "scale_id": "m_inv",
+      "arm_id": "ARM-B",
+      "op_id": "OP-164-14",
+      "median_ms": 0.57,
+      "n": 5
+    }
+  ],
+  "ratios_b_over_a": [
+    {
+      "op_id": "OP-164-09",
+      "arm_a_ms": 165.302,
+      "arm_b_ms": 0.779,
+      "ratio_b_over_a": 0.005,
+      "within_2x": true
+    },
+    {
+      "op_id": "OP-164-10",
+      "arm_a_ms": 0.763,
+      "arm_b_ms": 0.883,
+      "ratio_b_over_a": 1.157,
+      "within_2x": true
+    },
+    {
+      "op_id": "OP-164-11",
+      "arm_a_ms": 1892.838,
+      "arm_b_ms": 1239.675,
+      "ratio_b_over_a": 0.655,
+      "within_2x": true
+    },
+    {
+      "op_id": "OP-164-12",
+      "arm_a_ms": 1.11,
+      "arm_b_ms": 0.555,
+      "ratio_b_over_a": 0.5,
+      "within_2x": true
+    },
+    {
+      "op_id": "OP-164-13",
+      "arm_a_ms": 182.841,
+      "arm_b_ms": 0.557,
+      "ratio_b_over_a": 0.003,
+      "within_2x": true
+    },
+    {
+      "op_id": "OP-164-14",
+      "arm_a_ms": 0.682,
+      "arm_b_ms": 0.57,
+      "ratio_b_over_a": 0.836,
+      "within_2x": true
+    }
+  ],
+  "hypotheses": {
+    "H-164-06": {
+      "pass": true,
+      "detail": "OP-164-09..14 B<=2x A at M"
+    },
+    "H-164-07": {
+      "pass": true,
+      "detail": "edges_for_node_set plain faster than AGE parent agtype"
+    },
+    "H-164-08": {
+      "pass": true,
+      "detail": "lineage GIN plain within 2x AGE"
+    }
+  },
+  "decision_amendment": "strengthen_migrate_feasible"
+}

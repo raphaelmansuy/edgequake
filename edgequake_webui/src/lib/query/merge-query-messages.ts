@@ -47,7 +47,13 @@ export function conversationEchoesPending(
   messages: { role?: string; content?: string }[] | undefined,
   pendingContent: string | undefined,
 ): boolean {
-  if (!pendingContent) return true;
+  // An empty local bubble is not proof the server saved an answer.
+  // Drop it only after an assistant message is actually on the thread.
+  if (!pendingContent) {
+    return (messages ?? []).some(
+      (message) => message.role === "assistant" && Boolean(message.content),
+    );
+  }
   return (messages ?? []).some(
     (message) =>
       message.role === "assistant" && message.content === pendingContent,

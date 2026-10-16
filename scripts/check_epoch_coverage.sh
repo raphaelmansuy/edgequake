@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # scripts/check_epoch_coverage.sh — every published vX.Y.Z tag must map to an
 # epoch in scripts/spec150/epochs.toml (same numbered-migration set hash).
+# HEAD may match an epoch, or the [unreleased] pin, until the next tag exists.
 #
 # Usage:
 #   ./scripts/check_epoch_coverage.sh
@@ -59,12 +60,34 @@ def mig_hash(ref: str):
         h.update(b"\0")
     return h.hexdigest()[:16], maxv, len(entries)
 
+def parse_unreleased(raw: str):
+    """Working-tree pin. Not a product tag and not an epoch-matrix replay."""
+    match = re.search(r"(?m)^\[unreleased\]\s*$", raw)
+    if not match:
+        return None
+    body = raw[match.end():]
+    stop = re.search(r"(?m)^\[\[|^\[", body)
+    if stop:
+        body = body[: stop.start()]
+    fields = {}
+    for line in body.splitlines():
+        line = line.split("#", 1)[0].strip()
+        if not line or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        fields[key.strip()] = value.strip().strip('"')
+    return fields or None
+
 # Parse epoch tags from epochs.toml
 epoch_tags = []
-text = open(epochs_path).read().split("[[epoch]]")
+raw = open(epochs_path).read()
+unreleased = parse_unreleased(raw)
+text = raw.split("[[epoch]]")
 for block in text[1:]:
     for line in block.splitlines():
         line = line.strip()
+        if not line or line.startswith("#"):
+            continue
         if line.startswith("tag"):
             _, v = line.split("=", 1)
             epoch_tags.append(v.strip().strip('"'))
@@ -95,9 +118,27 @@ for t in tags:
     else:
         uncovered.append({"tag": t, "hash": h, "max": maxv, "n": n, "reason": "no_matching_epoch"})
 
-# HEAD must also match some epoch (usually latest)
+# HEAD matches a published epoch, or the [unreleased] pin for a train
+# that does not have a product tag yet.
 head = mig_hash("HEAD")
-head_ok = head is not None and head[0] in epoch_hashes
+pin_mismatch = None
+head_pin_ok = False
+if head is not None and unreleased and unreleased.get("hash") == head[0]:
+    problems = []
+    if "max" in unreleased and int(unreleased["max"]) != head[1]:
+        problems.append(f"max pin {unreleased['max']} != HEAD {head[1]}")
+    if "files" in unreleased and int(unreleased["files"]) != head[2]:
+        problems.append(f"files pin {unreleased['files']} != HEAD {head[2]}")
+    if problems:
+        pin_mismatch = "; ".join(problems)
+    else:
+        head_pin_ok = True
+elif head is not None and unreleased and unreleased.get("hash") != head[0]:
+    pin_mismatch = (
+        f"unreleased pin {unreleased.get('hash')} != HEAD {head[0]} "
+        f"(max={head[1]} files={head[2]})"
+    )
+head_ok = head is not None and (head[0] in epoch_hashes or head_pin_ok)
 
 result = {
     "epoch_tags": epoch_tags,
@@ -110,7 +151,12 @@ result = {
         "max": None if head is None else head[1],
         "n": None if head is None else head[2],
         "covered": head_ok,
-        "epoch": None if not head_ok else epoch_hashes[head[0]],
+        "epoch": (
+            None
+            if head is None or not head_ok
+            else epoch_hashes.get(head[0], "unreleased" if head_pin_ok else None)
+        ),
+        "pin_mismatch": pin_mismatch,
     },
 }
 
@@ -123,8 +169,15 @@ else:
     print(f"  covered             : {len(covered)}")
     print(f"  uncovered           : {len(uncovered)}")
     if head is not None:
-        status = "OK" if head_ok else "MISSING"
+        if head[0] in epoch_hashes:
+            status = "OK"
+        elif head_pin_ok:
+            status = "OK unreleased"
+        else:
+            status = "MISSING"
         print(f"  HEAD schema set     : max={head[1]} n={head[2]} hash={head[0]} [{status}]")
+        if pin_mismatch and head[0] not in epoch_hashes:
+            print(f"  unreleased pin      : {pin_mismatch}")
     if missing_epochs:
         print("  epoch tags not in git:")
         for t in missing_epochs:

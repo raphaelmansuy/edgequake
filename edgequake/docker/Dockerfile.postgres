@@ -1,31 +1,26 @@
-# EdgeQuake PostgreSQL — pgvector + Apache AGE + contrib FTS extensions
+# EdgeQuake PostgreSQL 16 — pgvector + contrib FTS extensions
 #
 # SSOT extension pins: edgequake/docker/extension-pins.sh (SPEC-042 / Issue #161)
 #   PostgreSQL 16 (bookworm)
 #   pgvector     v0.8.5  — https://pgxn.org/dist/vector
-#   Apache AGE   1.6.0   — tag PG16/v1.6.0-rc0 (official PG16 release)
 #   contrib      pg_trgm, btree_gin, uuid-ossp (postgresql-contrib-16)
+# Apache AGE is not in this image. GraphRAG uses the plain eq_graph_* tables.
 
 FROM postgres:16-bookworm
 
 ARG PGVECTOR_VERSION=v0.8.5
-ARG AGE_GIT_REF=PG16/v1.6.0-rc0
 
 LABEL org.edgequake.postgres.version="16-bookworm" \
       org.edgequake.pgvector.version="0.8.5" \
-      org.edgequake.age.version="1.6.0" \
-      org.edgequake.extensions="vector,age,pg_trgm,btree_gin,uuid-ossp"
+      org.edgequake.extensions="vector,pg_trgm,btree_gin,uuid-ossp"
 
-# Build pgvector + AGE; keep runtime contrib packages for FTS/trigram indexes.
+# Build pgvector; keep runtime contrib packages for FTS/trigram indexes.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     postgresql-server-dev-16 \
     postgresql-contrib-16 \
     ca-certificates \
-    curl \
     git \
-    flex \
-    bison \
     && rm -rf /var/lib/apt/lists/*
 
 # pgvector — OPTFLAGS="" avoids SIGILL on Docker Desktop VMs without SVE
@@ -37,34 +32,21 @@ RUN set -eux; \
     make install; \
     rm -rf /tmp/pgvector
 
-# Apache AGE (graph extension)
-RUN set -eux; \
-    cd /tmp; \
-    git clone --depth 1 --branch "${AGE_GIT_REF}" https://github.com/apache/age.git; \
-    cd age; \
-    make; \
-    make install; \
-    rm -rf /tmp/age
-
 # Drop build toolchain only — keep postgresql-contrib-16 at runtime.
 RUN apt-get purge -y --auto-remove \
     build-essential \
     postgresql-server-dev-16 \
     git \
-    curl \
-    flex \
-    bison \
     && rm -rf /var/lib/apt/lists/*
 
 # Fail the image build if extensions are missing or wrong version.
 RUN set -eux; \
     test -f /usr/share/postgresql/16/extension/vector.control; \
-    test -f /usr/share/postgresql/16/extension/age.control; \
+    test ! -e /usr/share/postgresql/16/extension/age.control; \
     test -f /usr/share/postgresql/16/extension/pg_trgm.control; \
     test -f /usr/share/postgresql/16/extension/btree_gin.control; \
     test -f /usr/share/postgresql/16/extension/uuid-ossp.control; \
-    grep -q "default_version = '0.8.5'" /usr/share/postgresql/16/extension/vector.control; \
-    grep -q "default_version = '1.6.0'" /usr/share/postgresql/16/extension/age.control
+    grep -q "default_version = '0.8.5'" /usr/share/postgresql/16/extension/vector.control
 
 EXPOSE 5432
 CMD ["postgres"]

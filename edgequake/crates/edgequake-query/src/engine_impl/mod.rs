@@ -1151,6 +1151,27 @@ mod tests {
             assert!(combined.contains("What is Rust?"));
         }
 
+        #[test]
+        fn gold_prompt_keeps_later_supporting_clauses() {
+            let engine = create_prompt_test_engine();
+            let system = engine.build_system_prompt(
+                &test_context(),
+                Some("Do NOT append citation markers. Plain answer text only."),
+                &[],
+                None,
+                None,
+            );
+            assert!(system.contains("Do not stop after the first supporting fact"));
+            assert!(!system.contains("partial answer with specific data is better"));
+        }
+
+        #[test]
+        fn product_prompt_still_allows_a_partial_answer() {
+            let engine = create_prompt_test_engine();
+            let system = engine.build_system_prompt(&test_context(), None, &[], None, None);
+            assert!(system.contains("partial answer with specific data is better"));
+        }
+
         #[tokio::test]
         async fn test_generate_uses_chat_system_user_by_default() {
             use async_trait::async_trait;

@@ -23,7 +23,7 @@ pub async fn fetch_sqlx_migration_stats(pool: &PgPool) -> Option<SqlxMigrationSt
             COUNT(*) FILTER (WHERE success = true) AS applied_count,
             MAX(version) FILTER (WHERE success = true) AS latest_version,
             MAX(installed_on) FILTER (WHERE success = true) AS last_applied_at
-        FROM _sqlx_migrations
+        FROM public._sqlx_migrations
         "#,
     )
     .fetch_optional(pool)

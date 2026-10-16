@@ -33,6 +33,7 @@
 //! - `merge_limits`: SPEC-047 P7b/P7d concurrency + SOURCE_IDS KEEP SSOT
 
 mod description_merge;
+mod durable_fleet;
 mod entity;
 mod entity_resolution;
 mod entity_type_vote;
@@ -50,6 +51,7 @@ pub use description_merge::{
     summary_max_tokens_from_env, DescriptionMergeDecision, DescriptionMergePolicy,
     DEFAULT_FORCE_LLM_SUMMARY_ON_MERGE, DEFAULT_SUMMARY_MAX_TOKENS, GRAPH_FIELD_SEP,
 };
+pub use durable_fleet::FleetVectorStats;
 pub use entity::description_similarity;
 pub use entity_resolution::{
     cosine_similarity, entity_embed_er_enabled, er_llm_enabled, record_exact_merge,

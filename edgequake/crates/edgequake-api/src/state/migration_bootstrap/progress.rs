@@ -49,6 +49,8 @@ pub fn release_for_schema(max_version: i64) -> &'static str {
         166 => "v0.31.0",
         167..=168 => "v0.32.0–v0.32.2",
         169 => "v0.33.0",
+        170..=206 => "v0.35.0",
+        207 => "v0.35.1",
         _ => "newer-than-matrix",
     }
 }
@@ -119,6 +121,18 @@ pub fn format_step_done(
     )
 }
 
+/// Plain-English meaning of an irreversible drop. Shared by the upgrade banner
+/// and `edgequake migrate` so operators never see a bare version list.
+pub fn irreversible_drop_plain(version: i64) -> &'static str {
+    match version {
+        125 => "deletes the old key-value tables (eq_*_kv)",
+        126 => "deletes old chunk rows from eq_*_vectors",
+        131 => "deletes all remaining eq_*_vectors tables",
+        171 => "drops Apache AGE after the SPEC-164 plain-graph ledger is ready",
+        _ => "irreversible drop",
+    }
+}
+
 /// Format the upgrade-path banner printed before apply.
 pub fn format_upgrade_path(
     db_schema: Option<i64>,
@@ -136,9 +150,9 @@ pub fn format_upgrade_path(
     } else {
         irreversible_pending
             .iter()
-            .map(|v| v.to_string())
+            .map(|v| format!("{v} ({})", irreversible_drop_plain(*v)))
             .collect::<Vec<_>>()
-            .join(", ")
+            .join("; ")
     };
     format!(
         "UPGRADE PATH\n\
@@ -148,6 +162,46 @@ pub fn format_upgrade_path(
          \x20 irreversible    : {drops}\n\
          \x20 duration class  : {class}"
     )
+}
+
+/// Note when the plain-graph copy is not part of the empty-DB duration class.
+///
+/// `status == Some("ready")` or a missing ledger table means there is nothing
+/// left to copy. Any other status (`age`, `backfilling`, or no row) still runs
+/// the post-step copy in `edgequake migrate`.
+pub fn cutover_duration_note(table_present: bool, status: Option<&str>) -> Option<&'static str> {
+    if !table_present || status == Some("ready") {
+        return None;
+    }
+    Some(
+        "plain-graph cutover: pending. This copy is sized by the AGE graph and is outside the empty-DB duration class.",
+    )
+}
+
+/// Print [`cutover_duration_note`] when `eq_graph_cutover` is not ready.
+///
+/// A missing table or a failed probe is silent: check and apply must not fail
+/// because the ledger is not there yet.
+pub async fn print_cutover_duration_note(pool: &sqlx::PgPool) {
+    let present: bool =
+        sqlx::query_scalar("SELECT to_regclass('public.eq_graph_cutover') IS NOT NULL")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(false);
+    if !present {
+        return;
+    }
+    let status: Option<String> =
+        match sqlx::query_scalar("SELECT status FROM public.eq_graph_cutover WHERE id = 1")
+            .fetch_optional(pool)
+            .await
+        {
+            Ok(status) => status,
+            Err(_) => return,
+        };
+    if let Some(note) = cutover_duration_note(true, status.as_deref()) {
+        println!("{note}");
+    }
 }
 
 /// Print upgrade path to stdout (CLI only).
@@ -223,8 +277,20 @@ mod tests {
         assert!(s.contains("database schema : 149"), "{s}");
         assert!(s.contains("binary schema   : 168"), "{s}");
         assert!(s.contains("irreversible    : 125"), "{s}");
+        assert!(s.contains("key-value tables"), "{s}");
         assert!(s.contains("v0.26.0–v0.26.10"), "{s}");
         assert!(s.contains("v0.32.0–v0.32.2"), "{s}");
+    }
+
+    #[test]
+    fn cutover_note_is_outside_the_empty_db_class() {
+        let note = cutover_duration_note(true, Some("backfilling")).expect("pending");
+        assert!(note.contains("outside the empty-DB duration class"));
+        assert!(note.contains("AGE graph"));
+        assert!(cutover_duration_note(true, Some("age")).is_some());
+        assert!(cutover_duration_note(true, None).is_some());
+        assert!(cutover_duration_note(true, Some("ready")).is_none());
+        assert!(cutover_duration_note(false, Some("backfilling")).is_none());
     }
 
     #[test]

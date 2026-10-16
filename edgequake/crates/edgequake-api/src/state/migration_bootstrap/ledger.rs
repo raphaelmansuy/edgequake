@@ -221,11 +221,122 @@ pub(crate) async fn fetch_applied_versions(pool: &PgPool) -> Result<HashSet<i64>
     }
 
     let rows: Vec<i64> = sqlx::query_scalar(
-        "SELECT version FROM _sqlx_migrations WHERE success = true ORDER BY version",
+        "SELECT version FROM public._sqlx_migrations WHERE success = true ORDER BY version",
     )
     .fetch_all(pool)
     .await?;
     Ok(rows.into_iter().collect())
+}
+
+/// Copy ledger rows that landed outside `public` back into `public._sqlx_migrations`,
+/// then drop the stray tables.
+///
+/// `CREATE TABLE IF NOT EXISTS _sqlx_migrations` creates the table in the first
+/// schema of `search_path` even when `public` already has one. Migration 013 sets
+/// `search_path` to `ag_catalog, "$user", public` for the session, so versions 15
+/// and 16 were recorded in `ag_catalog` and a later checkout recorded 170+ in
+/// `edgequake`. The DDL did commit. The row is the proof, so it belongs in `public`
+/// before sqlx decides what is still pending. CLI-only: serving must not write.
+pub(crate) async fn fold_stray_sqlx_ledgers(pool: &PgPool) -> Result<u64, sqlx::Error> {
+    // One transaction, one connection. The migrate advisory lock already holds
+    // a pool slot; a second checkout here would stall a 2-connection pool.
+    let mut tx = pool.begin().await?;
+    let schemas: Vec<String> = sqlx::query_scalar(
+        "SELECT n.nspname::text
+         FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE c.relname = '_sqlx_migrations'
+           AND c.relkind = 'r'
+           AND n.nspname <> 'public'
+         ORDER BY n.nspname",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    if schemas.is_empty() {
+        tx.rollback().await?;
+        return Ok(0);
+    }
+
+    let mut folded = 0u64;
+    let mut dropped_strays = 0u64;
+    let mut moved_from: Option<String> = None;
+    let public_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (
+            SELECT 1 FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relname = '_sqlx_migrations'
+              AND c.relkind = 'r'
+              AND n.nspname = 'public'
+        )",
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if !public_exists {
+        let first = helpers::quote_schema(&schemas[0]);
+        sqlx::query(&format!(
+            "ALTER TABLE {first}._sqlx_migrations SET SCHEMA public"
+        ))
+        .execute(&mut *tx)
+        .await?;
+        moved_from = Some(schemas[0].clone());
+        tracing::info!(
+            target: "edgequake.migration",
+            schema = %schemas[0],
+            "Moved the only _sqlx_migrations table into public"
+        );
+    }
+    for schema in &schemas {
+        let quoted = helpers::quote_schema(schema);
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS (
+                SELECT 1 FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE c.relname = '_sqlx_migrations'
+                  AND c.relkind = 'r'
+                  AND n.nspname = $1
+            )",
+        )
+        .bind(schema)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !exists {
+            continue;
+        }
+        let inserted = sqlx::query(&format!(
+            "INSERT INTO public._sqlx_migrations
+                (version, description, installed_on, success, checksum, execution_time)
+             SELECT s.version, s.description, s.installed_on, s.success, s.checksum, s.execution_time
+             FROM {quoted}._sqlx_migrations s
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM public._sqlx_migrations p WHERE p.version = s.version
+             )"
+        ))
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+        sqlx::query(&format!("DROP TABLE {quoted}._sqlx_migrations"))
+            .execute(&mut *tx)
+            .await?;
+        folded += inserted;
+        dropped_strays += 1;
+        tracing::info!(
+            target: "edgequake.migration",
+            schema = %schema,
+            folded = inserted,
+            "Folded a stray _sqlx_migrations ledger into public and dropped it"
+        );
+    }
+    tx.commit().await?;
+    // Stdout, not tracing: operators run migrate without RUST_LOG.
+    if let Some(schema) = moved_from {
+        println!("ledger: moved _sqlx_migrations from {schema} into public");
+    }
+    if folded > 0 || dropped_strays > 0 {
+        println!(
+            "ledger: copied {folded} migration row(s) into public._sqlx_migrations and removed stray copies"
+        );
+    }
+    Ok(folded)
 }
 
 /// Pending sqlx migrations as `(version, description)` for operator console (`edgequake migrate`).

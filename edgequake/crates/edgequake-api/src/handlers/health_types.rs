@@ -440,7 +440,8 @@ pub struct ComponentHealth {
     /// Graph storage status.
     pub graph_storage: bool,
 
-    /// Apache AGE extension available (PostgreSQL only, SPEC-090 F-090-19).
+    /// Graph queries can run. True when Apache AGE is loaded, or when the
+    /// SPEC-164 plain graph ledger is ready (PostgreSQL only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub graph_available: Option<bool>,
 

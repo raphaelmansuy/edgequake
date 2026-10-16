@@ -14,7 +14,8 @@ use super::assertions::assert_contains_no_forbidden_sentinel;
 use super::fixtures;
 
 pub const API_KEY: &str = "provider-access-e2e-key";
-pub const EMBED_MODEL: &str = "text-embedding-3-small";
+// MockProvider::model() is this name. Typed search uses it as the registry key.
+pub const EMBED_MODEL: &str = "mock-embedding";
 // Upstream MockProvider emits 1536 dimensions regardless of the requested size.
 pub const EMBED_DIM: usize = 1536;
 

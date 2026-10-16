@@ -47,7 +47,7 @@ fn manifest_is_ssot_and_includes_ancient_fossils() {
     let manifest = std::fs::read_to_string("../../../edgequake/migrations/manifest.toml")
         .expect("manifest.toml");
     assert!(
-        manifest.contains("irreversible_drop = [125, 126, 131]"),
+        manifest.contains("irreversible_drop = [125, 126, 131, 171]"),
         "manifest must list irreversible drops"
     );
     assert!(

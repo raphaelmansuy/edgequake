@@ -60,3 +60,13 @@ proc-macro2 = { version = "1", features = ["span-locations"] }
 name = "e2e_spec149_process_kill"
 path = "tests/e2e_spec149_process_kill.rs"
 required-features = ["postgres", "provider-access-fault"]
+
+[[test]]
+name = "e2e_spec164_plain_graph"
+path = "tests/e2e_spec164_plain_graph.rs"
+required-features = ["postgres"]
+
+[[test]]
+name = "e2e_issue493_plain_edge_delete"
+path = "tests/e2e_issue493_plain_edge_delete.rs"
+required-features = ["postgres"]

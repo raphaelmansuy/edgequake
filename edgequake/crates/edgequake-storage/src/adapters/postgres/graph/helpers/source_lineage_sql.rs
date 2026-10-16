@@ -129,6 +129,29 @@ pub(in crate::adapters::postgres::graph) fn lineage_discovery_sql(
     )
 }
 
+/// Singular citations the array GIN lookup does not see.
+///
+/// `source_chunk_id` / `source_document_id` hold the real document token when
+/// `source_ids` and `source_chunk_ids` were poisoned with an entity name
+/// (SPEC-098 Symptom F). Same probe set as [`lineage_discovery_sql`]. One
+/// `= ANY` pass keeps the array lookup's GIN plan on its own statement.
+pub(in crate::adapters::postgres::graph) fn lineage_discovery_singular_sql(
+    select_list: &str,
+    from_label: &str,
+    props: &str,
+    where_clause: &str,
+) -> String {
+    format!(
+        "WITH {}, probe_ids AS MATERIALIZED (SELECT array_agg(probe_id) AS ids FROM probes) \
+         SELECT {select_list} FROM {from_label} CROSS JOIN probe_ids p \
+         WHERE ({where_clause}) AND ( \
+           ({props}->>'source_chunk_id') = ANY(p.ids) \
+           OR ({props}->>'source_document_id') = ANY(p.ids) \
+         ) LIMIT 5000",
+        source_ids_probes_cte_sql().trim(),
+    )
+}
+
 /// Count-path prefixes CTE: `$1` = `{doc}-chunk-` prefixes, `$2` = series upper.
 ///
 /// Probes every chunk id plus the bare document id, the same token set as
@@ -298,6 +321,20 @@ pub(in crate::adapters::postgres::graph) fn jsonb_matches_doc_source_prefix(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn singular_discovery_matches_scalar_citations() {
+        let sql = lineage_discovery_singular_sql(
+            "e.source_id, e.target_id, e.properties",
+            "public.eq_graph_edges e",
+            "e.properties",
+            "e.namespace = $4",
+        );
+        assert!(sql.contains("->>'source_chunk_id'"));
+        assert!(sql.contains("->>'source_document_id'"));
+        assert!(sql.contains("= ANY(p.ids)"));
+        assert!(!sql.contains("source_ids') ?|"));
+    }
 
     #[test]
     fn modern_path_is_gin_only_on_indexed_lineage_arrays() {

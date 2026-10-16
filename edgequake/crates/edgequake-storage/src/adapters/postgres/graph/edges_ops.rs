@@ -24,6 +24,9 @@ impl PostgresAGEGraphStorage {
         source: &str,
         target: &str,
     ) -> Result<Option<GraphEdge>> {
+        if self.plain_reads_ready().await? {
+            return super::plain::read::read::get_edge(self, source, target).await;
+        }
         let pool = self.pool.get().await?;
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
@@ -256,6 +259,22 @@ impl PostgresAGEGraphStorage {
         // Public single-edge API: remove ALL rel_types between endpoints.
         if super::native_graph_writes_enabled() {
             let pool = self.pool.get().await?;
+            if self.plain_writes().await? {
+                let mut tx = pool.begin().await.map_err(|e| {
+                    StorageError::Database(format!("plain edge delete begin failed: {e}"))
+                })?;
+                super::plain::write::write::delete_edges(
+                    &mut tx,
+                    &self.namespace,
+                    &[source.to_string()],
+                    &[target.to_string()],
+                )
+                .await?;
+                tx.commit().await.map_err(|e| {
+                    StorageError::Database(format!("plain edge delete commit failed: {e}"))
+                })?;
+                return Ok(());
+            }
             let mut conn = pool.acquire().await.map_err(|e| {
                 StorageError::Connection(format!("Failed to acquire connection: {}", e))
             })?;
@@ -351,6 +370,25 @@ impl PostgresAGEGraphStorage {
         let rels: Vec<String> = unique.iter().map(|(_, _, r)| r.clone()).collect();
 
         let pool = self.pool.get().await?;
+        if self.plain_writes().await? {
+            let mut tx = pool.begin().await.map_err(|e| {
+                StorageError::Database(format!("plain edge batch delete begin failed: {e}"))
+            })?;
+            super::plain::write::write::delete_edges_by_rel(
+                &mut tx,
+                &self.namespace,
+                &sources,
+                &targets,
+                &rels,
+                None,
+                None,
+            )
+            .await?;
+            tx.commit().await.map_err(|e| {
+                StorageError::Database(format!("plain edge batch delete commit failed: {e}"))
+            })?;
+            return Ok(());
+        }
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
@@ -426,6 +464,24 @@ impl PostgresAGEGraphStorage {
         }
 
         let pool = self.pool.get().await?;
+        if self.plain_writes().await? {
+            let mut tx = pool.begin().await.map_err(|e| {
+                StorageError::Database(format!("plain scoped edge delete begin failed: {e}"))
+            })?;
+            let deleted = super::plain::write::write::delete_edges_between(
+                &mut tx,
+                &self.namespace,
+                source,
+                target,
+                Some(tenant_id),
+                Some(workspace_id),
+            )
+            .await?;
+            tx.commit().await.map_err(|e| {
+                StorageError::Database(format!("plain scoped edge delete commit failed: {e}"))
+            })?;
+            return Ok(deleted > 0);
+        }
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
@@ -462,37 +518,82 @@ impl PostgresAGEGraphStorage {
         Ok(!rows.is_empty())
     }
 
-    /// Tenant-scoped batch edge delete — one statement with endpoint pairs + fence.
+    /// Tenant-scoped batch edge delete — one sister `(source, target, rel_type)` at a time.
     pub(super) async fn pg_delete_edges_scoped_batch(
         &self,
-        edges: &[(String, String)],
+        edges: &[(String, String, String)],
         tenant_id: &str,
         workspace_id: &str,
     ) -> Result<usize> {
         if edges.is_empty() {
             return Ok(0);
         }
-        let mut unique: Vec<(String, String)> = edges.to_vec();
+        let mut unique: Vec<(String, String, String)> = edges
+            .iter()
+            .map(|(s, t, r)| {
+                let rel = r.trim();
+                (
+                    s.clone(),
+                    t.clone(),
+                    if rel.is_empty() {
+                        "RELATED_TO".to_string()
+                    } else {
+                        rel.to_string()
+                    },
+                )
+            })
+            .collect();
         unique.sort();
         unique.dedup();
 
         if !super::native_graph_writes_enabled() {
             let mut deleted = 0usize;
-            for (source, target) in &unique {
-                if self
-                    .pg_delete_edge_scoped(source, target, tenant_id, workspace_id)
-                    .await?
-                {
+            let tid = Self::escape_cypher_string(tenant_id);
+            let wid = Self::escape_cypher_string(workspace_id);
+            for (source, target, rel) in &unique {
+                let src = Self::escape_cypher_string(source);
+                let tgt = Self::escape_cypher_string(target);
+                let rel_n = crate::graph_batch_dedupe::normalize_relation_type_str(rel);
+                let rel_e = Self::escape_cypher_string(&rel_n);
+                let cypher = format!(
+                    "MATCH (a:Node {{node_id: '{src}'}})-[r:EDGE]->(b:Node {{node_id: '{tgt}'}}) \
+                     WHERE r.tenant_id = '{tid}' AND r.workspace_id = '{wid}' \
+                       AND coalesce(r.relation_type, 'RELATED_TO') = '{rel_e}' \
+                     DELETE r \
+                     RETURN r"
+                );
+                let rows = self.cypher_query(&cypher, &["r"]).await?;
+                if !rows.is_empty() {
                     deleted += 1;
                 }
             }
             return Ok(deleted);
         }
 
-        let sources: Vec<String> = unique.iter().map(|(s, _)| s.clone()).collect();
-        let targets: Vec<String> = unique.iter().map(|(_, t)| t.clone()).collect();
+        let sources: Vec<String> = unique.iter().map(|(s, _, _)| s.clone()).collect();
+        let targets: Vec<String> = unique.iter().map(|(_, t, _)| t.clone()).collect();
+        let rels: Vec<String> = unique.iter().map(|(_, _, r)| r.clone()).collect();
 
         let pool = self.pool.get().await?;
+        if self.plain_writes().await? {
+            let mut tx = pool.begin().await.map_err(|e| {
+                StorageError::Database(format!("plain scoped edge batch delete begin failed: {e}"))
+            })?;
+            let deleted = super::plain::write::write::delete_edges_by_rel(
+                &mut tx,
+                &self.namespace,
+                &sources,
+                &targets,
+                &rels,
+                Some(tenant_id),
+                Some(workspace_id),
+            )
+            .await?;
+            tx.commit().await.map_err(|e| {
+                StorageError::Database(format!("plain scoped edge batch delete commit failed: {e}"))
+            })?;
+            return Ok(deleted as usize);
+        }
         let mut conn = pool.acquire().await.map_err(|e| {
             StorageError::Connection(format!("Failed to acquire connection: {}", e))
         })?;
@@ -508,19 +609,37 @@ impl PostgresAGEGraphStorage {
         } else {
             super::helpers::prop_only_endpoint("e", "target")
         };
+        let pair_rel = crate::graph_batch_dedupe::sql_eq_rel_type_arbiter_expr("pairs.rel_type");
+        let row_rel = if eq_present {
+            format!(
+                "COALESCE(NULLIF(TRIM(e.eq_rel_type), ''), {})",
+                crate::graph_batch_dedupe::sql_eq_rel_type_arbiter_expr(
+                    "(ag_catalog.agtype_to_json(e.properties)::jsonb->>'relation_type')"
+                )
+            )
+        } else {
+            crate::graph_batch_dedupe::sql_eq_rel_type_arbiter_expr(
+                "(ag_catalog.agtype_to_json(e.properties)::jsonb->>'relation_type')",
+            )
+        };
         let del = format!(
             r#"/* DATA-AGE-GRAPH-DELETE-EDGES-SCOPED-BATCH */
                DELETE FROM {graph}."EDGE" e
-               WHERE ({src_e}, {tgt_e}) IN (
-                   SELECT * FROM UNNEST($1::text[], $2::text[]) AS t(src, tgt)
-               )
-                 AND COALESCE(ag_catalog.agtype_to_json(e.properties)->>'tenant_id', '') = $3
-                 AND COALESCE(ag_catalog.agtype_to_json(e.properties)->>'workspace_id', '') = $4
+               USING (
+                 SELECT * FROM unnest($1::text[], $2::text[], $3::text[])
+                   AS t(source_id, target_id, rel_type)
+               ) pairs
+               WHERE {src_e} = pairs.source_id
+                 AND {tgt_e} = pairs.target_id
+                 AND {row_rel} = {pair_rel}
+                 AND COALESCE(ag_catalog.agtype_to_json(e.properties)->>'tenant_id', '') = $4
+                 AND COALESCE(ag_catalog.agtype_to_json(e.properties)->>'workspace_id', '') = $5
                RETURNING 1"#
         );
         let rows = sqlx::query(&del)
             .bind(&sources)
             .bind(&targets)
+            .bind(&rels)
             .bind(tenant_id)
             .bind(workspace_id)
             .fetch_all(&mut *conn)
@@ -579,6 +698,15 @@ impl PostgresAGEGraphStorage {
     ) -> Result<Vec<GraphEdge>> {
         if node_ids.is_empty() {
             return Ok(Vec::new());
+        }
+        if self.plain_reads_ready().await? {
+            return super::plain::read::read::incident_edges(
+                self,
+                node_ids,
+                tenant_id,
+                workspace_id,
+            )
+            .await;
         }
 
         let pool = self.pool.get().await?;
@@ -703,6 +831,9 @@ impl PostgresAGEGraphStorage {
     /// ADMIN / dump path (FORBIDDEN on hot HTTP) — native scan (IMP-031-07).
     /// Complexity: O(E) unavoidable; skips AGE Cypher traversal overhead.
     pub(super) async fn pg_get_all_edges(&self) -> Result<Vec<GraphEdge>> {
+        if self.plain_reads_ready().await? {
+            return super::plain::read::read::get_all_edges(self).await;
+        }
         let pool = self.pool.get().await?;
         let sql = format!(
             r#"/* DATA-AGE-GRAPH-GET-ALL-EDGES */
@@ -805,6 +936,17 @@ impl PostgresAGEGraphStorage {
         mode: crate::traits::GraphPropertyWriteMode,
     ) -> Result<u64> {
         let pool = self.pool.get().await?;
+        if self.plain_writes().await? {
+            let mut tx = pool.begin().await.map_err(|e| {
+                StorageError::Database(format!("plain edge upsert begin failed: {e}"))
+            })?;
+            let n = super::plain::write::write::upsert_edges(&mut tx, &self.namespace, edges, mode)
+                .await?;
+            tx.commit().await.map_err(|e| {
+                StorageError::Database(format!("plain edge upsert commit failed: {e}"))
+            })?;
+            return Ok(n);
+        }
         let graph = &self.graph_name;
 
         let mut source_ids: Vec<String> = Vec::with_capacity(edges.len());
@@ -904,6 +1046,36 @@ impl PostgresAGEGraphStorage {
             graph = graph,
             properties_set = properties_set
         );
+
+        let plain = super::plain::tables_present(&pool).await?;
+        if plain {
+            let mut tx = pool.begin().await.map_err(|e| {
+                StorageError::Database(format!("dual edge upsert begin failed: {e}"))
+            })?;
+            let result = sqlx::query(&sql)
+                .bind(&source_ids)
+                .bind(&target_ids)
+                .bind(&rel_types)
+                .bind(&props_json)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| {
+                    StorageError::Database(format!("Native SQL edge batch upsert failed: {e}"))
+                })?;
+            super::plain::write::write::mirror_edges_from_age(
+                &mut tx,
+                graph,
+                &self.namespace,
+                &source_ids,
+                &target_ids,
+                &rel_types,
+            )
+            .await?;
+            tx.commit().await.map_err(|e| {
+                StorageError::Database(format!("dual edge upsert commit failed: {e}"))
+            })?;
+            return Ok(result.rows_affected());
+        }
 
         let result = sqlx::query(&sql)
             .bind(&source_ids)

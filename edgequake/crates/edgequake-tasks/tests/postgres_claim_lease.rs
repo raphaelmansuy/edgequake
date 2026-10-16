@@ -15,9 +15,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{TimeZone, Utc};
-use edgequake_tasks::postgres::PostgresTaskStorage;
+use edgequake_tasks::postgres::{PostgresTaskStorage, FAIR_PENDING_SAMPLE_SQL};
 use edgequake_tasks::{ClaimFairnessPolicy, Task, TaskStatus, TaskStorage, TaskType};
-use sqlx::{postgres::PgPoolOptions, PgPool};
+use sqlx::{postgres::PgPoolOptions, PgPool, Row};
 use uuid::Uuid;
 
 fn get_database_url() -> Option<String> {
@@ -756,4 +756,87 @@ async fn held_pending_counts_toward_tenant_at_cap() {
     for t in [&held_a, &pending_a, &pending_b] {
         cleanup(&pool, t).await;
     }
+}
+
+/// An older held pending row must not appear in the fair sample, and claim
+/// takes the newer unheld row.
+#[tokio::test]
+async fn fair_sample_skips_older_held_task() {
+    let Some(pool) = create_test_pool().await else {
+        eprintln!("Skipping: no DATABASE_URL");
+        return;
+    };
+    let storage = PostgresTaskStorage::new(pool.clone());
+    let workspace = Uuid::new_v4();
+    let tenant = Uuid::new_v4();
+
+    let mut held = Task::new(
+        tenant,
+        workspace,
+        TaskType::Insert,
+        serde_json::json!({ "document_id": format!("held-old-{}", Uuid::new_v4()) }),
+    );
+    held.status = TaskStatus::Pending;
+    let mut open = Task::new(
+        tenant,
+        workspace,
+        TaskType::Insert,
+        serde_json::json!({ "document_id": format!("open-new-{}", Uuid::new_v4()) }),
+    );
+    open.status = TaskStatus::Pending;
+    ensure_tenant_workspace(&pool, &held)
+        .await
+        .expect("seed tenant");
+    storage.create_task(&held).await.expect("create held");
+    storage.create_task(&open).await.expect("create open");
+    let held_at = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 1).unwrap();
+    let open_at = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 2).unwrap();
+    sqlx::query("UPDATE tasks SET created_at = $2 WHERE track_id = $1")
+        .bind(&held.track_id)
+        .bind(held_at)
+        .execute(&pool)
+        .await
+        .expect("pin held");
+    sqlx::query("UPDATE tasks SET created_at = $2 WHERE track_id = $1")
+        .bind(&open.track_id)
+        .bind(open_at)
+        .execute(&pool)
+        .await
+        .expect("pin open");
+    storage
+        .mark_fairness_hold(&held.track_id, Duration::from_secs(3600))
+        .await
+        .expect("hold");
+
+    let rows = sqlx::query(FAIR_PENDING_SAMPLE_SQL)
+        .bind(20_i64)
+        .fetch_all(&pool)
+        .await
+        .expect("sample");
+    let ids: Vec<String> = rows
+        .iter()
+        .map(|row| row.get::<String, _>("track_id"))
+        .collect();
+    assert!(
+        ids.iter().any(|id| id == &open.track_id),
+        "unheld task must be in the sample: {ids:?}"
+    );
+    assert!(
+        !ids.iter().any(|id| id == &held.track_id),
+        "held task must stay out of the sample: {ids:?}"
+    );
+
+    let claimed = storage
+        .claim_next("fair-sample-w", Duration::from_secs(30))
+        .await
+        .expect("claim")
+        .expect("claim the unheld row");
+    assert_eq!(claimed.track_id, open.track_id);
+
+    let token = claimed.lease_token.expect("token");
+    let _ = storage
+        .release_claim(&open.track_id, "fair-sample-w", token)
+        .await;
+    cleanup(&pool, &held).await;
+    cleanup(&pool, &open).await;
 }

@@ -108,7 +108,6 @@ run_cargo_gates() {
     e2e_spec059_halfvec_perf_recall
     e2e_spec059_hnsw_indexdef_ef64
     e2e_spec060_fts_perf_explain
-    e2e_spec060_age_expand_perf
     e2e_spec060_ingest_stage_perf
     e2e_spec060_compensate_retract_perf
     e2e_spec061_kv_access_perf
