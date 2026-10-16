@@ -82,21 +82,54 @@ df -i / 2>&1 | tee -a "${LOG}" || true
 log "compose pull (EDGEQUAKE_VERSION=${EDGEQUAKE_VERSION})"
 "${COMPOSE[@]}" pull
 
+wait_postgres() {
+  for i in $(seq 1 60); do
+    if "${COMPOSE[@]}" exec -T postgres pg_isready -U edgequake -d edgequake >/dev/null 2>&1; then
+      return 0
+    fi
+    if [[ "${i}" -eq 60 ]]; then
+      log "postgres not ready"
+      "${COMPOSE[@]}" logs postgres | tail -50 | tee -a "${LOG}"
+      exit 1
+    fi
+    sleep 2
+  done
+}
+
+# 0.35.5 postgres images have no age.so. DROP EXTENSION on that image fails
+# with "could not access file age" when the volume still has the extension.
+# Drop it on the last image that ships the library, then open the new image.
+postgres_has_no_age_library() {
+  python3 - <<'PY' "${EDGEQUAKE_VERSION}"
+import sys
+parts = tuple(int(x) for x in sys.argv[1].split("."))
+raise SystemExit(0 if parts >= (0, 35, 5) else 1)
+PY
+}
+
 log "start postgres"
 "${COMPOSE[@]}" up -d postgres
 
 log "wait for postgres healthy"
-for i in $(seq 1 60); do
-  if "${COMPOSE[@]}" exec -T postgres pg_isready -U edgequake -d edgequake >/dev/null 2>&1; then
-    break
+wait_postgres
+
+if postgres_has_no_age_library; then
+  age_installed="$("${COMPOSE[@]}" exec -T postgres psql -U edgequake -d edgequake -tAc \
+    "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')")"
+  age_installed="$(printf '%s' "${age_installed}" | tr -d '[:space:]')"
+  if [[ "${age_installed}" == "t" ]]; then
+    log "dropping Apache AGE with the 0.35.4 image before ${EDGEQUAKE_VERSION} opens this volume"
+    docker pull ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4
+    docker pull ghcr.io/raphaelmansuy/edgequake:0.35.4
+    EDGEQUAKE_POSTGRES_TAG=0.35.4 EDGEQUAKE_VERSION=0.35.4 "${COMPOSE[@]}" up -d postgres
+    wait_postgres
+    EDGEQUAKE_POSTGRES_TAG=0.35.4 EDGEQUAKE_VERSION=0.35.4 \
+      "${COMPOSE[@]}" run --rm --no-deps -T api migrate --drop-age
+    log "Apache AGE dropped; starting ${EDGEQUAKE_VERSION} postgres"
+    "${COMPOSE[@]}" up -d postgres
+    wait_postgres
   fi
-  if [[ "${i}" -eq 60 ]]; then
-    log "postgres not ready"
-    "${COMPOSE[@]}" logs postgres | tail -50 | tee -a "${LOG}"
-    exit 1
-  fi
-  sleep 2
-done
+fi
 
 log "LD-15 migrate dry-run"
 "${COMPOSE[@]}" run --rm --no-deps -T api migrate dry-run || true
@@ -199,6 +232,10 @@ log "E2E-148-03 extensions"
 dx="$("${COMPOSE[@]}" exec -T postgres psql -U edgequake -d edgequake -c '\dx')"
 echo "${dx}" | tee -a "${LOG}"
 echo "${dx}" | grep -qw vector || { log "FAIL: vector extension missing"; exit 1; }
-echo "${dx}" | grep -qw age || { log "FAIL: age extension missing"; exit 1; }
+if echo "${dx}" | grep -qw age; then
+  log "Apache AGE is installed"
+else
+  log "Apache AGE is not installed"
+fi
 
 log "DEPLOY_OK"
