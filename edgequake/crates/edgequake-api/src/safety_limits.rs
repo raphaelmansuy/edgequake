@@ -796,6 +796,7 @@ pub fn create_safe_embedding_provider(
         ProviderFactory::create_embedding_provider(&provider_name, &model, dimension)?
     };
     let config = SafetyLimitsConfig::from_env();
+    let inner = crate::state::provider_setup::stamp_embedding_model(inner, &model);
 
     tracing::info!(
         provider = %provider_name,
