@@ -105,7 +105,8 @@ jobs:
     services:
       postgres:
         # SPEC-150: AGE + pgvector required (M078 Node/EDGE class).
-        image: ghcr.io/raphaelmansuy/edgequake-postgres:latest
+        # :latest is 0.35.5 and has no age.so. Keep this job on the last image that does.
+        image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4
         env:
           POSTGRES_DB: edgequake_mig_guard
           POSTGRES_USER: edgequake_guard

@@ -195,7 +195,11 @@ jobs:
       - name: Run security audit
         working-directory: edgequake
         # SPEC-083 / X-32: audit is a blocking gate (no continue-on-error).
-        run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0173
+        # zip extract() advisories (0367/0368/0369) are patched only in zip >= 9.
+        # edgeparse-core 0.3.2 requires zip ^2.2 and only writes archives.
+        # utoipa-swagger-ui 9 requires zip ^3 and copies entries itself; it does
+        # not call ZipArchive::extract(). Neither parent can select zip 9 yet.
+        run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0173 --ignore RUSTSEC-2026-0367 --ignore RUSTSEC-2026-0368 --ignore RUSTSEC-2026-0369
 
   docs:
     name: Documentation
