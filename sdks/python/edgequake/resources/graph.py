@@ -121,7 +121,7 @@ class GraphResource(SyncResource):
         """
         params: dict[str, Any] = {"limit": limit}
         if query:
-            params["query"] = query
+            params["q"] = query
         return self._get(
             "/api/v1/graph/labels/search",
             params=params,
@@ -236,7 +236,7 @@ class EntitiesResource(SyncResource):
         """
         return self._get(
             "/api/v1/graph/entities/exists",
-            params={"name": entity_name},
+            params={"entity_name": entity_name},
             response_type=EntityExistsResponse,
         )
 
@@ -394,7 +394,7 @@ class AsyncGraphResource(AsyncResource):
     ) -> SearchLabelsResponse:
         params: dict[str, Any] = {"limit": limit}
         if query:
-            params["query"] = query
+            params["q"] = query
         return await self._get(
             "/api/v1/graph/labels/search",
             params=params,
@@ -477,7 +477,7 @@ class AsyncEntitiesResource(AsyncResource):
     async def exists(self, entity_name: str) -> EntityExistsResponse:
         return await self._get(
             "/api/v1/graph/entities/exists",
-            params={"name": entity_name},
+            params={"entity_name": entity_name},
             response_type=EntityExistsResponse,
         )
 
