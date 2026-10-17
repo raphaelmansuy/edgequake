@@ -135,7 +135,7 @@ public final class EntityService: @unchecked Sendable {
     {
         try await http.post(
             "/api/v1/graph/entities/merge",
-            body: ["source_name": sourceName, "target_name": targetName])
+            body: ["source_entity": sourceName, "target_entity": targetName])
     }
 
     public func neighborhood(name: String, depth: Int = 1) async throws
