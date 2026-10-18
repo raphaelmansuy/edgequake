@@ -1,6 +1,6 @@
 {
   "name": "edgequake_webui",
-  "version": "0.35.5",
+  "version": "0.35.7",
   "private": true,
   "scripts": {
     "dev": "node scripts/copy-pdf-worker.mjs && next dev",

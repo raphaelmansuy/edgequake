@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.35.7] — 2026-10-18
+
+Patch: this tag is the 0.35.5 train on `edgequake-main`. A platform admin can switch organization after login. Label search recovers typos, and scoped discovery fails closed, on the Postgres image that does not ship Apache AGE. Schema stays **207**. An upgrade from 0.35.5 or 0.35.6 applies no new migration:
+[`docs/operations/upgrade-to-0.35.7.md`](docs/operations/upgrade-to-0.35.7.md).
+
+**CD:** GHCR `edgequake`, `edgequake-frontend`, `edgequake-postgres` (`0.35.7`, `-pg16`, `-pg17`, `-pg18`), and `edgequake-keycloak` on tag `v0.35.7`.
+
+**SPEC-001 Acc:** not re-scored on this cut. This delta does not change retrieval scoring. The latest valid medical-mid n=200 pack remains the v0.35.5 archive
+[`medical-mid-20261016T162456Z`](specs/001-benchmark/e2e/artifacts/history/medical-mid-20261016T162456Z/)
+(`valid: true`): EdgeQuake **0.8054**, LightRAG **0.7920**, delta **+0.0135**
+(95% bootstrap CI [+0.0056, +0.1506], n_paired 40). Those numbers are the v0.35.5 prompt. The harness marks that pack as not a publishable beat because L2 is incomplete. EdgeQuake does not claim a win.
+
+### Changed
+
+- A platform admin may set `X-Tenant-ID` and `X-Workspace-ID` after password login. Other roles stay on the tenant the token was issued for.
+- Plain-graph label search falls back to the trigram index when the owner function returns no rows. A tenant that does not own the workspace is rejected before lineage or prefix discovery.
+- Product Postgres jobs use the image that has no `age.so`. A greenfield install does not need Apache AGE.
+
 ## [0.35.5] — 2026-10-16
 
 Patch: the published Postgres images no longer ship Apache AGE. On a server that cannot install the extension, `edgequake migrate` records migration 171 with the safe schema, so `/health` is not left with `pending_count` 1. Schema stays **207**. Upgrade from 0.35.4:
