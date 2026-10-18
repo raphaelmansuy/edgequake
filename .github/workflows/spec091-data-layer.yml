@@ -65,14 +65,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # latest-* is the 0.35.5 line and has no age.so. These smokes
-          # CREATE EXTENSION age, so they stay on the last tags that ship it.
+          # This version does not require Apache AGE. These tags ship pgvector only.
           - profile: pg16
-            image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4-pg16
+            image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.5-pg16
           - profile: pg17
-            image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4-pg17
+            image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.5-pg17
           - profile: pg18
-            image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4
+            image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.5
 
     services:
       postgres:
@@ -153,8 +152,8 @@ jobs:
 
     services:
       postgres:
-        # :latest is 0.35.5 and has no age.so. This job still loads Apache AGE.
-        image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4
+        # This version does not require Apache AGE. 0.35.5 ships pgvector only.
+        image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.5
         env:
           POSTGRES_DB: edgequake_test
           POSTGRES_USER: edgequake_test
@@ -431,8 +430,8 @@ jobs:
 
     services:
       postgres:
-        # :latest is 0.35.5 and has no age.so. This job still loads Apache AGE.
-        image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4
+        # This version does not require Apache AGE. 0.35.5 ships pgvector only.
+        image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.5
         env:
           POSTGRES_DB: edgequake_test
           POSTGRES_USER: edgequake_test

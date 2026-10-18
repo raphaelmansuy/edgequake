@@ -98,6 +98,17 @@ pub(in crate::adapters::postgres::graph) mod search {
     const SEARCH_LABELS_SQL: &str =
         "SELECT label FROM public.eq_graph_search_labels($1, $2, $3, $4, $5)";
 
+    /// Typo recovery when the substring function returns nothing. `lower(node_id)`
+    /// matches `idx_eq_graph_nodes_id_trgm`. The `%` operator is pg_trgm.
+    const SEARCH_LABELS_TYPO_SQL: &str = "SELECT n.node_id \
+         FROM public.eq_graph_nodes n \
+         WHERE n.namespace = $1 \
+           AND ($2::text IS NULL OR n.tenant_id = $2) \
+           AND ($3::text IS NULL OR n.workspace_id = $3) \
+           AND lower(n.node_id) % $4 \
+         ORDER BY public.similarity(lower(n.node_id), $4) DESC, n.node_id \
+         LIMIT $5";
+
     pub(in crate::adapters::postgres::graph) async fn search_labels(
         storage: &PostgresAGEGraphStorage,
         query: &str,
@@ -110,16 +121,31 @@ pub(in crate::adapters::postgres::graph) mod search {
         // use the trigram indexes. The function runs as the table owner and
         // keeps the session tenant.
         let limit = i32::try_from(limit).unwrap_or(i32::MAX);
+        let query = query.to_lowercase();
         let rows = sqlx::query_scalar::<_, String>(SEARCH_LABELS_SQL)
             .bind(&storage.namespace)
-            .bind(query.to_lowercase())
+            .bind(&query)
             .bind(limit)
             .bind(tenant_id)
             .bind(workspace_id)
             .fetch_all(&pool)
             .await
             .map_err(|e| StorageError::Database(format!("plain search_labels failed: {e}")))?;
-        Ok(rows)
+        if !rows.is_empty() {
+            return Ok(rows);
+        }
+        // Migration 204's owner function matches substrings. An interior typo
+        // is a trigram match on the same index, still inside the tenant scope.
+        let fuzzy = sqlx::query_scalar::<_, String>(SEARCH_LABELS_TYPO_SQL)
+            .bind(&storage.namespace)
+            .bind(tenant_id)
+            .bind(workspace_id)
+            .bind(&query)
+            .bind(limit)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("plain search_labels typo failed: {e}")))?;
+        Ok(fuzzy)
     }
 
     pub(in crate::adapters::postgres::graph) async fn popular_labels(
@@ -148,12 +174,20 @@ pub(in crate::adapters::postgres::graph) mod search {
 
     #[cfg(test)]
     mod tests {
-        use super::{SEARCH_LABELS_SQL, SEARCH_NODES_SQL};
+        use super::{SEARCH_LABELS_SQL, SEARCH_LABELS_TYPO_SQL, SEARCH_NODES_SQL};
 
         #[test]
         fn search_labels_goes_through_the_owner_function() {
             assert!(SEARCH_LABELS_SQL.contains("eq_graph_search_labels"));
             assert!(!SEARCH_LABELS_SQL.contains("LIKE"));
+        }
+
+        #[test]
+        fn typo_labels_stay_on_the_trigram_index_and_the_caller_scope() {
+            assert!(SEARCH_LABELS_TYPO_SQL.contains("lower(n.node_id) %"));
+            assert!(SEARCH_LABELS_TYPO_SQL.contains("n.tenant_id"));
+            assert!(SEARCH_LABELS_TYPO_SQL.contains("n.workspace_id"));
+            assert!(!SEARCH_LABELS_TYPO_SQL.contains("ag_catalog"));
         }
 
         #[test]

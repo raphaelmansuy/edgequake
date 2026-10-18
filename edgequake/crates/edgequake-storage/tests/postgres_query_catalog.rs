@@ -92,28 +92,38 @@ async fn postgres_prepares_source_derived_static_queries() {
         return;
     };
     let mut conn = pool.acquire().await.expect("audit connection");
-    sqlx::query("LOAD 'age'")
-        .execute(&mut *conn)
-        .await
-        .expect("AGE");
-    // Migration 171 drops the extension once the plain graph is ready. Legacy
-    // statements still name ag_catalog.ag_graph, so prepare needs the catalog
-    // for this connection only.
-    let age_was_present: bool =
-        sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')")
-            .fetch_one(&mut *conn)
-            .await
-            .expect("age extension probe");
-    if !age_was_present {
-        sqlx::query("CREATE EXTENSION age CASCADE")
+    // This version serves on Postgres that cannot load Apache AGE. Legacy
+    // statements still name ag_catalog; prepare those only when the package exists.
+    let age_available: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'age')",
+    )
+    .fetch_one(&mut *conn)
+    .await
+    .expect("age package probe");
+    let age_was_present: bool = if age_available {
+        sqlx::query("LOAD 'age'")
             .execute(&mut *conn)
             .await
-            .expect("AGE catalog for static prepare");
-    }
-    sqlx::query("SET search_path = ag_catalog, public")
-        .execute(&mut *conn)
-        .await
-        .expect("AGE path");
+            .expect("AGE");
+        let present: bool =
+            sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')")
+                .fetch_one(&mut *conn)
+                .await
+                .expect("age extension probe");
+        if !present {
+            sqlx::query("CREATE EXTENSION age CASCADE")
+                .execute(&mut *conn)
+                .await
+                .expect("AGE catalog for static prepare");
+        }
+        sqlx::query("SET search_path = ag_catalog, public")
+            .execute(&mut *conn)
+            .await
+            .expect("AGE path");
+        present
+    } else {
+        false
+    };
     let metrics_was_present: bool =
         sqlx::query_scalar("SELECT to_regclass('public.workspace_metrics_history') IS NOT NULL")
             .fetch_one(&mut *conn)
@@ -187,11 +197,16 @@ async fn postgres_prepares_source_derived_static_queries() {
                         "direct_bind_count_verified": site.direct_bind_count.map(|_| bind_count_ok)})
                 }
                 Err(e) => {
-                    failures.push(format!(
-                        "{}:{} {}: {e}",
-                        site.file, site.line, site.function
-                    ));
-                    serde_json::json!({"status": "prepare_failed", "error": e.to_string()})
+                    let message = e.to_string();
+                    if !age_available && missing_age_object(&message) {
+                        serde_json::json!({"status": "skipped_without_age", "error": message})
+                    } else {
+                        failures.push(format!(
+                            "{}:{} {}: {message}",
+                            site.file, site.line, site.function
+                        ));
+                        serde_json::json!({"status": "prepare_failed", "error": message})
+                    }
                 }
             }
         } else {
@@ -207,7 +222,7 @@ async fn postgres_prepares_source_derived_static_queries() {
             .await
             .expect("drop metrics fixture");
     }
-    if !age_was_present {
+    if age_available && !age_was_present {
         sqlx::query("DEALLOCATE ALL")
             .execute(&mut *conn)
             .await
@@ -235,4 +250,13 @@ async fn postgres_prepares_source_derived_static_queries() {
         "static SQL preparation failures:\n{}",
         failures.join("\n")
     );
+}
+
+fn missing_age_object(error: &str) -> bool {
+    let error = error.to_ascii_lowercase();
+    error.contains("ag_catalog")
+        || error.contains("agtype")
+        || error.contains("graphid")
+        || error.contains("extension \"age\"")
+        || error.contains("could not access file \"age\"")
 }

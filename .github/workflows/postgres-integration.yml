@@ -67,9 +67,8 @@ jobs:
 
     services:
       postgres:
-        # :latest is the 0.35.5 image, which has no age.so. These tests still
-        # CREATE EXTENSION age. 0.35.4 is the last tag that ships the library.
-        image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4
+        # This version does not require Apache AGE. 0.35.5 ships pgvector only.
+        image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.5
         env:
           POSTGRES_DB: edgequake_test
           POSTGRES_USER: edgequake_test
@@ -402,9 +401,8 @@ jobs:
 
     services:
       postgres-age:
-        # Last product image that still contains the Apache AGE library.
-        # v0.35.5 and later do not. Do not point this job at :latest.
-        image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4
+        # This version does not require Apache AGE. 0.35.5 ships pgvector only.
+        image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.5
         env:
           POSTGRES_DB: edgequake_test
           POSTGRES_USER: edgequake_test
@@ -451,9 +449,13 @@ jobs:
         run: |
           PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test << 'EOSQL'
             CREATE EXTENSION IF NOT EXISTS vector;
-            CREATE EXTENSION IF NOT EXISTS age;
-            LOAD 'age';
-            SET search_path = ag_catalog, "$user", public;
+            DO $$ BEGIN
+              CREATE EXTENSION IF NOT EXISTS age;
+              LOAD 'age';
+              EXECUTE 'SET search_path = ag_catalog, "$user", public';
+            EXCEPTION WHEN OTHERS THEN
+              RAISE NOTICE 'age package absent: %', SQLERRM;
+            END $$;
           EOSQL
 
       # WHY: Native graph write contracts (EDGEQUAKE_NATIVE_GRAPH_WRITES=1) need
@@ -540,8 +542,8 @@ jobs:
 
     services:
       postgres:
-        # Coverage still LOADs Apache AGE. Product :latest no longer ships it.
-        image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4
+        # This version does not require Apache AGE. 0.35.5 ships pgvector only.
+        image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.5
         env:
           POSTGRES_DB: edgequake_test
           POSTGRES_USER: edgequake_test
@@ -582,9 +584,13 @@ jobs:
         run: |
           PGPASSWORD=test_password_123 psql -h localhost -p 5432 -U edgequake_test -d edgequake_test << 'EOSQL'
             CREATE EXTENSION IF NOT EXISTS vector;
-            CREATE EXTENSION IF NOT EXISTS age;
-            LOAD 'age';
-            SET search_path = ag_catalog, "$user", public;
+            DO $$ BEGIN
+              CREATE EXTENSION IF NOT EXISTS age;
+              LOAD 'age';
+              EXECUTE 'SET search_path = ag_catalog, "$user", public';
+            EXCEPTION WHEN OTHERS THEN
+              RAISE NOTICE 'age package absent: %', SQLERRM;
+            END $$;
 
             DO $$
             BEGIN

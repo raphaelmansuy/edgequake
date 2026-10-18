@@ -240,6 +240,13 @@ pub(in crate::adapters::postgres::graph) mod scan {
         if source_prefixes.is_empty() {
             return Ok(Vec::new());
         }
+        let pool = storage.pool.get().await?;
+        reject_incoherent_graph_scope(
+            &pool,
+            filter.tenant_id.as_deref(),
+            filter.workspace_id.as_deref(),
+        )
+        .await?;
         let (exact, chunks) = probe_sets(source_prefixes);
         let extra = edge_filter_sql(filter);
         let sql = lineage_discovery_sql(
@@ -248,7 +255,6 @@ pub(in crate::adapters::postgres::graph) mod scan {
             "e.properties",
             &format!("e.namespace = $4 {extra}"),
         );
-        let pool = storage.pool.get().await?;
         let rows = sqlx::query(&sql)
             .bind(&exact)
             .bind(&chunks)
@@ -317,6 +323,47 @@ pub(in crate::adapters::postgres::graph) mod scan {
     }
 }
 
+async fn reject_incoherent_graph_scope(
+    pool: &sqlx::PgPool,
+    tenant_id: Option<&str>,
+    workspace_id: Option<&str>,
+) -> Result<()> {
+    if tenant_id.is_none() && workspace_id.is_none() {
+        return Ok(());
+    }
+    let parse = |raw: &str| {
+        uuid::Uuid::parse_str(raw)
+            .map_err(|_| StorageError::InvalidInput("Malformed graph scope".into()))
+    };
+    let tenant = tenant_id.map(parse).transpose()?;
+    let workspace = match workspace_id.map(parse).transpose()? {
+        Some(workspace) => workspace,
+        None => {
+            if tenant.is_none() {
+                return Err(StorageError::InvalidInput(
+                    "Graph tenant scope is required".into(),
+                ));
+            }
+            return Ok(());
+        }
+    };
+    let owner: Option<uuid::Uuid> = sqlx::query_scalar(
+        "SELECT tenant_id FROM public.workspaces WHERE workspace_id=$1 AND is_active",
+    )
+    .bind(workspace)
+    .fetch_optional(pool)
+    .await
+    .map_err(StorageError::from)?;
+    let owner =
+        owner.ok_or_else(|| StorageError::InvalidInput("Unknown workspace scope".into()))?;
+    if tenant.is_some_and(|tenant| tenant != owner) {
+        return Err(StorageError::InvalidInput(
+            "Tenant does not own workspace scope".into(),
+        ));
+    }
+    Ok(())
+}
+
 async fn lineage_nodes(
     storage: &PostgresAGEGraphStorage,
     filter: &NodeListFilter,
@@ -325,6 +372,13 @@ async fn lineage_nodes(
     if source_prefixes.is_empty() {
         return Ok(Vec::new());
     }
+    let pool = storage.pool.get().await?;
+    reject_incoherent_graph_scope(
+        &pool,
+        filter.tenant_id.as_deref(),
+        filter.workspace_id.as_deref(),
+    )
+    .await?;
     let (exact, chunks) = probe_sets(source_prefixes);
     let extra = node_filter_sql(filter);
     let sql = lineage_discovery_sql(
@@ -333,7 +387,6 @@ async fn lineage_nodes(
         "n.properties",
         &format!("n.namespace = $4 {extra}"),
     );
-    let pool = storage.pool.get().await?;
     let rows = sqlx::query(&sql)
         .bind(&exact)
         .bind(&chunks)

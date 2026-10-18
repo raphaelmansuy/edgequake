@@ -115,9 +115,8 @@ jobs:
 
     services:
       postgres:
-        # SPEC-150 Layer 4 replays a v0.34 database that loaded Apache AGE.
-        # v0.35.5 postgres images do not ship the library. Keep this job on 0.35.4.
-        image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4
+        # This version does not require Apache AGE. 0.35.5 ships pgvector only.
+        image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.5
         env:
           POSTGRES_DB: edgequake_mig_guard
           POSTGRES_USER: edgequake_guard

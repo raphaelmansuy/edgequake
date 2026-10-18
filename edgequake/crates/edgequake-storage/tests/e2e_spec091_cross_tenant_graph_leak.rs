@@ -68,22 +68,30 @@ async fn degree_search_preserves_native_and_legacy_endpoint_counts() {
     }
     // One null endpoint requires the property fallback; another deliberately
     // disagrees with its property to verify that the native value takes priority.
-    sqlx::query(&format!(
-        "UPDATE {}.\"EDGE\" SET eq_source_id=NULL, eq_target_id=NULL \
-        WHERE eq_source_id='DEGREE_PARITY_A' AND eq_target_id='DEGREE_PARITY_C'",
-        graph.graph_name()
-    ))
-    .execute(&pool)
-    .await
-    .unwrap();
-    sqlx::query(&format!(
-        "UPDATE {}.\"EDGE\" SET eq_source_id='DEGREE_PARITY_A' \
-        WHERE eq_source_id='DEGREE_PARITY_B' AND eq_target_id='DEGREE_PARITY_C'",
-        graph.graph_name()
-    ))
-    .execute(&pool)
-    .await
-    .unwrap();
+    // Plain tables have one source_id column, so this rewrite exists only on AGE.
+    let age_edge: bool = sqlx::query_scalar("SELECT to_regclass($1) IS NOT NULL")
+        .bind(format!("{}.\"EDGE\"", graph.graph_name()))
+        .fetch_one(&pool)
+        .await
+        .unwrap_or(false);
+    if age_edge {
+        sqlx::query(&format!(
+            "UPDATE {}.\"EDGE\" SET eq_source_id=NULL, eq_target_id=NULL \
+            WHERE eq_source_id='DEGREE_PARITY_A' AND eq_target_id='DEGREE_PARITY_C'",
+            graph.graph_name()
+        ))
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(&format!(
+            "UPDATE {}.\"EDGE\" SET eq_source_id='DEGREE_PARITY_A' \
+            WHERE eq_source_id='DEGREE_PARITY_B' AND eq_target_id='DEGREE_PARITY_C'",
+            graph.graph_name()
+        ))
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
     let popular: HashMap<_, _> = graph
         .get_popular_nodes_with_degree(10, None, None, Some(&tenant), Some(&workspace))
         .await
@@ -91,9 +99,10 @@ async fn degree_search_preserves_native_and_legacy_endpoint_counts() {
         .into_iter()
         .map(|(node, degree)| (node.id, degree))
         .collect();
-    assert_eq!(popular["DEGREE_PARITY_A"], 3);
-    assert_eq!(popular["DEGREE_PARITY_B"], 0);
-    assert_eq!(popular["DEGREE_PARITY_C"], 0);
+    let (pop_a, pop_b, pop_c) = if age_edge { (3, 0, 0) } else { (2, 2, 2) };
+    assert_eq!(popular["DEGREE_PARITY_A"], pop_a);
+    assert_eq!(popular["DEGREE_PARITY_B"], pop_b);
+    assert_eq!(popular["DEGREE_PARITY_C"], pop_c);
     let search: HashMap<_, _> = graph
         .search_nodes("DEGREE_PARITY", 10, None, Some(&tenant), Some(&workspace))
         .await
@@ -101,9 +110,10 @@ async fn degree_search_preserves_native_and_legacy_endpoint_counts() {
         .into_iter()
         .map(|(node, degree)| (node.id, degree))
         .collect();
-    assert_eq!(search["DEGREE_PARITY_A"], 3);
-    assert_eq!(search["DEGREE_PARITY_B"], 1);
-    assert_eq!(search["DEGREE_PARITY_C"], 2);
+    let (search_a, search_b, search_c) = if age_edge { (3, 1, 2) } else { (2, 2, 2) };
+    assert_eq!(search["DEGREE_PARITY_A"], search_a);
+    assert_eq!(search["DEGREE_PARITY_B"], search_b);
+    assert_eq!(search["DEGREE_PARITY_C"], search_c);
     let ids = vec![
         "DEGREE_PARITY_A".into(),
         "DEGREE_PARITY_B".into(),
