@@ -13,6 +13,14 @@ interface MathExtensionConfig {
   htmlTag: string;
 }
 
+/** True when a bracket body is display LaTeX rather than a citation or link. */
+export function isBareLatexBlock(body: string): boolean {
+  const trimmed = body.trim();
+  if (!trimmed || trimmed.includes("](")) return false;
+  if (/^\d[\d,\s–-]*$/.test(trimmed)) return false;
+  return /\\[A-Za-z]{2,}/.test(trimmed);
+}
+
 function defineMathExtension(config: MathExtensionConfig) {
   return {
     name: config.name,
@@ -53,6 +61,27 @@ export const MATH_MARKED_EXTENSIONS = [
     bodyPattern: /^\\\[([\s\S]+?)\\\]/,
     htmlTag: "math-bracket-block",
   }),
+  {
+    name: "math_bare_bracket_block",
+    level: "block" as const,
+    start(src: string) {
+      return src.search(/^[ \t]*\[\s*$/m);
+    },
+    tokenizer(src: string) {
+      const match = /^[ \t]*\[\s*\n([\s\S]*?)\n[ \t]*\][ \t]*(?:\n|$)/.exec(src);
+      if (!match || !isBareLatexBlock(match[1])) {
+        return undefined;
+      }
+      return {
+        type: "math_bare_bracket_block",
+        raw: match[0],
+        text: match[1].trim(),
+      };
+    },
+    renderer(token: { text: string }) {
+      return `<math-bare-bracket-block>${token.text}</math-bare-bracket-block>`;
+    },
+  },
   defineMathExtension({
     name: "math_inline",
     level: "inline",

@@ -85,7 +85,7 @@ mod operational_stores;
 #[cfg(feature = "postgres")]
 mod postgres;
 mod postgres_runtime;
-mod provider_setup;
+pub(crate) mod provider_setup;
 mod query_bootstrap;
 mod query_runtime;
 mod resource_runtime;

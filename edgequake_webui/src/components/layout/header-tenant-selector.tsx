@@ -109,6 +109,7 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
     data: workspacesData,
     isLoading: isLoadingWorkspaces,
     isFetching: isFetchingWorkspaces,
+    isError: isWorkspacesError,
   } = useQuery({
     queryKey: ['workspaces', selectedTenantId],
     queryFn: () => (selectedTenantId ? getWorkspaces(selectedTenantId) : Promise.resolve([])),
@@ -236,6 +237,7 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
             selectedTenantName={selectedTenant?.name}
             selectedWorkspaceName={selectedWorkspace?.name}
             isLoadingWorkspaces={isLoadingWorkspaces}
+            isWorkspacesError={isWorkspacesError}
             searchResetKey={selectorOpen ? 'open' : 'closed'}
             onTenantSelect={handleTenantSelect}
             onWorkspaceSelect={handleWorkspaceSelect}

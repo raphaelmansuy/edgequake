@@ -67,7 +67,9 @@ jobs:
 
     services:
       postgres:
-        image: ghcr.io/raphaelmansuy/edgequake-postgres:latest
+        # :latest is the 0.35.5 image, which has no age.so. These tests still
+        # CREATE EXTENSION age. 0.35.4 is the last tag that ships the library.
+        image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4
         env:
           POSTGRES_DB: edgequake_test
           POSTGRES_USER: edgequake_test

@@ -81,6 +81,7 @@ pub mod kg_chunk_pick;
 pub mod l2_bm25_union;
 pub mod l2_sources_union;
 pub mod lineage_scope;
+pub mod math_span;
 pub mod mix_weights;
 pub mod modality_retrieve;
 pub mod modes;
@@ -139,6 +140,7 @@ pub use lineage_scope::{
     document_ids_from_chunk_ids, filter_chunk_ids_by_allowed_docs, lineage_intersects_allowed,
     resolve_lineage_document_ids,
 };
+pub use math_span::{math_span_end, normalize_math_spans};
 pub use mix_weights::{mix_arm_weight_from_env, MixWeightOverride};
 pub use modality_retrieve::{
     chart_modality_filter_enabled, plan_modality_retrieval,

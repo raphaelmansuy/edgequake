@@ -26,9 +26,63 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use edgequake_core::Workspace;
 use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
-use edgequake_llm::{OllamaProvider, OpenAIProvider, ProviderFactory};
+use edgequake_llm::{OllamaProvider, OpenAIProvider, ProviderFactory, Result as LlmResult};
+
+/// Report the model the operator configured.
+///
+/// `MockProvider::model()` is hardcoded to `mock-embedding` and ignores the
+/// name passed to `ProviderFactory`. Typed ANN then searches that name and
+/// misses rows stored under `EDGEQUAKE_EMBEDDING_MODEL`.
+struct ConfiguredEmbeddingModel {
+    inner: Arc<dyn EmbeddingProvider>,
+    model: String,
+}
+
+#[async_trait]
+impl EmbeddingProvider for ConfiguredEmbeddingModel {
+    fn name(&self) -> &str {
+        self.inner.name()
+    }
+
+    fn model(&self) -> &str {
+        &self.model
+    }
+
+    fn dimension(&self) -> usize {
+        self.inner.dimension()
+    }
+
+    fn max_tokens(&self) -> usize {
+        self.inner.max_tokens()
+    }
+
+    fn max_batch_size(&self) -> usize {
+        self.inner.max_batch_size()
+    }
+
+    async fn embed(&self, texts: &[String]) -> LlmResult<Vec<Vec<f32>>> {
+        self.inner.embed(texts).await
+    }
+}
+
+/// Keep a provider that already reports `model`. Otherwise stamp `model`
+/// onto the same embedder so ingest and query share one registry key.
+pub(crate) fn stamp_embedding_model(
+    provider: Arc<dyn EmbeddingProvider>,
+    model: &str,
+) -> Arc<dyn EmbeddingProvider> {
+    if model.is_empty() || provider.model() == model {
+        provider
+    } else {
+        Arc::new(ConfiguredEmbeddingModel {
+            inner: provider,
+            model: model.to_string(),
+        })
+    }
+}
 
 /// Resolve the embedding provider from environment, optionally overriding the
 /// `fallback` returned by `ProviderFactory::from_env()`.
@@ -103,7 +157,7 @@ pub fn resolve_embedding_provider(
                     has_custom_api_key,
                     "Embedding provider overridden with dedicated base URL/API key (FIX #163)"
                 );
-                return provider;
+                return stamp_embedding_model(provider, &model);
             }
 
             match ProviderFactory::create_embedding_provider(&provider_name, &model, dimension) {
@@ -114,7 +168,7 @@ pub fn resolve_embedding_provider(
                         dimension,
                         "Embedding provider overridden via EDGEQUAKE_EMBEDDING_PROVIDER"
                     );
-                    return provider;
+                    return stamp_embedding_model(provider, &model);
                 }
                 Err(e) => {
                     tracing::warn!(
@@ -415,6 +469,25 @@ mod tests {
 
     fn mock_embedding() -> Arc<dyn EmbeddingProvider> {
         Arc::new(MockProvider::new())
+    }
+
+    #[test]
+    #[serial]
+    fn mock_provider_reports_configured_embedding_model() {
+        std::env::remove_var("OLLAMA_EMBEDDING_HOST");
+        std::env::remove_var("OLLAMA_EMBEDDING_MODEL");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_PROVIDER", "mock");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_MODEL", "text-embedding-3-small");
+        std::env::set_var("EDGEQUAKE_EMBEDDING_DIMENSION", "1536");
+
+        let result = resolve_embedding_provider(mock_embedding());
+        assert_eq!(result.name(), "mock");
+        assert_eq!(result.model(), "text-embedding-3-small");
+        assert_eq!(result.dimension(), 1536);
+
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_PROVIDER");
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_MODEL");
+        std::env::remove_var("EDGEQUAKE_EMBEDDING_DIMENSION");
     }
 
     #[test]

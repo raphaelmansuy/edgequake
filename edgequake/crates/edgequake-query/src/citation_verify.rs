@@ -21,6 +21,7 @@ use std::sync::LazyLock;
 use regex::Regex;
 
 use crate::context::RetrievedChunk;
+use crate::math_span::{math_span_end, normalize_math_spans};
 
 /// One catalog entry keyed by prompt `[N]` / `reference_id`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -243,17 +244,20 @@ impl RewriteReport {
 /// Rewrite product answers: valid `[N]` → verified markdown links; unknown → strip;
 /// then scrub uncatalogued prose page numerals (LAW-142-11).
 ///
-/// Skips fenced code blocks (``` … ```). Does not rewrite Acc gold — callers must
-/// skip this function when `is_gold_answer_extension` is true.
+/// Normalizes math spans first (`\[...\]`, bare LaTeX `[` / `]` blocks → `$$`),
+/// then skips fenced code and `$` / `$$` so citation scrub cannot see inside
+/// them. Does not rewrite Acc gold — callers must skip this function when
+/// `is_gold_answer_extension` is true.
 pub fn rewrite_verified_citations(answer: &str, catalog: &CitationCatalog) -> RewriteReport {
+    let answer = normalize_math_spans(answer);
     if answer.is_empty() || catalog.is_empty() {
         return RewriteReport {
-            text: answer.to_string(),
+            text: answer,
             ..Default::default()
         };
     }
 
-    let multi_doc = will_cite_multiple_documents(answer, catalog);
+    let multi_doc = will_cite_multiple_documents(&answer, catalog);
 
     let mut rewritten_ids = Vec::new();
     let mut stripped_ids = Vec::new();
@@ -268,6 +272,16 @@ pub fn rewrite_verified_citations(answer: &str, catalog: &CitationCatalog) -> Re
             out.push_str("```");
             i += 3;
             continue;
+        }
+
+        if !in_fence {
+            if let Some(end) = math_span_end(&chars, i) {
+                for c in &chars[i..end] {
+                    out.push(*c);
+                }
+                i = end;
+                continue;
+            }
         }
 
         if !in_fence && chars[i] == '[' {
@@ -330,6 +344,12 @@ fn will_cite_multiple_documents(answer: &str, catalog: &CitationCatalog) -> bool
             in_fence = !in_fence;
             i += 3;
             continue;
+        }
+        if !in_fence {
+            if let Some(end) = math_span_end(&chars, i) {
+                i = end;
+                continue;
+            }
         }
         if !in_fence && chars[i] == '[' {
             if let Some((consumed, ids)) = parse_citation_bracket(&chars, i) {
@@ -432,6 +452,22 @@ fn split_protect_regions(text: &str) -> Vec<TextSeg<'_>> {
                 text: &text[byte_of[start]..byte_of[i]],
                 protected: true,
             });
+            prose_start = i;
+            continue;
+        }
+
+        if let Some(end) = math_span_end(&chars, i) {
+            if prose_start < i {
+                segs.push(TextSeg {
+                    text: &text[byte_of[prose_start]..byte_of[i]],
+                    protected: false,
+                });
+            }
+            segs.push(TextSeg {
+                text: &text[byte_of[i]..byte_of[end]],
+                protected: true,
+            });
+            i = end;
             prose_start = i;
             continue;
         }
@@ -845,6 +881,43 @@ mod tests {
         assert_eq!(report.rewritten_ids, vec![1]);
         assert_eq!(report.stripped_ids, vec![99]);
         assert_eq!(report.unique_document_ids, 1);
+    }
+
+    #[test]
+    fn math_bare_brackets_become_display_and_citation_still_rewrites() {
+        let catalog = catalog_fixture();
+        let raw = "- such as:\n  [\n  \\Gamma_r \\vdash \\left( \\bigwedge_{o \\in \\text{Prem}(r)} q_o \\right) \\implies q_r,\n  ]\nwhere $q_r$ and $q_o$ [1]. $$ page 999 $$";
+        let report = rewrite_verified_citations(raw, &catalog);
+        assert!(
+            report.text.contains("\\Gamma_r \\vdash"),
+            "formula kept: {}",
+            report.text
+        );
+        assert!(
+            report.text.contains("$$"),
+            "display delimiters: {}",
+            report.text
+        );
+        assert!(
+            report.text.contains("$q_r$"),
+            "inline math kept: {}",
+            report.text
+        );
+        assert!(
+            report.text.contains("[p.4]("),
+            "citation still rewrites: {}",
+            report.text
+        );
+        assert!(
+            report.text.contains("page 999"),
+            "page numeral inside math is not scrubbed: {}",
+            report.text
+        );
+        assert!(
+            !report.text.contains("\n  [\n"),
+            "bare brackets remain: {}",
+            report.text
+        );
     }
 
     #[test]

@@ -156,6 +156,11 @@ declare module "marked" {
       raw: string;
       text: string;
     }
+    interface MathBareBracketBlock {
+      type: "math_bare_bracket_block";
+      raw: string;
+      text: string;
+    }
     interface MathParenInline {
       type: "math_paren_inline";
       raw: string;

@@ -65,12 +65,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # latest-* is the 0.35.5 line and has no age.so. These smokes
+          # CREATE EXTENSION age, so they stay on the last tags that ship it.
           - profile: pg16
-            image: ghcr.io/raphaelmansuy/edgequake-postgres:latest-pg16
+            image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4-pg16
           - profile: pg17
-            image: ghcr.io/raphaelmansuy/edgequake-postgres:latest-pg17
+            image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4-pg17
           - profile: pg18
-            image: ghcr.io/raphaelmansuy/edgequake-postgres:latest
+            image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4
 
     services:
       postgres:
@@ -151,7 +153,8 @@ jobs:
 
     services:
       postgres:
-        image: ghcr.io/raphaelmansuy/edgequake-postgres:latest
+        # :latest is 0.35.5 and has no age.so. This job still loads Apache AGE.
+        image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4
         env:
           POSTGRES_DB: edgequake_test
           POSTGRES_USER: edgequake_test
@@ -428,7 +431,8 @@ jobs:
 
     services:
       postgres:
-        image: ghcr.io/raphaelmansuy/edgequake-postgres:latest
+        # :latest is 0.35.5 and has no age.so. This job still loads Apache AGE.
+        image: ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4
         env:
           POSTGRES_DB: edgequake_test
           POSTGRES_USER: edgequake_test

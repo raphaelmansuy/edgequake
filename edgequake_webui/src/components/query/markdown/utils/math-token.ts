@@ -5,11 +5,13 @@ export type MathTokenType =
   | "math_block"
   | "math_inline"
   | "math_bracket_block"
+  | "math_bare_bracket_block"
   | "math_paren_inline";
 
 const BLOCK_MATH_TYPES: ReadonlySet<MathTokenType> = new Set([
   "math_block",
   "math_bracket_block",
+  "math_bare_bracket_block",
 ]);
 
 const INLINE_MATH_TYPES: ReadonlySet<MathTokenType> = new Set([
@@ -73,8 +75,27 @@ export function collectMathTokens(tokens: Token[]): MathTokenShape[] {
     if (Array.isArray(childTokens) && childTokens.length > 0) {
       out.push(...collectMathTokens(childTokens));
     }
+    const items = (token as Token & { items?: Array<{ tokens?: Token[] }> }).items;
+    if (Array.isArray(items)) {
+      for (const item of items) {
+        if (Array.isArray(item.tokens) && item.tokens.length > 0) {
+          out.push(...collectMathTokens(item.tokens));
+        }
+      }
+    }
   }
   return out;
+}
+
+/** LaTeX body of an `<equation>` tag, or null when `raw` is not one. */
+export function displayLatexFromEquationHtml(raw: string): string | null {
+  const match = raw.match(/<equation\b[^>]*>([\s\S]*?)<\/equation>/i);
+  if (!match) return null;
+  let body = match[1].trim();
+  if (body.startsWith("$$") && body.endsWith("$$")) {
+    body = body.slice(2, -2).trim();
+  }
+  return body.length > 0 ? body : null;
 }
 
 function isMathTokenType(type: string): type is MathTokenType {

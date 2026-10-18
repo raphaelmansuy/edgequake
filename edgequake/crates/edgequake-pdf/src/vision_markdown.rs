@@ -12,6 +12,7 @@ use crate::drawing_tags::{
     EMPTY_VISION_PAGE_PLACEHOLDER,
 };
 use crate::embedded_images::WrittenFigureAsset;
+use crate::math_markdown::canonicalize_math_markdown;
 use crate::page_marker::{PageMarkerWriter, PAGE_MARKER_PREFIX, PAGE_MARKER_SUFFIX};
 use crate::page_sections::PageSectionText;
 use crate::region_assets::WrittenTableAsset;
@@ -776,7 +777,7 @@ pub fn assemble_vision_markdown_with_policy(
         }
         parts.push(section);
     }
-    parts.join("\n\n")
+    canonicalize_math_markdown(&parts.join("\n\n"))
 }
 
 /// Merge per-group Vision markdown by `<!-- edgequake-page:N -->` order.

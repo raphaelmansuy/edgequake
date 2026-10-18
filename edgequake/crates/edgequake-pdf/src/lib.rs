@@ -9,6 +9,7 @@ pub mod figure_filter;
 pub mod image_guard;
 pub mod inline_images;
 pub mod manuscript_profile;
+pub mod math_markdown;
 pub mod page_assets;
 pub mod page_convert_plan;
 pub mod page_count;

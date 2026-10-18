@@ -76,14 +76,13 @@ pub fn require_request_permission(
 
 /// Resolve a selected scope and check active tenant, workspace, and membership.
 /// Tenant-wide memberships apply to all its workspaces, as specified by Membership.
-pub async fn membership_role(
+/// Active tenant + workspace that belong together. Does not check membership.
+async fn require_active_scope(
     state: &AppState,
-    user_id: &str,
     tenant_id: Option<&str>,
     workspace_id: Option<&str>,
-) -> Result<MembershipRole, ApiError> {
+) -> Result<(Uuid, Uuid), ApiError> {
     let denied = || ApiError::forbidden_reason("No active membership for tenant/workspace scope");
-    let user = Uuid::parse_str(user_id).map_err(|_| denied())?;
     let tenant = parse_scope(tenant_id, crate::middleware::default_tenant_uuid())?;
     let workspace = parse_scope(workspace_id, crate::middleware::default_workspace_uuid())?;
     let ws = state
@@ -104,6 +103,18 @@ pub async fn membership_role(
     if !active {
         return Err(denied());
     }
+    Ok((tenant, workspace))
+}
+
+pub async fn membership_role(
+    state: &AppState,
+    user_id: &str,
+    tenant_id: Option<&str>,
+    workspace_id: Option<&str>,
+) -> Result<MembershipRole, ApiError> {
+    let denied = || ApiError::forbidden_reason("No active membership for tenant/workspace scope");
+    let user = Uuid::parse_str(user_id).map_err(|_| denied())?;
+    let (tenant, workspace) = require_active_scope(state, tenant_id, workspace_id).await?;
     state
         .workspace_service
         .get_user_memberships(user)
@@ -178,13 +189,21 @@ pub async fn bind_request(state: &AppState, request: &mut Request) -> Result<(),
     if !binding_required(state) || global_resource(request_path(request)) {
         return Ok(());
     }
-    let role = membership_role(
-        state,
-        &auth.user_id,
-        ctx.tenant_id.as_deref(),
-        ctx.workspace_id.as_deref(),
-    )
-    .await?;
+    // Platform admin has no per-tenant membership row for sentinel orgs
+    // (System Default Tenant). The role is the grant; the scope must still exist
+    // and the URL workspace must still match the authorized header.
+    let role = if auth.role == Role::Admin {
+        require_active_scope(state, ctx.tenant_id.as_deref(), ctx.workspace_id.as_deref()).await?;
+        MembershipRole::Owner
+    } else {
+        membership_role(
+            state,
+            &auth.user_id,
+            ctx.tenant_id.as_deref(),
+            ctx.workspace_id.as_deref(),
+        )
+        .await?
+    };
     if let Some(target) = request_path(request)
         .split('/')
         .collect::<Vec<_>>()
@@ -322,5 +341,61 @@ mod tests {
             "/api/v1/admin/config/defaults"
         )
         .is_err());
+    }
+
+    #[tokio::test]
+    async fn platform_admin_can_enter_a_tenant_without_a_membership_row() {
+        use edgequake_core::{CreateWorkspaceRequest, Tenant};
+
+        let mut state = AppState::test_state();
+        state.auth.config.auth_enabled = true;
+        state.auth.config.dev_mode = false;
+        state.security.strict_tenant_bind = true;
+
+        let tenant = state
+            .workspace_service
+            .create_tenant(Tenant::new(
+                "System Default Tenant",
+                format!("system-default-{}", Uuid::new_v4()),
+            ))
+            .await
+            .unwrap();
+        let workspace = state
+            .workspace_service
+            .create_workspace(
+                tenant.tenant_id,
+                CreateWorkspaceRequest::new("System Default Workspace"),
+            )
+            .await
+            .unwrap();
+
+        let scope = TenantContext {
+            tenant_id: Some(tenant.tenant_id.to_string()),
+            workspace_id: Some(workspace.workspace_id.to_string()),
+            user_id: None,
+        };
+        let user_id = Uuid::new_v4().to_string();
+
+        let mut member = Request::builder()
+            .uri("/api/v1/documents")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        member.extensions_mut().insert(scope.clone());
+        member.extensions_mut().insert(RequestAuthContext {
+            user_id: user_id.clone(),
+            role: Role::User,
+        });
+        assert!(bind_request(&state, &mut member).await.is_err());
+
+        let mut admin = Request::builder()
+            .uri("/api/v1/documents")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        admin.extensions_mut().insert(scope);
+        admin.extensions_mut().insert(RequestAuthContext {
+            user_id,
+            role: Role::Admin,
+        });
+        bind_request(&state, &mut admin).await.unwrap();
     }
 }

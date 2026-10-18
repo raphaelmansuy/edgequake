@@ -20,6 +20,7 @@ import { memo, type MouseEvent } from 'react';
 import { AuthenticatedMarkdownImage } from './AuthenticatedMarkdownImage';
 import { MathTokenRenderer } from './MathTokenRenderer';
 import { tryHtmlCodespan } from './utils/codespan-html';
+import { displayLatexFromEquationHtml } from './utils/math-token';
 import { sanitizeHtml } from './utils/sanitize-html';
 import { InlineCitation } from '../citations/citation-popover';
 import { CitationKgButton } from '../citations/citation-kg-button';
@@ -347,6 +348,15 @@ export const MarkdownInlineTokens = memo(function MarkdownInlineTokens({
           // can only appear here when mergeInlineHtmlTokens found no opening pair.
           case 'html': {
             const htmlToken = token as Tokens.HTML;
+            const equation = displayLatexFromEquationHtml(htmlToken.raw);
+            if (equation) {
+              return (
+                <MathTokenRenderer
+                  key={tokenId}
+                  token={{ type: 'math_block', text: equation, raw: htmlToken.raw } as Token}
+                />
+              );
+            }
             // Suppress orphan closing tags — they have no meaningful content
             if (/^<\/[a-z][a-z0-9]*\s*>/i.test(htmlToken.raw)) {
               return null;

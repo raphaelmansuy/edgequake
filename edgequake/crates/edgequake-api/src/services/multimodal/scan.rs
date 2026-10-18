@@ -225,6 +225,16 @@ mod tests {
     }
 
     #[test]
+    fn scan_finds_page_scoped_display_equation() {
+        let md = "<equation id=\"eq-p5-1\" format=\"latex\">\n$$\n\\Gamma_r \\vdash q_r\n$$\n</equation>";
+        let items = scan_manifest_items(md);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].modality, "equation");
+        assert_eq!(items[0].item_id, "eq-p5-1");
+        assert!(items[0].body.as_deref().unwrap_or("").contains("\\Gamma_r"));
+    }
+
+    #[test]
     fn scan_finds_equation_with_id() {
         let md = r#"Text <equation id="eq-1">E=mc^2</equation> end"#;
         let items = scan_manifest_items(md);
