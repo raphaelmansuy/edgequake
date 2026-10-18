@@ -334,18 +334,31 @@ pub(crate) fn apply_authenticated_context(
     authenticated: crate::services::auth_validation::AuthenticatedRequest,
 ) -> Option<Response> {
     let mut tenant_ctx = TenantContext::from_headers(request.headers());
+    // Password login pins the JWT to the built-in default tenant. A platform
+    // admin still has to operate other organizations from the console; the
+    // header selects that scope and the admin role grants it. Other roles
+    // stay rejected on mismatch (SPEC-027 IMP-004 / LAW-158-5).
+    let platform_admin = authenticated.auth.role == edgequake_auth::Role::Admin;
 
     if let Some(jwt_tid) = &authenticated.jwt_tenant_id {
-        if let Some(response) =
-            merge_claim_into_context(state, &mut tenant_ctx.tenant_id, jwt_tid, "tenant_id")
-        {
+        if let Some(response) = merge_claim_into_context(
+            state,
+            &mut tenant_ctx.tenant_id,
+            jwt_tid,
+            "tenant_id",
+            platform_admin,
+        ) {
             return Some(response);
         }
     }
     if let Some(jwt_wid) = &authenticated.jwt_workspace_id {
-        if let Some(response) =
-            merge_claim_into_context(state, &mut tenant_ctx.workspace_id, jwt_wid, "workspace_id")
-        {
+        if let Some(response) = merge_claim_into_context(
+            state,
+            &mut tenant_ctx.workspace_id,
+            jwt_wid,
+            "workspace_id",
+            platform_admin,
+        ) {
             return Some(response);
         }
     }
@@ -392,6 +405,7 @@ fn merge_claim_into_context(
     header_value: &mut Option<String>,
     claim_value: &str,
     field: &str,
+    platform_admin: bool,
 ) -> Option<Response> {
     match header_value.as_deref() {
         None | Some("") => {
@@ -403,9 +417,10 @@ fn merge_claim_into_context(
                 field = field,
                 header = existing,
                 claim = claim_value,
+                platform_admin = platform_admin,
                 "JWT tenant claim differs from request header (SPEC-027 IMP-004)"
             );
-            if crate::services::request_authorization::binding_required(state) {
+            if !platform_admin && crate::services::request_authorization::binding_required(state) {
                 return Some(
                     (
                         StatusCode::FORBIDDEN,
@@ -1304,5 +1319,67 @@ mod tests {
     #[test]
     fn e2e_rate_limit_ignores_spoofed_header() {
         authenticated_rate_limit_key_ignores_spoofed_tenant_header();
+    }
+
+    #[test]
+    fn platform_admin_may_select_a_tenant_outside_the_login_claim() {
+        use crate::handlers::auth::RequestAuthContext;
+        use crate::services::auth_validation::AuthenticatedRequest;
+        use edgequake_auth::Role;
+
+        let mut state = crate::state::AppState::test_state();
+        state.auth.config.auth_enabled = true;
+        state.auth.config.dev_mode = false;
+
+        let claimed = default_tenant_uuid().to_string();
+        let selected = uuid::Uuid::nil().to_string();
+
+        let mut user_request = axum::http::Request::builder()
+            .uri("/api/v1/documents")
+            .header("x-tenant-id", &selected)
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let blocked = apply_authenticated_context(
+            &state,
+            &mut user_request,
+            AuthenticatedRequest {
+                auth: RequestAuthContext {
+                    user_id: "user".into(),
+                    role: Role::User,
+                },
+                jwt_tenant_id: Some(claimed.clone()),
+                jwt_workspace_id: None,
+                api_key_scopes: None,
+            },
+        );
+        assert_eq!(
+            blocked.expect("member mismatch is forbidden").status(),
+            StatusCode::FORBIDDEN
+        );
+
+        let mut admin_request = axum::http::Request::builder()
+            .uri("/api/v1/documents")
+            .header("x-tenant-id", &selected)
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let allowed = apply_authenticated_context(
+            &state,
+            &mut admin_request,
+            AuthenticatedRequest {
+                auth: RequestAuthContext {
+                    user_id: "admin".into(),
+                    role: Role::Admin,
+                },
+                jwt_tenant_id: Some(claimed),
+                jwt_workspace_id: None,
+                api_key_scopes: None,
+            },
+        );
+        assert!(
+            allowed.is_none(),
+            "platform admin keeps the selected tenant"
+        );
+        let ctx = admin_request.extensions().get::<TenantContext>().unwrap();
+        assert_eq!(ctx.tenant_id.as_deref(), Some(selected.as_str()));
     }
 }

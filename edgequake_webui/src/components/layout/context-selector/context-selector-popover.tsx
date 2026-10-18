@@ -24,6 +24,7 @@ export interface ContextSelectorPopoverProps {
   selectedTenantName?: string | null;
   selectedWorkspaceName?: string | null;
   isLoadingWorkspaces?: boolean;
+  isWorkspacesError?: boolean;
   /** Remount cmdk when the popover opens so leftover search cannot hide rows. */
   searchResetKey?: string | number;
   onTenantSelect: (tenantId: string) => void;
@@ -43,6 +44,7 @@ export function ContextSelectorPopover({
   selectedWorkspaceId,
   selectedTenantName,
   isLoadingWorkspaces,
+  isWorkspacesError,
   searchResetKey = 0,
   onTenantSelect,
   onWorkspaceSelect,
@@ -131,7 +133,15 @@ export function ContextSelectorPopover({
                       })
                 }
               >
-                {workspaces.length === 0 && !isLoadingWorkspaces ? (
+                {isWorkspacesError ? (
+                  <div className="px-3 py-2 text-xs text-destructive">
+                    {t(
+                      'tenant.workspaceLoadErrorShort',
+                      'Could not load workspaces for this organization.',
+                    )}
+                  </div>
+                ) : null}
+                {workspaces.length === 0 && !isLoadingWorkspaces && !isWorkspacesError ? (
                   <div className="px-3 py-2 text-xs text-muted-foreground">
                     {t('workspace.empty', 'No workspaces yet')}
                   </div>

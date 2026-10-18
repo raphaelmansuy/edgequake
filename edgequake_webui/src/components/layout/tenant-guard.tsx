@@ -65,6 +65,7 @@ export function TenantGuard({ children }: TenantGuardProps) {
     data: workspacesData,
     isLoading: isLoadingWorkspaces,
     isFetching: isFetchingWorkspaces,
+    error: workspacesError,
   } = useQuery({
     queryKey: ['workspaces', selectedTenantId],
     queryFn: () => (selectedTenantId ? getWorkspaces(selectedTenantId) : Promise.resolve([])),
@@ -127,7 +128,21 @@ export function TenantGuard({ children }: TenantGuardProps) {
     selectedTenantId,
   ]);
 
-  if (tenantsError || (isLoading && loadingTimedOut && !isSettingUpContext)) {
+  if (tenantsError || workspacesError || (isLoading && loadingTimedOut && !isSettingUpContext)) {
+    const errorDescription = workspacesError
+      ? t(
+          'tenant.workspaceLoadError',
+          'Could not load workspaces for this organization. The session may still be bound to another organization, or this account cannot access it.',
+        )
+      : loadingTimedOut && !tenantsError
+        ? t(
+            'tenant.connectionSlowDesc',
+            'The backend is taking too long to respond. It may be busy with ingestion — check the status banner above, then retry.',
+          )
+        : t(
+            'tenant.connectionErrorDesc',
+            'Unable to connect to the server. Please check your connection and try again.',
+          );
     return (
       <div className="flex items-center justify-center h-full p-4">
         <Card className="max-w-md w-full">
@@ -136,17 +151,7 @@ export function TenantGuard({ children }: TenantGuardProps) {
               <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
             </div>
             <CardTitle>{t('tenant.connectionError', 'Connection Error')}</CardTitle>
-            <CardDescription>
-              {loadingTimedOut && !tenantsError
-                ? t(
-                    'tenant.connectionSlowDesc',
-                    'The backend is taking too long to respond. It may be busy with ingestion — check the status banner above, then retry.',
-                  )
-                : t(
-                    'tenant.connectionErrorDesc',
-                    'Unable to connect to the server. Please check your connection and try again.',
-                  )}
-            </CardDescription>
+            <CardDescription>{errorDescription}</CardDescription>
           </CardHeader>
           <CardContent className="text-center">
             <Button

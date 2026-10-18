@@ -131,6 +131,10 @@ export function setTenantContext(tenantId: string, workspaceId?: string): void {
     localStorage.setItem("tenantId", tenantId);
     if (workspaceId) {
       localStorage.setItem("workspaceId", workspaceId);
+    } else {
+      // A tenant switch must not keep the previous org's workspace id.
+      // Otherwise the next request sends a scope the token does not match.
+      localStorage.removeItem("workspaceId");
     }
   }
 }
