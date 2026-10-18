@@ -117,6 +117,10 @@ impl EmbeddingIndex for PgChunkEmbeddingIndex {
         }
     }
 
+    fn receive_projection_upserts(&self) -> bool {
+        false
+    }
+
     async fn upsert_batch(
         &self,
         _model: ModelId,

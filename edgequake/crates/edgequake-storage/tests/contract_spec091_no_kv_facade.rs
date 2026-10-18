@@ -115,6 +115,8 @@ const ALLOWLIST: &[&str] = &[
     "edgequake-query/src/engine_impl/query_modes.rs",
     "edgequake-query/src/sparse_retrieval.rs",
     "edgequake-query/src/topic_entity_admit.rs",
+    // Graph-seed admission still loads source_chunk_ids through the KV facade.
+    "edgequake-query/src/graph_seed_admit.rs",
     // --- core deletion path ---
     "edgequake-core/src/orchestrator/deletion.rs",
     "edgequake-core/src/conversation_service_impl.rs",

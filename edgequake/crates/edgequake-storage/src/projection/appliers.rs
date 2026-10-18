@@ -1194,11 +1194,18 @@ impl PgvectorProjectionApplier {
         let mut wrote = false;
         for (model, by_id) in chunk_by_model {
             let chunk_rows: Vec<EmbeddingRow> = by_id.into_values().collect();
-            let index = crate::PgChunkEmbeddingIndex::new(self.pool.clone(), model);
-            index
-                .upsert_batch(ModelId(Uuid::nil()), &chunk_rows)
-                .await
-                .map_err(AccessError::from)?;
+            if self.chunk_index.receive_projection_upserts() {
+                self.chunk_index
+                    .upsert_batch(ModelId(Uuid::nil()), &chunk_rows)
+                    .await
+                    .map_err(AccessError::from)?;
+            } else {
+                let index = crate::PgChunkEmbeddingIndex::new(self.pool.clone(), model);
+                index
+                    .upsert_batch(ModelId(Uuid::nil()), &chunk_rows)
+                    .await
+                    .map_err(AccessError::from)?;
+            }
             wrote = true;
         }
         if !fleet_by_model.is_empty() {

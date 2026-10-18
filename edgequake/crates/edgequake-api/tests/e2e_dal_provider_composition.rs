@@ -267,7 +267,7 @@ async fn independent_factories_drive_http_queries_and_durable_delivery() {
         .query_naive(tenant, workspace, "fixture", None, Some(5))
         .await;
     assert!(status.is_success(), "{status}: {body}");
-    assert!(body.contains("DAL_INJECTED_CONTENT"));
+    assert!(body.contains("DAL_INJECTED_CONTENT"), "query body: {body}");
     assert!(!body.contains("DAL_OTHER_SCOPE_SECRET"));
     let (status, body) = server
         .get_text("/api/v1/graph/entities/DAL_OTHER_NODE", tenant, workspace)
