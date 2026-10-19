@@ -6,6 +6,7 @@
 
 pub(in crate::adapters::postgres::graph) mod counts;
 pub(in crate::adapters::postgres::graph) mod cutover;
+pub(in crate::adapters::postgres::graph) mod facets;
 pub(in crate::adapters::postgres::graph) mod ledger;
 pub(in crate::adapters::postgres::graph) mod read;
 mod rows;

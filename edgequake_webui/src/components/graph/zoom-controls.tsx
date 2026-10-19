@@ -12,6 +12,7 @@ import { focusCameraOnNode, resetCameraToFitGraph } from '@/lib/graph/camera-uti
 import { useGraphStore } from '@/stores/use-graph-store';
 import {
     Focus,
+    LocateFixed,
     Maximize2,
     Minimize2,
     RotateCcw,
@@ -156,6 +157,7 @@ export function ZoomControls() {
               className="h-8 w-8"
               onClick={handleZoomIn}
               aria-label={t('graph.zoomIn', 'Zoom In')}
+              title={t('graph.zoomIn', 'Zoom In')}
             >
               <ZoomIn className="h-4 w-4" aria-hidden="true" />
             </Button>
@@ -174,6 +176,7 @@ export function ZoomControls() {
               className="h-8 w-8"
               onClick={handleZoomOut}
               aria-label={t('graph.zoomOut', 'Zoom Out')}
+              title={t('graph.zoomOut', 'Zoom Out')}
             >
               <ZoomOut className="h-4 w-4" aria-hidden="true" />
             </Button>
@@ -254,7 +257,7 @@ export function ZoomControls() {
               onClick={handleResetZoom}
               aria-label={t('graph.resetZoom', 'Reset View')}
             >
-              <Maximize2 className="h-4 w-4" aria-hidden="true" />
+              <LocateFixed className="h-4 w-4" aria-hidden="true" />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="left" className="flex items-center gap-2">

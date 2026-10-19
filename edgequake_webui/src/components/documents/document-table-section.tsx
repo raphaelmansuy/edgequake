@@ -4,19 +4,17 @@
  *
  * Architecture:
  *   ┌─────────────────────────────────────────┐
- *   │  shrink-0  │ Header row (NEVER scrolls) │
+ *   │ shrink-0   │ Optional count row         │
  *   ├────────────┤─────────────────────────────┤
- *   │ flex-1     │ Body (overflow-y-auto)       │
- *   │ overflow   │ Virtual rows scroll here     │
+ *   │ flex-1     │ Scroll container            │
+ *   │ overflow   │  ├ sticky header row        │
+ *   │            │  └ virtual rows             │
  *   └────────────┴─────────────────────────────┘
  *
- * WHY: Any approach that puts the header INSIDE the scroll container
- * (sticky, absolute positioning, overflow:clip tricks) fails because the
- * scroll container IS the parent — it scrolls the header away.
- * The only reliable solution is to place the header in a shrink-0 sibling
- * of the scroll container, outside the scrollable region entirely.
- * Column width parity is maintained via a shared <colgroup> on both tables
- * using table-fixed layout.
+ * WHY: header and rows share ONE scroll container, so they always have the
+ * same width (a scrollbar can never narrow the body but not the header) and
+ * the header stays pinned with `position: sticky`. Column width parity is also
+ * kept by a shared <colgroup> on both tables using table-fixed layout.
  *
  * @implements FEAT0001 - Document list display
  * @implements FEAT0401 - Document filtering
@@ -48,7 +46,10 @@ import { DocumentTableStates } from './document-table-states';
 import { SortableColumnHeader } from './sortable-column-header';
 
 /** Estimated row height for the virtualizer (px). */
-const ESTIMATED_ROW_HEIGHT = 56;
+const ESTIMATED_ROW_HEIGHT = 46;
+
+/** Sticky header height (h-9 row + 1px border) the virtual window is offset by. */
+const STICKY_HEAD_PX = 37;
 
 /**
  * Shared colgroup — percentage widths + progressive container-query hide.
@@ -209,6 +210,7 @@ export const DocumentTableSection = memo(function DocumentTableSection({
     estimateSize: () => ESTIMATED_ROW_HEIGHT,
     measureElement: (element) => element.getBoundingClientRect().height,
     overscan: 8,
+    scrollMargin: STICKY_HEAD_PX,
   });
 
   const virtualItems = virtualizer.getVirtualItems();
@@ -216,7 +218,7 @@ export const DocumentTableSection = memo(function DocumentTableSection({
   // Offset for the visible window inside the spacer (TanStack absolute pattern).
   // Do NOT use <tr height=padding> spacers — table min-height leaks into
   // document.scrollHeight and creates the page-level white-band scrollbar.
-  const windowOffset = virtualItems[0]?.start ?? 0;
+  const windowOffset = (virtualItems[0]?.start ?? STICKY_HEAD_PX) - STICKY_HEAD_PX;
 
   const showTable = !isLoading && documents.length > 0;
   const isFiltered = Boolean(searchQuery) || statusFilter !== 'all';
@@ -258,11 +260,29 @@ export const DocumentTableSection = memo(function DocumentTableSection({
             ) : null}
           </div>
         )}
+      </div>
 
-        {/* Column header row — physically outside the scroll container */}
+      {/* ── ZONE 2: flex-1 scroll container (body only) ── */}
+      <div
+        ref={scrollRef}
+        className="min-h-[9rem] flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-3 [contain:paint] [scrollbar-gutter:stable]"
+        data-testid="documents-table-scroll"
+      >
+        {/* Loading / empty states — shown when no table */}
+        <DocumentTableStates
+          isLoading={isLoading}
+          isEmpty={documents.length === 0}
+          onUploadClick={onUploadClick}
+          statusFilter={statusFilter}
+          searchQuery={searchQuery}
+          onClearFilter={onClearFilter}
+          isBusyUpdating={isBusyUpdating}
+        />
+
         {showTable && (
-          <div className="border border-border border-b-0 rounded-t-lg bg-muted/40 overflow-hidden shadow-sm">
-            <table className="w-full table-fixed caption-bottom text-sm">
+          <div className="sticky top-0 z-10 bg-background" data-testid="documents-table-head">
+          <div className="overflow-hidden rounded-t-lg border border-b-0 border-border/70 bg-muted/30">
+            <table className="w-full table-fixed caption-bottom text-sm [&_button]:text-xs [&_th]:h-9">
               <TableColGroup showCostColumn={showCostColumn} />
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -332,25 +352,8 @@ export const DocumentTableSection = memo(function DocumentTableSection({
               </TableHeader>
             </table>
           </div>
+          </div>
         )}
-      </div>
-
-      {/* ── ZONE 2: flex-1 scroll container (body only) ── */}
-      <div
-        ref={scrollRef}
-        className="min-h-[9rem] flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 pb-3 [contain:paint]"
-        data-testid="documents-table-scroll"
-      >
-        {/* Loading / empty states — shown when no table */}
-        <DocumentTableStates
-          isLoading={isLoading}
-          isEmpty={documents.length === 0}
-          onUploadClick={onUploadClick}
-          statusFilter={statusFilter}
-          searchQuery={searchQuery}
-          onClearFilter={onClearFilter}
-          isBusyUpdating={isBusyUpdating}
-        />
 
         {showTable && (
           <div
@@ -359,7 +362,7 @@ export const DocumentTableSection = memo(function DocumentTableSection({
             data-testid="documents-virtual-spacer"
           >
             <div
-              className="absolute left-0 right-0 border border-border rounded-b-lg overflow-hidden shadow-sm bg-background"
+              className="absolute left-0 right-0 overflow-hidden rounded-b-lg border border-border/70 bg-background"
               style={{ transform: `translateY(${windowOffset}px)` }}
               aria-label={t('documents.table.ariaLabel', 'Documents list')}
             >

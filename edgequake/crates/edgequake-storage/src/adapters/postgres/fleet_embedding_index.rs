@@ -5,6 +5,7 @@ use serde_json::Value;
 use sqlx::{PgConnection, PgPool, Row};
 use uuid::Uuid;
 
+use crate::adapters::postgres::document_lineage_sql;
 use crate::adapters::postgres::fleet_legacy_absorb::{upsert_with_legacy_absorb, AbsorbBatch};
 use crate::adapters::postgres::typed_embedding_dims::{
     validate_ann_dimensions, validate_typed_embedding_batch_dims,
@@ -87,15 +88,15 @@ impl PgFleetEmbeddingIndex {
         s
     }
 
-    /// `$4 IS NULL OR source_ids && $4` hides the document from a generic plan.
-    /// When the caller passes documents, the statement requires the overlap so
-    /// `idx_entities_source_ids` can start at those entities.
-    const ENTITY_SOURCE_OPTIONAL: &'static str = "AND ($4::uuid[] IS NULL OR e.source_ids && $4)";
-    const ENTITY_SOURCE_REQUIRED: &'static str = "AND e.source_ids && $4";
-
+    /// `$4 IS NULL OR <lineage overlap>` hides the document from a generic plan.
+    /// When the caller passes documents, the statement requires the overlap
+    /// (see `document_lineage_sql`).
     fn apply_entity_source(sql: String, documents: bool) -> String {
         if documents {
-            sql.replace(Self::ENTITY_SOURCE_OPTIONAL, Self::ENTITY_SOURCE_REQUIRED)
+            sql.replace(
+                &document_lineage_sql::entity_optional(),
+                &document_lineage_sql::entity_required(),
+            )
         } else {
             sql
         }
@@ -138,6 +139,12 @@ impl PgFleetEmbeddingIndex {
     }
 
     fn entity_search_sql(dim: i32, cast: &str, documents: bool, modality: bool) -> String {
+        if !documents && !modality {
+            // Nothing filters on `entities`: order the embeddings alone and
+            // hydrate names for the survivors (see `ann_first_sql`).
+            return super::ann_first_sql::entity_sql(dim, cast);
+        }
+        let source = document_lineage_sql::entity_optional();
         let sql = format!(
             "SELECT ('entity:' || e.name) AS legacy_id, \
                     1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
@@ -145,7 +152,7 @@ impl PgFleetEmbeddingIndex {
              JOIN entities e ON e.id = fe.entity_id \
              WHERE fe.model_id = $2 AND fe.dimensions = {dim} \
                AND ($3::uuid IS NULL OR fe.workspace_id = $3) \
-               AND ($4::uuid[] IS NULL OR e.source_ids && $4) \
+               {source} \
                AND ($5::uuid IS NULL OR e.tenant_id = $5) \
                AND ($6::text[] IS NULL OR e.modality = ANY($6)) \
              ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $7"
@@ -158,6 +165,7 @@ impl PgFleetEmbeddingIndex {
     /// distance order. `OFFSET 0` keeps that lookup from being pulled into
     /// the HNSW index.
     fn entity_search_sql_in_ids(dim: i32, cast: &str, documents: bool, modality: bool) -> String {
+        let source = document_lineage_sql::entity_optional();
         let sql = format!(
             "SELECT ('entity:' || e.name) AS legacy_id, \
                     1.0 - ((fe.embedding::{cast}) <=> $1::{cast}) AS score \
@@ -178,7 +186,7 @@ impl PgFleetEmbeddingIndex {
                ON fe.entity_id = hit.id AND fe.model_id = $2 AND fe.dimensions = {dim} \
              JOIN entities e ON e.id = hit.id \
              WHERE ($3::uuid IS NULL OR fe.workspace_id = $3) \
-               AND ($4::uuid[] IS NULL OR e.source_ids && $4) \
+               {source} \
                AND ($5::uuid IS NULL OR e.tenant_id = $5) \
                AND ($6::text[] IS NULL OR e.modality = ANY($6)) \
              ORDER BY (fe.embedding::{cast}) <=> $1::{cast} LIMIT $9"
@@ -187,21 +195,21 @@ impl PgFleetEmbeddingIndex {
         Self::apply_entity_modality(sql, modality)
     }
 
-    /// `$4 IS NULL OR source_chunk_ids && (chunks of $4)` hides the document
-    /// from a generic plan. When the caller passes documents, the overlap is
-    /// required so `idx_relationships_source_chunk_ids` can start at those rows.
-    /// The chunk ids stay an uncorrelated InitPlan: a lookup from each
-    /// relationship back into `chunks` misses the ANN deadline on a large
-    /// workspace.
-    fn relationship_source_predicate(documents: bool) -> &'static str {
+    /// `$4 IS NULL OR <lineage overlap>` hides the document from a generic plan.
+    /// When the caller passes documents, the overlap is required (see
+    /// `document_lineage_sql`).
+    fn relationship_source_predicate(documents: bool) -> String {
         if documents {
-            "AND r.source_chunk_ids && ARRAY(SELECT c.id FROM chunks c WHERE c.document_id = ANY($4))"
+            document_lineage_sql::relationship_required()
         } else {
-            "AND ($4::uuid[] IS NULL OR r.source_chunk_ids && ARRAY(SELECT c.id FROM chunks c WHERE c.document_id = ANY($4)))"
+            document_lineage_sql::relationship_optional()
         }
     }
 
     fn relationship_search_sql(dim: i32, cast: &str, documents: bool) -> String {
+        if !documents {
+            return super::ann_first_sql::relationship_sql(dim, cast);
+        }
         let source = Self::relationship_source_predicate(documents);
         // No id filter on the document statement: the caller did not pass ids,
         // so the limit bind stays $7. The unscoped statement keeps the optional
@@ -670,11 +678,12 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
 #[cfg(test)]
 mod tests {
     use super::PgFleetEmbeddingIndex;
+    use crate::adapters::postgres::document_lineage_sql as lineage;
 
     #[test]
-    fn entity_search_requires_source_ids_when_documents_are_passed() {
+    fn entity_search_requires_chunk_key_overlap_when_documents_are_passed() {
         let open = PgFleetEmbeddingIndex::entity_search_sql(768, "halfvec(768)", false, false);
-        assert!(open.contains("$4::uuid[] IS NULL OR e.source_ids && $4"));
+        assert!(open.contains(&lineage::entity_guard()));
         assert!(open.contains("$3::uuid IS NULL OR fe.workspace_id = $3"));
         assert!(open.contains("$5::uuid IS NULL OR e.tenant_id = $5"));
         assert!(open.contains("$6::text[] IS NULL OR e.modality = ANY($6)"));
@@ -682,7 +691,7 @@ mod tests {
         assert!(open.contains("LIMIT $7"));
 
         let scoped = PgFleetEmbeddingIndex::entity_search_sql(768, "halfvec(768)", true, false);
-        assert!(scoped.contains("AND e.source_ids && $4"));
+        assert!(scoped.contains(&lineage::entity_required()));
         assert!(!scoped.contains("$4::uuid[] IS NULL"));
         assert!(scoped.contains("$6::text[] IS NULL OR e.modality = ANY($6)"));
     }
@@ -710,7 +719,7 @@ mod tests {
         assert!(sql.contains("OFFSET 0"));
         assert!(sql.contains("e.name = wanted.name"));
         assert!(sql.contains("e.id = wanted.id"));
-        assert!(sql.contains("AND e.source_ids && $4"));
+        assert!(sql.contains(&lineage::entity_required()));
         assert!(!sql.contains("$7::text[] IS NULL"));
         assert!(!sql.contains("id::text = ANY"));
         assert!(sql.contains("LIMIT $9"));
@@ -719,14 +728,12 @@ mod tests {
     #[test]
     fn relationship_search_requires_chunk_overlap_when_documents_are_passed() {
         let open = PgFleetEmbeddingIndex::relationship_search_sql(768, "halfvec(768)", false);
-        assert!(open.contains("$4::uuid[] IS NULL OR r.source_chunk_ids && ARRAY"));
+        assert!(open.contains(&lineage::relationship_guard()));
         assert!(open.contains("$7::text[] IS NULL OR r.id::text = ANY($7)"));
         assert!(open.contains("LIMIT $8"));
 
         let scoped = PgFleetEmbeddingIndex::relationship_search_sql(768, "halfvec(768)", true);
-        assert!(scoped.contains(
-            "AND r.source_chunk_ids && ARRAY(SELECT c.id FROM chunks c WHERE c.document_id = ANY($4))"
-        ));
+        assert!(scoped.contains(&lineage::relationship_required()));
         assert!(!scoped.contains("$4::uuid[] IS NULL"));
         assert!(!scoped.contains("r.id::text = ANY"));
         assert!(scoped.contains("LIMIT $7"));
@@ -740,9 +747,7 @@ mod tests {
         assert!(sql.contains("es.name = wanted.src"));
         assert!(sql.contains("et.name = wanted.tgt"));
         assert!(sql.contains("r.relation_type = wanted.rel"));
-        assert!(sql.contains(
-            "AND r.source_chunk_ids && ARRAY(SELECT c.id FROM chunks c WHERE c.document_id = ANY($4))"
-        ));
+        assert!(sql.contains(&lineage::relationship_required()));
         assert!(!sql.contains("$7::text[] IS NULL"));
         assert!(!sql.contains("id::text = ANY"));
         assert!(sql.contains("LIMIT $11"));

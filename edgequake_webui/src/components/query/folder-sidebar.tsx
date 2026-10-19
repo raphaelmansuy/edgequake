@@ -224,7 +224,9 @@ const FolderItem = memo(function FolderItem({
 
 function FolderSkeleton() {
   return (
-    <div className="flex items-center gap-2 px-2 py-1.5">
+    // Same footprint as the "New Folder" row that every loaded state ends with,
+    // so an empty folder list resolves without moving the conversation list.
+    <div className="flex h-7 items-center gap-2 px-2">
       <Skeleton className="w-3.5 h-3.5 rounded" />
       <Skeleton className="h-3 flex-1" />
     </div>
@@ -370,11 +372,7 @@ export function FolderSidebar({ className }: FolderSidebarProps) {
 
       {/* Folders List */}
       {isLoading ? (
-        <div className="space-y-1">
-          <FolderSkeleton />
-          <FolderSkeleton />
-          <FolderSkeleton />
-        </div>
+        <FolderSkeleton />
       ) : (
         <>
           {sortedFolders.map((folder) => (

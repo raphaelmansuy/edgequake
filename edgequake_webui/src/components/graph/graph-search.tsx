@@ -31,9 +31,11 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
+import { Kbd } from '@/components/shared/kbd';
 import { searchNodes } from '@/lib/api/edgequake';
 import { focusCameraOnNode } from '@/lib/graph/camera-utils';
 import { displayEntityLabel } from '@/lib/graph/label-utils';
+import { isEditableTarget, isOverlayOpen } from '@/lib/keyboard/dom';
 import { useGraphStore } from '@/stores/use-graph-store';
 import type { GraphNode } from '@/types';
 import { Circle, Cloud, Loader2, Search } from 'lucide-react';
@@ -381,19 +383,15 @@ export function GraphSearch({ onSelect }: GraphSearchProps) {
     [sigmaInstance, selectNode, onSelect]
   );
 
-  // Handle keyboard shortcut to open search
+  // `/` opens node search. ⌘K belongs to the global command palette (SPEC-168),
+  // so binding it here too would open two surfaces at once.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl/Cmd + K to open search
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        setOpen(true);
-      }
-      // / key also opens search (when not in input)
-      if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName || '')) {
-        e.preventDefault();
-        setOpen(true);
-      }
+      if (e.key !== '/' || e.defaultPrevented) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isEditableTarget(e.target) || isOverlayOpen()) return;
+      e.preventDefault();
+      setOpen(true);
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -418,9 +416,7 @@ export function GraphSearch({ onSelect }: GraphSearchProps) {
         >
           <Search className="h-4 w-4" aria-hidden="true" />
           <span className="hidden sm:inline">{t('graph.search.placeholder')}</span>
-          <kbd className="hidden lg:inline-flex h-5 items-center gap-1 rounded border bg-muted px-1.5 font-mono text-xs font-medium text-muted-foreground">
-            <span className="text-xs">⌘</span>K
-          </kbd>
+          <Kbd className="hidden lg:inline-flex">/</Kbd>
         </Button>
       </PopoverTrigger>
       <PopoverContent 

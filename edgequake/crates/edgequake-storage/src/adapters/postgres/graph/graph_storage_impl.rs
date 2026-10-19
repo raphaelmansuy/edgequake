@@ -400,6 +400,14 @@ impl GraphScanOps for PostgresAGEGraphStorage {
         self.pg_scan_edges_after(filter, after, limit).await
     }
 
+    async fn facet_counts(
+        &self,
+        nodes: &NodeListFilter,
+        edges: &EdgeListFilter,
+    ) -> Result<crate::traits::GraphFacetCounts> {
+        self.pg_facet_counts(nodes, edges).await
+    }
+
     async fn find_nodes_by_source_prefixes(
         &self,
         filter: &NodeListFilter,

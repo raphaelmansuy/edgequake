@@ -7,7 +7,7 @@ description: "Plain-English guide to upgrade any published EdgeQuake version saf
 
 This is the canonical guide to database upgrades. It is for operators who run EdgeQuake on their own PostgreSQL. Read it before you start a newer image or binary. Per-release pages (`upgrade-to-0.XX.md`) describe product changes; this page describes the migration process, which works from any published version to HEAD.
 
-> **Schema train today:** migration **207** (`207_age_lineage_discovery_rls.sql`, AGE lineage discovery, GitHub #478).
+> **Schema train today:** migration **212** (`211_relationship_source_chunk_keys.sql` and `212_relationship_source_chunk_keys_backfill.sql`: relationships record the chunk keys that produced them, so document-scoped search can find them; `210_graph_label_typo_search_rls.sql`: owner function for typo label search; `209_graph_ordered_scope_indexes.sql`: ordered graph page indexes; `208_rls_initplan_predicates.sql`: row-security helpers evaluated once per statement). Everything except the `212` backfill is expand-only; `212` is a data migration that fills the new column and is safe to re-run.
 > The released product is **v0.35.7** (schema 207, same as v0.35.1). v0.35.0 stopped at **206**. Migration 170 adds plain graph tables. From v0.35.5 the published Postgres image does not include Apache AGE. When `age` is absent from `pg_available_extensions`, `edgequake migrate` records migration 171 in the same run. When the package is installed, 171 still runs only if you pass `--drop-age`. `--confirm-drop` does not answer that question. Migrations 172 through 207 are expand. A v0.35.4 data directory that already loaded AGE cannot open on the v0.35.5, v0.35.6, or v0.35.7 image; drop AGE on the v0.35.4 image first. See [upgrade-to-0.35.7.md](upgrade-to-0.35.7.md).
 >
 > **One rule:** the API never changes the database schema. Only `edgequake migrate` (or the Compose service or Helm Job that runs it) writes schema.
@@ -98,6 +98,11 @@ Schema number to release. The migration matrix in `scripts/spec150/epochs.toml` 
 | 169 | v0.33.0 and v0.34.0 (schema unchanged; SPEC-163 `provider_connections`) |
 | 206 | v0.35.0 (SPEC-164 plain graph + RLS query indexes) |
 | 207 | v0.35.1 through v0.35.5 (AGE lineage discovery under row security; 0.35.2 through 0.35.5 add no migration) |
+| 208 | HEAD (row-security policies wrap `current_*_id()` as InitPlans; rewrites policy text only) |
+| 209 | HEAD (graph scope indexes carry the sort key; replaces the two prefix-only scope indexes) |
+| 210 | HEAD (typo label search runs in an owner function so trigram indexes work under row security) |
+| 211 | HEAD (`relationships.source_chunk_keys` column and GIN index; additive) |
+| 212 | HEAD (backfills `source_chunk_keys` from graph edge lineage, about 15 s for 155k relationships) |
 
 ---
 

@@ -658,7 +658,7 @@ export function PdfUploadProgress({
     <Card className={cn(isFailed && "border-red-200", className)}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-medium flex items-center gap-2">
+          <CardTitle className="font-medium flex items-center gap-2">
             <FileText className="h-5 w-5 text-muted-foreground" />
             <span className="truncate max-w-[300px]">{displayFilename}</span>
           </CardTitle>

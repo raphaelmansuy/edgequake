@@ -129,7 +129,7 @@ export function AdminQuotaSection() {
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-base">Admin</CardTitle>
+            <CardTitle>Admin</CardTitle>
           </div>
           <CardDescription className="text-xs">
             Manage tenant workspace quotas and server-wide defaults. Admin only.

@@ -38,6 +38,7 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
+import { SettingsNav, SettingsSection } from '@/components/settings/settings-nav';
 import { RebuildEmbeddingsButton } from '@/components/workspace/rebuild-embeddings-button';
 import { QUERY_MODE_META } from '@/lib/query/query-mode-meta';
 import { useQueryStore } from '@/stores/use-query-store';
@@ -174,6 +175,9 @@ export default function SettingsPage() {
           description={t('settings.subtitle', 'Customize your EdgeQuake experience')}
         />
 
+      <SettingsNav />
+
+      <SettingsSection id="general">
       {/* Appearance */}
       <Card>
         <CardHeader className="pb-4">
@@ -244,35 +248,6 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Application attribution (SPEC-043) — above provider status for discoverability */}
-      <AppAttributionSettingsCard />
-
-      {/* Server LLM defaults + priority mode (SPEC-043) */}
-      <ServerLlmConfigCard />
-
-      <ConnectionsCard />
-
-      <RoleMatrixCard />
-
-      {/* Provider Status */}
-      <SettingsProviderHub />
-      <ProviderStatusCard />
-
-      {/* Langfuse Observability (SPEC-124) */}
-      <LangfuseObservabilityCard />
-
-      {/* Config Explainability — full priority chain per area */}
-      <ConfigExplainabilityPanel />
-
-      {/* PDF parser backend configuration */}
-      <PdfParserSettingsCard />
-
-      {/* Vision LLM Configuration (SPEC-040) */}
-      <VisionLLMSettingsCard />
-
-      {/* Workspace Maintenance (SPEC-032) */}
-      <RebuildEmbeddingsButton variant="card" />
 
       {/* Graph Settings */}
       <Card>
@@ -553,7 +528,51 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+      </SettingsSection>
 
+      <SettingsSection id="models">
+      {/* Server LLM defaults + priority mode (SPEC-043) */}
+      <ServerLlmConfigCard />
+
+      {/* Provider Status */}
+      <SettingsProviderHub />
+      <ProviderStatusCard />
+
+      {/* Config Explainability — full priority chain per area */}
+      <ConfigExplainabilityPanel />
+
+      {/* PDF parser backend configuration */}
+      <PdfParserSettingsCard />
+
+      {/* Vision LLM Configuration (SPEC-040) */}
+      <VisionLLMSettingsCard />
+
+      {/* Workspace Maintenance (SPEC-032) */}
+      <RebuildEmbeddingsButton variant="card" />
+      </SettingsSection>
+
+      <SettingsSection id="access">
+      <ConnectionsCard />
+
+      <RoleMatrixCard />
+
+      {/* Application attribution (SPEC-043) — above provider status for discoverability */}
+      <AppAttributionSettingsCard />
+
+      {/* Admin section — only fetches and renders for admin users (SPEC-0001) */}
+      <AdminQuotaSection />
+      {/* SPEC-158 — admin-only, read-only SSO provider overview */}
+      <IdentityProvidersCard />
+      {/* User management — Issue #205: admin-only user CRUD */}
+      <UserManagementCard />
+      </SettingsSection>
+
+      <SettingsSection id="observability">
+      {/* Langfuse Observability (SPEC-124) */}
+      <LangfuseObservabilityCard />
+      </SettingsSection>
+
+      <SettingsSection id="data">
       {/* Data Management - Dangerous Actions Section */}
       <Card className="border-destructive/30">
         <CardHeader className="pb-4">
@@ -662,13 +681,8 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+      </SettingsSection>
 
-      {/* Admin section — only fetches and renders for admin users (SPEC-0001) */}
-      <AdminQuotaSection />
-      {/* SPEC-158 — admin-only, read-only SSO provider overview */}
-      <IdentityProvidersCard />
-      {/* User management — Issue #205: admin-only user CRUD */}
-      <UserManagementCard />
       </PageShell>
     </ScrollArea>
   );

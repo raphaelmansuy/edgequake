@@ -215,7 +215,7 @@ export function UploadHistory({
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" />
             {t('documents.history.title', 'Upload History')}
           </CardTitle>

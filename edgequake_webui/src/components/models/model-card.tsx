@@ -240,7 +240,7 @@ export function ModelCard({
           <div className="flex items-center gap-2">
             <ProviderIcon providerId={model.provider} className="h-5 w-5" />
             <div>
-              <CardTitle className="text-base">
+              <CardTitle>
                 {model.display_name || model.name}
                 {selected && <Check className="ml-2 h-4 w-4 inline text-primary" />}
               </CardTitle>

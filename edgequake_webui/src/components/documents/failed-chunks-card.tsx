@@ -107,7 +107,7 @@ export function FailedChunksCard({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-yellow-600" />
-            <CardTitle className="text-base">Partial Processing</CardTitle>
+            <CardTitle>Partial Processing</CardTitle>
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="bg-green-100 text-green-700">

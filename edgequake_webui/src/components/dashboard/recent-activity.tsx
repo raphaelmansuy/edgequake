@@ -38,9 +38,9 @@ function ActivitySkeleton() {
   // Title + time placeholders fit inside the reserved content height, including
   // when the first response is empty. Detail and footer arrive with real rows.
   return (
-    <div className="h-[280px] overflow-hidden space-y-1" data-testid="spec100-dashboard-activity-skeleton">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="flex items-start gap-3 px-3 py-2">
+    <div className="divide-y divide-transparent" data-testid="spec100-dashboard-activity-skeleton">
+      {Array.from({ length: ACTIVITY_MAX_ROWS }).map((_, i) => (
+        <div key={i} className="flex min-h-14 items-start gap-3 px-3 py-2.5">
           <Skeleton className="mt-0.5 h-8 w-8 rounded-md" />
           <div className="flex-1 space-y-1.5">
             <Skeleton className="h-4 w-44" />
@@ -85,11 +85,16 @@ export function RecentActivity({ documents, total, isLoading, headerAction }: Re
       style={{ minHeight: 380 }}
     >
       <CardHeader className="pb-1">
-        <CardTitle className="text-base">{t('dashboard.recentActivity.title', 'Recent Activity')}</CardTitle>
+        <CardTitle>{t('dashboard.recentActivity.title', 'Recent Activity')}</CardTitle>
         <CardDescription className="text-xs">
           {t('dashboard.recentActivity.subtitle', 'Latest document uploads and processing')}
         </CardDescription>
-        {headerAction ? <CardAction>{headerAction}</CardAction> : null}
+        {headerAction ? (
+          // Below the title on phones so a late status label can't re-wrap the heading.
+          <CardAction className="col-start-1 row-span-1 row-start-3 justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:justify-self-end">
+            {headerAction}
+          </CardAction>
+        ) : null}
       </CardHeader>
       {/* SPEC-100: min-h keeps empty↔list↔skeleton from shifting the page (CLS). */}
       <CardContent className="min-h-[280px] px-2">
@@ -105,6 +110,7 @@ export function RecentActivity({ documents, total, isLoading, headerAction }: Re
           </div>
         )}
       </CardContent>
+      {isLoading ? <div className="min-h-[2.75rem]" aria-hidden="true" /> : null}
       {!isLoading && items.length > 0 ? (
         <div className="min-h-8 border-t px-4 pt-3">
           <Link

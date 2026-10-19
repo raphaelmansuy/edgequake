@@ -10,7 +10,7 @@ use crate::traits::{
     EdgeListFilter, GraphEdge, GraphNode, KeysetPage, NodeListFilter, PagedGraphResult,
 };
 
-fn node_filter_sql(filter: &NodeListFilter) -> String {
+pub(super) fn node_filter_sql(filter: &NodeListFilter) -> String {
     let mut sql = tenant_and(
         "n",
         filter.tenant_id.as_deref(),
@@ -49,7 +49,7 @@ fn node_filter_sql(filter: &NodeListFilter) -> String {
     sql
 }
 
-fn edge_filter_sql(filter: &EdgeListFilter) -> String {
+pub(super) fn edge_filter_sql(filter: &EdgeListFilter) -> String {
     let mut sql = tenant_and(
         "e",
         filter.tenant_id.as_deref(),

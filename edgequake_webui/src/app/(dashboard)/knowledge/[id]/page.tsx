@@ -264,7 +264,7 @@ export default function KnowledgeDetailPage() {
       {/* Content */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Content</CardTitle>
+          <CardTitle>Content</CardTitle>
         </CardHeader>
         <CardContent>
           {editing ? (
@@ -303,7 +303,7 @@ export default function KnowledgeDetailPage() {
       {/* Metadata */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Details</CardTitle>
+          <CardTitle>Details</CardTitle>
         </CardHeader>
         <CardContent>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm md:grid-cols-4">

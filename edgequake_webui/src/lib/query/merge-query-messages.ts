@@ -23,8 +23,10 @@ export function mergeQueryMessages(
   }
 
   if (pendingMessage) {
-    const includeEmptyStopped = Boolean(pendingMessage.stopped);
-    if (pendingMessage.content || includeEmptyStopped) {
+    // An empty bubble is kept while streaming so the "waiting for the first
+    // token" state has a place to render (no dead gap after the question).
+    const includeEmpty = Boolean(pendingMessage.stopped || pendingMessage.isStreaming);
+    if (pendingMessage.content || includeEmpty) {
       const lastServerMsg = serverMessages[serverMessages.length - 1];
       const alreadyFromServer =
         lastServerMsg?.role === "assistant" &&

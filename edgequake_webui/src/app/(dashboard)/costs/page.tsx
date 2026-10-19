@@ -11,6 +11,7 @@ import { BudgetIndicator } from '@/components/cost/budget-indicator';
 import { CostBreakdownChart } from '@/components/cost/cost-breakdown-chart';
 import { CostSummaryCard } from '@/components/cost/cost-summary-card';
 import { TokenUsageTable } from '@/components/cost/token-usage-table';
+import { CostTrendChart } from '@/components/cost/cost-trend-chart';
 import { PageHeader } from '@/components/shared/page-header';
 import { PageShell } from '@/components/shared/page-shell';
 import { Button } from '@/components/ui/button';
@@ -31,7 +32,7 @@ import {
 import { formatCost } from '@/lib/format';
 import type { BudgetInfo } from '@/types/cost';
 import {
-    Calendar, DollarSign,
+    Calendar,
     Download, RefreshCw,
     TrendingUp
 } from 'lucide-react';
@@ -108,12 +109,7 @@ export default function CostDashboardPage() {
     <div className="flex flex-col h-full overflow-auto">
       <PageShell>
         <PageHeader
-          title={
-            <span className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              {t('costs.title', 'Cost Dashboard')}
-            </span>
-          }
+          title={t('costs.title', 'Cost Dashboard')}
           description={t(
             'costs.subtitle',
             'Monitor LLM costs and usage across your workspace',
@@ -122,7 +118,7 @@ export default function CostDashboardPage() {
             <>
               <Select value={period} onValueChange={(v) => setPeriod(v as TimePeriod)}>
                 <SelectTrigger
-                  className="w-36"
+                  className="w-44 whitespace-nowrap"
                   aria-label={t('costs.period.label', 'Time period')}
                 >
                   <Calendar className="h-4 w-4 mr-2" />
@@ -196,7 +192,7 @@ export default function CostDashboardPage() {
             {/* Cost trend chart — SPEC-100: fixed h-48 for skeleton/empty/live */}
             <Card data-testid="spec100-costs-trend">
               <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="h-4 w-4" />
                   Cost Trend
                 </CardTitle>
@@ -232,48 +228,6 @@ export default function CostDashboardPage() {
           />
         </div>
       </PageShell>
-    </div>
-  );
-}
-
-/**
- * Simple cost trend chart using bars.
- */
-function CostTrendChart({
-  data,
-}: {
-  data: Array<{ timestamp: string; total_cost: number; document_count: number }>;
-}) {
-  const maxCost = Math.max(...data.map(d => d.total_cost), 0.01);
-
-  return (
-    <div className="h-48 flex items-end gap-1">
-      {data.map((item, index) => {
-        const height = (item.total_cost / maxCost) * 100;
-        const date = new Date(item.timestamp);
-        const label = date.toLocaleDateString(undefined, { 
-          month: 'short', 
-          day: 'numeric' 
-        });
-
-        return (
-          <div
-            key={index}
-            className="flex-1 flex flex-col items-center gap-1"
-            title={`${label}: $${item.total_cost.toFixed(4)} (${item.document_count} docs)`}
-          >
-            <div
-              className="w-full bg-primary/80 hover:bg-primary rounded-t transition-colors"
-              style={{ height: `${Math.max(height, 2)}%` }}
-            />
-            {data.length <= 14 && (
-              <span className="text-xs text-muted-foreground">
-                {date.getDate()}
-              </span>
-            )}
-          </div>
-        );
-      })}
     </div>
   );
 }

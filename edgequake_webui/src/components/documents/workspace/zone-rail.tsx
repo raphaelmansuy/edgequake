@@ -61,7 +61,7 @@ export function ZoneRail({
         {zoneLabel(zone)}
       </span>
       {badge != null && badge !== 0 && badge !== "" ? (
-        <span className="rounded-full bg-sky-100 px-1.5 text-[10px] font-medium tabular-nums text-sky-800 dark:bg-sky-950 dark:text-sky-200">
+        <span className="rounded-full bg-muted px-1.5 text-[10px] font-medium tabular-nums text-muted-foreground">
           {badge}
         </span>
       ) : null}

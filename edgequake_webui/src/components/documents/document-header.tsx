@@ -107,7 +107,7 @@ export function DocumentHeader({
 
   const pipelineButtonClass =
     alertMode === 'stuck'
-      ? 'text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40'
+      ? 'text-rose-700 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40'
       : alertMode === 'queued' || (working === 0 && queued > 0)
         ? 'text-amber-700 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40'
         : 'text-sky-700 border-sky-300 hover:bg-sky-50 dark:text-sky-300 dark:border-sky-800 dark:hover:bg-sky-950/40';
@@ -137,7 +137,7 @@ export function DocumentHeader({
       <header className="eq-toolbar justify-between gap-3">
         <div className="space-y-0.5">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold tracking-tight">{t('documents.title')}</h1>
+            <h1 className="text-xl font-semibold leading-tight tracking-tight">{t('documents.title')}</h1>
             {badgeText && (
               <Badge
                 variant="secondary"
@@ -149,7 +149,7 @@ export function DocumentHeader({
             )}
             <ConnectionStatus compact={true} />
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-[0.8125rem] text-muted-foreground [@media(max-height:820px)]:hidden">
             {t('documents.subtitle')}
           </p>
         </div>
@@ -202,13 +202,15 @@ export function DocumentHeader({
           ) : null}
         
           <Button
-            variant="outline"
-            size="sm"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
             onClick={onRefresh}
             data-testid="documents-refresh-button"
+            aria-label={t('documents.refresh')}
+            title={t('documents.refresh')}
           >
             <RefreshCw className="h-4 w-4" />
-            {t('documents.refresh')}
           </Button>
 
           {/* SPEC-099: Clear All demoted to overflow — not peer of Refresh */}

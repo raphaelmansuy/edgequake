@@ -12,6 +12,9 @@ use uuid::Uuid;
 #[path = "query_capture.rs"]
 mod query_capture;
 
+#[path = "scratch_db.rs"]
+mod scratch_db;
+
 /// Embedded migrations (SSOT: `edgequake/migrations`). Used to auto-provision
 /// the dedicated scratch test database so tests never touch the shared dev DB.
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../migrations");
@@ -182,47 +185,43 @@ fn ensure_test_db_ready(cfg: &PostgresConfig) {
 }
 
 async fn provision_test_db(cfg: PostgresConfig) {
-    let admin_options = cfg.connect_options().database("postgres");
-    let Ok(admin) = sqlx::postgres::PgPoolOptions::new()
-        .connect_with(admin_options)
-        .await
+    let Some(mut scratch) =
+        scratch_db::ScratchProvisioner::acquire(cfg.connect_options(), &cfg.database).await
     else {
         return;
     };
-    let exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)")
-            .bind(&cfg.database)
-            .fetch_one(&admin)
-            .await
-            .unwrap_or(false);
-    if !exists {
-        // CREATE DATABASE cannot be parameterized; the name is derived internally
-        // (`{base}_test` or the `EDGEQUAKE_TEST_DATABASE` override), never user SQL.
-        let _ = sqlx::query(&format!(
-            "CREATE DATABASE \"{}\"",
-            cfg.database.replace('"', "\"\"")
-        ))
-        .execute(&admin)
-        .await;
+    scratch.ensure_exists().await;
+    // A scratch DB that cannot reach HEAD (for example one that still holds
+    // pre-plain-graph AGE state, which migration 171 refuses to drop) is
+    // rebuilt rather than left stale for every test that follows.
+    if !migrate_scratch_db(&cfg).await && scratch.rebuild().await {
+        migrate_scratch_db(&cfg).await;
     }
-    admin.close().await;
+    scratch.finish().await;
+}
 
-    if let Ok(pool) = sqlx::postgres::PgPoolOptions::new()
+/// Bring the scratch database to HEAD. `false` only when a migration failed;
+/// a connection failure is not something a rebuild would fix.
+async fn migrate_scratch_db(cfg: &PostgresConfig) -> bool {
+    let Ok(pool) = sqlx::postgres::PgPoolOptions::new()
         .connect_with(cfg.connect_options())
         .await
-    {
-        // Scratch DB only: reconcile known expandable-migration checksum
-        // drifts (SPEC-110/111) so sqlx migrate can apply pending files
-        // without requiring EDGEQUAKE_DEV_MODE (prod still fails closed).
-        repair_test_db_migration_checksums(&pool).await;
-        repair_stale_spec149_migration_collision(&pool).await;
-        // Idempotent: applies only pending migrations, so concurrent test
-        // processes and repeat runs converge without dropping anything.
-        if let Err(e) = MIGRATOR.run(&pool).await {
-            eprintln!("test-db provisioning migrate failed: {e}");
-        }
-        pool.close().await;
+    else {
+        return true;
+    };
+    // Scratch DB only: reconcile known expandable-migration checksum
+    // drifts (SPEC-110/111) so sqlx migrate can apply pending files
+    // without requiring EDGEQUAKE_DEV_MODE (prod still fails closed).
+    repair_test_db_migration_checksums(&pool).await;
+    repair_stale_spec149_migration_collision(&pool).await;
+    // Idempotent: applies only pending migrations, so concurrent test
+    // processes and repeat runs converge without dropping anything.
+    let migrated = MIGRATOR.run(&pool).await;
+    if let Err(e) = &migrated {
+        eprintln!("test-db provisioning migrate failed: {e}");
     }
+    pool.close().await;
+    migrated.is_ok()
 }
 
 /// Scratch DBs that recorded a non-PROVIDER-ACCESS version 150 leave the

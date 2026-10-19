@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatStrip } from "@/components/shared/stat-strip";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { WorkspaceStats } from "@/lib/api/edgequake/workspaces";
 import { resolveWorkspaceStatCounts } from "@/lib/workspace/stats-display";
@@ -30,7 +30,7 @@ export function WorkspaceStatsCards({
       value: counts.documents,
       footer:
         workspace.max_documents != null ? (
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="mt-1.5 text-xs text-muted-foreground">
             {t("workspace.maxDocuments", "Max")}:{" "}
             {workspace.max_documents.toLocaleString()}
           </p>
@@ -60,27 +60,19 @@ export function WorkspaceStatsCards({
   ] as const;
 
   return (
-    <div className="grid min-w-0 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 [&>*]:min-w-0">
+    <StatStrip>
       {items.map(({ key, icon: Icon, label, value, footer }) => (
-        <Card key={key}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Icon className="h-4 w-4" />
-              {label}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {isLoadingStats ? (
-                <Skeleton className="h-8 w-16" />
-              ) : (
-                value
-              )}
-            </div>
-            {footer}
-          </CardContent>
-        </Card>
+        <div key={key} className="flex min-w-0 flex-col bg-card px-4 py-3.5">
+          <p className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
+            <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="truncate">{label}</span>
+          </p>
+          <div className="mt-2 text-[1.75rem] font-semibold leading-none tracking-tight tabular-nums">
+            {isLoadingStats ? <Skeleton className="h-7 w-16" /> : value}
+          </div>
+          {footer}
+        </div>
       ))}
-    </div>
+    </StatStrip>
   );
 }

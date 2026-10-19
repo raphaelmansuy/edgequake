@@ -22,6 +22,7 @@ import {
 } from '@/components/dashboard';
 import { PageHeader } from '@/components/shared/page-header';
 import { PageShell } from '@/components/shared/page-shell';
+import { StatStrip } from '@/components/shared/stat-strip';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useWorkspaceTenantValidator } from '@/hooks/use-workspace-tenant-validator';
 import { getDocuments, getWorkspaceStats, getWorkspaces } from '@/lib/api/edgequake';
@@ -183,7 +184,7 @@ export default function DashboardPage() {
       <Suspense fallback={null}>
         <WorkspaceUrlUpdater />
       </Suspense>
-      <div className="p-page space-y-page">
+      <PageShell className="space-y-page">
         <PageHeader
           title={selectedWorkspace?.name ?? t('dashboard.title', 'Dashboard')}
           description={
@@ -202,7 +203,7 @@ export default function DashboardPage() {
 
         {/* Statistics Section - Shows workspace-specific counts */}
         {/* @implements FEAT1001 - Dashboard statistics visualization */}
-        <section aria-label={t('dashboard.sections.stats', 'Statistics')} className="grid min-w-0 grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4 [&>*]:min-w-0">
+        <StatStrip aria-label={t('dashboard.sections.stats', 'Statistics')}>
           <StatsCard
             title={t('dashboard.stats.documents', 'Documents')}
             value={documentValue}
@@ -247,23 +248,34 @@ export default function DashboardPage() {
             isLoading={coldStats || !selectedWorkspaceId}
             isStale={statsStale}
           />
-        </section>
+        </StatStrip>
 
-        {/* Quick Actions */}
-        <section aria-label={t('dashboard.quickActions.title', 'Quick Actions')}>
-          <QuickActions emphasizeUpload={!coldStats && documentValue === 0} />
-        </section>
+        {/* Two-column body: the feed owns the width; actions + health sit in a rail. */}
+        <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_19rem] [&>*]:min-w-0">
+          <section aria-label={t('dashboard.recentActivity.title', 'Recent Activity')}>
+            <RecentActivity
+              documents={recentDocuments}
+              total={documentsData?.total}
+              isLoading={coldDocs}
+            />
+          </section>
 
-        {/* Recent Activity — system status aligned with section title */}
-        <section aria-label="Activity and Status">
-          <RecentActivity
-            documents={recentDocuments}
-            total={documentsData?.total}
-            isLoading={coldDocs}
-            headerAction={<SystemStatus />}
-          />
-        </section>
-      </div>
+          <aside className="space-y-5" aria-label={t('dashboard.quickActions.title', 'Quick Actions')}>
+            <section>
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {t('dashboard.quickActions.title', 'Quick Actions')}
+              </h2>
+              <QuickActions layout="stack" emphasizeUpload={!coldStats && documentValue === 0} />
+            </section>
+            <section>
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {t('dashboard.system.title', 'System Status')}
+              </h2>
+              <SystemStatus />
+            </section>
+          </aside>
+        </div>
+      </PageShell>
     </ScrollArea>
   );
 }

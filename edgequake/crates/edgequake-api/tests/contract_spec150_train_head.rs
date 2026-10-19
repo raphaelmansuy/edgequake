@@ -31,8 +31,8 @@ fn numbered_sql_versions() -> Vec<i64> {
 fn head_train_includes_160_through_169() {
     let versions = numbered_sql_versions();
     let max = *versions.last().expect("at least one migration");
-    assert_eq!(max, 207, "HEAD schema train must end at 207");
-    for v in 160..=207 {
+    assert_eq!(max, 212, "HEAD schema train must end at 212");
+    for v in 160..=212 {
         assert!(
             versions.contains(&v),
             "missing migration {v} in edgequake/migrations/"
@@ -48,7 +48,7 @@ fn manifest_compat_serve_max_matches_head() {
         .find(|l| l.starts_with("compat_serve_max"))
         .expect("compat_serve_max");
     let digits: String = max_line.chars().filter(|c| c.is_ascii_digit()).collect();
-    assert_eq!(digits, "207");
+    assert_eq!(digits, "212");
 }
 
 #[test]
@@ -292,7 +292,8 @@ fn migration_195_indexes_entity_source_ids() {
     assert!(fleet.contains("entity_search_sql_in_ids"));
     assert!(fleet.contains("OFFSET 0"));
     assert!(fleet.contains("e.name = wanted.name"));
-    assert!(fleet.contains("ENTITY_SOURCE_REQUIRED"));
+    assert!(fleet.contains("apply_entity_source"));
+    assert!(fleet.contains("document_lineage_sql::entity_required"));
     assert!(!fleet.contains("e.id::text = ANY($7)"));
 }
 
@@ -873,4 +874,112 @@ fn sequential_apply_is_restartable_by_design() {
         src.contains("finish_migration_run(pool, run_id, \"error\""),
         "failed step must close migration_run as error so operators can resume"
     );
+}
+
+#[test]
+fn migration_208_wraps_session_helpers_as_initplans() {
+    let manifest = include_str!("../../../migrations/manifest.toml");
+    let v208 = manifest
+        .split("version = 208")
+        .nth(1)
+        .and_then(|rest| rest.split("[[migration]]").next())
+        .expect("migration 208");
+    assert!(v208.contains("phase = \"expand\""));
+    assert!(!v208.contains("serving_floor"));
+    let sql = include_str!("../../../migrations/208_rls_initplan_predicates.sql");
+    assert!(sql.contains("ALTER POLICY"), "rewrites policies in place");
+    assert!(
+        sql.contains("RAISE EXCEPTION"),
+        "each rewrite must be verified against the original expression"
+    );
+    assert!(
+        !sql.contains("DROP POLICY") && !sql.contains("CREATE POLICY"),
+        "roles, commands and RESTRICTIVE must stay untouched"
+    );
+}
+
+#[test]
+fn migration_209_extends_graph_scope_indexes_with_the_sort_key() {
+    let manifest = include_str!("../../../migrations/manifest.toml");
+    let v209 = manifest
+        .split("version = 209")
+        .nth(1)
+        .expect("migration 209");
+    assert!(v209.contains("phase = \"expand\""));
+    assert!(!v209.contains("serving_floor"));
+    let sql = include_str!("../../../migrations/209_graph_ordered_scope_indexes.sql");
+    assert!(sql.contains("(namespace, tenant_id, workspace_id, node_id)"));
+    assert!(sql.contains("(namespace, tenant_id, workspace_id, source_id, target_id, rel_type)"));
+    // The old scope indexes are strict prefixes of the new ones.
+    assert!(sql.contains("DROP INDEX IF EXISTS public.idx_eq_graph_nodes_tenant_ws"));
+    assert!(sql.contains("DROP INDEX IF EXISTS public.idx_eq_graph_edges_tenant_ws"));
+}
+
+#[test]
+fn migration_210_runs_typo_label_search_as_owner_with_session_scope() {
+    let manifest = include_str!("../../../migrations/manifest.toml");
+    let v210 = manifest
+        .split("version = 210")
+        .nth(1)
+        .expect("migration 210");
+    assert!(v210.contains("phase = \"expand\""));
+    assert!(!v210.contains("serving_floor"));
+    let sql = include_str!("../../../migrations/210_graph_label_typo_search_rls.sql");
+    assert!(sql.contains("SECURITY DEFINER"));
+    assert!(sql.contains("app.current_tenant_id"));
+    assert!(sql.contains("REVOKE ALL ON FUNCTION public.eq_graph_search_labels_fuzzy"));
+    assert!(sql.contains("TO edgequake_tenant_access"));
+    let search =
+        include_str!("../../edgequake-storage/src/adapters/postgres/graph/plain/search.rs");
+    assert!(
+        search.contains("eq_graph_search_labels_fuzzy"),
+        "the adapter must call the owner function, not run `%` as the tenant role"
+    );
+    assert!(!search.contains("lower(n.node_id) % $4"));
+}
+
+#[test]
+fn migrations_211_212_give_relationships_their_own_chunk_keys() {
+    let manifest = include_str!("../../../migrations/manifest.toml");
+    let v211 = manifest
+        .split("version = 211")
+        .nth(1)
+        .expect("migration 211");
+    assert!(v211.contains("phase = \"expand\""));
+    assert!(!v211.contains("serving_floor"));
+    let ddl = include_str!("../../../migrations/211_relationship_source_chunk_keys.sql");
+    assert!(ddl.contains("ADD COLUMN IF NOT EXISTS source_chunk_keys text[]"));
+    assert!(ddl.contains("USING gin (source_chunk_keys)"));
+
+    let v212 = manifest
+        .split("version = 212")
+        .nth(1)
+        .expect("migration 212");
+    assert!(v212.contains("phase = \"data\""));
+    assert!(v212.contains("lock_class = \"dml_batch\""));
+    let fill = include_str!("../../../migrations/212_relationship_source_chunk_keys_backfill.sql");
+    assert!(
+        fill.contains("source_chunk_keys IS NULL"),
+        "backfill must be idempotent"
+    );
+    assert!(
+        fill.contains("ANALYZE bf_edge_keys"),
+        "stage and ANALYZE before joining"
+    );
+    assert!(
+        fill.contains("ANALYZE bf_edge_agg"),
+        "stage and ANALYZE before joining"
+    );
+
+    // The writer fills the column in the same statement as the row, and the
+    // search reads it. A column nobody writes was the original defect.
+    let sink = include_str!("../src/postgres_entity_sink.rs");
+    assert!(
+        sink.matches("source_chunk_keys").count() >= 6,
+        "single and batch upserts must both write and union source_chunk_keys"
+    );
+    let search =
+        include_str!("../../edgequake-storage/src/adapters/postgres/document_lineage_sql.rs");
+    assert!(search.contains("r.source_chunk_keys"));
+    assert!(search.contains("e.source_chunk_ids"));
 }

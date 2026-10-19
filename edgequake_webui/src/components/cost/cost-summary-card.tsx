@@ -116,7 +116,7 @@ export function CostSummaryCard({
   return (
     <Card className={className}>
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2">
           <DollarSign className="h-5 w-5" />
           Cost Summary
         </CardTitle>

@@ -56,7 +56,13 @@
     "costs": "Costs",
     "apiExplorer": "API Explorer",
     "settings": "Settings",
-    "home": "Dashboard"
+    "home": "Dashboard",
+    "groupKnowledge": "Knowledge",
+    "groupSystem": "System",
+    "search": "Search",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "openMenu": "Open navigation menu"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -183,7 +189,8 @@
       "pdfParserVision": "Vision",
       "pdfParserEdgeParse": "EdgeParse",
       "pdfParserEdgeParseOcr": "EdgeParse + OCR",
-      "pdfParserAuto": "Auto"
+      "pdfParserAuto": "Auto",
+      "settings": "Upload settings"
     },
     "duplicateDialog": {
       "titleSingle": "Duplicate document detected",
@@ -685,6 +692,13 @@
       "stopped": "Stopped",
       "error": "Failed",
       "sourceCount": "{{count}} sources",
+      "stepSearch": "Search",
+      "stepRead": "Read",
+      "stepThink": "Think",
+      "stepWrite": "Write",
+      "stillWorking": "Still working on it…",
+      "slowHint": "This is taking a while — larger local models can need a moment.",
+      "elapsed": "{{seconds}}s",
       "thinking": "Thinking…"
     },
     "feedback": {
@@ -1136,6 +1150,14 @@
       "fallbackVision": "Fallback: Vision",
       "resolvesTo": "Resolves to {{value}}",
       "resolvesToAuto": "May use EdgeParse"
+    },
+    "sections": {
+      "label": "Settings sections",
+      "general": "General",
+      "models": "Models & providers",
+      "access": "Access",
+      "observability": "Observability",
+      "data": "Data"
     }
   },
   "context": {
@@ -1432,14 +1454,27 @@
       "30d": "Last 30 days",
       "90d": "Last 90 days",
       "all": "All time"
-    }
+    },
+    "trendAria": "Daily cost, {{count}} days, total {{total}}"
   },
   "command": {
-    "placeholder": "Search pages and actions…",
-    "empty": "No results",
-    "navigate": "Navigate",
+    "title": "Command palette",
+    "placeholder": "Search pages, documents and actions…",
+    "empty": "Nothing matches",
+    "navigate": "Go to",
     "actions": "Actions",
-    "shortcuts": "Keyboard shortcuts"
+    "shortcuts": "Keyboard shortcuts",
+    "documents": "Documents",
+    "searching": "Searching documents…",
+    "newConversation": "New conversation",
+    "toggleSidebar": "Collapse or expand sidebar",
+    "themeLight": "Switch to light theme",
+    "themeDark": "Switch to dark theme",
+    "themeSystem": "Use system theme",
+    "hintNavigate": "navigate",
+    "hintOpen": "open",
+    "hintClose": "close",
+    "openPalette": "Search or jump to…"
   },
   "theme": {
     "light": "Light theme",
@@ -1616,5 +1651,33 @@
       "warnings": "{{count}} warnings",
       "pending": "Counts appear when the run finishes."
     }
+  },
+  "keyboard": {
+    "then": "then",
+    "chordPrompt": "Go to…",
+    "title": "Keyboard shortcuts",
+    "subtitle": "Move through EdgeQuake without leaving the keyboard.",
+    "footer": "Single keys are ignored while you type or when a dialog is open.",
+    "sections": {
+      "navigation": "Go to",
+      "global": "Everywhere",
+      "documents": "Documents",
+      "query": "Query",
+      "graph": "Knowledge graph"
+    },
+    "palette": "Open command palette",
+    "help": "Show keyboard shortcuts",
+    "sidebar": "Collapse or expand sidebar",
+    "escape": "Close dialog, menu or panel",
+    "docRefresh": "Refresh list",
+    "docSelectAll": "Select all documents",
+    "queryFocus": "Focus the question box",
+    "queryMention": "Scope to a document",
+    "graphSearch": "Search nodes",
+    "graphMove": "Move between connected nodes",
+    "graphFocus": "Focus the selected node",
+    "graphDepth": "Neighbourhood depth",
+    "graphZoom": "Zoom in, out, reset",
+    "graphFullscreen": "Toggle fullscreen"
   }
 }

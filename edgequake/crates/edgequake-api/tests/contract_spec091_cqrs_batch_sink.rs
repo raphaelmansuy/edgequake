@@ -113,6 +113,7 @@ async fn contract_spec091_cqrs_batch_entities_and_rels() {
         weight: 1.0,
         tenant_id: Some(tenant.to_string()),
         workspace_id: Some(workspace.to_string()),
+        source_chunk_ids: vec![],
     }];
     sink.upsert_relationships_batch(&rels)
         .await
@@ -153,6 +154,7 @@ async fn contract_spec091_cqrs_batch_empty_and_missing_fk() {
             weight: 0.5,
             tenant_id: Some(tenant.to_string()),
             workspace_id: Some(workspace.to_string()),
+            source_chunk_ids: vec![],
         }])
         .await
         .expect_err("missing FK must fail closed");

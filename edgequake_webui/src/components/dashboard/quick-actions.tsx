@@ -44,17 +44,22 @@ const actions = [
 interface QuickActionsProps {
   /** Empty workspace: Upload is the one obvious next step. */
   emphasizeUpload?: boolean;
+  /** `stack` = one column (side rail); `row` = three across. */
+  layout?: 'row' | 'stack';
 }
 
 /**
  * Three compact, left-aligned shortcut tiles. No wrapper card or heading: the
  * actions are self-explanatory and a nested card made them read as placeholders.
  */
-export function QuickActions({ emphasizeUpload = false }: QuickActionsProps) {
+export function QuickActions({ emphasizeUpload = false, layout = 'row' }: QuickActionsProps) {
   const { t } = useTranslation();
 
   return (
-    <div className="grid min-w-0 gap-2 sm:grid-cols-3 [&>*]:min-w-0" data-testid="dashboard-quick-actions">
+    <div
+      className={cn('grid min-w-0 gap-2 [&>*]:min-w-0', layout === 'row' && 'sm:grid-cols-3')}
+      data-testid="dashboard-quick-actions"
+    >
       {actions.map((action) => {
         const Icon = action.icon;
         const primary = emphasizeUpload && action.id === 'upload';
@@ -65,7 +70,7 @@ export function QuickActions({ emphasizeUpload = false }: QuickActionsProps) {
             data-testid={`dashboard-action-${action.id}`}
             data-emphasis={primary ? 'primary' : undefined}
             className={cn(
-              'group flex items-center gap-3 rounded-lg border px-3 py-2.5 shadow-xs',
+              'group flex items-center gap-3 rounded-lg border px-3 py-2.5',
               'transition-colors duration-150',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               primary
@@ -85,7 +90,7 @@ export function QuickActions({ emphasizeUpload = false }: QuickActionsProps) {
               <p className="truncate text-sm font-medium">{t(action.labelKey)}</p>
               <p
                 className={cn(
-                  'hidden truncate text-xs sm:block',
+                  cn('truncate text-xs', layout === 'row' && 'hidden sm:block'),
                   primary ? 'text-primary-foreground/80' : 'text-muted-foreground',
                 )}
               >

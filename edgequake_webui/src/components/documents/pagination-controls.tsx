@@ -38,7 +38,7 @@ export function PaginationControls({
   const handleLastPage = () => onPageChange(totalPages);
 
   return (
-    <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 overflow-hidden px-2 py-3">
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 overflow-hidden px-2 py-1.5">
       {/* Left: showing range — communicates scope at a glance (DI-05) */}
       <div className="flex items-center gap-3 text-sm text-muted-foreground min-w-0">
         {totalItems !== undefined && totalItems > 0 ? (
@@ -56,7 +56,7 @@ export function PaginationControls({
             onValueChange={(v) => onPageSizeChange(Number(v))}
           >
             <SelectTrigger
-              className="w-16 h-7 text-xs"
+              className="h-7 w-[4.75rem] text-xs"
               aria-label={t('documents.pagination.rowsPerPage', 'Rows')}
             >
               <SelectValue />

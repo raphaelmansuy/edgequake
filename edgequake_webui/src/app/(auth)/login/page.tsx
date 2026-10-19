@@ -6,18 +6,38 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { useSetupStatus } from '@/hooks/use-setup-status';
 import { SsoButtons } from '@/components/auth/sso-buttons';
+import { useSsoProviders } from '@/hooks/use-sso-providers';
 import { login, safeRedirectPath } from '@/lib/api/edgequake';
 import { getRuntimeConfig } from '@/lib/runtime-config';
 import { useAuthStore } from '@/stores/use-auth-store';
 import { AlertCircle, Eye, EyeOff, Loader2, Network } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+
+const SSO_WAIT_MS = 600;
+
+/** True while `pending` holds and the budget has not elapsed. */
+function useBoundedWait(pending: boolean, budgetMs: number): boolean {
+  const [expired, setExpired] = useState(false);
+  useEffect(() => {
+    if (!pending) return;
+    const id = setTimeout(() => setExpired(true), budgetMs);
+    return () => clearTimeout(id);
+  }, [pending, budgetMs]);
+  return pending && !expired;
+}
 
 function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const authLogin = useAuthStore((s) => s.login);
-  const { data: setupStatus, isLoading: setupLoading } = useSetupStatus();
+  const { data: setupStatus, isLoading: setupStatusLoading } = useSetupStatus();
+  // Gate the whole card on both lookups: a late SSO answer would otherwise
+  // insert/remove a row and shift the form (CLS). The skeleton is swapped, not grown.
+  const { isLoading: ssoLoading } = useSsoProviders();
+  // Bounded: a slow SSO lookup must never hold the sign-in form hostage.
+  const ssoPatient = useBoundedWait(ssoLoading, SSO_WAIT_MS);
+  const setupLoading = setupStatusLoading || ssoPatient;
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');

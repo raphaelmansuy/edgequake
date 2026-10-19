@@ -5,35 +5,29 @@ use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::PgPool;
 use std::time::Duration;
 
-#[path = "query_capture.rs"]
-mod query_capture;
+#[path = "postgres_test_config.rs"]
+mod postgres_test_config;
 
 pub async fn test_pool() -> Option<PgPool> {
     test_pool_with_acquire_timeout(Duration::from_millis(500)).await
 }
 
 pub async fn test_pool_with_acquire_timeout(acquire_timeout: Duration) -> Option<PgPool> {
-    query_capture::initialize();
-    let url = std::env::var("DATABASE_URL")
-        .ok()
-        .or_else(|| std::fs::read_to_string("/tmp/edgequake-db-url").ok());
-    let Some(url) = url else {
+    // The harness resolves the scratch database (honouring
+    // `EDGEQUAKE_TEST_DATABASE`) and provisions it before anything connects.
+    // Resolving it here as well is how this fixture once ran against a stale,
+    // never-migrated `{db}_test`.
+    let Some(config) = postgres_test_config::contract_postgres_config("access_pool") else {
         assert!(
-            !std::env::var("EDGEQUAKE_REQUIRE_POSTGRES_TESTS")
-                .ok()
-                .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true")),
+            !postgres_test_config::postgres_tests_required(),
             "PostgreSQL reliability tests require DATABASE_URL"
         );
         eprintln!("SKIP: PostgreSQL URL unavailable");
         return None;
     };
-    let options: PgConnectOptions = url.trim().parse().expect("valid PostgreSQL URL");
-    let database = options.get_database().unwrap_or("edgequake");
-    let database = if database.ends_with("_test") {
-        database.to_string()
-    } else {
-        format!("{database}_test")
-    };
+    let options: PgConnectOptions = config
+        .connect_options()
+        .options([("search_path", "public")]);
     Some(
         with_session_hygiene_labeled(
             PgPoolOptions::new()
@@ -42,7 +36,7 @@ pub async fn test_pool_with_acquire_timeout(acquire_timeout: Duration) -> Option
                 .acquire_timeout(acquire_timeout),
             "edgequake:query",
         )
-        .connect_with(options.database(&database))
+        .connect_with(options)
         .await
         .expect("isolated test database"),
     )

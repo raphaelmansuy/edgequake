@@ -2,12 +2,11 @@
 
 use async_trait::async_trait;
 use edgequake_storage_contracts::{
-    checked_i64, decode_commit_receipt, last_included_cursor, physical_revision_id,
-    require_active_roles, validate_prepared_ingestion_batch, AccessError, AccessResult,
-    AccessScope, BindingRole, BindingState, CommitReceipt, CommittedRevision, CursorPage,
-    DeleteDocument, DeleteReceipt, DocumentId, DocumentPageRequest, DocumentReader, DocumentView,
-    IngestionCommitter, LifecycleCommitter, PreparedIngestionBatch, PreparedRecord,
-    P0_REQUIRED_ROLES,
+    checked_i64, decode_commit_receipt, last_included_cursor, require_active_roles,
+    validate_prepared_ingestion_batch, AccessError, AccessResult, AccessScope, BindingRole,
+    BindingState, CommitReceipt, CommittedRevision, CursorPage, DeleteDocument, DeleteReceipt,
+    DocumentId, DocumentPageRequest, DocumentReader, DocumentView, IngestionCommitter,
+    LifecycleCommitter, PreparedIngestionBatch, PreparedRecord, P0_REQUIRED_ROLES,
 };
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
@@ -15,9 +14,10 @@ use uuid::Uuid;
 use super::chunk_repository::{
     ensure_document_parent_in_transaction, insert_prepared_chunks_in_transaction,
 };
-use crate::projection_manifest::{
-    logical_key_for_payload, role_completion_proof, EventManifestItem,
+use super::ingestion_committer_batch::{
+    insert_contributions, insert_embeddings, insert_object_revisions, write_event_manifest,
 };
+use crate::projection_manifest::{logical_key_for_payload, EventManifestItem};
 
 const COMMIT_OPERATION: &str = "ingestion.commit_batch";
 const DELETE_OPERATION: &str = "lifecycle.tombstone_document";
@@ -634,210 +634,6 @@ async fn verify_expected_revision(
     Ok(())
 }
 
-async fn insert_object_revisions(
-    tx: &mut Transaction<'_, Postgres>,
-    command: &PreparedIngestionBatch,
-    kind: &str,
-    records: &[PreparedRecord],
-) -> AccessResult<()> {
-    let tenant_id = command.scope.tenant().into_uuid();
-    let workspace_id = command.scope.workspace().into_uuid();
-    for record in records {
-        let revision = checked_i64(record.revision, "record revision")?;
-        let physical_id = physical_revision_id(command, kind, record);
-        sqlx::query(
-            r#"
-            INSERT INTO public.object_revisions (
-                tenant_id, workspace_id, kind, logical_id, revision, state,
-                physical_id, digest, payload_ref, payload
-            )
-            VALUES ($1, $2, $3, $4, $5, 'staged', $6, $7, NULL, $8)
-            ON CONFLICT (tenant_id, workspace_id, kind, logical_id, revision)
-                DO NOTHING
-            "#,
-        )
-        .bind(tenant_id)
-        .bind(workspace_id)
-        .bind(kind)
-        .bind(record.id)
-        .bind(revision)
-        .bind(physical_id)
-        .bind(record.digest.as_slice())
-        .bind(&record.payload)
-        .execute(&mut **tx)
-        .await
-        .map_err(|error| classify_sqlx("insert immutable object revision", error))?;
-
-        let actual = sqlx::query_as::<_, (Uuid, Vec<u8>, Vec<u8>)>(
-            r#"
-            SELECT physical_id, digest, payload
-            FROM public.object_revisions
-            WHERE tenant_id = $1 AND workspace_id = $2 AND kind = $3
-              AND logical_id = $4 AND revision = $5
-            "#,
-        )
-        .bind(tenant_id)
-        .bind(workspace_id)
-        .bind(kind)
-        .bind(record.id)
-        .bind(revision)
-        .fetch_one(&mut **tx)
-        .await
-        .map_err(|error| classify_sqlx("verify immutable object revision", error))?;
-        if actual.0 != physical_id || actual.1 != record.digest || actual.2 != record.payload {
-            return Err(AccessError::Conflict(format!(
-                "{kind} {} revision {} conflicts with persisted content",
-                record.id, record.revision
-            )));
-        }
-    }
-    Ok(())
-}
-
-async fn insert_contributions(
-    tx: &mut Transaction<'_, Postgres>,
-    command: &PreparedIngestionBatch,
-) -> AccessResult<()> {
-    let tenant_id = command.scope.tenant().into_uuid();
-    let workspace_id = command.scope.workspace().into_uuid();
-    let source_document_id = command.document_id.into_uuid();
-    let source_generation = checked_i64(command.ingest_generation, "ingest generation")?;
-    for record in &command.contributions {
-        let revision = checked_i64(record.revision, "contribution revision")?;
-        let payload = serde_json::from_slice::<serde_json::Value>(&record.payload)
-            .unwrap_or_else(|_| serde_json::json!({ "bytes": record.payload }));
-        let fact_id = payload
-            .get("fact_id")
-            .and_then(|value| value.as_str())
-            .and_then(|raw| Uuid::parse_str(raw).ok())
-            .unwrap_or(record.id);
-        let fact_revision = payload
-            .get("fact_revision")
-            .and_then(|value| value.as_u64())
-            .map(|value| checked_i64(value, "fact revision"))
-            .transpose()?
-            .unwrap_or(revision);
-        sqlx::query(
-            r#"
-            INSERT INTO public.graph_contributions (
-                tenant_id, workspace_id, fact_id, fact_revision, contribution_id,
-                source_document_id, source_generation, source_chunk_id,
-                payload_digest, payload
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, $8, $9)
-            ON CONFLICT (contribution_id) DO NOTHING
-            "#,
-        )
-        .bind(tenant_id)
-        .bind(workspace_id)
-        .bind(fact_id)
-        .bind(fact_revision)
-        .bind(record.id)
-        .bind(source_document_id)
-        .bind(source_generation)
-        .bind(record.digest.as_slice())
-        .bind(&payload)
-        .execute(&mut **tx)
-        .await
-        .map_err(|error| classify_sqlx("insert graph contribution", error))?;
-
-        let actual = sqlx::query_as::<_, (Uuid, Uuid, Uuid, i64, i64, Vec<u8>)>(
-            r#"
-            SELECT tenant_id, workspace_id, fact_id, fact_revision, source_generation, payload_digest
-            FROM public.graph_contributions
-            WHERE contribution_id = $1
-            "#,
-        )
-        .bind(record.id)
-        .fetch_one(&mut **tx)
-        .await
-        .map_err(|error| classify_sqlx("verify graph contribution", error))?;
-        if actual
-            != (
-                tenant_id,
-                workspace_id,
-                fact_id,
-                fact_revision,
-                source_generation,
-                record.digest.to_vec(),
-            )
-        {
-            return Err(AccessError::Conflict(format!(
-                "contribution {} conflicts with persisted content",
-                record.id
-            )));
-        }
-    }
-    Ok(())
-}
-
-async fn insert_embeddings(
-    tx: &mut Transaction<'_, Postgres>,
-    command: &PreparedIngestionBatch,
-) -> AccessResult<()> {
-    let tenant_id = command.scope.tenant().into_uuid();
-    let workspace_id = command.scope.workspace().into_uuid();
-    let content_revision = checked_i64(command.ingest_generation, "ingest generation")?;
-    for record in &command.embeddings {
-        let physical_id = physical_revision_id(command, "embedding", record);
-        sqlx::query(
-            r#"
-            INSERT INTO public.embedding_manifests (
-                tenant_id, workspace_id, subject_id, family, model_revision,
-                content_revision, physical_id, dimension, metric, digest,
-                payload_ref, payload
-            )
-            VALUES ($1, $2, $3, 'default', 'unspecified', $4, $5, 0,
-                    'unspecified', $6, NULL, $7)
-            ON CONFLICT (
-                tenant_id, workspace_id, subject_id, family,
-                model_revision, content_revision
-            ) DO NOTHING
-            "#,
-        )
-        .bind(tenant_id)
-        .bind(workspace_id)
-        .bind(record.id)
-        .bind(content_revision)
-        .bind(physical_id)
-        .bind(record.digest.as_slice())
-        .bind(&record.payload)
-        .execute(&mut **tx)
-        .await
-        .map_err(|error| classify_sqlx("insert embedding manifest", error))?;
-
-        let actual = sqlx::query_as::<_, (Uuid, Vec<u8>, Option<Vec<u8>>)>(
-            r#"
-            SELECT physical_id, digest, payload
-            FROM public.embedding_manifests
-            WHERE tenant_id = $1 AND workspace_id = $2 AND subject_id = $3
-              AND family = 'default' AND model_revision = 'unspecified'
-              AND content_revision = $4
-            "#,
-        )
-        .bind(tenant_id)
-        .bind(workspace_id)
-        .bind(record.id)
-        .bind(content_revision)
-        .fetch_one(&mut **tx)
-        .await
-        .map_err(|error| classify_sqlx("verify embedding manifest", error))?;
-        if actual
-            != (
-                physical_id,
-                record.digest.to_vec(),
-                Some(record.payload.clone()),
-            )
-        {
-            return Err(AccessError::Conflict(format!(
-                "embedding {} generation {} conflicts with persisted content",
-                record.id, command.ingest_generation
-            )));
-        }
-    }
-    Ok(())
-}
-
 async fn insert_ingest_batch(
     tx: &mut Transaction<'_, Postgres>,
     command: &PreparedIngestionBatch,
@@ -1190,70 +986,6 @@ fn manifest_items(
         .collect()
 }
 
-async fn write_event_manifest(
-    tx: &mut Transaction<'_, Postgres>,
-    event_id: Uuid,
-    graph_items: &[EventManifestItem],
-    vector_items: &[EventManifestItem],
-) -> AccessResult<()> {
-    for (role, items) in [("graph", graph_items), ("vector", vector_items)] {
-        for (ordinal, item) in items.iter().enumerate() {
-            let ordinal = i32::try_from(ordinal)
-                .map_err(|_| AccessError::InvalidInput("manifest ordinal exceeds i32".into()))?;
-            sqlx::query(
-                "INSERT INTO public.projection_event_items (
-                     event_id, role, ordinal, item_kind, record_id,
-                     record_revision, digest, logical_key
-                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                 ON CONFLICT (event_id, role, ordinal) DO NOTHING",
-            )
-            .bind(event_id)
-            .bind(role)
-            .bind(ordinal)
-            .bind(&item.item_kind)
-            .bind(item.record_id)
-            .bind(item.record_revision)
-            .bind(item.digest.as_slice())
-            .bind(&item.logical_key)
-            .execute(&mut **tx)
-            .await
-            .map_err(|error| classify_sqlx("insert projection manifest item", error))?;
-        }
-        let proof = role_completion_proof(items);
-        let inserted = sqlx::query_scalar::<_, Vec<u8>>(
-            "INSERT INTO public.projection_event_role_proofs (event_id, role, expected_digest)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (event_id, role) DO NOTHING
-             RETURNING expected_digest",
-        )
-        .bind(event_id)
-        .bind(role)
-        .bind(proof.as_slice())
-        .fetch_optional(&mut **tx)
-        .await
-        .map_err(|error| classify_sqlx("insert projection role proof", error))?;
-        let stored = if let Some(stored) = inserted {
-            stored
-        } else {
-            sqlx::query_scalar(
-                "SELECT expected_digest FROM public.projection_event_role_proofs \
-                 WHERE event_id = $1 AND role = $2",
-            )
-            .bind(event_id)
-            .bind(role)
-            .fetch_one(&mut **tx)
-            .await
-            .map_err(|error| classify_sqlx("read projection role proof", error))?
-        };
-        if stored.as_slice() != proof {
-            return Err(AccessError::Conflict(format!(
-                "projection role proof for {role} does not match the event manifest"
-            )));
-        }
-    }
-    Ok(())
-}
-
 async fn insert_tombstone_manifest(
     tx: &mut Transaction<'_, Postgres>,
     event_id: Uuid,
@@ -1324,7 +1056,7 @@ async fn insert_tombstone_manifest(
     write_event_manifest(tx, event_id, &graph_items, &vector_items).await
 }
 
-fn classify_sqlx(context: &str, error: sqlx::Error) -> AccessError {
+pub(super) fn classify_sqlx(context: &str, error: sqlx::Error) -> AccessError {
     if let sqlx::Error::Database(database) = &error {
         match database.code().as_deref() {
             Some("40001" | "40P01") => {

@@ -174,7 +174,7 @@ export function BudgetIndicator({
     <Card className={className}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2">
             <Wallet className="h-4 w-4" />
             Budget Status
           </CardTitle>
@@ -182,10 +182,12 @@ export function BudgetIndicator({
             {status.period === 'daily' ? 'Daily' : 'Monthly'}
           </Badge>
         </div>
-        <CardDescription className="flex items-center gap-1.5">
-          <Clock className="h-3 w-3" />
-          Resets in {formatTimeUntilReset(status.reset_at)}
-        </CardDescription>
+        {formatTimeUntilReset(status.reset_at) && (
+          <CardDescription className="flex items-center gap-1.5">
+            <Clock className="h-3 w-3" aria-hidden="true" />
+            Resets in {formatTimeUntilReset(status.reset_at)}
+          </CardDescription>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Progress bar */}

@@ -1,103 +1,73 @@
 'use client';
 
+import { KeyCombo } from '@/components/shared/kbd';
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
-import { KEYBOARD_SHORTCUTS, type ShortcutDefinition } from '@/hooks/use-keyboard-shortcuts';
+import { SHORTCUT_SECTIONS, type ShortcutSection } from '@/lib/keyboard/catalog';
 import { Keyboard } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 interface KeyboardShortcutsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
-function ShortcutKey({ children }: { children: React.ReactNode }) {
+function Section({ section }: { section: ShortcutSection }) {
+  const { t } = useTranslation();
   return (
-    <kbd className="inline-flex items-center justify-center px-2 py-1 text-xs font-semibold text-foreground bg-muted border border-border rounded shadow-sm min-w-[24px]">
-      {children}
-    </kbd>
-  );
-}
-
-function ShortcutRow({ shortcut }: { shortcut: ShortcutDefinition }) {
-  return (
-    <div className="flex items-center justify-between py-2 px-3 rounded hover:bg-muted/50 transition-colors">
-      <span className="text-sm text-muted-foreground">{shortcut.description}</span>
-      <div className="flex items-center gap-1">
-        {shortcut.label.split(' + ').map((key, i) => (
-          <span key={i} className="flex items-center">
-            {i > 0 && <span className="text-muted-foreground mx-0.5">+</span>}
-            <ShortcutKey>{key.replace('⌘/Ctrl', '⌘')}</ShortcutKey>
-          </span>
+    <section aria-labelledby={`kbd-${section.id}`} className="break-inside-avoid">
+      <h3 id={`kbd-${section.id}`} className="mb-1.5 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {t(section.titleKey, section.fallback)}
+      </h3>
+      <ul>
+        {section.entries.map((entry) => (
+          <li key={entry.id} className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-muted/60">
+            <span className="text-sm">{t(entry.labelKey, entry.fallback)}</span>
+            <KeyCombo keys={entry.keys} kind={entry.kind} className="shrink-0" />
+          </li>
         ))}
-      </div>
-    </div>
+      </ul>
+    </section>
   );
 }
 
 /**
- * Dialog displaying all available keyboard shortcuts
+ * Help dialog — rendered from the truthful shortcut catalog (SPEC-168), so it
+ * can never list a binding that is not implemented.
  */
-export function KeyboardShortcutsDialog({ open, onOpenChange }: KeyboardShortcutsDialogProps) {
+export function KeyboardShortcutsDialog({ open, onOpenChange, onCloseAutoFocus }: KeyboardShortcutsDialogProps) {
   const { t } = useTranslation();
-
-  // Group shortcuts by category
-  const navigationShortcuts = KEYBOARD_SHORTCUTS.filter((s) => 
-    s.description.toLowerCase().includes('go to') || s.description.toLowerCase().includes('navigation')
-  );
-  
-  const actionShortcuts = KEYBOARD_SHORTCUTS.filter((s) => 
-    !s.description.toLowerCase().includes('go to') && 
-    !s.description.toLowerCase().includes('navigation')
-  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent onCloseAutoFocus={onCloseAutoFocus} className="max-h-[85dvh] overflow-y-auto sm:max-w-3xl" data-testid="keyboard-shortcuts-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Keyboard className="h-5 w-5" />
-            {t('common.keyboardShortcuts', 'Keyboard Shortcuts')}
+            <Keyboard className="h-5 w-5" aria-hidden="true" />
+            {t('keyboard.title', 'Keyboard shortcuts')}
           </DialogTitle>
           <DialogDescription>
-            {t('common.keyboardShortcutsDesc', 'Use these shortcuts to navigate quickly')}
+            {t('keyboard.subtitle', 'Move through EdgeQuake without leaving the keyboard.')}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Navigation shortcuts */}
-          <div>
-            <h4 className="text-sm font-medium text-foreground mb-2 px-3">
-              {t('common.navigation', 'Navigation')}
-            </h4>
-            <div className="space-y-1">
-              {navigationShortcuts.map((shortcut) => (
-                <ShortcutRow key={shortcut.key} shortcut={shortcut} />
-              ))}
+        <div className="gap-x-8 gap-y-5 py-2 sm:columns-2">
+          {SHORTCUT_SECTIONS.map((section) => (
+            <div key={section.id} className="mb-5 break-inside-avoid">
+              <Section section={section} />
             </div>
-          </div>
-
-          {/* Action shortcuts */}
-          <div>
-            <h4 className="text-sm font-medium text-foreground mb-2 px-3">
-              {t('common.actions', 'Actions')}
-            </h4>
-            <div className="space-y-1">
-              {actionShortcuts.map((shortcut) => (
-                <ShortcutRow key={shortcut.key} shortcut={shortcut} />
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
 
-        <div className="pt-2 border-t text-xs text-muted-foreground text-center">
-          {t('common.pressEscToClose', 'Press Esc to close')}
-        </div>
+        <p className="border-t pt-3 text-xs text-muted-foreground">
+          {t('keyboard.footer', 'Single keys are ignored while you type or when a dialog is open.')}
+        </p>
       </DialogContent>
     </Dialog>
   );

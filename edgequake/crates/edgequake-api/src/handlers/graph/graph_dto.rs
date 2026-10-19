@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use edgequake_storage::traits::{GraphStorage, NodeListFilter};
+use edgequake_storage::traits::{EdgeListFilter, GraphStorage, NodeListFilter};
 use edgequake_storage::{GraphEdge, GraphNode};
 
 use crate::error::{ApiError, ApiResult};
@@ -14,9 +14,6 @@ use crate::handlers::graph_types::{
 };
 use crate::handlers::isolation::properties_match_tenant_context;
 use crate::middleware::TenantContext;
-
-/// Cap for community/facet aggregation scans (CHEAP wave; no new tables).
-const AGGREGATE_SCAN_LIMIT: usize = 5_000;
 
 /// Workspace-exact node/edge totals (never shared AGE `reltuples`).
 pub async fn workspace_graph_totals(
@@ -142,61 +139,35 @@ pub fn edge_response(edge: GraphEdge) -> GraphEdgeResponse {
     GraphEdgeResponse::from_storage_edge(edge)
 }
 
-/// Aggregate communities + type facets for a workspace (bounded scan).
+/// Aggregate communities + type facets for a workspace.
+///
+/// Counts cover the whole workspace (the storage layer aggregates server-side
+/// where it can), not a sample of it.
 pub async fn workspace_communities_and_facets(
     graph: &Arc<dyn GraphStorage>,
     tenant_ctx: &TenantContext,
 ) -> ApiResult<(Vec<CommunitySummary>, GraphFacetsResponse)> {
-    let filter = NodeListFilter {
+    let node_filter = NodeListFilter {
         tenant_id: tenant_ctx.tenant_id.clone(),
         workspace_id: tenant_ctx.workspace_id.clone(),
         entity_type: None,
         search: None,
         community_ids: None,
     };
-
-    let page = graph
-        .list_nodes_filtered(&filter, 0, AGGREGATE_SCAN_LIMIT)
-        .await
-        .map_err(ApiError::from)?;
-
-    let mut community_sizes: HashMap<String, usize> = HashMap::new();
-    let mut entity_types: HashMap<String, usize> = HashMap::new();
-
-    for node in &page.items {
-        if let Some(cid) = community_id_from_node(node) {
-            *community_sizes.entry(cid).or_insert(0) += 1;
-        }
-        let et = node
-            .properties
-            .get("entity_type")
-            .and_then(|v| v.as_str())
-            .unwrap_or("UNKNOWN");
-        *entity_types.entry(et.to_string()).or_insert(0) += 1;
-    }
-
-    let edge_filter = edgequake_storage::traits::EdgeListFilter {
+    let edge_filter = EdgeListFilter {
         tenant_id: tenant_ctx.tenant_id.clone(),
         workspace_id: tenant_ctx.workspace_id.clone(),
         relationship_type: None,
     };
-    let edges = graph
-        .list_edges_filtered(&edge_filter, 0, AGGREGATE_SCAN_LIMIT)
+
+    let counts = graph
+        .facet_counts(&node_filter, &edge_filter)
         .await
-        .map_err(ApiError::from)?;
+        .map_err(ApiError::from)?
+        .sorted();
 
-    let mut relationship_types: HashMap<String, usize> = HashMap::new();
-    for edge in &edges.items {
-        let rt = edge
-            .properties
-            .get("relationship_type")
-            .or_else(|| edge.properties.get("relation_type"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("RELATED_TO");
-        *relationship_types.entry(rt.to_string()).or_insert(0) += 1;
-    }
-
-    let mut communities: Vec<CommunitySummary> = community_sizes
+    let communities = counts
+        .communities
         .into_iter()
         .map(|(id, size)| CommunitySummary {
             id,
@@ -205,28 +176,21 @@ pub async fn workspace_communities_and_facets(
             modularity: None,
         })
         .collect();
-    communities.sort_by(|a, b| b.size.cmp(&a.size).then_with(|| a.id.cmp(&b.id)));
-
-    let mut entity_type_counts: Vec<TypeFacetCount> = entity_types
-        .into_iter()
-        .map(|(name, count)| TypeFacetCount { name, count })
-        .collect();
-    entity_type_counts.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.name.cmp(&b.name)));
-
-    let mut relationship_type_counts: Vec<TypeFacetCount> = relationship_types
-        .into_iter()
-        .map(|(name, count)| TypeFacetCount { name, count })
-        .collect();
-    relationship_type_counts
-        .sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.name.cmp(&b.name)));
 
     Ok((
         communities,
         GraphFacetsResponse {
-            entity_types: entity_type_counts,
-            relationship_types: relationship_type_counts,
+            entity_types: type_facets(counts.entity_types),
+            relationship_types: type_facets(counts.relationship_types),
         },
     ))
+}
+
+fn type_facets(counts: Vec<(String, usize)>) -> Vec<TypeFacetCount> {
+    counts
+        .into_iter()
+        .map(|(name, count)| TypeFacetCount { name, count })
+        .collect()
 }
 
 #[cfg(test)]

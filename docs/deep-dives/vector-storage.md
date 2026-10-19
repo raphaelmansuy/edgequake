@@ -223,6 +223,8 @@ Set `EDGEQUAKE_METADATA_FILTER_COLUMNS_ONLY=1` to use the column predicate alone
 
 Batches are split by `EDGEQUAKE_VECTOR_UPSERT_CHUNK` (default 1000, clamped to 100–10000).
 
+On the durable-commit path, the entity and relationship vector slices are written concurrently, at most `EDGEQUAKE_FLEET_VECTOR_CONCURRENCY` at a time (default 4, clamped to 1–16). An HNSW insert is bound by index traversal, not by the round trip. On 1024-dimension `halfvec` rows one session wrote 2.7 ms per row and four sessions wrote 1.2 ms per row. Ids are unique within a batch and the two families use different tables, so slices never touch the same row.
+
 ---
 
 ## Index types

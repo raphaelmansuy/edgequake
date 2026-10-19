@@ -32,6 +32,7 @@
 
 mod age_csv_loader;
 mod ann_exact_reorder_policy;
+mod ann_first_sql;
 mod binary_quantize_policy;
 mod binding_registry;
 mod capabilities;
@@ -42,6 +43,7 @@ mod connection;
 mod conversation;
 pub mod decision_store;
 mod diskann_runtime_policy;
+mod document_lineage_sql;
 pub mod document_shell;
 mod filtered_diskann_label_policy;
 pub mod fleet_embedding_index;
@@ -51,6 +53,7 @@ mod hnsw_manifest;
 mod hnsw_runtime_policy;
 mod id_allocation;
 mod ingestion_committer;
+mod ingestion_committer_batch;
 pub mod ingestion_dedup;
 mod kv;
 mod kv_relation_state;

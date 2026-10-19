@@ -1,5 +1,6 @@
 'use client';
 
+import { ChordHint } from '@/components/shared/chord-hint';
 import { CommandPalette } from '@/components/shared/command-palette';
 import { KeyboardShortcutsDialog } from '@/components/shared/keyboard-shortcuts-dialog';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
@@ -12,6 +13,8 @@ interface KeyboardShortcutsContextType {
   searchOpen: boolean;
   openSearch: () => void;
   closeSearch: () => void;
+  /** Restores focus to the opener (Radix has no Trigger for hotkey-opened dialogs). */
+  onCloseAutoFocus: (event: Event) => void;
 }
 
 const KeyboardShortcutsContext = createContext<KeyboardShortcutsContextType | null>(null);
@@ -29,7 +32,8 @@ interface KeyboardShortcutsProviderProps {
 }
 
 /**
- * Single mount for global keyboard shortcuts + Cmd+K palette (SPEC-155 F-155-S01/S02).
+ * Single mount for the global keyboard layer, ⌘K palette, help dialog and the
+ * `g` chord hint (SPEC-155 F-155-S01/S02, SPEC-168).
  */
 export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProviderProps) {
   const {
@@ -40,22 +44,18 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
     searchOpen,
     openSearch,
     closeSearch,
+    chordArmed,
+    onCloseAutoFocus,
   } = useKeyboardShortcuts();
 
   return (
     <KeyboardShortcutsContext.Provider
-      value={{
-        helpOpen,
-        openHelp,
-        closeHelp,
-        searchOpen,
-        openSearch,
-        closeSearch,
-      }}
+      value={{ helpOpen, openHelp, closeHelp, searchOpen, openSearch, closeSearch, onCloseAutoFocus }}
     >
       {children}
-      <KeyboardShortcutsDialog open={helpOpen} onOpenChange={setHelpOpen} />
+      <KeyboardShortcutsDialog open={helpOpen} onOpenChange={setHelpOpen} onCloseAutoFocus={onCloseAutoFocus} />
       <CommandPalette />
+      <ChordHint armed={chordArmed} />
     </KeyboardShortcutsContext.Provider>
   );
 }

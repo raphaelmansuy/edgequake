@@ -799,3 +799,143 @@ async fn document_reader_matches_committed_generation() {
     assert!(view.deleted);
     assert_eq!(view.revision, 2);
 }
+
+/// Distinct node facts with one contribution each, shaped like a real extraction.
+fn node_facts(count: usize) -> (Vec<PreparedRecord>, Vec<PreparedRecord>) {
+    let mut facts = Vec::with_capacity(count);
+    let mut contributions = Vec::with_capacity(count);
+    for index in 0..count {
+        let fact_id = Uuid::new_v4();
+        let node_id = format!("NODE_{index}");
+        let payload = serde_json::to_vec(&serde_json::json!({
+            "schema": "edgequake.graph.fact.v1",
+            "kind": "node",
+            "node_id": node_id,
+        }))
+        .expect("encode fact");
+        facts.push(fact_record(fact_id, 1, &payload));
+        contributions.push(contribution_record(
+            fact_id,
+            1,
+            serde_json::json!({
+                "schema": "edgequake.graph.fact.v1",
+                "kind": "node",
+                "node_id": node_id,
+            }),
+        ));
+    }
+    (facts, contributions)
+}
+
+#[tokio::test]
+async fn batch_spanning_several_write_slices_commits_every_row_in_order() {
+    // 2_500 rows = three statements of up to 1_000 rows per table. Slice
+    // boundaries must not drop rows or restart manifest ordinals.
+    let Some((_config, pool, tenant_id, workspace_id)) = setup("spec149_big_batch").await else {
+        return;
+    };
+    // SPEC149_BIG_BATCH_ROWS=3200 is a ~9.6k-record batch, the size a 37-page
+    // PDF packs into (the cap is 10k). Per-row writes took ~46 s for it.
+    let rows: usize = std::env::var("SPEC149_BIG_BATCH_ROWS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(2_500);
+    let (facts, contributions) = node_facts(rows);
+    let document_id = Uuid::new_v4();
+    let command = command_with_facts(
+        tenant_id,
+        workspace_id,
+        document_id,
+        1,
+        facts,
+        contributions,
+    );
+    let committer = PgIngestionCommitter::new(pool.clone());
+    let started = std::time::Instant::now();
+    let receipt = committer.commit_batch(&command).await.expect("big commit");
+    eprintln!(
+        "commit_batch of {rows} facts + contributions: {:?}",
+        started.elapsed()
+    );
+    let replay = committer.commit_batch(&command).await.expect("big replay");
+    assert_eq!(receipt, replay);
+
+    let counts: (i64, i64, i64, i64, i32) = sqlx::query_as(
+        r#"
+        SELECT
+          (SELECT count(*) FROM object_revisions
+             WHERE tenant_id = $1 AND workspace_id = $2 AND kind = 'fact'),
+          (SELECT count(*) FROM object_revisions
+             WHERE tenant_id = $1 AND workspace_id = $2 AND kind = 'contribution'),
+          (SELECT count(*) FROM graph_contributions
+             WHERE tenant_id = $1 AND workspace_id = $2 AND source_document_id = $3),
+          (SELECT count(*) FROM projection_event_items i
+             JOIN projection_events e ON e.event_id = i.event_id
+             WHERE e.tenant_id = $1 AND e.workspace_id = $2 AND i.role = 'graph'),
+          (SELECT COALESCE(max(i.ordinal), -1) FROM projection_event_items i
+             JOIN projection_events e ON e.event_id = i.event_id
+             WHERE e.tenant_id = $1 AND e.workspace_id = $2 AND i.role = 'graph')
+        "#,
+    )
+    .bind(tenant_id)
+    .bind(workspace_id)
+    .bind(document_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count slice rows");
+    let n = rows as i64;
+    assert_eq!(counts, (n, n, n, n, rows as i32 - 1));
+}
+
+#[tokio::test]
+async fn divergent_fact_content_is_rejected_and_rolls_back() {
+    // Same immutable (logical_id, revision) with other bytes must be a
+    // Conflict from the set-based verification, not silently kept.
+    let Some((_config, pool, tenant_id, workspace_id)) = setup("spec149_divergent_fact").await
+    else {
+        return;
+    };
+    let fact_id = Uuid::new_v4();
+    let node =
+        serde_json::json!({"schema":"edgequake.graph.fact.v1","kind":"node","node_id":"ACME"});
+    let first = command_with_facts(
+        tenant_id,
+        workspace_id,
+        Uuid::new_v4(),
+        1,
+        vec![fact_record(fact_id, 1, b"fact-bytes-original")],
+        vec![contribution_record(fact_id, 1, node.clone())],
+    );
+    let committer = PgIngestionCommitter::new(pool.clone());
+    committer.commit_batch(&first).await.expect("first commit");
+
+    let other_document = Uuid::new_v4();
+    let divergent = command_with_facts(
+        tenant_id,
+        workspace_id,
+        other_document,
+        1,
+        vec![fact_record(fact_id, 1, b"fact-bytes-DIFFERENT")],
+        vec![contribution_record(fact_id, 1, node)],
+    );
+    let error = committer
+        .commit_batch(&divergent)
+        .await
+        .expect_err("divergent immutable content must conflict");
+    assert!(
+        matches!(&error, AccessError::Conflict(message) if message.contains("fact")),
+        "unexpected error: {error}"
+    );
+
+    let leaked: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM mutation_requests \
+         WHERE tenant_id = $1 AND workspace_id = $2 AND idempotency_key = $3",
+    )
+    .bind(tenant_id)
+    .bind(workspace_id)
+    .bind(&divergent.idempotency_key)
+    .fetch_one(&pool)
+    .await
+    .expect("count receipts");
+    assert_eq!(leaked, 0, "a conflicting commit must leave no receipt");
+}

@@ -1,0 +1,47 @@
+{
+  "budget": 0.005,
+  "rows": [
+    {
+      "route": "query",
+      "state": "default",
+      "width": 1440,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "query",
+      "state": "default",
+      "width": 390,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "query",
+      "state": "collapsed-dark",
+      "width": 1440,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "query",
+      "state": "collapsed-dark",
+      "width": 390,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "query",
+      "state": "empty-workspace",
+      "width": 1440,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "query",
+      "state": "empty-workspace",
+      "width": 390,
+      "cls": 0,
+      "shifts": 0
+    }
+  ]
+}

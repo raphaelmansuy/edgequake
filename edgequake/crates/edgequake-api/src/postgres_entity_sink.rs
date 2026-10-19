@@ -292,6 +292,7 @@ impl RelationalEntitySink for PostgresEntitySink {
         weight: f32,
         tenant_id: Option<&str>,
         workspace_id: Option<&str>,
+        source_chunk_ids: &[String],
     ) -> edgequake_pipeline::Result<()> {
         let src = EntityId::bare_name_from_graph_node_id(source_name);
         let tgt = EntityId::bare_name_from_graph_node_id(target_name);
@@ -326,12 +327,17 @@ impl RelationalEntitySink for PostgresEntitySink {
         let result = sqlx::query(
             r#"INSERT INTO relationships
                    (source_id, target_id, tenant_id, workspace_id, relation_type,
-                    description, weight, created_at, updated_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+                    description, weight, source_chunk_keys, created_at, updated_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
                ON CONFLICT (tenant_id, workspace_id, source_id, target_id, relation_type)
                DO UPDATE SET
                    description = EXCLUDED.description,
                    weight = EXCLUDED.weight,
+                   source_chunk_keys = (
+                       SELECT array_agg(DISTINCT elem)
+                       FROM unnest(COALESCE(relationships.source_chunk_keys, '{}')
+                                   || EXCLUDED.source_chunk_keys) AS t(elem)
+                   ),
                    updated_at = NOW()"#,
         )
         .bind(source_id)
@@ -341,6 +347,7 @@ impl RelationalEntitySink for PostgresEntitySink {
         .bind(&rel_type)
         .bind(description)
         .bind(weight)
+        .bind(source_chunk_ids)
         .execute(self.pool.as_ref())
         .await;
 
@@ -401,6 +408,7 @@ impl RelationalEntitySink for PostgresEntitySink {
                     existing.description = row.description.clone();
                     existing.weight = row.weight;
                     existing.relation_type = rel_type.clone();
+                    existing.absorb_chunk_keys(row.source_chunk_ids.iter().cloned());
                 })
                 .or_insert_with(|| RelationshipSinkRow {
                     source_name: src.to_string(),
@@ -410,6 +418,7 @@ impl RelationalEntitySink for PostgresEntitySink {
                     weight: row.weight,
                     tenant_id: row.tenant_id.clone(),
                     workspace_id: row.workspace_id.clone(),
+                    source_chunk_ids: row.source_chunk_ids.clone(),
                 });
         }
         if by_key.is_empty() {
@@ -455,6 +464,7 @@ impl RelationalEntitySink for PostgresEntitySink {
         let mut rel_types: Vec<String> = Vec::new();
         let mut descs: Vec<String> = Vec::new();
         let mut weights: Vec<f32> = Vec::new();
+        let mut chunk_keys: Vec<&[String]> = Vec::new();
         let mut missing = 0u64;
 
         for row in &rows {
@@ -475,6 +485,7 @@ impl RelationalEntitySink for PostgresEntitySink {
             rel_types.push(rel_type);
             descs.push(row.description.clone());
             weights.push(row.weight);
+            chunk_keys.push(&row.source_chunk_ids);
         }
 
         if missing > 0 {
@@ -502,8 +513,10 @@ impl RelationalEntitySink for PostgresEntitySink {
                 r#"
             INSERT INTO relationships
                 (source_id, target_id, tenant_id, workspace_id, relation_type,
-                 description, weight, created_at, updated_at)
-            SELECT s, t, tn, ws, rt, d, w, NOW(), NOW()
+                 description, weight, source_chunk_keys, created_at, updated_at)
+            SELECT s, t, tn, ws, rt, d, w,
+                   ARRAY(SELECT jsonb_array_elements_text($8::jsonb -> (u.ord::int - 1))),
+                   NOW(), NOW()
             FROM unnest(
                 $1::uuid[],
                 $2::uuid[],
@@ -512,11 +525,16 @@ impl RelationalEntitySink for PostgresEntitySink {
                 $5::text[],
                 $6::text[],
                 $7::real[]
-            ) AS u(s, t, tn, ws, rt, d, w)
+            ) WITH ORDINALITY AS u(s, t, tn, ws, rt, d, w, ord)
             ON CONFLICT (tenant_id, workspace_id, source_id, target_id, relation_type)
             DO UPDATE SET
                 description = EXCLUDED.description,
                 weight = EXCLUDED.weight,
+                source_chunk_keys = (
+                    SELECT array_agg(DISTINCT elem)
+                    FROM unnest(COALESCE(relationships.source_chunk_keys, '{}')
+                                || EXCLUDED.source_chunk_keys) AS t(elem)
+                ),
                 updated_at = NOW()
             RETURNING id, source_id, target_id, relation_type
             "#,
@@ -528,6 +546,7 @@ impl RelationalEntitySink for PostgresEntitySink {
             .bind(&rel_types)
             .bind(&descs)
             .bind(&weights)
+            .bind(serde_json::json!(chunk_keys))
             .fetch_all(self.pool.as_ref())
             .await;
 

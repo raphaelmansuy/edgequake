@@ -26,7 +26,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { WorkspaceActionsCard } from '@/components/workspace/workspace-actions-card';
 import { WorkspaceExtendedModelConfig } from '@/components/workspace/workspace-extended-model-config';
@@ -38,6 +37,7 @@ import { WorkspaceExtractionLanguageCard } from '@/components/workspace/workspac
 import { WorkspaceChunkingCard } from '@/components/workspace/workspace-chunking-card';
 import { WorkspaceExtractBudgetCard } from '@/components/workspace/workspace-extract-budget-card';
 import { WorkspaceExtractionModeCard } from '@/components/workspace/workspace-extraction-mode-card';
+import { PageShell } from '@/components/shared/page-shell';
 import { WorkspacePageHeader } from '@/components/workspace/workspace-page-header';
 import { WorkspaceStatsCards } from '@/components/workspace/workspace-stats-cards';
 import { ENTITY_PRESETS } from '@/constants/entity-presets';
@@ -248,14 +248,12 @@ export default function WorkspacePage() {
 
   return (
     <ScrollArea className="h-full">
-      <div className="container mx-auto space-y-page p-page">
+      <PageShell className="space-y-page">
         <WorkspacePageHeader
           workspace={workspace}
           onRefresh={() => refetchWorkspace()}
           onEditStart={() => setReconfigureOpen(true)}
         />
-
-        <Separator />
 
         <WorkspaceStatsCards
           workspace={workspace}
@@ -354,7 +352,7 @@ export default function WorkspacePage() {
             </Button>
           </CardHeader>
         </Card>
-      </div>
+      </PageShell>
 
       <ReconfigureWorkspaceWizard
         open={reconfigureOpen}

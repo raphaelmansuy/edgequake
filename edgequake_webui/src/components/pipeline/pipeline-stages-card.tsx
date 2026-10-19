@@ -1,5 +1,6 @@
 "use client";
 
+import { StatStrip } from "@/components/shared/stat-strip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -83,8 +84,8 @@ export function PipelineStagesCard() {
       <CardHeader className="pb-2">
         <div className="eq-toolbar justify-between">
           <div>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Layers className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-muted-foreground" />
               Document Pipeline
             </CardTitle>
             <CardDescription>
@@ -97,8 +98,9 @@ export function PipelineStagesCard() {
           </div>
           {status?.is_busy && (
             <Button
-              variant="destructive"
+              variant="outline"
               size="sm"
+              className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
               onClick={() => cancelMutation.mutate()}
               disabled={
                 cancelMutation.isPending || status.cancellation_requested
@@ -133,7 +135,7 @@ export function PipelineStagesCard() {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="eq-metric-grid gap-4">
+        <StatStrip aria-label={t("pipeline.phases", "Pipeline phases")}>
           {PIPELINE_PHASES.map((phase) => {
             const count =
               phaseCounts[phase.key as keyof typeof phaseCounts] || 0;
@@ -143,29 +145,27 @@ export function PipelineStagesCard() {
             return (
               <div
                 key={phase.key}
-                className={`flex min-w-0 flex-col items-center overflow-hidden p-4 rounded-lg border-2 transition-all ${
-                  isActivePhase ? phase.bgColor : "bg-muted/50 border-muted"
-                }`}
+                data-phase={phase.key}
+                className="flex min-w-0 flex-col bg-card px-4 py-3.5"
               >
-                <Icon
-                  className={`h-6 w-6 ${
-                    isActivePhase ? phase.color : "text-muted-foreground"
-                  } ${
-                    phase.key === "processing" && isActivePhase
-                      ? "animate-pulse"
-                      : ""
-                  }`}
-                />
                 <span
-                  className={`text-sm font-medium mt-2 truncate max-w-full ${
+                  className={`flex items-center gap-2 text-[0.8125rem] font-medium ${
                     isActivePhase ? phase.color : "text-muted-foreground"
                   }`}
                 >
-                  {phase.label}
+                  <Icon
+                    aria-hidden="true"
+                    className={`h-4 w-4 shrink-0 ${
+                      phase.key === "processing" && isActivePhase
+                        ? "motion-safe:animate-pulse"
+                        : ""
+                    }`}
+                  />
+                  <span className="truncate">{phase.label}</span>
                 </span>
                 <span
-                  className={`text-2xl font-bold ${
-                    isActivePhase ? phase.color : "text-muted-foreground"
+                  className={`mt-2 text-[1.75rem] font-semibold leading-none tracking-tight tabular-nums ${
+                    isActivePhase ? "text-foreground" : "text-muted-foreground/60"
                   }`}
                 >
                   {count}
@@ -173,7 +173,7 @@ export function PipelineStagesCard() {
               </div>
             );
           })}
-        </div>
+        </StatStrip>
 
         {totalDocs > 0 && (
           <div className="mt-4">

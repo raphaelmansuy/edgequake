@@ -26,6 +26,9 @@ import { Group, Separator } from "react-resizable-panels";
 import { CollapsingPanel } from "./collapsing-panel";
 import { WorkspaceZone } from "./workspace-zone";
 
+/** App header + page header + gutters above the workspace box (px). */
+const PAGE_CHROME_PX = 140;
+
 export type ZoneContentMap = Record<WorkspaceZoneId, ReactNode>;
 export type ZoneBadgeMap = Partial<Record<WorkspaceZoneId, number | string | null>>;
 
@@ -267,10 +270,12 @@ export function DocumentsWorkspace({
       const viewportH =
         typeof window !== "undefined" ? window.innerHeight : 800;
 
+      // Panels are sized against the workspace box, not the window: subtract the
+      // app header + page header so the band reaches its real minimum height.
       const slimPercent = toolsSlim
         ? Math.max(
             10,
-            Math.round((ZONE_MIN_PX.intake.height / Math.max(viewportH, 1)) * 100) +
+            Math.round((ZONE_MIN_PX.intake.height / Math.max(viewportH - PAGE_CHROME_PX, 1)) * 100) +
               2,
           )
         : null;
@@ -287,6 +292,7 @@ export function DocumentsWorkspace({
           )
         : null;
 
+      let liftedToFloor = false;
       let leftDefaultResolved = leftDefault;
       let rightDefaultResolved = rightDefault;
       if (toolsSlim && slimPercent != null) {
@@ -302,9 +308,29 @@ export function DocumentsWorkspace({
         }
       }
 
+      // Stacked rows are sized as % of the workspace box, so on short windows the
+      // top band would shrink below its content minimum and clip. Lift it to the
+      // pixel floor, never starving the bottom row of its own minimum.
+      if (
+        orientation === "vertical" &&
+        !toolsSlim &&
+        !leftAllCollapsed &&
+        !rightAllCollapsed
+      ) {
+        const boxH = Math.max(viewportH - PAGE_CHROME_PX, 1);
+        const toPct = (px: number) => Math.ceil((px / boxH) * 100) + 1;
+        const floor = toPct(leftMin);
+        const ceiling = 100 - toPct(rightMin);
+        if (leftDefaultResolved < floor && floor <= ceiling) {
+          leftDefaultResolved = floor;
+          rightDefaultResolved = 100 - floor;
+          liftedToFloor = true;
+        }
+      }
+
       // Drive imperative resize for slim/narrow tools bands; CollapsingPanel
       // also restores defaultSize after expand so rail siblings recover share.
-      const forceSizePercent = toolsSlim || toolsNarrow;
+      const forceSizePercent = toolsSlim || toolsNarrow || liftedToFloor;
 
       const childRail =
         orientation === "vertical" ? "horizontal" : "vertical";

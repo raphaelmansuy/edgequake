@@ -124,7 +124,7 @@
   --page-padding-x: var(--space-6);        /* 24px horizontal page padding */
   --page-padding-y: var(--space-6);        /* 24px vertical page padding (legacy symmetric) */
   /* Tighter top inset under app chrome — header already frames the surface */
-  --page-padding-top: var(--space-3);      /* 12px — closes header→title gap */
+  --page-padding-top: var(--space-5);      /* 20px */
   --page-padding-bottom: var(--space-6);   /* 24px bottom breathing room */
   --page-gap: var(--space-5);              /* 20px section rhythm (was 24px) */
   
@@ -434,19 +434,19 @@
 
 /* Stats Card Accent Borders */
 .stats-card-documents {
-  border-top: 3px solid var(--accent-documents);
+  /* accent lives in the icon chip only (SPEC-168: no coloured bars) */
 }
 
 .stats-card-entities {
-  border-top: 3px solid var(--accent-entities);
+  /* accent lives in the icon chip only (SPEC-168: no coloured bars) */
 }
 
 .stats-card-relationships {
-  border-top: 3px solid var(--accent-relationships);
+  /* accent lives in the icon chip only (SPEC-168: no coloured bars) */
 }
 
 .stats-card-types {
-  border-top: 3px solid var(--accent-types);
+  /* accent lives in the icon chip only (SPEC-168: no coloured bars) */
 }
 
 /* Consistent Form Spacing */

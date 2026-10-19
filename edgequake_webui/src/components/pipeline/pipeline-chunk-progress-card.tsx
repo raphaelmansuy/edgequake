@@ -24,8 +24,11 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 
-/** SPEC-100: content area matches live ScrollArea h-64 (CLS). */
-const CHUNK_BODY_MIN = "min-h-64";
+/**
+ * Idle body is slim; the live list (ScrollArea h-64) only ever grows into space
+ * below every other card (see pipeline-monitor order), so nothing above moves.
+ */
+const CHUNK_BODY_MIN = "min-h-20";
 
 export function PipelineChunkProgressCard() {
   const { chunkProgress, hasActiveProgress } = useChunkProgress();
@@ -43,8 +46,8 @@ export function PipelineChunkProgressCard() {
   return (
     <Card data-testid="spec100-pipeline-chunk-slot">
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg flex min-w-0 flex-wrap items-center gap-2">
-          <Layers className="h-5 w-5" />
+        <CardTitle className="flex min-w-0 flex-wrap items-center gap-2">
+          <Layers className="h-4 w-4 text-muted-foreground" />
           Chunk Progress
           {hasActiveProgress && (
             <Badge variant="outline" className="text-blue-600 dark:text-blue-400 border-blue-500">

@@ -137,8 +137,8 @@ const EntityItem = memo(function EntityItem({
             <>
               <span className={cn(
                 "text-xs",
-                isSelected ? "text-primary-foreground/50" : "text-muted-foreground/50"
-              )}>·</span>
+                isSelected ? "text-primary-foreground/70" : "text-muted-foreground"
+              )} aria-hidden="true">·</span>
               <div className="flex items-center gap-0.5">
                 <div className="w-8 h-0.5 bg-muted/50 rounded-full overflow-hidden">
                   <div 
@@ -165,7 +165,7 @@ const EntityItem = memo(function EntityItem({
         className={cn(
           // Keep a faint control so Ask stays discoverable + e2e-visible;
           // full opacity on hover/focus/selection.
-          "opacity-40 group-hover:opacity-100 focus-visible:opacity-100",
+          "opacity-70 group-hover:opacity-100 focus-visible:opacity-100",
           isSelected && "text-primary-foreground opacity-80 hover:opacity-100",
         )}
         testId="entity-browser-ask"

@@ -234,11 +234,15 @@ test.describe("SPEC-155 documents workspace @spec155", () => {
     });
     const rail = page.getByTestId("workspace-zone-rail-runs");
     await expect(rail).toBeVisible();
-    const railBox = await rail.boundingBox();
-    const intake = await page.getByTestId("workspace-zone-intake").boundingBox();
-    expect(railBox && intake).toBeTruthy();
-    expect(railBox!.width).toBeLessThanOrEqual(56);
-    expect(intake!.width).toBeGreaterThan(700);
+    // Zones can remount once while the layout settles: wait for the one we measure.
+    await expect(page.getByTestId("workspace-zone-intake")).toBeVisible();
+    // The idle Runs panel collapses imperatively after mount: poll the settled size.
+    await expect
+      .poll(async () => (await rail.boundingBox())?.width ?? Infinity)
+      .toBeLessThanOrEqual(56);
+    await expect
+      .poll(async () => (await page.getByTestId("workspace-zone-intake").boundingBox())?.width ?? 0)
+      .toBeGreaterThan(700);
     const layout = await page
       .getByTestId("document-dropzone")
       .getAttribute("data-fill-layout");
@@ -297,6 +301,7 @@ test.describe("SPEC-155 documents workspace @spec155", () => {
     );
     const rail = page.getByTestId("workspace-zone-rail-runs");
     await expect(rail).toBeVisible();
+    await expect(page.getByTestId("workspace-zone-library")).toBeVisible();
     const railBox = await rail.boundingBox();
     const library = await page.getByTestId("workspace-zone-library").boundingBox();
     expect(railBox && library).toBeTruthy();

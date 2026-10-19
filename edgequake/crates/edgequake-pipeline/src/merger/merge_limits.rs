@@ -148,6 +148,30 @@ pub fn parse_merge_max_async(raw: &str) -> Option<usize> {
         .map(|n| n.min(64))
 }
 
+/// Default number of vector slices the durable fleet step writes at once.
+///
+/// WHY 4: an HNSW insert is CPU and buffer bound, not round-trip bound. Measured
+/// on 1024-d halfvec: 1 session = 2.7 ms/row, 4 sessions = 1.2 ms/row effective
+/// (2.2x). More sessions only fight for the same index pages and pool slots.
+pub const DEFAULT_FLEET_VECTOR_CONCURRENCY: usize = 4;
+
+/// Env: `EDGEQUAKE_FLEET_VECTOR_CONCURRENCY` (clamped 1..=16; `1` = sequential).
+pub fn fleet_vector_concurrency_from_env() -> usize {
+    std::env::var("EDGEQUAKE_FLEET_VECTOR_CONCURRENCY")
+        .ok()
+        .and_then(|raw| parse_fleet_vector_concurrency(&raw))
+        .unwrap_or(DEFAULT_FLEET_VECTOR_CONCURRENCY)
+}
+
+/// Pure parser for `EDGEQUAKE_FLEET_VECTOR_CONCURRENCY` (clamped 1..=16).
+pub fn parse_fleet_vector_concurrency(raw: &str) -> Option<usize> {
+    raw.trim()
+        .parse::<usize>()
+        .ok()
+        .filter(|&n| n > 0)
+        .map(|n| n.min(16))
+}
+
 /// Merge two source-id sequences (order-preserving, deduped) — LightRAG `merge_source_ids`.
 pub fn merge_source_ids(existing: &[String], incoming: &[String]) -> Vec<String> {
     let mut out = Vec::with_capacity(existing.len() + incoming.len());
@@ -294,6 +318,16 @@ pub fn source_chunk_ids_from_properties(props: &HashMap<String, Value>) -> Vec<S
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fleet_vector_concurrency_parses_and_clamps() {
+        assert_eq!(parse_fleet_vector_concurrency("4"), Some(4));
+        assert_eq!(parse_fleet_vector_concurrency(" 1 "), Some(1));
+        assert_eq!(parse_fleet_vector_concurrency("99"), Some(16));
+        assert_eq!(parse_fleet_vector_concurrency("0"), None);
+        assert_eq!(parse_fleet_vector_concurrency("many"), None);
+        assert_eq!(DEFAULT_FLEET_VECTOR_CONCURRENCY, 4);
+    }
 
     #[test]
     fn keep_truncates_head() {

@@ -48,6 +48,18 @@ describe("mergeQueryMessages (UI-P3-005)", () => {
     ]);
   });
 
+  it("keeps an empty streaming bubble so the waiting state can render", () => {
+    const server = [user("q")];
+    const pending = assistant("", "pending-1");
+    pending.isStreaming = true;
+    expect(mergeQueryMessages(server, null, pending)).toEqual([...server, pending]);
+  });
+
+  it("drops an empty bubble that is neither streaming nor stopped", () => {
+    const server = [user("q")];
+    expect(mergeQueryMessages(server, null, assistant("", "pending-1"))).toEqual(server);
+  });
+
   it("skips pending when last server assistant matches content", () => {
     const server = [user("q"), assistant("done")];
     const pending = assistant("done", "pending-1");

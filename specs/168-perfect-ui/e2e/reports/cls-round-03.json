@@ -1,0 +1,26 @@
+{
+  "budget": 0.005,
+  "rows": [
+    {
+      "route": "dashboard",
+      "state": "default",
+      "width": 1440,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "documents",
+      "state": "default",
+      "width": 1440,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "query",
+      "state": "default",
+      "width": 1440,
+      "cls": 0.005875437242798353,
+      "shifts": 1
+    }
+  ]
+}

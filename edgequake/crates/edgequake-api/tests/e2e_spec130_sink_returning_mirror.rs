@@ -79,6 +79,7 @@ async fn e2e_spec130_sink_returning_mirror() {
             weight: 1.0,
             tenant_id: Some(tenant.to_string()),
             workspace_id: Some(workspace.to_string()),
+            source_chunk_ids: vec![],
         }])
         .await
         .expect("rel sink");

@@ -109,33 +109,37 @@ export const QueryEmptyState = memo(function QueryEmptyState({
   const relCount = stats?.relationship_count ?? 0;
 
   return (
-    <div className="flex flex-col items-center justify-center h-full py-12 px-4">
+    // Top-anchored with a viewport-relative gap: sits low on tall screens and
+    // starts at the very top (scrollable) on short ones — never clipped (SPEC-168).
+    <div className="flex flex-col items-center px-4 pb-6 pt-[clamp(0rem,5vh,3.5rem)]">
       <div
-        className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground"
+        className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground"
         aria-hidden="true"
       >
         {isChat ? (
-          <MessageSquare className="h-7 w-7" />
+          <MessageSquare className="h-6 w-6" />
         ) : (
-          <Sparkles className="h-7 w-7" />
+          <Sparkles className="h-6 w-6" />
         )}
       </div>
 
-      <h2 className="text-2xl font-bold mb-2 text-center">
+      <h2 className="mb-2 text-center text-2xl font-semibold tracking-tight">
         {isChat
           ? t("query.chatEmptyTitle", copy.title)
           : t("query.emptyTitle", copy.title)}
       </h2>
-      <p className="text-muted-foreground text-center mb-6 max-w-lg leading-relaxed">
+      <p className="mb-5 max-w-lg text-center leading-relaxed text-muted-foreground">
         {isChat
           ? t("query.chatEmptyDescription", copy.description)
           : t("query.emptyDescription", copy.description)}
       </p>
 
-      {!isChat && stats && (
+      {/* Reserved slot: the pill fades in without moving the content below it. */}
+      {!isChat && (
         <div
-          className="flex items-center gap-4 mb-8 px-6 py-3 bg-muted/30 rounded-full border"
+          className={`mb-6 flex h-10 items-center gap-4 rounded-full border bg-muted/30 px-6 transition-opacity ${stats ? "opacity-100" : "opacity-0"}`}
           role="status"
+          aria-hidden={stats ? undefined : true}
         >
           <span className="text-sm">
             <span className="font-medium">{entityCount}</span>{" "}
@@ -164,7 +168,7 @@ export const QueryEmptyState = memo(function QueryEmptyState({
 
       {onSuggestionClick && (
         <div className="w-full max-w-2xl space-y-3">
-          <p className="text-sm font-medium text-muted-foreground text-center mb-3">
+          <p className="mb-2 text-center text-sm font-medium text-muted-foreground">
             {t("query.tryAsking", "Try asking:")}
           </p>
           <div
@@ -177,7 +181,7 @@ export const QueryEmptyState = memo(function QueryEmptyState({
                 key={i}
                 type="button"
                 onClick={() => onSuggestionClick(suggestion.text)}
-                className="group flex items-start gap-3 text-left px-4 py-3.5 rounded-xl border bg-card hover:bg-muted/50 hover:border-primary/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                className="group flex min-h-[60px] items-start gap-3 text-left px-4 py-3 rounded-xl border bg-card hover:bg-muted/50 hover:border-primary/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                 role="listitem"
                 aria-label={suggestion.text}
               >

@@ -98,16 +98,13 @@ pub(in crate::adapters::postgres::graph) mod search {
     const SEARCH_LABELS_SQL: &str =
         "SELECT label FROM public.eq_graph_search_labels($1, $2, $3, $4, $5)";
 
-    /// Typo recovery when the substring function returns nothing. `lower(node_id)`
-    /// matches `idx_eq_graph_nodes_id_trgm`. The `%` operator is pg_trgm.
-    const SEARCH_LABELS_TYPO_SQL: &str = "SELECT n.node_id \
-         FROM public.eq_graph_nodes n \
-         WHERE n.namespace = $1 \
-           AND ($2::text IS NULL OR n.tenant_id = $2) \
-           AND ($3::text IS NULL OR n.workspace_id = $3) \
-           AND lower(n.node_id) % $4 \
-         ORDER BY public.similarity(lower(n.node_id), $4) DESC, n.node_id \
-         LIMIT $5";
+    /// Migration 210. Typo recovery when the substring function returns
+    /// nothing. The `%` trigram operator is not leakproof, so it stays inside
+    /// an owner function: as the tenant role it filtered every node of the
+    /// workspace (835 ms at 66k nodes) instead of using
+    /// `idx_eq_graph_nodes_id_trgm` (28 ms).
+    const SEARCH_LABELS_TYPO_SQL: &str =
+        "SELECT label FROM public.eq_graph_search_labels_fuzzy($1, $2, $3, $4, $5)";
 
     pub(in crate::adapters::postgres::graph) async fn search_labels(
         storage: &PostgresAGEGraphStorage,
@@ -138,10 +135,10 @@ pub(in crate::adapters::postgres::graph) mod search {
         // is a trigram match on the same index, still inside the tenant scope.
         let fuzzy = sqlx::query_scalar::<_, String>(SEARCH_LABELS_TYPO_SQL)
             .bind(&storage.namespace)
-            .bind(tenant_id)
-            .bind(workspace_id)
             .bind(&query)
             .bind(limit)
+            .bind(tenant_id)
+            .bind(workspace_id)
             .fetch_all(&pool)
             .await
             .map_err(|e| StorageError::Database(format!("plain search_labels typo failed: {e}")))?;
@@ -183,10 +180,15 @@ pub(in crate::adapters::postgres::graph) mod search {
         }
 
         #[test]
-        fn typo_labels_stay_on_the_trigram_index_and_the_caller_scope() {
-            assert!(SEARCH_LABELS_TYPO_SQL.contains("lower(n.node_id) %"));
-            assert!(SEARCH_LABELS_TYPO_SQL.contains("n.tenant_id"));
-            assert!(SEARCH_LABELS_TYPO_SQL.contains("n.workspace_id"));
+        fn typo_labels_go_through_the_owner_function_with_the_caller_scope() {
+            // `%` is not leakproof, so under forced RLS it only reaches the
+            // trigram index inside the SECURITY DEFINER function (migration
+            // 210), which also lets the session scope win over these binds.
+            assert!(SEARCH_LABELS_TYPO_SQL.contains("eq_graph_search_labels_fuzzy"));
+            for bind in ["$1", "$2", "$3", "$4", "$5"] {
+                assert!(SEARCH_LABELS_TYPO_SQL.contains(bind), "missing {bind}");
+            }
+            assert!(!SEARCH_LABELS_TYPO_SQL.contains(" % "));
             assert!(!SEARCH_LABELS_TYPO_SQL.contains("ag_catalog"));
         }
 

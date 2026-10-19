@@ -61,7 +61,7 @@ export const ZONE_MIN_PX: Record<
   { width: number; height: number }
 > = {
   library: { width: 440, height: 224 },
-  intake: { width: 200, height: 112 },
+  intake: { width: 200, height: 120 },
   runs: { width: 180, height: 96 },
 };
 
@@ -137,7 +137,7 @@ export function presetClassic(): LayoutNode {
     "vertical",
     split("horizontal", leaf("intake"), leaf("runs"), [48, 52]),
     leaf("library"),
-    [16, 84],
+    [20, 80],
   );
 }
 
@@ -167,7 +167,7 @@ export function presetLibraryCenter(): LayoutNode {
     "horizontal",
     leaf("intake"),
     split("horizontal", leaf("library"), leaf("runs"), [82, 18]),
-    [16, 84],
+    [20, 80],
   );
 }
 

@@ -289,6 +289,23 @@ pub struct RelationshipSinkRow {
     pub weight: f32,
     pub tenant_id: Option<String>,
     pub workspace_id: Option<String>,
+    /// Legacy chunk keys that produced this relationship. The relational sink
+    /// unions them on conflict; document-scoped search reads them through
+    /// `chunks.legacy_chunk_key` (migration 211).
+    pub source_chunk_ids: Vec<String>,
+}
+
+impl RelationshipSinkRow {
+    /// Append the chunk keys this row does not hold yet, preserving order.
+    /// Rows for one `(source, target, type)` pair must keep every document
+    /// that named the pair, so duplicates merge rather than overwrite.
+    pub fn absorb_chunk_keys(&mut self, more: impl IntoIterator<Item = String>) {
+        for key in more {
+            if !self.source_chunk_ids.contains(&key) {
+                self.source_chunk_ids.push(key);
+            }
+        }
+    }
 }
 
 /// SPEC-130: identity produced by relational relationship sink for in-session fleet mirror.
@@ -331,6 +348,7 @@ pub trait RelationalEntitySink: Send + Sync {
         _weight: f32,
         _tenant_id: Option<&str>,
         _workspace_id: Option<&str>,
+        _source_chunk_ids: &[String],
     ) -> Result<()> {
         Ok(())
     }
@@ -368,6 +386,7 @@ pub trait RelationalEntitySink: Send + Sync {
                 row.weight,
                 row.tenant_id.as_deref(),
                 row.workspace_id.as_deref(),
+                &row.source_chunk_ids,
             )
             .await?;
         }

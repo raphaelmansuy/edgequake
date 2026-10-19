@@ -110,16 +110,16 @@ export function PipelineMonitor() {
             <PipelineStagesCard />
 
             <div className="mt-page">
-              <PipelineChunkProgressCard />
-            </div>
-
-            <div className="mt-page">
               <PipelineProcessingDocumentsCard />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-page mt-page">
               <PipelineQueueMetricsCard />
               <PipelineActivityLogCard />
+            </div>
+
+            <div className="mt-page">
+              <PipelineChunkProgressCard />
             </div>
 
             <details className="mt-page mb-page group">

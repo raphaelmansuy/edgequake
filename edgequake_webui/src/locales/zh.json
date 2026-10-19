@@ -56,7 +56,13 @@
     "apiExplorer": "API浏览器",
     "settings": "设置",
     "pipeline": "管道",
-    "home": "Dashboard"
+    "home": "Dashboard",
+    "groupKnowledge": "知识",
+    "groupSystem": "系统",
+    "search": "搜索",
+    "expandSidebar": "展开侧边栏",
+    "collapseSidebar": "收起侧边栏",
+    "openMenu": "打开导航菜单"
   },
   "dashboard": {
     "title": "仪表板",
@@ -183,7 +189,8 @@
       "pdfParserVision": "Vision",
       "pdfParserEdgeParse": "EdgeParse",
       "pdfParserEdgeParseOcr": "EdgeParse + OCR",
-      "pdfParserAuto": "Auto"
+      "pdfParserAuto": "Auto",
+      "settings": "上传设置"
     },
     "duplicateDialog": {
       "titleSingle": "检测到重复文档",
@@ -831,6 +838,13 @@
       "stopped": "已停止",
       "error": "失败",
       "sourceCount": "{{count}} 个来源",
+      "stepSearch": "检索",
+      "stepRead": "阅读",
+      "stepThink": "思考",
+      "stepWrite": "撰写",
+      "stillWorking": "仍在处理中…",
+      "slowHint": "耗时较长——较大的本地模型可能需要一点时间。",
+      "elapsed": "{{seconds}} 秒",
       "thinking": "正在思考…"
     },
     "feedback": {
@@ -1103,6 +1117,14 @@
       "fallbackVision": "Fallback: Vision",
       "resolvesTo": "Resolves to {{value}}",
       "resolvesToAuto": "May use EdgeParse"
+    },
+    "sections": {
+      "label": "设置分区",
+      "general": "常规",
+      "models": "模型与提供商",
+      "access": "访问",
+      "observability": "可观测性",
+      "data": "数据"
     }
   },
   "websocket": {
@@ -1399,14 +1421,27 @@
       "30d": "近 30 天",
       "90d": "近 90 天",
       "all": "全部"
-    }
+    },
+    "trendAria": "每日成本，{{count}} 天，合计 {{total}}"
   },
   "command": {
-    "placeholder": "Search pages and actions…",
-    "empty": "No results",
-    "navigate": "Navigate",
-    "actions": "Actions",
-    "shortcuts": "Keyboard shortcuts"
+    "title": "命令面板",
+    "placeholder": "搜索页面、文档和操作…",
+    "empty": "没有匹配项",
+    "navigate": "前往",
+    "actions": "操作",
+    "shortcuts": "键盘快捷键",
+    "documents": "文档",
+    "searching": "正在搜索文档…",
+    "newConversation": "新建对话",
+    "toggleSidebar": "收起或展开侧边栏",
+    "themeLight": "切换到浅色主题",
+    "themeDark": "切换到深色主题",
+    "themeSystem": "跟随系统主题",
+    "hintNavigate": "导航",
+    "hintOpen": "打开",
+    "hintClose": "关闭",
+    "openPalette": "搜索或跳转…"
   },
   "theme": {
     "light": "Light theme",
@@ -1616,5 +1651,33 @@
       "warnings": "{{count}} 条警告",
       "pending": "处理完成后显示统计。"
     }
+  },
+  "keyboard": {
+    "then": "然后",
+    "chordPrompt": "前往…",
+    "title": "键盘快捷键",
+    "subtitle": "无需离开键盘即可浏览 EdgeQuake。",
+    "footer": "输入文字或对话框打开时，单键快捷键将被忽略。",
+    "sections": {
+      "navigation": "前往",
+      "global": "全局",
+      "documents": "文档",
+      "query": "查询",
+      "graph": "知识图谱"
+    },
+    "palette": "打开命令面板",
+    "help": "显示键盘快捷键",
+    "sidebar": "收起或展开侧边栏",
+    "escape": "关闭对话框、菜单或面板",
+    "docRefresh": "刷新列表",
+    "docSelectAll": "选择所有文档",
+    "queryFocus": "聚焦提问框",
+    "queryMention": "限定到某个文档",
+    "graphSearch": "搜索节点",
+    "graphMove": "在相连节点间移动",
+    "graphFocus": "聚焦所选节点",
+    "graphDepth": "邻域深度",
+    "graphZoom": "放大、缩小、重置",
+    "graphFullscreen": "切换全屏"
   }
 }

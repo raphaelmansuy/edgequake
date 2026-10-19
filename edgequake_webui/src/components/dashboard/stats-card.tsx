@@ -12,7 +12,6 @@
  */
 'use client';
 
-import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
@@ -50,10 +49,10 @@ const variantStyles: Record<StatsCardVariant, string> = {
 };
 
 const variantIconBg: Record<StatsCardVariant, string> = {
-  documents: 'bg-blue-100 dark:bg-blue-900/30',
-  entities: 'bg-green-100 dark:bg-green-900/30',
-  relationships: 'bg-purple-100 dark:bg-purple-900/30',
-  types: 'bg-orange-100 dark:bg-orange-900/30',
+  documents: 'bg-blue-500/10',
+  entities: 'bg-emerald-500/10',
+  relationships: 'bg-violet-500/10',
+  types: 'bg-orange-500/10',
   default: 'bg-primary/10',
 };
 
@@ -64,6 +63,9 @@ const variantIconColor: Record<StatsCardVariant, string> = {
   types: 'text-orange-600 dark:text-orange-400',
   default: 'text-primary',
 };
+
+/** Borderless cell: lives inside <StatStrip>, which draws the frame and dividers. */
+const CELL = 'flex h-full min-w-0 flex-col bg-card px-4 py-3.5';
 
 export function StatsCard({
   title,
@@ -80,99 +82,70 @@ export function StatsCard({
 }: StatsCardProps) {
   if (isLoading) {
     return (
-      <Card className={cn('relative overflow-hidden border-0 shadow-sm', className)}>
-        <CardContent className="p-3 sm:p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="space-y-1 flex-1">
-              <Skeleton className="h-3.5 w-20" />
-              <Skeleton className="h-8 w-16" />
-              <Skeleton className="h-3 w-28" />
-            </div>
-            <Skeleton className="h-9 w-9 sm:h-11 sm:w-11 rounded-lg flex-shrink-0" />
-          </div>
-        </CardContent>
-      </Card>
+      <div className={cn(CELL, className)} aria-busy="true">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-6 w-6 rounded-md" />
+          <Skeleton className="h-3.5 w-20" />
+        </div>
+        <Skeleton className="mt-2.5 h-8 w-16" />
+        <Skeleton className="mt-2 h-3 w-28" />
+      </div>
     );
   }
 
   const TrendIcon = trend?.isPositive ? TrendingUp : trend?.value === 0 ? Minus : TrendingDown;
 
   const card = (
-    <Card
+    <div
       data-testid="stats-card"
       data-variant={variant}
       data-value={value}
-      className={cn(
-        // MI-02: Use shadow escalation only for display cards (no translate).
-        // WHY: translate-y on 4 adjacent cards simultaneously looks mechanical;
-        // shadow depth change is subtler and communicates "interactive surface"
-        // without kinetic noise.
-        'relative overflow-hidden transition-shadow duration-200 border-0 shadow-sm',
-        'hover:shadow-md',
-        // The link (when present) owns the focus ring; avoid a double ring.
-        !href && 'focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
-        variantStyles[variant],
-        className
-      )}
+      className={cn(CELL, 'transition-colors duration-150', href && 'group-hover:bg-muted/40', variantStyles[variant], className)}
     >
-      <CardContent className="p-3 sm:p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="space-y-1 min-w-0 flex-1">
-            <p className="text-xs font-medium text-muted-foreground truncate">
-              {title}
-              {isStale && (
-                <span
-                  className="ml-1.5 text-xs font-normal text-amber-600 dark:text-amber-400"
-                  data-testid="stats-stale-badge"
-                >
-                  (updating)
-                </span>
-              )}
-            </p>
-            <div className="flex items-baseline gap-2">
-              <p
-                className="text-2xl font-bold tracking-tight tabular-nums"
-                data-testid="stats-value"
-              >
-                {typeof value === 'number' ? value.toLocaleString() : value}
-              </p>
-              {trend && trend.value !== 0 && (
-                <div
-                  className={cn(
-                    'flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-md',
-                    trend.isPositive
-                      ? 'text-green-700 bg-green-100 dark:text-green-400 dark:bg-green-900/30'
-                      : 'text-red-700 bg-red-100 dark:text-red-400 dark:bg-red-900/30'
-                  )}
-                >
-                  <TrendIcon className="h-3 w-3" />
-                  {trend.isPositive ? '+' : ''}{trend.value}%
-                </div>
-              )}
-            </div>
-            {/* LS-03: Zero hint — shown only when value is 0 to guide new users */}
-            {value === 0 && zeroHint ? (
-              <p className="line-clamp-2 text-xs text-muted-foreground" title={zeroHint}>{zeroHint}</p>
-            ) : description ? (
-              <p className="line-clamp-2 text-xs text-muted-foreground" title={description}>{description}</p>
-            ) : null}
-          </div>
-          <div 
+      <div className="flex items-center gap-2">
+        <span
+          className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-md', variantIconBg[variant])}
+          aria-hidden="true"
+        >
+          <Icon className={cn('h-3.5 w-3.5', variantIconColor[variant])} />
+        </span>
+        <p className="min-w-0 truncate text-[0.8125rem] font-medium text-muted-foreground">
+          {title}
+          {isStale && (
+            <span
+              className="ml-1.5 text-xs font-normal text-amber-600 dark:text-amber-400"
+              data-testid="stats-stale-badge"
+            >
+              (updating)
+            </span>
+          )}
+        </p>
+      </div>
+      <div className="mt-2 flex items-baseline gap-2">
+        <p className="text-[1.75rem] font-semibold leading-none tracking-tight tabular-nums" data-testid="stats-value">
+          {typeof value === 'number' ? value.toLocaleString() : value}
+        </p>
+        {trend && trend.value !== 0 && (
+          <div
             className={cn(
-              'flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-lg flex-shrink-0',
-              'transition-transform duration-200 group-hover:scale-105',
-              variantIconBg[variant]
+              'flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium',
+              trend.isPositive
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
             )}
           >
-            <Icon className={cn('h-5 w-5', variantIconColor[variant])} />
+            <TrendIcon className="h-3 w-3" />
+            {trend.isPositive ? '+' : ''}{trend.value}%
           </div>
-        </div>
-      </CardContent>
-      {/* Decorative gradient - only show for non-default variants */}
-      {variant !== 'default' && (
-        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-current to-transparent opacity-20" />
-      )}
-    </Card>
+        )}
+      </div>
+      {/* LS-03: zero hint guides new users; otherwise a one-line caption. */}
+      {value === 0 && zeroHint ? (
+        <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground" title={zeroHint}>{zeroHint}</p>
+      ) : description ? (
+        <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground" title={description}>{description}</p>
+      ) : null}
+    </div>
   );
 
   if (!href) return card;
@@ -180,7 +153,7 @@ export function StatsCard({
     <Link
       href={href}
       aria-label={`${title}: ${typeof value === 'number' ? value.toLocaleString() : value}`}
-      className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      className="group block h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
     >
       {card}
     </Link>

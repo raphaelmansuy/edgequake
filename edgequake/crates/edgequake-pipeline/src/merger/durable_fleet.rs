@@ -13,15 +13,30 @@
 //! the same fleet mirror used by the legacy merge. It never touches the graph
 //! (projection owns that).
 
-use std::collections::HashSet;
+use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
 
 use edgequake_storage::{EntityId, GraphStorage, VectorStorage};
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
+use uuid::Uuid;
 
+use super::merge_limits::fleet_vector_concurrency_from_env;
 use crate::error::Result;
 use crate::extractor::{ExtractedRelationship, ExtractionResult};
 use crate::merger::{
     EntitySinkRow, KnowledgeGraphMerger, MergeArtifacts, MergePhase, RelationshipSinkRow,
 };
+
+/// One vector row: `(vector id, embedding, metadata)`.
+type VectorRow = (String, Vec<f32>, serde_json::Value);
+
+/// Document-wide counts the progress phases are measured against.
+#[derive(Clone, Copy)]
+struct VectorTotals {
+    entities: usize,
+    relationships: usize,
+}
 
 /// Counts written by [`KnowledgeGraphMerger::persist_fleet_vectors`].
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -55,7 +70,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
             .iter()
             .flat_map(|r| r.relationships.iter().cloned())
             .collect();
-        let rel_rows = self.durable_relationship_rows(&all_rels);
+        let rel_rows = self.durable_relationship_rows(results);
         stats.relationship_rows = rel_rows.len();
         let rel_report = if rel_rows.is_empty() {
             Default::default()
@@ -65,47 +80,95 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
                 .await?
         };
 
-        let total_entities: usize = results.iter().map(|r| r.entities.len()).sum();
-        let mut artifacts = MergeArtifacts::default();
-
         let entity_batch = self.collect_entity_vector_batch(results);
         stats.entity_vectors = entity_batch.len();
-        if !entity_batch.is_empty() {
-            self.upsert_vectors_chunked(
-                &entity_batch,
-                None,
-                MergePhase::EntityVectors,
-                total_entities,
-                all_rels.len(),
-                0,
-                0,
-                true,
-                &mut artifacts,
-                None,
-            )
-            .await?;
-        }
-
         let rel_batch = self.collect_relationship_vector_batch(&all_rels);
         stats.relationship_vectors = rel_batch.len();
-        if !rel_batch.is_empty() {
-            let known = (!rel_report.ids.is_empty()).then_some(&rel_report.ids);
-            self.upsert_vectors_chunked(
-                &rel_batch,
-                None,
-                MergePhase::RelationshipVectors,
-                total_entities,
-                all_rels.len(),
-                0,
-                0,
-                false,
-                &mut artifacts,
-                known,
-            )
+
+        let totals = VectorTotals {
+            entities: results.iter().map(|r| r.entities.len()).sum(),
+            relationships: all_rels.len(),
+        };
+        let known = (!rel_report.ids.is_empty()).then_some(&rel_report.ids);
+        self.upsert_fleet_slices(&entity_batch, &rel_batch, known, totals)
             .await?;
-        }
 
         Ok(stats)
+    }
+
+    /// Write entity and relationship vector slices with bounded concurrency.
+    ///
+    /// # WHY concurrent
+    ///
+    /// Each slice is one idempotent `INSERT .. ON CONFLICT` into an HNSW-indexed
+    /// table, and the HNSW insert (not the round trip) is the cost: sequential
+    /// slices left 3 pool connections idle while one walked the graph. Entity
+    /// and relationship rows go to different tables, and ids are already unique
+    /// per batch (`dedupe_*_by_*`), so slices never contend on the same row.
+    /// Concurrency is capped by `EDGEQUAKE_FLEET_VECTOR_CONCURRENCY` so one
+    /// document cannot starve the ingest pool.
+    async fn upsert_fleet_slices(
+        &self,
+        entity_batch: &[VectorRow],
+        rel_batch: &[VectorRow],
+        known_relationship_ids: Option<&HashMap<String, Uuid>>,
+        totals: VectorTotals,
+    ) -> Result<()> {
+        let slice_rows = edgequake_storage::vector_upsert_chunk_size();
+        let limit = fleet_vector_concurrency_from_env();
+        let work = entity_batch
+            .chunks(slice_rows)
+            .map(|slice| (slice, true))
+            .chain(rel_batch.chunks(slice_rows).map(|slice| (slice, false)));
+
+        let mut in_flight = FuturesUnordered::new();
+        for (slice, as_entities) in work {
+            if in_flight.len() >= limit {
+                if let Some(done) = in_flight.next().await {
+                    done?;
+                }
+            }
+            in_flight.push(self.upsert_fleet_slice(
+                slice,
+                as_entities,
+                known_relationship_ids,
+                totals,
+            ));
+        }
+        while let Some(done) = in_flight.next().await {
+            done?;
+        }
+        Ok(())
+    }
+
+    /// One slice of entity (`as_entities`) or relationship vectors.
+    async fn upsert_fleet_slice(
+        &self,
+        slice: &[VectorRow],
+        as_entities: bool,
+        known_relationship_ids: Option<&HashMap<String, Uuid>>,
+        totals: VectorTotals,
+    ) -> Result<()> {
+        let (phase, known) = if as_entities {
+            (MergePhase::EntityVectors, None)
+        } else {
+            (MergePhase::RelationshipVectors, known_relationship_ids)
+        };
+        // Artifacts only feed compensate, which this path never runs.
+        let mut artifacts = MergeArtifacts::default();
+        self.upsert_vectors_chunked(
+            slice,
+            None,
+            phase,
+            totals.entities,
+            totals.relationships,
+            0,
+            0,
+            as_entities,
+            &mut artifacts,
+            known,
+        )
+        .await
     }
 
     /// One spine row per distinct entity, plus an `UNKNOWN` row for every
@@ -156,32 +219,42 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
     }
 
     /// One spine row per distinct `(source, target, type)`; self-loops skipped.
-    fn durable_relationship_rows(
-        &self,
-        rels: &[ExtractedRelationship],
-    ) -> Vec<RelationshipSinkRow> {
+    /// A pair named by several chunks keeps the union of their chunk keys: the
+    /// keys are the row's document lineage, so a first-wins dedupe would drop
+    /// every document but one.
+    fn durable_relationship_rows(&self, results: &[ExtractionResult]) -> Vec<RelationshipSinkRow> {
         let ws = self.workspace_id.as_deref();
-        let mut seen: HashSet<(String, String, String)> = HashSet::new();
-        let mut out = Vec::with_capacity(rels.len());
-        for rel in rels {
-            let source = EntityId::new(&rel.source).graph_node_id_for_workspace(ws);
-            let target = EntityId::new(&rel.target).graph_node_id_for_workspace(ws);
-            if source.is_empty() || target.is_empty() || source == target {
-                continue;
+        let mut at: HashMap<(String, String, String), usize> = HashMap::new();
+        let mut out: Vec<RelationshipSinkRow> = Vec::new();
+        for extraction in results {
+            let chunk = extraction.source_chunk_id.as_str();
+            for rel in &extraction.relationships {
+                let source = EntityId::new(&rel.source).graph_node_id_for_workspace(ws);
+                let target = EntityId::new(&rel.target).graph_node_id_for_workspace(ws);
+                if source.is_empty() || target.is_empty() || source == target {
+                    continue;
+                }
+                let rel_type = edgequake_storage::normalize_relation_type_str(&rel.relation_type);
+                let keys = chunk_ids_for(&rel.all_source_chunk_ids(), chunk);
+                match at.entry((source.clone(), target.clone(), rel_type.clone())) {
+                    Entry::Occupied(seen) => {
+                        out[*seen.get()].absorb_chunk_keys(keys);
+                    }
+                    Entry::Vacant(slot) => {
+                        slot.insert(out.len());
+                        out.push(RelationshipSinkRow {
+                            source_name: source,
+                            target_name: target,
+                            relation_type: rel_type,
+                            description: rel.description.clone(),
+                            weight: rel.weight,
+                            tenant_id: self.tenant_id.clone(),
+                            workspace_id: self.workspace_id.clone(),
+                            source_chunk_ids: keys,
+                        });
+                    }
+                }
             }
-            let rel_type = edgequake_storage::normalize_relation_type_str(&rel.relation_type);
-            if !seen.insert((source.clone(), target.clone(), rel_type.clone())) {
-                continue;
-            }
-            out.push(RelationshipSinkRow {
-                source_name: source,
-                target_name: target,
-                relation_type: rel_type,
-                description: rel.description.clone(),
-                weight: rel.weight,
-                tenant_id: self.tenant_id.clone(),
-                workspace_id: self.workspace_id.clone(),
-            });
         }
         out
     }
@@ -330,6 +403,56 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_pair_named_by_several_chunks_keeps_every_chunk_key() {
+        let sink = Arc::new(RecordingSink::default());
+        let (merger, _graph) = merger_with(sink.clone()).await;
+        let mut a = ExtractionResult::new("docA-chunk-0");
+        a.relationships.push(ExtractedRelationship::new(
+            "Lymphoma",
+            "Biopsy",
+            "DIAGNOSED_BY",
+        ));
+        let mut b = ExtractionResult::new("docB-chunk-3");
+        b.relationships.push(ExtractedRelationship::new(
+            "lymphoma",
+            "biopsy",
+            "diagnosed_by",
+        ));
+        // The relationship's own provenance wins over the extraction's chunk.
+        let mut c = ExtractionResult::new("docC-chunk-1");
+        c.relationships.push(
+            ExtractedRelationship::new("Lymphoma", "Biopsy", "DIAGNOSED_BY")
+                .with_source_chunk_id("docD-chunk-9"),
+        );
+
+        let stats = merger.persist_fleet_vectors(&[a, b, c]).await.unwrap();
+
+        assert_eq!(stats.relationship_rows, 1);
+        let rels = sink.relationships.lock().unwrap();
+        assert_eq!(
+            rels[0].source_chunk_ids,
+            ["docA-chunk-0", "docB-chunk-3", "docD-chunk-9"],
+            "first-wins dedupe would keep only docA"
+        );
+    }
+
+    #[test]
+    fn absorbing_chunk_keys_appends_new_keys_in_order_without_duplicates() {
+        let mut row = RelationshipSinkRow {
+            source_name: "A".into(),
+            target_name: "B".into(),
+            relation_type: "R".into(),
+            description: String::new(),
+            weight: 1.0,
+            tenant_id: None,
+            workspace_id: None,
+            source_chunk_ids: vec!["k1".into()],
+        };
+        row.absorb_chunk_keys(["k2".to_string(), "k1".to_string(), "k3".to_string()]);
+        assert_eq!(row.source_chunk_ids, ["k1", "k2", "k3"]);
+    }
+
+    #[tokio::test]
     async fn never_writes_graph_nodes() {
         let sink = Arc::new(RecordingSink::default());
         let (merger, graph) = merger_with(sink).await;
@@ -339,6 +462,56 @@ mod tests {
         assert!(
             graph.node_count().await.unwrap() == 0,
             "graph facts belong to the projection, not this step"
+        );
+    }
+
+    /// `entities` embedded entities plus one embedded relationship between each pair.
+    fn embedded(entities: usize) -> Vec<ExtractionResult> {
+        let mut extraction = ExtractionResult::new("doc-chunk-0");
+        for index in 0..entities {
+            let mut entity = ExtractedEntity::new(format!("ENTITY_{index}"), "CONCEPT", "d");
+            entity.embedding = Some(vec![0.1, 0.2, 0.3, 0.4]);
+            extraction.entities.push(entity);
+        }
+        for index in 0..entities.saturating_sub(1) {
+            let mut rel = ExtractedRelationship::new(
+                format!("ENTITY_{index}"),
+                format!("ENTITY_{}", index + 1),
+                "RELATED_TO",
+            );
+            rel.embedding = Some(vec![0.4, 0.3, 0.2, 0.1]);
+            extraction.relationships.push(rel);
+        }
+        vec![extraction]
+    }
+
+    #[tokio::test]
+    async fn every_vector_slice_lands_when_the_batch_spans_several_slices() {
+        // 2_100 entity rows + 2_099 relationship rows = 3 + 3 slices at 1_000 rows.
+        let sink = Arc::new(RecordingSink::default());
+        let graph = Arc::new(MemoryGraphStorage::new("durable-fleet-slices"));
+        let vector = Arc::new(MemoryVectorStorage::new("durable-fleet-slices", 4));
+        graph.initialize().await.unwrap();
+        vector.initialize().await.unwrap();
+        let config = MergerConfig {
+            use_llm_summarization: false,
+            ..Default::default()
+        };
+        let merger = KnowledgeGraphMerger::new(config, graph, vector.clone())
+            .with_relational_sink(sink)
+            .with_tenant_context(None, None);
+
+        let stats = merger
+            .persist_fleet_vectors(&embedded(2_100))
+            .await
+            .unwrap();
+
+        assert_eq!(stats.entity_vectors, 2_100);
+        assert_eq!(stats.relationship_vectors, 2_099);
+        assert_eq!(
+            vector.count().await.unwrap(),
+            2_100 + 2_099,
+            "concurrent slices must not drop or duplicate rows"
         );
     }
 

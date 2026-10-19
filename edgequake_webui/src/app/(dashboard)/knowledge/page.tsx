@@ -7,6 +7,8 @@
  * to enrich the knowledge graph without polluting query citations.
  */
 
+import { PageShell } from '@/components/shared/page-shell';
+import { PageHeader } from '@/components/shared/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -151,7 +153,7 @@ export default function KnowledgePage() {
 
   const statusColor = (status: string) => {
     switch (status) {
-      case 'completed': return 'default';
+      case 'completed': return 'outline';
       case 'processing': return 'secondary';
       case 'failed': return 'destructive';
       default: return 'outline';
@@ -160,18 +162,12 @@ export default function KnowledgePage() {
 
   return (
     <ScrollArea className="h-full">
-      <div className="flex flex-col gap-page p-page">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl flex items-center gap-2">
-            <BookOpen className="h-5 w-5 sm:h-6 sm:w-6" />
-            Knowledge Injection
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Inject domain glossaries, acronyms, and definitions to enrich your knowledge graph.
-          </p>
-        </div>
-
+      <PageShell className="space-y-page">
+      <PageHeader
+        className="mb-0"
+        title="Knowledge Injection"
+        description="Inject domain glossaries, acronyms, and definitions to enrich your knowledge graph."
+        actions={
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -316,7 +312,8 @@ export default function KnowledgePage() {
             </Tabs>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
       {/* SPEC-100: min-h grid shell so skeleton↔list does not CLS */}
       {isLoading && !data ? (
@@ -359,11 +356,16 @@ export default function KnowledgePage() {
               href={`/knowledge/${item.injection_id}`}
               data-testid={`knowledge-injection-${item.name}`}
             >
-              <Card className="cursor-pointer hover:border-primary/50 transition-colors">
+              <Card className="h-full cursor-pointer transition-colors hover:border-foreground/25 hover:bg-muted/30">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
-                    <CardTitle className="text-base">{item.name}</CardTitle>
-                    <Badge variant={statusColor(item.status)}>{item.status}</Badge>
+                    <CardTitle>{item.name}</CardTitle>
+                    <Badge
+                      variant={statusColor(item.status)}
+                      className={item.status === 'completed' ? 'border-emerald-600/40 bg-emerald-500/10 font-medium text-emerald-700 dark:text-emerald-400' : 'font-medium'}
+                    >
+                      {item.status}
+                    </Badge>
                   </div>
                   <CardDescription className="text-xs">
                     {item.entity_count} entities &middot; {item.source_type}
@@ -422,7 +424,7 @@ export default function KnowledgePage() {
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
     </ScrollArea>
   );
 }

@@ -126,13 +126,11 @@ export const AssistantMessage = memo(function AssistantMessage({
     : parsed.response || parsedLive.response;
   const hasResponseText = Boolean(displayContent.trim());
   const isLiveThinking = Boolean(message.isStreaming && parsedLive.open);
-  const showStage =
-    message.isStreaming &&
-    stage &&
-    stage !== "complete" &&
-    stage !== "thinking" &&
-    !displayContent &&
-    !isLiveThinking;
+  // Waiting for the first answer token (also covers a native, untagged "thinking"
+  // phase). A live <think> block is owned by the reasoning panel instead.
+  const showPending = Boolean(
+    message.isStreaming && !displayContent && !isLiveThinking && stage !== "complete",
+  );
 
   // Drive panel via pure state machine (no boolean sync loops)
   useEffect(() => {
@@ -159,7 +157,12 @@ export const AssistantMessage = memo(function AssistantMessage({
       aria-label={t("query.assistantMessage", "Assistant response")}
     >
       <div className="flex items-start gap-3 max-w-full min-w-0">
-        <Avatar className="h-8 w-8 shrink-0 mt-1 ring-2 ring-primary/20">
+        <Avatar
+          className={cn(
+            "h-8 w-8 shrink-0 mt-1 ring-2 ring-primary/20",
+            showPending && "eq-avatar-waiting",
+          )}
+        >
           <AvatarFallback className="bg-primary text-primary-foreground">
             <Sparkles className="h-4 w-4" aria-hidden="true" />
           </AvatarFallback>
@@ -178,11 +181,12 @@ export const AssistantMessage = memo(function AssistantMessage({
             ) : null}
           </div>
 
-          {showStage ? (
+          {showPending ? (
             <StageTimeline
-              stage={stage as StreamStage}
+              stage={(stage as StreamStage | null | undefined) ?? null}
               detail={stageDetail}
               sourceCount={message.context?.chunks?.length}
+              startedAt={message.timestamp}
             />
           ) : null}
 
@@ -196,29 +200,18 @@ export const AssistantMessage = memo(function AssistantMessage({
             />
           ) : null}
 
-          {(displayContent || (message.isStreaming && !showStage)) && (
-            <div
-              className={cn(
-                "min-w-0",
-                // Unboxed answer — no card chrome (Q19)
-              )}
-            >
-              {displayContent ? (
-                <div className="break-words overflow-wrap-anywhere hyphens-auto prose-chat">
-                  <StreamingMarkdownRenderer
-                    content={displayContent}
-                    isStreaming={message.isStreaming}
-                    className=""
-                    resolveCitation={resolveCitation}
-                  />
-                </div>
-              ) : message.isStreaming ? (
-                <p className="text-sm text-muted-foreground">
-                  {t("query.generating", "Generating response...")}
-                </p>
-              ) : null}
+          {displayContent ? (
+            <div className="min-w-0">
+              <div className="break-words overflow-wrap-anywhere hyphens-auto prose-chat">
+                <StreamingMarkdownRenderer
+                  content={displayContent}
+                  isStreaming={message.isStreaming}
+                  className=""
+                  resolveCitation={resolveCitation}
+                />
+              </div>
             </div>
-          )}
+          ) : null}
 
           {message.context ? (
             <SourceChips

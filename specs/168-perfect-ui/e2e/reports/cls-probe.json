@@ -1,0 +1,47 @@
+{
+  "budget": 0.005,
+  "rows": [
+    {
+      "route": "pipeline",
+      "state": "default",
+      "width": 1440,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "pipeline",
+      "state": "default",
+      "width": 390,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "pipeline",
+      "state": "collapsed-dark",
+      "width": 1440,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "pipeline",
+      "state": "collapsed-dark",
+      "width": 390,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "pipeline",
+      "state": "empty-workspace",
+      "width": 1440,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "pipeline",
+      "state": "empty-workspace",
+      "width": 390,
+      "cls": 0,
+      "shifts": 0
+    }
+  ]
+}

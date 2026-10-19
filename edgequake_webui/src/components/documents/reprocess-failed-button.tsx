@@ -134,8 +134,9 @@ export function ReprocessFailedButton({
 
   const button = (
     <Button
-      variant="destructive"
+      variant="outline"
       size="sm"
+      className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
       onClick={showConfirmation ? undefined : handleReprocess}
       disabled={reprocessMutation.isPending}
       data-testid="reprocess-failed-button"

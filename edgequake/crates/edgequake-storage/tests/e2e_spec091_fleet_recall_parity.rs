@@ -128,21 +128,23 @@ async fn e2e_spec091_fleet_entity_search_by_id_and_document() {
     let pool = contract_pg_pool(&cfg).await;
     let ws = w3::seed_workspace(&pool, "fleet-id").await;
     let tenant = w3::workspace_tenant(&pool, ws).await;
-    let doc_a = Uuid::new_v4();
-    let doc_b = Uuid::new_v4();
+    let doc_a = w3::seed_document(&pool, ws).await;
+    let doc_b = w3::seed_document(&pool, ws).await;
+    w3::seed_chunk(&pool, doc_a, ws, 0, "entity chunk a").await;
+    w3::seed_chunk(&pool, doc_b, ws, 0, "entity chunk b").await;
     let index = edgequake_storage::PgFleetEmbeddingIndex::new(pool.clone(), "iw2-id-model");
 
     let mut ids = Vec::new();
     for (i, doc) in [(0u32, doc_a), (1, doc_b)] {
         let name = format!("FLEET_ID_{i}");
         let eid: Uuid = sqlx::query_scalar(
-            "INSERT INTO entities (name, entity_type, workspace_id, tenant_id, source_ids) \
+            "INSERT INTO entities (name, entity_type, workspace_id, tenant_id, source_chunk_ids) \
              VALUES ($1, 'concept', $2, $3, $4) RETURNING id",
         )
         .bind(&name)
         .bind(ws)
         .bind(tenant)
-        .bind(vec![doc])
+        .bind(vec![format!("{doc}-chunk-0")])
         .fetch_one(&pool)
         .await
         .expect("seed entity");
@@ -242,8 +244,8 @@ async fn e2e_spec091_fleet_relationship_search_by_id_and_document() {
     let tenant = w3::workspace_tenant(&pool, ws).await;
     let doc_a = w3::seed_document(&pool, ws).await;
     let doc_b = w3::seed_document(&pool, ws).await;
-    let chunk_a = w3::seed_chunk(&pool, doc_a, ws, 0, "rel chunk a").await;
-    let chunk_b = w3::seed_chunk(&pool, doc_b, ws, 0, "rel chunk b").await;
+    w3::seed_chunk(&pool, doc_a, ws, 0, "rel chunk a").await;
+    w3::seed_chunk(&pool, doc_b, ws, 0, "rel chunk b").await;
     let index = edgequake_storage::PgFleetEmbeddingIndex::new(pool.clone(), "iw2-rel-model");
 
     let src: Uuid = sqlx::query_scalar(
@@ -266,10 +268,10 @@ async fn e2e_spec091_fleet_relationship_search_by_id_and_document() {
     .expect("seed target");
 
     let mut rels = Vec::new();
-    for (rel_type, chunk) in [("WORKS_WITH", chunk_a), ("KNOWS", chunk_b)] {
+    for (rel_type, doc) in [("WORKS_WITH", doc_a), ("KNOWS", doc_b)] {
         let rid: Uuid = sqlx::query_scalar(
             "INSERT INTO relationships \
-                (source_id, target_id, tenant_id, workspace_id, relation_type, source_chunk_ids) \
+                (source_id, target_id, tenant_id, workspace_id, relation_type, source_chunk_keys) \
              VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
         )
         .bind(src)
@@ -277,7 +279,7 @@ async fn e2e_spec091_fleet_relationship_search_by_id_and_document() {
         .bind(tenant)
         .bind(ws)
         .bind(rel_type)
-        .bind(vec![chunk])
+        .bind(vec![format!("{doc}-chunk-0")])
         .fetch_one(&pool)
         .await
         .expect("seed relationship");
@@ -371,6 +373,126 @@ async fn e2e_spec091_fleet_relationship_search_by_id_and_document() {
     assert!(excluded.is_empty());
 
     w3::cleanup_workspace(&pool, ws).await;
+}
+
+/// The plain relationship statement orders the embeddings alone and hydrates
+/// names afterwards (`ann_first_sql`). It must still rank by cosine score,
+/// honour the tenant bind, and stay inside the workspace.
+#[tokio::test]
+async fn e2e_fleet_open_relationship_search_ranks_hydrates_and_isolates() {
+    let Some(cfg) = require_or_skip_postgres("fleet_open_rel") else {
+        return;
+    };
+    let _g = w3::w3_lock().lock().await;
+    let pool = contract_pg_pool(&cfg).await;
+    let ws = w3::seed_workspace(&pool, "fleet-open-rel").await;
+    let other_ws = w3::seed_workspace(&pool, "fleet-open-rel-other").await;
+    let tenant = w3::workspace_tenant(&pool, ws).await;
+    let index = edgequake_storage::PgFleetEmbeddingIndex::new(pool.clone(), "open-rel-model");
+
+    let entity = |name: &'static str| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_scalar::<_, Uuid>(
+                "INSERT INTO entities (name, entity_type, workspace_id, tenant_id) \
+                 VALUES ($1, 'concept', $2, $3) RETURNING id",
+            )
+            .bind(name)
+            .bind(ws)
+            .bind(tenant)
+            .fetch_one(&pool)
+            .await
+            .expect("seed entity")
+        }
+    };
+    let (src, tgt) = (entity("OPEN_REL_SRC").await, entity("OPEN_REL_TGT").await);
+
+    let mut rows = Vec::new();
+    for (i, rel_type) in ["NEAR", "MID", "FAR"].into_iter().enumerate() {
+        let rid: Uuid = sqlx::query_scalar(
+            "INSERT INTO relationships (source_id, target_id, tenant_id, workspace_id, relation_type) \
+             VALUES ($1, $2, $3, $4, $5) RETURNING id",
+        )
+        .bind(src)
+        .bind(tgt)
+        .bind(tenant)
+        .bind(ws)
+        .bind(rel_type)
+        .fetch_one(&pool)
+        .await
+        .expect("seed relationship");
+        rows.push(FleetEmbeddingRow {
+            key: FleetEmbeddingKey::Relationship(rid),
+            workspace_id: WorkspaceId::new(ws),
+            dimensions: 768,
+            embedding: w3::make_embedding(768, 200 + 17 * i as u32),
+            legacy_vector_id: None,
+        });
+    }
+    index
+        .upsert_batch(EmbeddingFamily::Relationship, ModelId(Uuid::nil()), &rows)
+        .await
+        .expect("upsert");
+
+    let query = VectorQuery {
+        model_id: ModelId(Uuid::nil()),
+        model_revision: "test-current".into(),
+        workspace_id: Some(WorkspaceId::new(ws)),
+        document_ids: None,
+        tenant_id: Some(edgequake_storage::traits::domain::TenantId::new(tenant)),
+        modalities: None,
+        filter_ids: None,
+        vector_type: Some("relationship".into()),
+        embedding: w3::make_embedding(768, 200),
+        limit: 5,
+    };
+    let hits = index
+        .search(EmbeddingFamily::Relationship, &query)
+        .await
+        .expect("open search");
+    let ids: Vec<&str> = hits.iter().map(|h| h.legacy_id.as_str()).collect();
+    // Exact cosine ranking is the oracle; seeds are not monotonic in similarity.
+    let mut expected: Vec<(f32, &str)> = ["NEAR", "MID", "FAR"]
+        .into_iter()
+        .zip(&rows)
+        .map(|(kind, row)| (cosine(&query.embedding, &row.embedding), kind))
+        .collect();
+    expected.sort_by(|a, b| b.0.total_cmp(&a.0));
+    let expected: Vec<String> = expected
+        .iter()
+        .map(|(_, kind)| format!("OPEN_REL_SRC->OPEN_REL_TGT:{kind}"))
+        .collect();
+    assert_eq!(
+        ids, expected,
+        "ranked by cosine score, names hydrated after the limit"
+    );
+    assert!(hits.windows(2).all(|w| w[0].score >= w[1].score));
+    assert!(hits[0].score > 0.999, "identical vector scores 1.0");
+
+    let capped = index
+        .search(
+            EmbeddingFamily::Relationship,
+            &VectorQuery {
+                limit: 2,
+                ..query.clone()
+            },
+        )
+        .await
+        .expect("capped search");
+    assert_eq!(capped.len(), 2, "limit is applied after hydration");
+
+    let elsewhere = index
+        .search(
+            EmbeddingFamily::Relationship,
+            &VectorQuery {
+                workspace_id: Some(WorkspaceId::new(other_ws)),
+                tenant_id: None,
+                ..query.clone()
+            },
+        )
+        .await
+        .expect("other workspace search");
+    assert!(elsewhere.is_empty(), "workspace scope isolates the search");
 }
 
 #[tokio::test]

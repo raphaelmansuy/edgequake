@@ -121,6 +121,11 @@ impl PgChunkEmbeddingIndex {
     /// actual binds. Document, modality, and id each have their own statement
     /// when the caller passes them.
     fn search_sql(dim: i32, cast: &str, documents: bool, modality: bool) -> String {
+        if !documents && !modality {
+            // Nothing filters on `chunks`: order the embeddings alone and
+            // hydrate for the survivors (see `ann_first_sql`).
+            return super::ann_first_sql::chunk_sql(dim, cast);
+        }
         let sql = format!(
             r#"
             SELECT ce.chunk_id,

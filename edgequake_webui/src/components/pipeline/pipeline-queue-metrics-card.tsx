@@ -51,8 +51,8 @@ export function PipelineQueueMetricsCard() {
     <Card data-testid="spec100-pipeline-queue-metrics" className="min-h-[280px]">
       <CardHeader className="pb-2">
         <div className="eq-toolbar justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Gauge className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2">
+            <Gauge className="h-4 w-4 text-muted-foreground" />
             Queue Metrics
           </CardTitle>
           {isActive && !cold && (
@@ -101,30 +101,30 @@ export function PipelineQueueMetricsCard() {
             </div>
 
             <div className="eq-metric-grid text-sm">
-              <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded text-center">
-                <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mb-1">
+              <div className="rounded-md border bg-muted/30 px-3 py-2.5">
+                <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Zap className="h-3 w-3" />
                   <span>Throughput</span>
                 </div>
-                <p className="text-lg font-bold text-blue-600">
+                <p className="text-lg font-semibold tabular-nums">
                   {formatThroughput(metrics?.throughput_per_minute ?? 0)}
                 </p>
               </div>
-              <div className="p-2 bg-purple-50 dark:bg-purple-950 rounded text-center">
-                <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mb-1">
+              <div className="rounded-md border bg-muted/30 px-3 py-2.5">
+                <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Clock className="h-3 w-3" />
                   <span>Avg Wait</span>
                 </div>
-                <p className="text-lg font-bold text-purple-600">
+                <p className="text-lg font-semibold tabular-nums">
                   {formatDurationSeconds(metrics?.avg_wait_time_seconds ?? 0)}
                 </p>
               </div>
-              <div className="p-2 bg-orange-50 dark:bg-orange-950 rounded text-center">
-                <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mb-1">
+              <div className="rounded-md border bg-muted/30 px-3 py-2.5">
+                <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Timer className="h-3 w-3" />
                   <span>Queue ETA</span>
                 </div>
-                <p className="text-lg font-bold text-orange-600">
+                <p className="text-lg font-semibold tabular-nums">
                   {formatDurationSeconds(metrics?.estimated_queue_time_seconds ?? 0)}
                 </p>
               </div>

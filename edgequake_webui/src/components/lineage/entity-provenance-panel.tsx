@@ -86,7 +86,7 @@ export function EntityProvenancePanel({
     return (
       <Card className={cn('h-full', className)}>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-base">Entity Provenance</CardTitle>
+          <CardTitle>Entity Provenance</CardTitle>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
@@ -104,7 +104,7 @@ export function EntityProvenancePanel({
     return (
       <Card className={cn('h-full', className)}>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-base">Entity Provenance</CardTitle>
+          <CardTitle>Entity Provenance</CardTitle>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
@@ -124,7 +124,7 @@ export function EntityProvenancePanel({
         <div className="flex items-center gap-2">
           <User className="h-5 w-5 text-muted-foreground" />
           <div>
-            <CardTitle className="text-base">{provenance.entity_name}</CardTitle>
+            <CardTitle>{provenance.entity_name}</CardTitle>
             <CardDescription className="flex items-center gap-2">
               <Badge variant="secondary" className="text-xs">
                 {provenance.entity_type}

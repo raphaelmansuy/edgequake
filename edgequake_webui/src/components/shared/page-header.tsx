@@ -20,17 +20,17 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <header className={cn('mb-6 space-y-3', className)}>
+    <header className={cn('mb-5 space-y-3', className)}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-1">
           <h1
-            className="break-words text-xl font-semibold tracking-tight text-foreground [overflow-wrap:anywhere]"
+            className="break-words text-[1.375rem] font-semibold leading-tight tracking-tight text-foreground [overflow-wrap:anywhere]"
             title={typeof title === 'string' ? title : undefined}
           >
             {title}
           </h1>
           {description ? (
-            <p className="text-sm text-muted-foreground">{description}</p>
+            <p className="text-[0.8125rem] text-muted-foreground">{description}</p>
           ) : null}
         </div>
         {actions ? (

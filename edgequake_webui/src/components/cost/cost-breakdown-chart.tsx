@@ -126,7 +126,7 @@ export function CostBreakdownChart({
   return (
     <Card className={className}>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Cost Breakdown</CardTitle>
+        <CardTitle>Cost Breakdown</CardTitle>
         <CardDescription>
           Total: {formatCost(breakdown.total_cost)}
         </CardDescription>

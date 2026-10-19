@@ -1,11 +1,12 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { Upload } from 'lucide-react';
+import { SlidersHorizontal, Upload } from 'lucide-react';
 import type React from 'react';
 import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { DropzoneInputProps, DropzoneRootProps } from 'react-dropzone';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { UploadExtractionModeSelect } from '@/components/documents/upload-extraction-mode-select';
 import type {
   ExtractionModeWord,
@@ -251,37 +252,66 @@ function DropzoneSettingsBar({
   stacked,
   label,
   hint,
+  collapseWhenNarrow,
+  settingsLabel,
   children,
 }: {
   stacked: boolean;
   label: string;
   hint: string;
+  /** Narrow, short bands tuck the controls behind one button instead of clipping. */
+  collapseWhenNarrow: boolean;
+  settingsLabel: string;
   children: ReactNode;
 }) {
+  const stop = {
+    onClick: (event: React.MouseEvent) => event.stopPropagation(),
+    onKeyDown: (event: React.KeyboardEvent) => event.stopPropagation(),
+  };
   return (
-    <div
-      className={cn(
-        'flex shrink-0 cursor-auto gap-2 overflow-hidden border-t border-border/70 bg-background px-3 py-2',
-        stacked
-          ? 'flex-col items-stretch'
-          : 'flex-row flex-wrap items-center',
-      )}
-      data-testid="upload-parser-vision-combo"
-      onClick={(event) => event.stopPropagation()}
-      onKeyDown={(event) => event.stopPropagation()}
-    >
-      <span className="shrink-0 text-xs font-medium text-muted-foreground" title={hint}>
-        {label}
-      </span>
+    <>
+      {collapseWhenNarrow ? (
+        <div
+          className={'flex shrink-0 border-t border-border/70 bg-background px-3 py-1.5 @[30rem]/dz:hidden'}
+          data-testid="upload-settings-popover-bar"
+          {...stop}
+        >
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button type="button" variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs" title={hint}>
+                <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+                {settingsLabel}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="flex w-72 flex-col gap-2 p-3" {...stop}>
+              <span className="text-xs font-medium text-muted-foreground">{label}</span>
+              {children}
+            </PopoverContent>
+          </Popover>
+        </div>
+      ) : null}
       <div
         className={cn(
-          'flex min-w-0 items-stretch gap-2',
-          stacked ? 'w-full flex-col' : 'flex-1 flex-wrap',
+          'flex shrink-0 cursor-auto gap-2 overflow-hidden border-t border-border/70 bg-background px-3 py-2',
+          stacked ? 'flex-col items-stretch' : 'flex-row flex-wrap items-center',
+          collapseWhenNarrow && '@max-[30rem]/dz:hidden',
         )}
+        data-testid="upload-parser-vision-combo"
+        {...stop}
       >
-        {children}
+        <span className="shrink-0 text-xs font-medium text-muted-foreground" title={hint}>
+          {label}
+        </span>
+        <div
+          className={cn(
+            'flex min-w-0 items-stretch gap-2',
+            stacked ? 'w-full flex-col' : 'flex-1 flex-wrap',
+          )}
+        >
+          {children}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -524,7 +554,7 @@ export function DocumentDropzone({
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
         fill
           ? cn(
-              'absolute inset-0 rounded-none border border-dashed',
+              'absolute inset-0 @container/dz rounded-none border border-dashed',
               fillIsRow
                 ? 'flex-row items-center gap-2 px-3 py-1.5'
                 : 'min-h-0 flex-col items-stretch justify-start gap-0 overflow-y-auto p-0',
@@ -608,7 +638,11 @@ export function DocumentDropzone({
             <div
               className={cn(
                 'flex w-full min-w-0 gap-3 px-3 py-2.5',
-                fillIsStack ? 'flex-col items-stretch' : 'items-center',
+                // Stack = narrow OR short-and-not-wide. From 18rem wide the invitation and
+                // its button share one line, so a short tools band is never clipped.
+                fillIsStack
+                  ? 'flex-col items-stretch @[18rem]/dz:flex-row @[18rem]/dz:items-center'
+                  : 'items-center',
               )}
             >
               <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -642,13 +676,15 @@ export function DocumentDropzone({
                 <ChooseFilesButton
                   label={t('documents.upload.chooseFiles', 'Choose files')}
                   onChoose={openFileDialog}
-                  className={fillIsStack ? 'w-full' : 'shrink-0'}
+                  className={fillIsStack ? 'w-full @[18rem]/dz:w-auto @[18rem]/dz:shrink-0' : 'shrink-0'}
                 />
               ) : null}
             </div>
           )}
           <DropzoneSettingsBar
             stacked={fillIsStack}
+            collapseWhenNarrow={!roomy}
+            settingsLabel={t('documents.upload.settings', 'Upload settings')}
             label={t('documents.upload.pdfParserFooter', 'PDF parser')}
             hint={t(
               'documents.upload.pdfParserHint',

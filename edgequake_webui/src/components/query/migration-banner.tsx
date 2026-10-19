@@ -7,19 +7,14 @@ import { AlertCircle, Loader2 } from "lucide-react";
 export function MigrationBanner() {
   const migration = useMigrateConversations();
 
-  if (migration.status === "complete" || migration.status === "pending") {
+  // "checking" resolves within the same tick (no legacy data) in the common case;
+  // rendering a banner for it would flash 37px and shift the whole panel (CLS).
+  if (
+    migration.status === "complete" ||
+    migration.status === "pending" ||
+    migration.status === "checking"
+  ) {
     return null;
-  }
-
-  if (migration.status === "checking") {
-    return (
-      <div className="bg-muted/50 border-b border-border px-4 py-2 flex items-center gap-2">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        <span className="text-sm">
-          Checking for conversations to migrate...
-        </span>
-      </div>
-    );
   }
 
   if (migration.status === "migrating") {

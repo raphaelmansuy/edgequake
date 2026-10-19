@@ -59,7 +59,7 @@ import { useGraphStore } from '@/stores/use-graph-store';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import type { GraphNode } from '@/types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ChevronLeft, ChevronRight, Filter, Loader2, Maximize2, Menu, MoreHorizontal, Network, PanelRightClose, RefreshCw, Table2, Upload, ZoomIn, ZoomOut } from 'lucide-react';
+import { AlertCircle, ChevronLeft, ChevronRight, Filter, Loader2, Maximize2, Menu, MoreHorizontal, Network, PanelRightClose, RefreshCw, Table2, Upload } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -619,20 +619,6 @@ export function GraphViewer() {
     }
   }, [error, lineageError, isDocumentScoped, setError]);
 
-  const handleZoomIn = () => {
-    if (sigmaInstance) {
-      const camera = sigmaInstance.getCamera();
-      camera.animatedZoom({ factor: 1.5 });
-    }
-  };
-
-  const handleZoomOut = () => {
-    if (sigmaInstance) {
-      const camera = sigmaInstance.getCamera();
-      camera.animatedUnzoom({ factor: 1.5 });
-    }
-  };
-
   const handleResetZoom = () => {
     if (sigmaInstance) {
       const camera = sigmaInstance.getCamera();
@@ -861,16 +847,6 @@ export function GraphViewer() {
                 <div className="w-px h-4 bg-border/60 mx-0.5" aria-hidden="true" />
                 <GraphSettingsPanel onSettingsChange={handleSettingsChange} />
                 <div data-tour="keyboard-help"><KeyboardShortcutsHelp /></div>
-                <div className="w-px h-4 bg-border/60 mx-0.5" aria-hidden="true" />
-                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={handleZoomIn} title="Zoom in">
-                  <ZoomIn className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={handleZoomOut} title="Zoom out">
-                  <ZoomOut className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={handleResetZoom} title="Fit to screen">
-                  <Maximize2 className="h-4 w-4" />
-                </Button>
               </>
             )}
 
@@ -1041,13 +1017,16 @@ export function GraphViewer() {
                 data-tour="graph-overlay-left"
               >
                 <GraphControls />
-                <div className="graph-overlay-surface w-48 px-3 py-2.5">
-                  <EgoDepthSlider />
-                </div>
+                {/* Tablet/phone: the depth card only earns its space once a node is selected. */}
+                {(!isSmallScreen || selectedNodeId) && (
+                  <div className="graph-overlay-surface w-48 px-3 py-2.5">
+                    <EgoDepthSlider />
+                  </div>
+                )}
                 <GraphTourTrigger />
                 {!isMobile && filteredNodes.length > 0 && (
                   <>
-                    <GraphMinimap width={140} height={100} />
+                    {!isSmallScreen && <GraphMinimap width={140} height={100} />}
                     <TimeFilter collapsed />
                     <BookmarksPanel collapsed />
                   </>
@@ -1105,7 +1084,7 @@ export function GraphViewer() {
                 className="text-xs text-muted-foreground font-medium"
                 style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
               >
-                Details
+                Details & filters
               </span>
             </div>
           </div>

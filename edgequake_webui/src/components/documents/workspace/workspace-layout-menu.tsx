@@ -42,16 +42,14 @@ export function WorkspaceLayoutMenu({
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
-          variant="outline"
-          size="sm"
-          className="h-8 gap-1.5"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          title={t("documents.layout.menu", "Layout")}
           data-testid="workspace-layout-menu"
           aria-label={t("documents.layout.menu", "Layout")}
         >
-          <LayoutDashboard className="h-3.5 w-3.5" aria-hidden="true" />
-          <span className="hidden sm:inline">
-            {t("documents.layout.menu", "Layout")}
-          </span>
+          <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

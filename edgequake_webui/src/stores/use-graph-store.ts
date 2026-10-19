@@ -259,7 +259,7 @@ const initialState: GraphState = {
   hoveredNodeId: null,
   selectedNodes: new Set(),
   showNodeDetails: true,
-  rightPanelCollapsed: false,
+  rightPanelCollapsed: true, // canvas-first: opens on node select (graph-viewer)
   visibleEntityTypes: new Set(),
   visibleRelationshipTypes: new Set(),
   searchQuery: "",

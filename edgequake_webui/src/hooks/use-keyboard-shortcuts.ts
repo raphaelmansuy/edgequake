@@ -2,8 +2,18 @@
 
 /**
  * @module use-keyboard-shortcuts
- * @description Hook for keyboard shortcut management.
- * Provides global keyboard navigation and accessibility.
+ * @description Global keyboard layer (SPEC-168).
+ *
+ * Bindings (see `lib/keyboard/catalog.ts` for the truthful, rendered list):
+ * - ⌘/Ctrl + K  toggle the command palette (works from inputs)
+ * - ?           open the shortcut help
+ * - [           collapse / expand the sidebar
+ * - g then <x>  go to a destination (`lib/keyboard/destinations.ts`)
+ *
+ * WHY chords instead of ⌘G/⌘D: those combos are reserved by browsers
+ * (find-next, bookmark) and never reached the page. Two-key sequences work in
+ * every browser and do not collide with typing because they are suppressed in
+ * editable controls and while a dialog/menu is open.
  *
  * @implements FEAT0630 - Keyboard shortcut system
  * @implements FEAT0631 - Shortcut help modal
@@ -13,201 +23,115 @@
  * @enforces BR0620 - Shortcuts visible in help dialog
  */
 
+import { CHORD_TIMEOUT_MS, createChordTracker } from "@/lib/keyboard/chords";
+import { destinationForChord } from "@/lib/keyboard/destinations";
+import { isEditableTarget, isOverlayOpen } from "@/lib/keyboard/dom";
+import { toggleNavigation } from "@/lib/keyboard/nav-drawer";
+import { createReturnFocus } from "@/lib/keyboard/return-focus";
+import { useSettingsStore } from "@/stores/use-settings-store";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-export interface ShortcutDefinition {
-  key: string;
-  label: string;
-  description: string;
-  modifiers?: ("meta" | "ctrl" | "shift" | "alt")[];
+const MODIFIER_KEYS = new Set(["Shift", "Control", "Alt", "Meta", "CapsLock"]);
+
+function hasCommandModifier(e: KeyboardEvent): boolean {
+  return e.metaKey || e.ctrlKey || e.altKey;
 }
 
-/**
- * Comprehensive list of all keyboard shortcuts in EdgeQuake WebUI
- */
-export const KEYBOARD_SHORTCUTS: ShortcutDefinition[] = [
-  {
-    key: "g",
-    label: "⌘/Ctrl + G",
-    description: "Go to Knowledge Graph",
-    modifiers: ["meta"],
-  },
-  {
-    key: "d",
-    label: "⌘/Ctrl + D",
-    description: "Go to Documents",
-    modifiers: ["meta"],
-  },
-  {
-    key: "Q",
-    label: "⌘/Ctrl + Shift + Q",
-    description: "Go to Query",
-    modifiers: ["meta", "shift"],
-  },
-  {
-    key: ",",
-    label: "⌘/Ctrl + ,",
-    description: "Go to Settings",
-    modifiers: ["meta"],
-  },
-  {
-    key: "k",
-    label: "⌘/Ctrl + K",
-    description: "Open search/command palette",
-    modifiers: ["meta"],
-  },
-  {
-    key: "/",
-    label: "⌘/Ctrl + /",
-    description: "Show keyboard shortcuts",
-    modifiers: ["meta"],
-  },
-  {
-    key: "n",
-    label: "⌘/Ctrl + N",
-    description: "New conversation",
-    modifiers: ["meta"],
-  },
-  {
-    key: "h",
-    label: "⌘/Ctrl + H",
-    description: "Toggle history panel",
-    modifiers: ["meta"],
-  },
-  {
-    key: "e",
-    label: "⌘/Ctrl + E",
-    description: "Export conversation",
-    modifiers: ["meta"],
-  },
-  { key: "?", label: "?", description: "Show keyboard shortcuts help" },
-  { key: "Escape", label: "Esc", description: "Close dialogs and modals" },
-];
-
-interface UseKeyboardShortcutsOptions {
-  onHelpOpen?: () => void;
-  onSearchOpen?: () => void;
-  onNewConversation?: () => void;
-  onToggleHistory?: () => void;
-  onExport?: () => void;
-}
-
-/**
- * Global keyboard shortcuts for EdgeQuake WebUI
- *
- * Shortcuts:
- * - Cmd/Ctrl + K: Open command palette / search
- * - Cmd/Ctrl + /: Show keyboard shortcuts
- * - Cmd/Ctrl + G: Go to Graph
- * - Cmd/Ctrl + D: Go to Documents
- * - Cmd/Ctrl + Shift + Q: Go to Query
- * - Cmd/Ctrl + ,: Go to Settings
- * - ?: Show keyboard shortcuts help
- * - Escape: Close modals/dialogs
- */
-export function useKeyboardShortcuts(
-  options: UseKeyboardShortcutsOptions = {}
-) {
+export function useKeyboardShortcuts() {
   const router = useRouter();
+  const toggleSidebar = useSettingsStore((s) => s.toggleSidebar);
   const [helpOpen, setHelpOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [chordArmed, setChordArmed] = useState(false);
+  const tracker = useRef(createChordTracker());
+  const disarmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [returnFocus] = useState(createReturnFocus);
 
   const openHelp = useCallback(() => {
+    returnFocus.remember();
     setHelpOpen(true);
-    options.onHelpOpen?.();
-  }, [options]);
-
-  const closeHelp = useCallback(() => {
-    setHelpOpen(false);
-  }, []);
-
+  }, [returnFocus]);
+  const closeHelp = useCallback(() => setHelpOpen(false), []);
   const openSearch = useCallback(() => {
+    returnFocus.remember();
     setSearchOpen(true);
-    options.onSearchOpen?.();
-  }, [options]);
+  }, [returnFocus]);
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
 
-  const closeSearch = useCallback(() => {
-    setSearchOpen(false);
+  const disarm = useCallback(() => {
+    tracker.current.reset();
+    if (disarmTimer.current) clearTimeout(disarmTimer.current);
+    disarmTimer.current = null;
+    setChordArmed(false);
   }, []);
 
   useEffect(() => {
+    const onChord = (e: KeyboardEvent): boolean => {
+      const outcome = tracker.current.press(e.key, e.timeStamp);
+      if (outcome.kind === "armed") {
+        setChordArmed(true);
+        disarmTimer.current = setTimeout(disarm, CHORD_TIMEOUT_MS);
+        return true;
+      }
+      if (outcome.kind === "complete") {
+        disarm();
+        const dest = destinationForChord(outcome.key);
+        if (dest) {
+          e.preventDefault();
+          router.push(dest.href);
+          return true;
+        }
+      }
+      return false;
+    };
+
     const handler = (e: KeyboardEvent) => {
-      // Skip if user is typing in an input (except for Escape)
-      const target = e.target as HTMLElement;
-      const isInputting =
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable;
+      if (e.defaultPrevented || e.isComposing) return;
+      if (MODIFIER_KEYS.has(e.key)) return; // pressing Shift mid-chord must not cancel it
 
-      // Escape always works
-      if (e.key === "Escape") {
-        setHelpOpen(false);
-        setSearchOpen(false);
-        return;
-      }
-
-      const isMeta = e.metaKey || e.ctrlKey;
-      const key = e.key.toLowerCase();
-
-      // Cmd/Ctrl + K opens the palette even from inputs (LAW-155-6).
-      if (isMeta && key === "k") {
+      // ⌘/Ctrl + K — toggles the palette, even from inside inputs.
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        openSearch();
+        disarm();
+        returnFocus.remember();
+        setSearchOpen((open) => !open);
         return;
       }
 
-      // Skip other shortcuts if user is typing
-      if (isInputting) {
+      // Everything below is a bare key: never while typing, never over a modal.
+      if (hasCommandModifier(e) || e.repeat) return;
+      if (isEditableTarget(e.target) || isOverlayOpen()) {
+        if (tracker.current.armed) disarm();
         return;
       }
 
-      // ? key: Show help
-      if (e.key === "?" && !isMeta) {
+      if (e.key === "?") {
         e.preventDefault();
-        openHelp();
+        disarm();
+        returnFocus.remember();
+        setHelpOpen(true);
         return;
       }
 
-      // Cmd/Ctrl + /: Show help
-      if (isMeta && key === "/") {
+      if (e.key === "[") {
         e.preventDefault();
-        openHelp();
+        disarm();
+        toggleNavigation(toggleSidebar);
         return;
       }
 
-      // Cmd/Ctrl + G: Go to Graph
-      if (isMeta && key === "g") {
-        e.preventDefault();
-        router.push("/graph");
-        return;
-      }
-
-      // Cmd/Ctrl + D: Go to Documents
-      if (isMeta && key === "d") {
-        e.preventDefault();
-        router.push("/documents");
-        return;
-      }
-
-      // Cmd/Ctrl + Shift + Q: Go to Query (use Shift to avoid quit conflict)
-      if (isMeta && e.shiftKey && key === "q") {
-        e.preventDefault();
-        router.push("/query");
-        return;
-      }
-
-      // Cmd/Ctrl + ,: Go to Settings
-      if (isMeta && e.key === ",") {
-        e.preventDefault();
-        router.push("/settings");
-        return;
-      }
+      if (e.key.length === 1 && onChord(e)) return;
+      if (tracker.current.armed) disarm();
     };
 
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [router, openHelp, openSearch]);
+    return () => {
+      window.removeEventListener("keydown", handler);
+      if (disarmTimer.current) clearTimeout(disarmTimer.current);
+    };
+  }, [router, toggleSidebar, disarm, returnFocus]);
 
   return {
     helpOpen,
@@ -218,6 +142,7 @@ export function useKeyboardShortcuts(
     setSearchOpen,
     openSearch,
     closeSearch,
-    shortcuts: KEYBOARD_SHORTCUTS,
+    chordArmed,
+    onCloseAutoFocus: returnFocus.restore,
   };
 }

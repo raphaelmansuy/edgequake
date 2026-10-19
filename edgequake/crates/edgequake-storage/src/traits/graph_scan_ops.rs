@@ -361,6 +361,18 @@ pub trait GraphScanOps: Send + Sync {
         limit: usize,
     ) -> Result<KeysetPage<GraphEdge>>;
 
+    /// Exact community / entity-type / relationship-type counts for one scope.
+    ///
+    /// Covers the whole scope, not a prefix. The default sweeps with the keyset
+    /// scans; backends that can aggregate server-side should override it.
+    async fn facet_counts(
+        &self,
+        nodes: &NodeListFilter,
+        edges: &EdgeListFilter,
+    ) -> Result<super::graph_facets::GraphFacetCounts> {
+        super::graph_facets::facet_counts_by_scan(self, nodes, edges).await
+    }
+
     /// Find nodes whose source_ids reference any of the given prefixes.
     async fn find_nodes_by_source_prefixes(
         &self,

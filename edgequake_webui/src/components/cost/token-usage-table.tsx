@@ -111,7 +111,7 @@ export function TokenUsageTable({
   return (
     <Card className={className}>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2">
           <Hash className="h-4 w-4" />
           Token Usage Details
         </CardTitle>

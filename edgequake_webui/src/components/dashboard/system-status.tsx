@@ -22,6 +22,9 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 
+/** One footprint for loading / healthy / degraded so the slot never resizes (CLS). */
+const STATUS_SLOT = 'flex h-9 min-w-[13.5rem] items-center gap-2 rounded-lg border px-3 text-xs';
+
 export function SystemStatus() {
   const { t } = useTranslation();
 
@@ -51,7 +54,7 @@ export function SystemStatus() {
   // load; a transient missing response must not expand into a warning card.
   if ((isReadinessLoading && !state) || (state === 'ready' && isHealthLoading)) {
     return (
-      <div className="flex items-center gap-2 px-4 py-2 rounded-lg border bg-muted/20 text-sm text-muted-foreground">
+      <div className={`${STATUS_SLOT} bg-muted/20 text-muted-foreground`} aria-busy="true">
         <Skeleton className="h-3.5 w-3.5 rounded-full" />
         <Skeleton className="h-3.5 w-24" />
       </div>
@@ -74,7 +77,7 @@ export function SystemStatus() {
   if (allHealthy) {
     return (
       <div
-        className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-muted/20 text-xs text-muted-foreground"
+        className={`${STATUS_SLOT} bg-muted/20 text-muted-foreground`}
         role="status"
         aria-label={t('dashboard.system.healthy', 'All systems operational')}
       >
@@ -100,7 +103,7 @@ export function SystemStatus() {
 
   return (
     <div
-      className="flex h-9 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/50 px-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-100"
+      className={`${STATUS_SLOT} border-amber-200 bg-amber-50/50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-100`}
       role="status"
       data-testid="dashboard-system-degraded"
     >

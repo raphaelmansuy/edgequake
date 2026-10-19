@@ -461,6 +461,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
                     weight: rel.weight,
                     tenant_id: self.tenant_id.clone(),
                     workspace_id: self.workspace_id.clone(),
+                    source_chunk_ids: rel.all_source_chunk_ids(),
                 }
             })
             .collect();

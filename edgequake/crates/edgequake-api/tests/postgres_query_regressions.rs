@@ -185,6 +185,7 @@ async fn relationship_batches_reject_mixed_scopes_and_invalid_scope_ids() {
             weight: 1.0,
             tenant_id: Some(tenant.to_string()),
             workspace_id: Some(workspace.to_string()),
+            source_chunk_ids: vec![],
         })
         .collect();
     assert!(matches!(
@@ -211,6 +212,7 @@ async fn relationship_batches_reject_mixed_scopes_and_invalid_scope_ids() {
         row.weight,
         row.tenant_id.as_deref(),
         row.workspace_id.as_deref(),
+        &row.source_chunk_ids,
     )
     .await
     .unwrap();

@@ -108,15 +108,19 @@ export function useStickToBottom(
 
   useEffect(() => {
     if (!shouldAutoScroll || userDetachedRef.current) return;
+    // Empty list = the hero state: show it from the top. Sticking to the bottom
+    // here clipped the hero's icon and title on short viewports (SPEC-168 Q-1).
+    const isEmptyList = Array.isArray(dependency) && dependency.length === 0;
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(() => {
-      scrollToBottom("auto");
+      if (isEmptyList) getViewport()?.scrollTo({ top: 0, behavior: "auto" });
+      else scrollToBottom("auto");
       rafRef.current = null;
     });
     return () => {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     };
-  }, [dependency, streamingState, shouldAutoScroll, scrollToBottom]);
+  }, [dependency, streamingState, shouldAutoScroll, scrollToBottom, getViewport]);
 
   return {
     scrollRef: scrollRef as RefObject<HTMLDivElement>,

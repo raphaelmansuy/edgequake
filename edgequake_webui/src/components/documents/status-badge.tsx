@@ -168,6 +168,16 @@ interface StatusBadgeProps {
   disableTooltip?: boolean;
 }
 
+/** Statuses whose label must stay visible even in compact cells. */
+const ALWAYS_LABELLED = new Set<string>([
+  'failed',
+  'delete_failed',
+  'partial_failure',
+  'cancelled',
+  'stopping',
+  'cancelling',
+]);
+
 export const StatusBadge = memo(function StatusBadge({ 
   status, 
   tooltip,
@@ -204,16 +214,17 @@ export const StatusBadge = memo(function StatusBadge({
       <Icon
         className={`h-3 w-3 shrink-0${spinIcon ? ' animate-spin' : pulseBadge ? ' motion-safe:animate-pulse' : ''}`}
       />
-      {/* Compact still shows terminal / cancel labels — icon-only is opaque. */}
-      {(!compact ||
-        status === 'failed' ||
-        status === 'delete_failed' ||
-        status === 'partial_failure' ||
-        status === 'cancelled' ||
-        status === 'stopping' ||
-        status === 'cancelling') && (
-        <span className="truncate">{label}</span>
-      )}
+      {/* Compact: terminal / cancel states always show their label; the rest show it
+          whenever the cell is wide enough (container query) — icon-only is opaque. */}
+      <span
+        className={
+          compact && !ALWAYS_LABELLED.has(status)
+            ? 'hidden truncate @[5rem]/status:inline'
+            : 'truncate'
+        }
+      >
+        {label}
+      </span>
     </Badge>
   );
 

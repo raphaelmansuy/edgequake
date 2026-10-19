@@ -79,6 +79,16 @@ async fn plain_graph_queries_are_proven_and_measured() {
     let tenant_b = Uuid::new_v4();
     let ws_a = Uuid::new_v4();
     let ws_b = Uuid::new_v4();
+    // Scoped graph reads confirm the tenant owns the workspace before they
+    // query (`plain::scan`), so the fixture registers both workspaces.
+    for (workspace, tenant) in [(ws_a, tenant_a), (ws_b, tenant_b)] {
+        sqlx::query("INSERT INTO public.workspaces (workspace_id, tenant_id) VALUES ($1, $2)")
+            .bind(workspace)
+            .bind(tenant)
+            .execute(&pool)
+            .await
+            .expect("register workspace");
+    }
     let config = PostgresConfig::new(host, port, &db, user, password)
         .with_namespace("spec164")
         .with_max_connections(4);
@@ -756,6 +766,12 @@ DO $$ BEGIN
     CREATE ROLE edgequake_tenant_access NOLOGIN;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+-- Only the columns the scope check reads; the real table is migration 001.
+CREATE TABLE IF NOT EXISTS public.workspaces (
+    workspace_id uuid PRIMARY KEY,
+    tenant_id    uuid NOT NULL,
+    is_active    boolean NOT NULL DEFAULT true
+);
 CREATE OR REPLACE FUNCTION public.current_tenant_id() RETURNS uuid
 LANGUAGE sql STABLE AS $$
     SELECT NULLIF(current_setting('app.current_tenant_id', true), '')::uuid

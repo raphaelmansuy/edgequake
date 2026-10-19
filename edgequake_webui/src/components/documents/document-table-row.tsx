@@ -215,23 +215,25 @@ export const DocumentTableRow = memo(function DocumentTableRow({
 
   // WHY: Visual distinction for document status
   const rowClassName = cn(
-    'cursor-pointer transition-colors duration-150 [&>td]:py-2.5',
-    'hover:bg-primary/5 dark:hover:bg-primary/10',
+    'cursor-pointer transition-colors duration-150 [&>td]:py-1.5',
+    'bg-background hover:bg-muted/40',
     isActive && 'bg-primary/10 dark:bg-primary/15 ring-1 ring-primary/20',
-    index % 2 === 0 ? 'bg-background' : 'bg-muted/20',
     // SPEC-048/155: background rows keep full text contrast (opacity-80 broke WCAG AA)
     isBackground && 'bg-muted/30',
     // SPEC-050: Dim row while deletion is in progress
     isDeleting && 'opacity-50 pointer-events-none',
+    // WHY: status markers are an inset shadow, not border-l-4. A left border on
+    // a collapsed-border table shifts the whole column grid ~2px, so the header
+    // (a separate table) would no longer line up with the rows.
     // SPEC-099 F-099-15: highlight via domain display status (covers delete_failed)
     displayStatus === 'failed' &&
-      'bg-red-50/50 dark:bg-red-950/20 border-l-4 border-l-red-500',
+      'bg-red-50/50 dark:bg-red-950/20 [&>td:first-child]:shadow-[inset_3px_0_0_var(--color-red-500)]',
     displayStatus === 'delete_failed' &&
-      'bg-rose-50/50 dark:bg-rose-950/20 border-l-4 border-l-rose-500',
+      'bg-rose-50/50 dark:bg-rose-950/20 [&>td:first-child]:shadow-[inset_3px_0_0_var(--color-rose-500)]',
     displayStatus === 'partial_failure' &&
-      'bg-orange-50/50 dark:bg-orange-950/20 border-l-4 border-l-orange-500',
+      'bg-orange-50/50 dark:bg-orange-950/20 [&>td:first-child]:shadow-[inset_3px_0_0_var(--color-orange-500)]',
     displayStatus === 'cancelled' &&
-      'bg-gray-50/50 dark:bg-gray-950/20 border-l-4 border-l-gray-400'
+      'bg-gray-50/50 dark:bg-gray-950/20 [&>td:first-child]:shadow-[inset_3px_0_0_var(--color-gray-400)]'
   );
 
   const { icon: FileIcon, color } = getFileTypeIcon(doc.file_name);
@@ -288,7 +290,7 @@ export const DocumentTableRow = memo(function DocumentTableRow({
       {/* Status Badge — SPEC-048: single RunView line (DEF-08) */}
       <TableCell className="overflow-hidden">
         <div className="flex min-w-0 flex-col gap-1">
-          <div className="min-w-0 max-w-full">
+          <div className="min-w-0 max-w-full @container/status">
             <EnhancedStatusBadge document={doc} compact />
           </div>
           {(() => {

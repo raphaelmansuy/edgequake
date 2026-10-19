@@ -38,7 +38,7 @@ export function PipelineProcessingDocumentsCard() {
   return (
     <Card data-testid="spec100-pipeline-active-docs">
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg flex min-w-0 flex-wrap items-center gap-2">
+        <CardTitle className="flex min-w-0 flex-wrap items-center gap-2">
           <FileText className="h-5 w-5" />
           Active Documents
           {activeCount > 0 && <Badge variant="secondary">{activeCount}</Badge>}

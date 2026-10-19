@@ -41,6 +41,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
+import { HeaderSearchTrigger } from './header-search-trigger';
 import { HeaderTenantSelector } from './header-tenant-selector';
 import { MobileSidebar } from './sidebar';
 
@@ -108,8 +109,8 @@ export function Header() {
           : t('header.apiCheckingHint', 'Checking connection...');
 
   return (
-    <header className="flex h-12 min-w-0 items-center justify-between gap-2 overflow-hidden border-b bg-card/95 backdrop-blur-sm px-3 shrink-0">
-      <div className="flex min-w-0 flex-1 items-center gap-3">
+    <header className="flex h-12 min-w-0 items-center gap-2 overflow-hidden border-b bg-card/95 backdrop-blur-sm px-3 shrink-0">
+      <div className="flex min-w-0 items-center gap-3">
         <MobileSidebar />
         <span className="text-base font-semibold md:hidden" aria-hidden="true">
           EdgeQuake
@@ -122,11 +123,15 @@ export function Header() {
         </div>
       </div>
 
+      <div className="flex min-w-0 flex-1 justify-end lg:justify-center">
+        <HeaderSearchTrigger />
+      </div>
+
       <div className="flex shrink-0 items-center gap-1">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="px-2 py-1 rounded-md hover:bg-muted/50 transition-colors">
+              <div className="min-w-[8.5rem] rounded-md px-2 py-1 transition-colors hover:bg-muted/50">
                 <ConnectionIndicator state={connectionState} label={connectionLabel} />
               </div>
             </TooltipTrigger>

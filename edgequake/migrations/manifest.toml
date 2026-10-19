@@ -4,7 +4,7 @@
 
 schema_version = 1
 compat_serve_min = 149
-compat_serve_max = 207
+compat_serve_max = 212
 irreversible_drop = [125, 126, 131, 171]
 legacy_cutover_assert = 142
 
@@ -1503,3 +1503,38 @@ file = "207_age_lineage_discovery_rls.sql"
 phase = "expand"
 no_transaction = false
 lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 208
+file = "208_rls_initplan_predicates.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 209
+file = "209_graph_ordered_scope_indexes.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 210
+file = "210_graph_label_typo_search_rls.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 211
+file = "211_relationship_source_chunk_keys.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 212
+file = "212_relationship_source_chunk_keys_backfill.sql"
+phase = "data"
+no_transaction = false
+lock_class = "dml_batch"

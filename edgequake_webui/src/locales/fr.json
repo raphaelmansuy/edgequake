@@ -56,7 +56,13 @@
     "apiExplorer": "Explorateur API",
     "settings": "Paramètres",
     "pipeline": "Pipeline",
-    "home": "Dashboard"
+    "home": "Dashboard",
+    "groupKnowledge": "Connaissances",
+    "groupSystem": "Système",
+    "search": "Rechercher",
+    "expandSidebar": "Déplier la barre latérale",
+    "collapseSidebar": "Replier la barre latérale",
+    "openMenu": "Ouvrir le menu de navigation"
   },
   "dashboard": {
     "title": "Tableau de bord",
@@ -183,7 +189,8 @@
       "pdfParserVision": "Vision",
       "pdfParserEdgeParse": "EdgeParse",
       "pdfParserEdgeParseOcr": "EdgeParse + OCR",
-      "pdfParserAuto": "Auto"
+      "pdfParserAuto": "Auto",
+      "settings": "Paramètres d'import"
     },
     "duplicateDialog": {
       "titleSingle": "Document doublon détecté",
@@ -831,6 +838,13 @@
       "stopped": "Arrêté",
       "error": "Échec",
       "sourceCount": "{{count}} sources",
+      "stepSearch": "Recherche",
+      "stepRead": "Lecture",
+      "stepThink": "Réflexion",
+      "stepWrite": "Rédaction",
+      "stillWorking": "Toujours en cours…",
+      "slowHint": "Cela prend du temps — les grands modèles locaux peuvent avoir besoin d'un instant.",
+      "elapsed": "{{seconds}} s",
       "thinking": "Réflexion…"
     },
     "feedback": {
@@ -1103,6 +1117,14 @@
       "fallbackVision": "Fallback: Vision",
       "resolvesTo": "Resolves to {{value}}",
       "resolvesToAuto": "May use EdgeParse"
+    },
+    "sections": {
+      "label": "Sections des paramètres",
+      "general": "Général",
+      "models": "Modèles et fournisseurs",
+      "access": "Accès",
+      "observability": "Observabilité",
+      "data": "Données"
     }
   },
   "websocket": {
@@ -1399,14 +1421,27 @@
       "30d": "30 derniers jours",
       "90d": "90 derniers jours",
       "all": "Tout"
-    }
+    },
+    "trendAria": "Coût quotidien, {{count}} jours, total {{total}}"
   },
   "command": {
-    "placeholder": "Search pages and actions…",
-    "empty": "No results",
-    "navigate": "Navigate",
+    "title": "Palette de commandes",
+    "placeholder": "Rechercher pages, documents et actions…",
+    "empty": "Aucun résultat",
+    "navigate": "Aller à",
     "actions": "Actions",
-    "shortcuts": "Keyboard shortcuts"
+    "shortcuts": "Raccourcis clavier",
+    "documents": "Documents",
+    "searching": "Recherche de documents…",
+    "newConversation": "Nouvelle conversation",
+    "toggleSidebar": "Replier ou déplier la barre latérale",
+    "themeLight": "Passer au thème clair",
+    "themeDark": "Passer au thème sombre",
+    "themeSystem": "Utiliser le thème du système",
+    "hintNavigate": "naviguer",
+    "hintOpen": "ouvrir",
+    "hintClose": "fermer",
+    "openPalette": "Rechercher ou aller à…"
   },
   "theme": {
     "light": "Light theme",
@@ -1616,5 +1651,33 @@
       "warnings": "{{count}} avertissements",
       "pending": "Les chiffres apparaissent à la fin du traitement."
     }
+  },
+  "keyboard": {
+    "then": "puis",
+    "chordPrompt": "Aller à…",
+    "title": "Raccourcis clavier",
+    "subtitle": "Parcourez EdgeQuake sans quitter le clavier.",
+    "footer": "Les touches simples sont ignorées pendant la saisie ou quand une boîte de dialogue est ouverte.",
+    "sections": {
+      "navigation": "Aller à",
+      "global": "Partout",
+      "documents": "Documents",
+      "query": "Requête",
+      "graph": "Graphe de connaissances"
+    },
+    "palette": "Ouvrir la palette de commandes",
+    "help": "Afficher les raccourcis clavier",
+    "sidebar": "Replier ou déplier la barre latérale",
+    "escape": "Fermer la boîte de dialogue, le menu ou le panneau",
+    "docRefresh": "Actualiser la liste",
+    "docSelectAll": "Sélectionner tous les documents",
+    "queryFocus": "Placer le curseur dans la question",
+    "queryMention": "Limiter à un document",
+    "graphSearch": "Rechercher des nœuds",
+    "graphMove": "Passer d'un nœud connecté à l'autre",
+    "graphFocus": "Centrer le nœud sélectionné",
+    "graphDepth": "Profondeur du voisinage",
+    "graphZoom": "Zoom avant, arrière, réinitialiser",
+    "graphFullscreen": "Basculer en plein écran"
   }
 }

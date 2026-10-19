@@ -370,6 +370,19 @@ impl PostgresAGEGraphStorage {
         }
     }
 
+    /// Exact facet counts. Plain-graph reads aggregate in SQL; the legacy
+    /// layout keeps the generic keyset sweep.
+    pub(super) async fn pg_facet_counts(
+        &self,
+        nodes: &NodeListFilter,
+        edges: &EdgeListFilter,
+    ) -> Result<crate::traits::GraphFacetCounts> {
+        if self.plain_reads_ready().await? {
+            return super::plain::facets::facet_counts(self, nodes, edges).await;
+        }
+        crate::traits::facet_counts_by_scan(self, nodes, edges).await
+    }
+
     pub(super) async fn pg_scan_nodes_after(
         &self,
         filter: &NodeListFilter,

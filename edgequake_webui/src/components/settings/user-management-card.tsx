@@ -132,7 +132,7 @@ export function UserManagementCard() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <CardTitle className="text-base">User Management</CardTitle>
+            <CardTitle>User Management</CardTitle>
           </div>
           <Button
             size="sm"

@@ -106,13 +106,13 @@ async fn seed(pool: &PgPool) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
         q.build().execute(pool).await.unwrap();
     }
     sqlx::query("INSERT INTO chunks(id,document_id,workspace_id,tenant_id,chunk_index,content,metadata)
-        SELECT id,document_id,workspace_id,tenant_id,i,'fixture',jsonb_build_object('modality','print') FROM ann_vectors")
+        SELECT id,document_id,workspace_id,tenant_id,i,'fixture',jsonb_build_object('modality','print','legacy_chunk_key',document_id||'-chunk-'||i) FROM ann_vectors")
         .execute(pool).await.unwrap();
-    sqlx::query("INSERT INTO entities(id,name,entity_type,workspace_id,tenant_id,source_ids,metadata,sync_status)
-        SELECT id,'entity_'||i,'PERSON',workspace_id,tenant_id,ARRAY[document_id],jsonb_build_object('modality','print'),'synced' FROM ann_vectors")
+    sqlx::query("INSERT INTO entities(id,name,entity_type,workspace_id,tenant_id,source_chunk_ids,metadata,sync_status)
+        SELECT id,'entity_'||i,'PERSON',workspace_id,tenant_id,ARRAY[document_id||'-chunk-'||i],jsonb_build_object('modality','print'),'synced' FROM ann_vectors")
         .execute(pool).await.unwrap();
-    sqlx::query("INSERT INTO relationships(id,source_id,target_id,workspace_id,tenant_id,relation_type,source_chunk_ids)
-        SELECT id,id,id,workspace_id,tenant_id,'LINK',ARRAY[id] FROM ann_vectors")
+    sqlx::query("INSERT INTO relationships(id,source_id,target_id,workspace_id,tenant_id,relation_type,source_chunk_keys)
+        SELECT id,id,id,workspace_id,tenant_id,'LINK',ARRAY[document_id||'-chunk-'||i] FROM ann_vectors")
         .execute(pool).await.unwrap();
     let model: Uuid = sqlx::query_scalar(
         "INSERT INTO embedding_models(name,dimensions) VALUES($1,32) RETURNING id",
@@ -292,9 +292,9 @@ async fn relationship_document_scope_resolves_chunks_once_under_rls() {
     let mut req = request(workspace, 0);
     req.tenant_id = Some(TenantId::new(tenant));
     req.document_ids = Some(vec![document]);
-    // A relationship can have missing chunk references alongside a valid one.
-    sqlx::query("UPDATE relationships SET source_chunk_ids = source_chunk_ids || ARRAY[$1::uuid] WHERE workspace_id=$2")
-        .bind(Uuid::new_v4()).bind(workspace).execute(&pool).await.unwrap();
+    // A relationship can have chunk keys that match no chunk alongside a valid one.
+    sqlx::query("UPDATE relationships SET source_chunk_keys = source_chunk_keys || ARRAY[$1] WHERE workspace_id=$2")
+        .bind(format!("{}-chunk-missing", Uuid::new_v4())).bind(workspace).execute(&pool).await.unwrap();
     let hits = fleet
         .search(EmbeddingFamily::Relationship, &req)
         .await
@@ -361,7 +361,7 @@ async fn relationship_document_scope_resolves_chunks_once_under_rls() {
             .len(),
         TOP_K
     );
-    sqlx::query("UPDATE relationships SET source_chunk_ids=NULL WHERE workspace_id=$1")
+    sqlx::query("UPDATE relationships SET source_chunk_keys=NULL WHERE workspace_id=$1")
         .bind(workspace)
         .execute(&pool)
         .await

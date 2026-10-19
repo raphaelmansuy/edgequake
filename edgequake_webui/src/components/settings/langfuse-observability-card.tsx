@@ -84,7 +84,7 @@ export function LangfuseObservabilityCard() {
     <Card data-testid="langfuse-settings-card" data-id="langfuse-settings-card">
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
         <div>
-          <CardTitle className="text-base">Langfuse Observability</CardTitle>
+          <CardTitle>Langfuse Observability</CardTitle>
           <CardDescription>
             Optional LLM tracing. Cloud and Langfuse ≥ 3.22 use OTLP/HTTP; 3.1.x
             falls back to native ingestion. Secrets stay in environment variables.

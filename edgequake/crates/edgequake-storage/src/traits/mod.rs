@@ -25,6 +25,7 @@
 mod embedder;
 mod graph;
 mod graph_analytics_ops;
+pub(crate) mod graph_facets;
 mod graph_isp;
 mod graph_mutate_ops;
 mod graph_read_ops;
@@ -47,6 +48,7 @@ pub use domain::{
 pub use embedder::TextEmbedder;
 pub use graph::{GraphEdge, GraphNode, GraphStorage, KnowledgeGraph};
 pub use graph_analytics_ops::GraphStorageAnalyticsOps;
+pub use graph_facets::{facet_counts_by_scan, GraphFacetCounts};
 pub use graph_isp::{GraphStorageAnalyticsCap, GraphStorageMutator, GraphStorageReader};
 pub use graph_mutate_ops::{GraphPropertyWriteMode, GraphStorageMutateOps};
 pub use graph_read_ops::GraphStorageReadOps;

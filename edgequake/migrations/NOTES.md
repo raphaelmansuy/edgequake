@@ -58,10 +58,10 @@ NNN_descriptive_name.sql
   descriptive_name: snake_case, describes what changed
 ```
 
-Current max: `207_age_lineage_discovery_rls.sql` (AGE lineage lookup under row security). 
+Current max: `212_relationship_source_chunk_keys_backfill.sql` (fills `relationships.source_chunk_keys` from graph edge lineage; idempotent, staged through ANALYZEd temp tables). `211_relationship_source_chunk_keys.sql` adds the column the merger now writes. `210_graph_label_typo_search_rls.sql` runs typo label search as an owner function. `209_graph_ordered_scope_indexes.sql` serves graph list pages in index order. `208_rls_initplan_predicates.sql` rewrites policy text so `current_tenant_id()`, `current_workspace_id()` and `current_user_id()` run once per statement; new policies must write `(SELECT current_tenant_id())`.
 `170_spec164_plain_graph.sql` is expand-only (no serving_floor) so a v0.34 binary can still serve schema 170.  
 `171` drops Apache AGE only when `edgequake migrate --drop-age` is passed. A migrate that is not told to drop it leaves the extension installed.  
-`172`–`204`, `206`, and `207` add request-path indexes or lookups and do not raise the serving floor.  
+`172`–`204`, `206`, `207`, `208`, `209`, `210`, `211`, and `212` add request-path indexes or lookups and do not raise the serving floor.  
 `205` drops empty `ag_catalog` after the extension is gone. While Apache AGE is installed it records a no-op so `206` can still apply.
 The ledger sqlx reads is `public._sqlx_migrations`. `edgequake migrate` folds stray copies (from `ag_catalog` or schema `edgequake`) back into `public` before it applies anything.
 

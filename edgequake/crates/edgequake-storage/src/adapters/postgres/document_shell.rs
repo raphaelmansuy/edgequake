@@ -30,6 +30,38 @@ pub enum ShellKind {
     StagingContent,
 }
 
+impl ShellKind {
+    /// Whether this key family reads `documents.content` (the full document
+    /// text, up to hundreds of KB). Metadata-only reads must not drag it over
+    /// the wire: a 100-row document-list page otherwise ships ~10 MB of TOAST.
+    pub const fn needs_content(self) -> bool {
+        matches!(self, ShellKind::Content | ShellKind::StagingContent)
+    }
+}
+
+/// Shell projection `(metadata, content, _shell marker)`; `content` is only
+/// materialised (and de-TOASTed) when `with_content` is true.
+const fn shell_single_sql(with_content: bool) -> &'static str {
+    if with_content {
+        "SELECT metadata, NULLIF(content, ''), metadata->>'_shell' \
+         FROM public.documents WHERE id = $1"
+    } else {
+        "SELECT metadata, NULL::text, metadata->>'_shell' \
+         FROM public.documents WHERE id = $1"
+    }
+}
+
+/// Batch variant of [`shell_single_sql`] keyed by `id = ANY($1)`.
+const fn shell_batch_sql(with_content: bool) -> &'static str {
+    if with_content {
+        "SELECT id, metadata, NULLIF(content, ''), metadata->>'_shell' \
+         FROM public.documents WHERE id = ANY($1)"
+    } else {
+        "SELECT id, metadata, NULL::text, metadata->>'_shell' \
+         FROM public.documents WHERE id = ANY($1)"
+    }
+}
+
 /// Parse a shell key into (kind, document uuid). Non-UUID or non-shell keys
 /// return `None` (caller keeps the plain KV path).
 pub fn parse_shell_key(key: &str) -> Option<(ShellKind, Uuid)> {
@@ -86,14 +118,12 @@ pub async fn shell_value_by_key(pool: &PgPool, key: &str) -> Result<Option<Value
     let Some((kind, doc)) = parse_shell_key(key) else {
         return Ok(None);
     };
-    let row: Option<(Option<Value>, Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT metadata, NULLIF(content, ''), metadata->>'_shell' \
-         FROM public.documents WHERE id = $1",
-    )
-    .bind(doc)
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| StorageError::Database(format!("document shell read failed: {e}")))?;
+    let row: Option<(Option<Value>, Option<String>, Option<String>)> =
+        sqlx::query_as(shell_single_sql(kind.needs_content()))
+            .bind(doc)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("document shell read failed: {e}")))?;
 
     let Some((metadata, content, shell)) = row else {
         return Ok(None);
@@ -130,14 +160,14 @@ pub async fn shell_values_ordered(
     }
 
     let uuids: Vec<Uuid> = shell_idx.iter().map(|&i| parsed[i].unwrap().1).collect();
-    let rows: Vec<ShellIdRow> = sqlx::query_as(
-        "SELECT id, metadata, NULLIF(content, ''), metadata->>'_shell' \
-         FROM public.documents WHERE id = ANY($1)",
-    )
-    .bind(&uuids)
-    .fetch_all(pool)
-    .await
-    .map_err(|e| StorageError::Database(format!("document shell batch read failed: {e}")))?;
+    let with_content = shell_idx
+        .iter()
+        .any(|&i| parsed[i].is_some_and(|(kind, _)| kind.needs_content()));
+    let rows: Vec<ShellIdRow> = sqlx::query_as(shell_batch_sql(with_content))
+        .bind(&uuids)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| StorageError::Database(format!("document shell batch read failed: {e}")))?;
 
     let map: std::collections::HashMap<Uuid, ShellRow> = rows
         .into_iter()
@@ -535,6 +565,28 @@ mod tests {
             legacy_content_value("hello".into()),
             json!({"content": "hello"})
         );
+    }
+
+    #[test]
+    fn only_content_families_read_the_content_column() {
+        assert!(!ShellKind::Metadata.needs_content());
+        assert!(!ShellKind::StagingMetadata.needs_content());
+        assert!(ShellKind::Content.needs_content());
+        assert!(ShellKind::StagingContent.needs_content());
+    }
+
+    #[test]
+    fn metadata_only_reads_never_project_content() {
+        for sql in [shell_single_sql(false), shell_batch_sql(false)] {
+            assert!(
+                !sql.contains("content,"),
+                "must not de-TOAST content: {sql}"
+            );
+            assert!(sql.contains("NULL::text"), "keeps the row shape: {sql}");
+        }
+        for sql in [shell_single_sql(true), shell_batch_sql(true)] {
+            assert!(sql.contains("NULLIF(content, '')"), "{sql}");
+        }
     }
 
     // SPEC-129: vocabulary matrix lives in `documents_column_status` unit tests.
