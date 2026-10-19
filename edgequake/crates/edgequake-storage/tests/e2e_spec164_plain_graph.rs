@@ -47,6 +47,8 @@ async fn plain_graph_queries_are_proven_and_measured() {
         .await
         .expect("create database");
     admin_pool.close().await;
+    // A panic before the success-path drop used to leave this database behind.
+    let _drop_scratch = DropScratchDb::arm(&admin, &db);
 
     let url = replace_db(&admin, &db);
     let pool = PgPoolOptions::new()
@@ -654,10 +656,58 @@ async fn plain_graph_queries_are_proven_and_measured() {
         .connect(&admin)
         .await
         .expect("admin reconnect");
-    sqlx::query(&format!("DROP DATABASE {db}"))
+    sqlx::query(&format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)"))
         .execute(&admin_pool)
         .await
         .ok();
+}
+
+/// Drops a `spec164*` throwaway database when the test ends, including on panic.
+struct DropScratchDb {
+    admin: String,
+    name: String,
+}
+
+impl DropScratchDb {
+    fn arm(admin: &str, name: &str) -> Self {
+        assert!(
+            name.starts_with("spec164"),
+            "refusing to arm a drop of `{name}`"
+        );
+        Self {
+            admin: admin.to_string(),
+            name: name.to_string(),
+        }
+    }
+}
+
+impl Drop for DropScratchDb {
+    fn drop(&mut self) {
+        let admin = self.admin.clone();
+        let name = self.name.replace('"', "\"\"");
+        // A fresh thread, so this still runs while the test runtime is panicking.
+        let _ = std::thread::spawn(move || {
+            let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            else {
+                return;
+            };
+            runtime.block_on(async move {
+                let Ok(admin_pool) = PgPoolOptions::new()
+                    .max_connections(1)
+                    .connect(&admin)
+                    .await
+                else {
+                    return;
+                };
+                let _ = sqlx::query(&format!("DROP DATABASE IF EXISTS \"{name}\" WITH (FORCE)"))
+                    .execute(&admin_pool)
+                    .await;
+            });
+        })
+        .join();
+    }
 }
 
 fn node(

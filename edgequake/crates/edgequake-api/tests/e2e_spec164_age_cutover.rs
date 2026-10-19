@@ -29,7 +29,7 @@ async fn age_cutover_proves_mirror_shadow_ledger_flip_and_confirm_drop() {
         return;
     }
     let db = format!("spec164age_{}", &Uuid::new_v4().simple().to_string()[..12]);
-    let url = provision(&admin, &db).await;
+    let (url, _drop_scratch) = provision(&admin, &db).await;
     let pool = PgPoolOptions::new()
         .max_connections(2)
         .connect(&url)
@@ -324,7 +324,7 @@ async fn full_train_through_171_on_fresh_database() {
         "spec164train_{}",
         &Uuid::new_v4().simple().to_string()[..12]
     );
-    let url = provision(&admin, &db).await;
+    let (url, _drop_scratch) = provision(&admin, &db).await;
     let pool = PgPoolOptions::new()
         .max_connections(2)
         .connect(&url)
@@ -540,7 +540,7 @@ async fn fresh_install_serves_on_postgres_without_age() {
     }
 
     let db = format!("spec164rds_{}", &Uuid::new_v4().simple().to_string()[..12]);
-    let url = provision(&admin, &db).await;
+    let (url, _drop_scratch) = provision(&admin, &db).await;
     let pool = PgPoolOptions::new()
         .max_connections(2)
         .connect(&url)
@@ -706,7 +706,7 @@ fn edge(
     (source.into(), target.into(), properties)
 }
 
-async fn provision(admin: &str, db: &str) -> String {
+async fn provision(admin: &str, db: &str) -> (String, DropScratchDb) {
     let admin_pool = PgPoolOptions::new()
         .max_connections(1)
         .connect(admin)
@@ -717,7 +717,55 @@ async fn provision(admin: &str, db: &str) -> String {
         .await
         .expect("create database");
     admin_pool.close().await;
-    replace_db(admin, db)
+    (replace_db(admin, db), DropScratchDb::arm(admin, db))
+}
+
+/// Drops a `spec164*` throwaway database when the test ends, including on panic.
+struct DropScratchDb {
+    admin: String,
+    name: String,
+}
+
+impl DropScratchDb {
+    fn arm(admin: &str, name: &str) -> Self {
+        assert!(
+            name.starts_with("spec164"),
+            "refusing to arm a drop of `{name}`"
+        );
+        Self {
+            admin: admin.to_string(),
+            name: name.to_string(),
+        }
+    }
+}
+
+impl Drop for DropScratchDb {
+    fn drop(&mut self) {
+        let admin = self.admin.clone();
+        let name = self.name.replace('"', "\"\"");
+        // A fresh thread, so this still runs while the test runtime is panicking.
+        let _ = std::thread::spawn(move || {
+            let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            else {
+                return;
+            };
+            runtime.block_on(async move {
+                let Ok(admin_pool) = PgPoolOptions::new()
+                    .max_connections(1)
+                    .connect(&admin)
+                    .await
+                else {
+                    return;
+                };
+                let _ = sqlx::query(&format!("DROP DATABASE IF EXISTS \"{name}\" WITH (FORCE)"))
+                    .execute(&admin_pool)
+                    .await;
+            });
+        })
+        .join();
+    }
 }
 
 async fn drop_db(admin: &str, db: &str) {
@@ -732,7 +780,7 @@ async fn drop_db(admin: &str, db: &str) {
     .execute(&admin_pool)
     .await
     .ok();
-    sqlx::query(&format!("DROP DATABASE IF EXISTS {db}"))
+    sqlx::query(&format!("DROP DATABASE IF EXISTS {db} WITH (FORCE)"))
         .execute(&admin_pool)
         .await
         .ok();
