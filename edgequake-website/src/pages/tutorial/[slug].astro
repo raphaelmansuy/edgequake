@@ -23,15 +23,23 @@ const meta = TUTORIAL_CHAPTERS.find((c) => c.slug === slug);
   description={entry.data.description ??
     `EdgeQuake picture tour: ${entry.data.title}`}
 >
-  <article class="py-12 sm:py-16">
+  <article class="mkt-band">
     <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-      <nav class="text-sm mkt-text-dim mb-8 flex flex-wrap gap-x-3 gap-y-1">
-        <a href="/tutorial/" class="mkt-inline-link">Contents</a>
+      <nav
+        class="mb-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"
+        aria-label="Chapter navigation"
+      >
+        <a
+          href="/tutorial/"
+          class="inline-flex min-h-11 items-center mkt-inline-link"
+        >
+          Contents
+        </a>
         {
           prev && (
             <a
               href={`/tutorial/${prev.slug}/`}
-              class="hover:mkt-text transition-colors"
+              class="inline-flex min-h-11 items-center mkt-text-muted transition-colors hover:mkt-text"
             >
               ← {prev.title}
             </a>
@@ -41,7 +49,7 @@ const meta = TUTORIAL_CHAPTERS.find((c) => c.slug === slug);
           next && (
             <a
               href={`/tutorial/${next.slug}/`}
-              class="hover:mkt-text transition-colors"
+              class="inline-flex min-h-11 items-center mkt-text-muted transition-colors hover:mkt-text"
             >
               {next.title} →
             </a>
@@ -51,7 +59,7 @@ const meta = TUTORIAL_CHAPTERS.find((c) => c.slug === slug);
 
       {
         meta?.image && (
-          <figure class="mb-10 overflow-hidden rounded-xl border mkt-border">
+          <figure class="mb-10 overflow-hidden rounded-xl border mkt-border mkt-frame">
             <img
               src={`/tutorial/${meta.image}`}
               alt=""
@@ -68,12 +76,13 @@ const meta = TUTORIAL_CHAPTERS.find((c) => c.slug === slug);
 
       <nav
         class="mt-12 flex flex-wrap items-center justify-between gap-4 border-t mkt-border pt-8 text-sm"
+        aria-label="Previous and next chapter"
       >
         {
           prev ? (
             <a
               href={`/tutorial/${prev.slug}/`}
-              class="mkt-inline-link"
+              class="inline-flex min-h-11 items-center mkt-inline-link"
             >
               ← {prev.title}
             </a>
@@ -81,19 +90,25 @@ const meta = TUTORIAL_CHAPTERS.find((c) => c.slug === slug);
             <span />
           )
         }
-        <a href="/tutorial/" class="mkt-text-muted hover:mkt-text"
-          >All chapters</a
+        <a
+          href="/tutorial/"
+          class="inline-flex min-h-11 items-center mkt-text-muted transition-colors hover:mkt-text"
         >
+          All chapters
+        </a>
         {
           next ? (
             <a
               href={`/tutorial/${next.slug}/`}
-              class="mkt-inline-link"
+              class="inline-flex min-h-11 items-center mkt-inline-link"
             >
               {next.title} →
             </a>
           ) : (
-            <a href="/demo/" class="mkt-inline-link">
+            <a
+              href="/demo/"
+              class="inline-flex min-h-11 items-center mkt-inline-link"
+            >
               Try the demo →
             </a>
           )
@@ -108,15 +123,15 @@ const meta = TUTORIAL_CHAPTERS.find((c) => c.slug === slug);
     line-height: 1.7;
   }
   .tutorial-prose h1 {
-    font-family: var(--font-display, "Source Serif 4", Georgia, serif);
-    font-size: 2rem;
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 1.6rem + 1.5vw, 2.5rem);
     font-weight: 700;
     letter-spacing: -0.02em;
     margin-bottom: 1rem;
     color: var(--mkt-text);
   }
   .tutorial-prose h2 {
-    font-family: var(--font-display, "Source Serif 4", Georgia, serif);
+    font-family: var(--font-display);
     font-size: 1.35rem;
     font-weight: 600;
     margin-top: 2rem;

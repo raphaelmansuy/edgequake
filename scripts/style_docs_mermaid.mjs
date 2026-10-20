@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const theme = JSON.parse(readFileSync(join(root, "scripts", "mermaid-theme.json"), "utf8"));
-const MARK = "%% eq-theme:v1";
+const MARK = "%% eq-theme:v2";
 const CORE = ["primaryColor", "primaryBorderColor", "primaryTextColor", "secondaryColor", "secondaryBorderColor", "secondaryTextColor", "tertiaryColor", "tertiaryBorderColor", "tertiaryTextColor", "lineColor", "clusterBkg", "clusterBorder", "noteBkgColor", "noteTextColor", "textColor", "titleColor", "signalColor", "signalTextColor", "loopTextColor", "edgeLabelBackground", "actorLineColor"];
 const core = Object.fromEntries(CORE.map((k) => [k, theme.themeVariables[k]]));
 const header = `%%{init: ${JSON.stringify({ theme: theme.theme, themeVariables: core })}}%%\n${MARK}\n`;

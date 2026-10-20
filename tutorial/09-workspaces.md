@@ -12,7 +12,7 @@ The picture is the whole page, top to bottom. Read it in that order. The header 
 
 **Default Workspace** has an **Active** pill and the subtitle **Default knowledge base**. **Refresh** reloads the page. **Edit Configuration** opens the editor for the name and the model choices.
 
-Four cards repeat the Dashboard counts: **Documents 12**, **Entities 12642**, **Relationships 11382**, **Chunks 492**.
+Four cards repeat the Dashboard counts: **Documents 15**, **Entities 13200**, **Relationships 12023**, **Chunks 591**.
 
 ## Which model does what
 

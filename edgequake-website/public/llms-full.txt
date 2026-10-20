@@ -1,0 +1,51 @@
+# EdgeQuake — full brief for agents
+
+> Open-source Graph-RAG: Rust binary + PostgreSQL (pgvector; Apache AGE optional) + any LLM. Ingest PDFs and text, extract entities/relationships, retrieve with six modes, cite sources. License: Apache-2.0. Version pin: v0.36.0. Site: https://edgequake.com/ · Demo: https://demo.edgequake.com/ · Repo: https://github.com/raphaelmansuy/edgequake
+
+## What it is
+
+EdgeQuake turns documents into a knowledge graph and serves grounded answers. It is designed to ship: Docker images on GHCR, a Web UI, REST/OpenAPI, and MCP tools for agents. Workspaces are isolated (Postgres RLS). Auth includes invites, magic links, and OIDC/Keycloak SSO.
+
+## Retrieval modes
+
+naive, local, global, hybrid, mix, bypass — choose the mode that fits the question; do not assume one path for every query.
+
+## How to run
+
+Preferred install (Docker only):
+
+```
+curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/quickstart.sh | sh
+```
+
+Pin a release with `EDGEQUAKE_VERSION=0.36.0`. Web UI defaults to http://localhost:3000; API to http://localhost:8080 (`/swagger-ui`, `/health`).
+
+## Truthful claims (do not overstate)
+
+- Quality: medical-mid Acc on GraphRAG-Bench is statistically comparable to LightRAG Python when the CI includes zero — call it a tie, not a win. See https://edgequake.com/docs/comparisons/eq-vs-lightrag-acc-bench/
+- Stack: product images run without requiring Apache AGE; entities/relationships live in ordinary Postgres tables with pgvector.
+- PDF: vision + manuscript path for hard PDFs; side-by-side citations in the UI.
+
+## Surfaces agents should use
+
+| Surface | URL / entry |
+|---------|-------------|
+| Docs hub | https://edgequake.com/docs/ |
+| Quick start | https://edgequake.com/docs/getting-started/quick-start/ |
+| MCP | https://edgequake.com/docs/integrations/ |
+| API | https://edgequake.com/docs/api-reference/ |
+| Env / ops | https://edgequake.com/docs/operations/ |
+| Compact map | https://edgequake.com/llms.txt |
+
+## Human contact
+
+- Product/demo access and collaboration: LinkedIn https://www.linkedin.com/in/raphaelmansuy/
+- Email: contact@elitizon.com
+- Company: Elitizon https://elitizon.com
+- Contact page: https://edgequake.com/contact/
+
+## Indexing hints
+
+- Canonical site uses trailing slashes.
+- Sitemap: https://edgequake.com/sitemap-index.xml
+- robots.txt allows crawling; this file and llms.txt are intentional agent entry points.

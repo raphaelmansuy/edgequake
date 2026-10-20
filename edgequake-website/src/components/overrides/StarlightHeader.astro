@@ -5,27 +5,13 @@ import SiteTitle from "@astrojs/starlight/components/SiteTitle.astro";
 import SocialIcons from "@astrojs/starlight/components/SocialIcons.astro";
 import ThemeSelect from "@astrojs/starlight/components/ThemeSelect.astro";
 import config from "virtual:starlight/user-config";
+import { SITE_NAV, isActivePath } from "../../lib/nav";
 
 const pathname = Astro.url.pathname;
-const navLinks = [
-  { label: "Docs", href: "/docs/" },
-  { label: "Tutorial", href: "/tutorial/" },
-  { label: "Demo", href: "/demo/" },
-  { label: "Ecosystem", href: "/ecosystem/" },
-  { label: "Enterprise", href: "/enterprise/" },
-];
 
 const shouldRenderSearch =
   config.pagefind ||
   config.components.Search !== "@astrojs/starlight/components/Search.astro";
-
-const isActivePath = (href: string) => {
-  if (href === "/docs/") {
-    return pathname.startsWith("/docs/");
-  }
-
-  return pathname.startsWith(href);
-};
 ---
 
 <div class="header">
@@ -46,11 +32,11 @@ const isActivePath = (href: string) => {
     aria-label="Site navigation"
   >
     {
-      navLinks.map((link) => (
+      SITE_NAV.map((link) => (
         <a
           href={link.href}
           class="eq-docs-link"
-          aria-current={isActivePath(link.href) ? "page" : undefined}
+          aria-current={isActivePath(pathname, link) ? "page" : undefined}
         >
           {link.label}
         </a>
@@ -106,12 +92,17 @@ const isActivePath = (href: string) => {
     }
 
     .eq-docs-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2.75rem;
       color: var(--sl-color-gray-3);
       text-decoration: none;
       font-size: var(--sl-text-xs);
       line-height: 1;
-      padding: 0.45rem 0.7rem;
+      padding: 0.55rem 0.75rem;
       border-radius: 999px;
+      cursor: pointer;
       transition:
         color 0.15s ease,
         background-color 0.15s ease;

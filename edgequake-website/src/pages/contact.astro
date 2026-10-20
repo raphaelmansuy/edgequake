@@ -1,309 +1,205 @@
 ---
 import MarketingLayout from "../layouts/MarketingLayout.astro";
+import Icon from "../components/primitives/Icon.astro";
+import Section from "../components/primitives/Section.astro";
+import type { IconName } from "../components/data/icons";
+
+const channels: {
+  icon: IconName;
+  title: string;
+  href: string;
+  label: string;
+  external?: boolean;
+}[] = [
+  {
+    icon: "mail",
+    title: "Email",
+    href: "mailto:contact@elitizon.com",
+    label: "contact@elitizon.com",
+  },
+  {
+    icon: "users",
+    title: "LinkedIn",
+    href: "https://www.linkedin.com/in/raphaelmansuy/",
+    label: "Message Raphael Mansuy",
+    external: true,
+  },
+  {
+    icon: "share-2",
+    title: "GitHub",
+    href: "https://github.com/raphaelmansuy/edgequake/discussions",
+    label: "Open a Discussion",
+    external: true,
+  },
+  {
+    icon: "globe",
+    title: "Elitizon",
+    href: "https://elitizon.com",
+    label: "elitizon.com",
+    external: true,
+  },
+];
+
+const routes = [
+  {
+    href: "https://www.linkedin.com/in/raphaelmansuy/",
+    title: "Message Raphael on LinkedIn",
+    body: "Best for demo access, collaboration, and building on EdgeQuake with its creator.",
+    badge: "direct",
+    external: true,
+  },
+  {
+    href: "mailto:contact@elitizon.com?subject=EdgeQuake%20Inquiry",
+    title: "Email the team",
+    body: "Best for product questions, architecture reviews, and implementation support.",
+    badge: "mailto",
+  },
+  {
+    href: "https://github.com/raphaelmansuy/edgequake/discussions",
+    title: "Open a GitHub discussion",
+    body: "Best for community questions, feature ideas, and public technical conversations.",
+    badge: "community",
+    external: true,
+  },
+  {
+    href: "https://elitizon.com",
+    title: "Talk to Elitizon",
+    body: "Best for enterprise engagements, custom delivery, and partnership discussions.",
+    badge: "enterprise",
+    external: true,
+  },
+];
+
+const starters = [
+  {
+    href: "/docs/getting-started/",
+    title: "Getting started docs",
+    body: "Install EdgeQuake, run the stack, and learn the core concepts.",
+  },
+  {
+    href: "/docs/operations/",
+    title: "Operations guide",
+    body: "Review deployment, configuration, and monitoring guidance.",
+  },
+  {
+    href: "/ecosystem/",
+    title: "Ecosystem overview",
+    body: "See which crate or service boundary best matches your use case.",
+  },
+  {
+    href: "/demo/",
+    title: "Demo workflow",
+    body: "Walk through ingestion, graph construction, and query validation.",
+  },
+];
 ---
 
 <MarketingLayout
   title="Contact the Team | EdgeQuake"
   description="Reach the EdgeQuake team for architecture reviews, enterprise deployment support, implementation questions, or partnership discussions."
 >
-  <section class="py-24 sm:py-32">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div class="grid gap-12 lg:grid-cols-2">
-        <!-- Info -->
-        <div>
-          <h1 class="font-display text-4xl font-bold tracking-tight mkt-text sm:text-5xl">
-            Contact the EdgeQuake Team
-          </h1>
-          <p class="mt-6 text-lg mkt-text-muted">
-            Reach out if you are evaluating Graph-RAG for production, planning a
-            self-hosted deployment, or deciding how EdgeQuake fits into your
-            current retrieval stack.
-          </p>
+  <Section container="max-w-7xl" class="!pt-[clamp(5rem,10vh,7.5rem)]">
+    <div class="grid gap-12 lg:grid-cols-2">
+      <div>
+        <h1 class="mkt-display">Contact the EdgeQuake Team</h1>
+        <p class="mkt-lede">
+          Reach out if you are evaluating Graph-RAG for production, planning a
+          self-hosted deployment, or deciding how EdgeQuake fits into your
+          current retrieval stack.
+        </p>
 
-          <p class="mt-4 text-sm leading-relaxed mkt-text-dim">
-            If you are still comparing options, start with the
-            <a href="/docs/" class="mkt-inline-link">
-              documentation</a
-            >, the <a href="/demo/" class="mkt-inline-link"
-              >demo workflow</a
-            >, or the <a
-              href="/enterprise/"
-              class="mkt-inline-link">enterprise overview</a
-            >
-            before opening a deeper conversation.
-          </p>
+        <p class="mt-4 text-sm leading-relaxed mkt-text-dim">
+          If you are still comparing options, start with the{" "}
+          <a href="/docs/" class="mkt-inline-link">documentation</a>, the{" "}
+          <a href="/demo/" class="mkt-inline-link">demo workflow</a>, or the{" "}
+          <a href="/enterprise/" class="mkt-inline-link">enterprise overview</a>
+          {" "}before opening a deeper conversation.
+        </p>
 
-          <div class="mt-12 space-y-6">
-            <div class="flex items-start gap-4">
-              <div
-                class="mkt-accent-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-              >
-                <svg
-                  class="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  viewBox="0 0 24 24"
+        <div class="mt-12 space-y-6">
+          {
+            channels.map((c) => (
+              <div class="flex items-start gap-4">
+                <div class="mkt-accent-surface flex h-11 w-11 shrink-0 items-center justify-center rounded-lg">
+                  <Icon name={c.icon} class="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 class="font-semibold mkt-text">{c.title}</h3>
+                  <p class="mkt-text-muted">
+                    <a
+                      href={c.href}
+                      class="mkt-inline-link"
+                      target={c.external ? "_blank" : undefined}
+                      rel={c.external ? "noopener noreferrer" : undefined}
+                    >
+                      {c.label}
+                    </a>
+                  </p>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+
+      <div class="mkt-card mkt-card-static rounded-xl p-8">
+        <h2 class="text-xl font-semibold mkt-text">Choose Your Contact Route</h2>
+        <p class="mt-3 mkt-text-muted">
+          Use a verified channel so your message reaches the right team quickly.
+        </p>
+
+        <ul class="mt-6 list-none space-y-0 p-0 m-0">
+          {
+            routes.map((r) => (
+              <li class="border-t mkt-border-subtle py-5 first:border-t-0 first:pt-0">
+                <a
+                  href={r.href}
+                  target={r.external ? "_blank" : undefined}
+                  rel={r.external ? "noopener noreferrer" : undefined}
+                  class="group block min-h-11 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4"
                 >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                  ></path>
-                </svg>
-              </div>
-              <div>
-                <h3 class="font-semibold mkt-text">Email</h3>
-                <p class="mkt-text-muted">
-                  <a
-                    href="mailto:contact@elitizon.com"
-                    class="transition-colors hover:mkt-text"
-                  >
-                    contact@elitizon.com
-                  </a>
-                </p>
-              </div>
-            </div>
+                  <div class="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 class="text-base font-semibold mkt-text transition-colors group-hover:mkt-accent-text">
+                        {r.title}
+                      </h3>
+                      <p class="mt-1 text-sm mkt-text-muted">{r.body}</p>
+                    </div>
+                    <span class="shrink-0 text-sm font-semibold mkt-accent-text">
+                      {r.badge}
+                    </span>
+                  </div>
+                </a>
+              </li>
+            ))
+          }
+        </ul>
 
-            <div class="flex items-start gap-4">
-              <div
-                class="mkt-accent-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-              >
-                <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"
-                  ></path>
-                </svg>
-              </div>
-              <div>
-                <h3 class="font-semibold mkt-text">LinkedIn</h3>
-                <p class="mkt-text-muted">
-                  <a
-                    href="https://www.linkedin.com/in/raphaelmansuy/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="transition-colors hover:mkt-text"
-                  >
-                    Message Raphael Mansuy
-                  </a>
-                </p>
-              </div>
-            </div>
-
-            <div class="flex items-start gap-4">
-              <div
-                class="mkt-accent-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-              >
-                <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path
-                    d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"
-                  ></path>
-                </svg>
-              </div>
-              <div>
-                <h3 class="font-semibold mkt-text">GitHub</h3>
-                <p class="mkt-text-muted">
-                  <a
-                    href="https://github.com/raphaelmansuy/edgequake/discussions"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="transition-colors hover:mkt-text"
-                  >
-                    Open a Discussion
-                  </a>
-                </p>
-              </div>
-            </div>
-
-            <div class="flex items-start gap-4">
-              <div
-                class="mkt-accent-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-              >
-                <svg
-                  class="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
-                  ></path>
-                </svg>
-              </div>
-              <div>
-                <h3 class="font-semibold mkt-text">Elitizon</h3>
-                <p class="mkt-text-muted">
-                  <a
-                    href="https://elitizon.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="transition-colors hover:mkt-text"
-                  >
-                    elitizon.com
-                  </a>
-                </p>
-              </div>
-            </div>
-          </div>
+        <div class="mkt-code-surface mt-6 rounded-xl p-4 text-sm mkt-text-secondary">
+          Typical response window: 1 to 2 business days.
         </div>
 
-        <!-- Contact routes -->
-        <div class="mkt-card rounded-xl p-8">
-          <h2 class="text-xl font-semibold mkt-text">
-            Choose Your Contact Route
-          </h2>
-          <p class="mt-3 mkt-text-muted">
-            Use a verified channel so your message reaches the right team
-            quickly.
-          </p>
-
-          <div class="mt-6 space-y-4">
-            <a
-              href="https://www.linkedin.com/in/raphaelmansuy/"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="mkt-card block rounded-xl p-5 transition-colors hover:border-accent-500/30"
-            >
-              <div class="flex items-start justify-between gap-4">
-                <div>
-                  <h3 class="text-base font-semibold mkt-text">
-                    Message Raphael on LinkedIn
-                  </h3>
-                  <p class="mt-1 text-sm mkt-text-muted">
-                    Best for demo access, collaboration, and building on
-                    EdgeQuake with its creator.
-                  </p>
-                </div>
-                <span class="mkt-accent-text text-sm font-semibold">direct</span>
-              </div>
-            </a>
-
-            <a
-              href="mailto:contact@elitizon.com?subject=EdgeQuake%20Inquiry"
-              class="mkt-card block rounded-xl p-5 transition-colors hover:border-accent-500/30"
-            >
-              <div class="flex items-start justify-between gap-4">
-                <div>
-                  <h3 class="text-base font-semibold mkt-text">
-                    Email the team
-                  </h3>
-                  <p class="mt-1 text-sm mkt-text-muted">
-                    Best for product questions, architecture reviews, and
-                    implementation support.
-                  </p>
-                </div>
-                <span class="mkt-accent-text text-sm font-semibold">mailto</span
-                >
-              </div>
-            </a>
-
-            <a
-              href="https://github.com/raphaelmansuy/edgequake/discussions"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="mkt-card block rounded-xl p-5 transition-colors hover:border-accent-500/30"
-            >
-              <div class="flex items-start justify-between gap-4">
-                <div>
-                  <h3 class="text-base font-semibold mkt-text">
-                    Open a GitHub discussion
-                  </h3>
-                  <p class="mt-1 text-sm mkt-text-muted">
-                    Best for community questions, feature ideas, and public
-                    technical conversations.
-                  </p>
-                </div>
-                <span class="mkt-accent-text text-sm font-semibold"
-                  >community</span
-                >
-              </div>
-            </a>
-
-            <a
-              href="https://elitizon.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="mkt-card block rounded-xl p-5 transition-colors hover:border-accent-500/30"
-            >
-              <div class="flex items-start justify-between gap-4">
-                <div>
-                  <h3 class="text-base font-semibold mkt-text">
-                    Talk to Elitizon
-                  </h3>
-                  <p class="mt-1 text-sm mkt-text-muted">
-                    Best for enterprise engagements, custom delivery, and
-                    partnership discussions.
-                  </p>
-                </div>
-                <span class="mkt-accent-text text-sm font-semibold"
-                  >enterprise</span
-                >
-              </div>
-            </a>
-          </div>
-
-          <div
-            class="mkt-code-surface mt-6 rounded-xl p-4 text-sm mkt-text-secondary"
-          >
-            Typical response window: 1 to 2 business days.
-          </div>
-
-          <div class="mt-8 border-t mkt-border-subtle pt-6">
-            <h3 class="text-base font-semibold mkt-text">
-              Helpful starting points
-            </h3>
-            <div class="mt-4 grid gap-3 sm:grid-cols-2">
-              <a
-                href="/docs/getting-started/"
-                class="mkt-card rounded-xl p-4 transition-colors hover:border-accent-500/30"
-              >
-                <div class="text-sm font-semibold mkt-text">
-                  Getting started docs
-                </div>
-                <p class="mt-1 text-sm mkt-text-muted">
-                  Install EdgeQuake, run the stack, and learn the core concepts.
-                </p>
-              </a>
-              <a
-                href="/docs/operations/"
-                class="mkt-card rounded-xl p-4 transition-colors hover:border-accent-500/30"
-              >
-                <div class="text-sm font-semibold mkt-text">
-                  Operations guide
-                </div>
-                <p class="mt-1 text-sm mkt-text-muted">
-                  Review deployment, configuration, and monitoring guidance.
-                </p>
-              </a>
-              <a
-                href="/ecosystem/"
-                class="mkt-card rounded-xl p-4 transition-colors hover:border-accent-500/30"
-              >
-                <div class="text-sm font-semibold mkt-text">
-                  Ecosystem overview
-                </div>
-                <p class="mt-1 text-sm mkt-text-muted">
-                  See which crate or service boundary best matches your use
-                  case.
-                </p>
-              </a>
-              <a
-                href="/demo/"
-                class="mkt-card rounded-xl p-4 transition-colors hover:border-accent-500/30"
-              >
-                <div class="text-sm font-semibold mkt-text">Demo workflow</div>
-                <p class="mt-1 text-sm mkt-text-muted">
-                  Walk through ingestion, graph construction, and query
-                  validation.
-                </p>
-              </a>
-            </div>
-          </div>
+        <div class="mt-8 border-t mkt-border-subtle pt-6">
+          <h3 class="text-base font-semibold mkt-text">Helpful starting points</h3>
+          <ul class="mt-4 grid list-none gap-0 p-0 m-0 sm:grid-cols-2 sm:gap-x-8">
+            {
+              starters.map((s) => (
+                <li class="border-t mkt-border-subtle py-4">
+                  <a
+                    href={s.href}
+                    class="block min-h-11 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4"
+                  >
+                    <div class="text-sm font-semibold mkt-text transition-colors hover:mkt-accent-text">
+                      {s.title}
+                    </div>
+                    <p class="mt-1 text-sm mkt-text-muted">{s.body}</p>
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
         </div>
       </div>
     </div>
-  </section>
+  </Section>
 </MarketingLayout>

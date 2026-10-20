@@ -1,5 +1,8 @@
 ---
 import MarketingLayout from "../layouts/MarketingLayout.astro";
+import Button from "../components/primitives/Button.astro";
+import Icon from "../components/primitives/Icon.astro";
+import PageHero from "../components/primitives/PageHero.astro";
 ---
 
 <MarketingLayout
@@ -7,65 +10,33 @@ import MarketingLayout from "../layouts/MarketingLayout.astro";
   description="The page you requested could not be found. Return to the EdgeQuake homepage or continue into the documentation."
   noIndex={true}
 >
-  <section class="flex min-h-[70vh] items-center justify-center py-24">
-    <div class="text-center">
-      <div
-        class="mkt-accent-surface mx-auto mb-6 inline-flex h-20 w-20 items-center justify-center rounded-2xl"
-      >
-        <svg
-          class="h-10 w-10"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-        </svg>
-      </div>
-
-      <h1 class="font-display text-7xl font-extrabold mkt-text [font-variant-numeric:tabular-nums]">404</h1>
-      <p class="mt-4 text-xl mkt-text-secondary">Page not found</p>
-      <p class="mt-2 mkt-text-dim">
-        The page you’re looking for doesn’t exist or has moved.
-      </p>
-
-      <p class="mt-4 max-w-xl text-sm leading-relaxed mkt-text-muted mx-auto">
-        Continue with the <a
-          href="/docs/"
-          class="mkt-inline-link">documentation</a
-        >, explore the <a href="/demo/" class="mkt-inline-link"
-          >demo workflow</a
-        >, browse the <a
-          href="/ecosystem/"
-          class="mkt-inline-link">crate ecosystem</a
-        >, or review <a
-          href="/enterprise/"
-          class="mkt-inline-link">enterprise deployment paths</a
-        >.
-      </p>
-
-      <div class="mt-8 flex flex-wrap items-center justify-center gap-4">
-        <a
-          href="/"
-          class="inline-flex items-center rounded-lg bg-accent-600 px-6 py-3 text-sm font-semibold text-white hover:bg-accent-500 transition-colors"
-        >
-          Back to Home
-        </a>
-        <a
-          href="/docs/"
-          class="mkt-outline-button px-6 py-3 text-sm font-semibold"
-        >
-          Documentation
-        </a>
-        <a
-          href="/demo/"
-          class="mkt-outline-button px-6 py-3 text-sm font-semibold"
-        >
-          Demo Workflow
-        </a>
-      </div>
+  <PageHero
+    title="404"
+    lede="The page you’re looking for doesn’t exist or has moved."
+    align="center"
+    glow
+    container="max-w-2xl"
+  >
+    <div
+      slot="leading"
+      class="mkt-accent-surface mx-auto inline-flex h-16 w-16 items-center justify-center rounded-2xl"
+      aria-hidden="true"
+    >
+      <Icon name="zap" class="h-8 w-8" />
     </div>
-  </section>
+
+    <p class="mx-auto mt-6 max-w-xl text-sm leading-relaxed mkt-text-muted">
+      Continue with the{" "}
+      <a href="/docs/" class="mkt-inline-link">documentation</a>, explore the{" "}
+      <a href="/demo/" class="mkt-inline-link">demo workflow</a>, browse the{" "}
+      <a href="/ecosystem/" class="mkt-inline-link">crate ecosystem</a>, or review{" "}
+      <a href="/enterprise/" class="mkt-inline-link">enterprise deployment paths</a>.
+    </p>
+
+    <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+      <Button href="/" variant="primary" size="lg">Back to Home</Button>
+      <Button href="/docs/" variant="outline" size="lg">Documentation</Button>
+      <Button href="/demo/" variant="outline" size="lg">Demo Workflow</Button>
+    </div>
+  </PageHero>
 </MarketingLayout>

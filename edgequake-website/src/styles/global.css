@@ -189,9 +189,9 @@
     background: var(--mkt-bg-card-solid);
   }
 
-  /* Marketing links: never paint a whole block blue+underlined.
+  /* Marketing-only link reset (scoped so Starlight prose keeps accent).
      Opt into accent + underline via .mkt-inline-link. */
-  a {
+  body.mkt-site a {
     color: inherit;
     text-decoration: none;
   }
@@ -213,6 +213,35 @@
   summary:focus-visible {
     outline: 2px solid var(--sl-color-accent);
     outline-offset: 3px;
+  }
+
+  /* Starlight prose: identifiable links (color + underline). */
+  .sl-markdown-content a:not(.sl-link-button) {
+    color: var(--sl-color-accent-high);
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+    text-decoration-thickness: from-font;
+  }
+
+  .sl-markdown-content a:not(.sl-link-button):hover {
+    color: var(--sl-color-accent);
+  }
+
+  /* Long-form docs readability + inline code contrast. */
+  .sl-markdown-content {
+    line-height: 1.7;
+  }
+
+  .sl-markdown-content code:not(:where(pre *)) {
+    color: var(--sl-color-white);
+    background-color: color-mix(
+      in srgb,
+      var(--sl-color-accent) 12%,
+      var(--sl-color-gray-6)
+    );
+    border-radius: 0.25rem;
+    padding: 0.1em 0.35em;
+    font-size: 0.9em;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -255,6 +284,37 @@
   .mkt-inline-link:hover {
     text-decoration: underline;
     text-underline-offset: 0.18em;
+  }
+
+  /* Shared marketing type scale (SPEC-170 round 4). */
+  .mkt-display {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--mkt-text);
+    font-size: clamp(2.4rem, 1.8rem + 2.4vw, 3.4rem);
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+
+  .mkt-lede {
+    margin-top: 1.25rem;
+    max-width: 42rem;
+    font-size: 1.125rem;
+    line-height: 1.65;
+    color: var(--mkt-text-secondary);
+  }
+
+  .mkt-prose {
+    max-width: 65ch;
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--mkt-text-muted);
+  }
+
+  .mkt-eyebrow {
+    font-size: 0.875rem;
+    color: var(--mkt-text-muted);
   }
 }
 

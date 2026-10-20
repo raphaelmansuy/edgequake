@@ -10,7 +10,7 @@ order: 4
 
 Documents is the library. You add files here, and you see whether each one has been turned into map items.
 
-![The Documents page. A drop zone sits above a table of 12 files, each marked Ready.](/tutorial/04-documents.png)
+![The Documents page. A drop zone sits above a table of 15 files, each marked Ready.](/tutorial/04-documents.png)
 
 The heading is **Documents** with a count, **12**, and a green dot. The subtitle is **Upload and manage documents for knowledge graph extraction**.
 

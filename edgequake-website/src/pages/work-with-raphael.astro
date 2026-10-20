@@ -1,13 +1,14 @@
 ---
 /**
- * Work with Raphael — a focused page that promotes Raphael Mansuy for
- * collaboration and business built on EdgeQuake. Grounded, truthful marketing
- * (frontend-design skill): the proof is EdgeQuake itself. One primary action:
- * connect on LinkedIn. No fabricated clients, titles, or metrics.
+ * Work with Raphael — focused collaboration page.
+ * Grounded marketing: EdgeQuake is the proof. One primary CTA: LinkedIn.
  */
 import MarketingLayout from "../layouts/MarketingLayout.astro";
 import Button from "../components/primitives/Button.astro";
 import Icon from "../components/primitives/Icon.astro";
+import PageHero from "../components/primitives/PageHero.astro";
+import Section from "../components/primitives/Section.astro";
+import SectionHeader from "../components/primitives/SectionHeader.astro";
 import type { IconName } from "../components/data/icons";
 import { formatStars, getGithubStats } from "../lib/github";
 import {
@@ -25,7 +26,6 @@ const { stars } = await getGithubStats();
 const formattedStars = formatStars(stars);
 const version = getProductVersion();
 
-// What EdgeQuake demonstrates — each item is verifiable in the product/repo.
 const proof = [
   {
     title: "A production Graph-RAG engine, in Rust",
@@ -45,7 +45,6 @@ const proof = [
   },
 ];
 
-// How a collaboration can start — honest about scope, no invented packages.
 const engagements: { icon: IconName; title: string; body: string }[] = [
   {
     icon: "brain",
@@ -69,133 +68,106 @@ const engagements: { icon: IconName; title: string; body: string }[] = [
   title="Work with Raphael Mansuy | EdgeQuake"
   description="Raphael Mansuy builds production Graph-RAG systems in Rust — the creator of EdgeQuake. Connect on LinkedIn to collaborate, get advisory help, or build on EdgeQuake."
 >
-  <!-- Hero -->
-  <section class="relative mkt-band-focal overflow-clip">
-    <div class="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
-      <div class="mkt-grid-bg absolute inset-x-0 top-0 h-[420px]"></div>
-      <div
-        class="absolute right-[-160px] top-[-140px] h-[420px] w-[680px] rounded-full bg-accent-500/12 blur-[130px]"
-      >
-      </div>
-    </div>
+  <PageHero
+    title="Build Graph-RAG with EdgeQuake’s creator."
+    eyebrow="The person behind EdgeQuake"
+    glow
+    container="max-w-5xl"
+  >
+    <p class="mkt-lede mkt-prose !max-w-2xl">
+      {AUTHOR_NAME} designs and ships production retrieval systems in Rust.
+      EdgeQuake is the public proof: a knowledge-graph engine on PostgreSQL with
+      honest benchmarks, real multi-tenancy, and a demo you can open today. If
+      you are putting Graph-RAG into production, that experience is available to
+      you.
+    </p>
 
-    <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-      <p class="text-sm mkt-text-muted">The person behind EdgeQuake</p>
-      <h1
-        class="mt-3 font-display font-bold tracking-[-0.03em] mkt-text text-[clamp(2.4rem,1.8rem+2.6vw,3.6rem)] leading-[1.03]"
+    <div class="mt-9 flex flex-wrap items-center gap-3">
+      <Button href={AUTHOR_LINKEDIN} variant="primary" size="lg" external>
+        Connect on LinkedIn
+      </Button>
+      <Button href={DEMO_URL} variant="outline" size="lg" external>
+        Open the demo
+      </Button>
+      <Button href={AUTHOR_GITHUB} variant="ghost" size="lg" external>
+        GitHub
+      </Button>
+    </div>
+  </PageHero>
+
+  <Section tone="alt" container="max-w-5xl">
+    <SectionHeader
+      title="The portfolio is a product you can run"
+      lede="You do not have to take claims on faith. EdgeQuake is open source and running in public — judge the work directly."
+    />
+
+    <div class="mt-12 grid gap-x-12 gap-y-9 sm:grid-cols-2">
+      {
+        proof.map((p) => (
+          <div class="border-t mkt-border-subtle pt-6">
+            <h3 class="text-base font-semibold mkt-text">{p.title}</h3>
+            <p class="mt-2 text-sm mkt-text-muted leading-relaxed mkt-prose">
+              {p.body}
+            </p>
+          </div>
+        ))
+      }
+    </div>
+  </Section>
+
+  <Section container="max-w-5xl">
+    <SectionHeader
+      title="Ways to work together"
+      lede="Collaboration usually starts with a short conversation about your data, your constraints, and what “good” looks like for you."
+    />
+
+    <div class="mt-12 grid gap-10 sm:grid-cols-3">
+      {
+        engagements.map((e) => (
+          <div>
+            <span class="mkt-accent-surface inline-flex h-11 w-11 items-center justify-center rounded-lg">
+              <Icon name={e.icon} class="h-[22px] w-[22px]" />
+            </span>
+            <h3 class="mt-4 text-base font-semibold mkt-text">{e.title}</h3>
+            <p class="mt-2 text-sm mkt-text-muted leading-relaxed">{e.body}</p>
+          </div>
+        ))
+      }
+    </div>
+  </Section>
+
+  <Section tone="alt" container="max-w-5xl">
+    <div class="mkt-card mkt-card-static rounded-2xl p-8 sm:p-12">
+      <h2
+        class="font-display text-2xl font-semibold tracking-[-0.02em] mkt-text sm:text-3xl"
       >
-        Build Graph-RAG with<br />EdgeQuake’s creator.
-      </h1>
-      <p class="mt-6 max-w-2xl text-lg leading-relaxed mkt-text-secondary">
-        {AUTHOR_NAME} designs and ships production retrieval systems in Rust.
-        EdgeQuake is the public proof: a knowledge-graph engine on PostgreSQL
-        with honest benchmarks, real multi-tenancy, and a demo you can open
-        today. If you are putting Graph-RAG into production, that experience is
-        available to you.
+        Let’s talk about your use case
+      </h2>
+      <p class="mt-4 max-w-2xl text-base mkt-text-muted leading-relaxed mkt-prose">
+        The fastest way to reach {AUTHOR_NAME} is a direct message on LinkedIn.
+        Tell me what you are building and where retrieval is getting in the way
+        — I read every message.
       </p>
 
-      <div class="mt-9 flex flex-wrap items-center gap-3">
+      <div class="mt-8 flex flex-wrap items-center gap-3">
         <Button href={AUTHOR_LINKEDIN} variant="primary" size="lg" external>
-          <svg class="mr-2 h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"
-            ></path>
-          </svg>
-          Connect on LinkedIn
+          Message Raphael on LinkedIn
         </Button>
-        <Button href={DEMO_URL} variant="outline" size="lg" external>Open the demo</Button>
-        <Button href={AUTHOR_GITHUB} variant="ghost" size="lg" external>GitHub</Button>
+        <Button href="/enterprise/" variant="outline" size="lg">
+          Enterprise overview
+        </Button>
       </div>
-    </div>
-  </section>
 
-  <!-- Proof: EdgeQuake is the portfolio -->
-  <section class="mkt-band mkt-section-alt">
-    <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-      <h2
-        class="font-display font-semibold tracking-[-0.02em] mkt-text text-[clamp(1.7rem,1.35rem+1.4vw,2.2rem)] leading-[1.1] max-w-3xl"
-      >
-        The portfolio is a product you can run
-      </h2>
-      <p class="mt-4 max-w-2xl text-lg mkt-text-muted">
-        You do not have to take claims on faith. EdgeQuake is open source and
-        running in public — judge the work directly.
+      <p class="mt-6 text-sm mkt-text-dim">
+        Prefer company channels? EdgeQuake is built with{" "}
+        <a
+          href={AUTHOR_COMPANY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="mkt-inline-link">{AUTHOR_COMPANY}</a
+        >, and the <a href="/contact/" class="mkt-inline-link">contact page</a>
+        lists every verified route.
       </p>
-
-      <div class="mt-12 grid gap-x-12 gap-y-9 sm:grid-cols-2">
-        {
-          proof.map((p) => (
-            <div class="border-t mkt-border-subtle pt-6">
-              <h3 class="text-base font-semibold mkt-text">{p.title}</h3>
-              <p class="mt-2 text-sm mkt-text-muted leading-relaxed">{p.body}</p>
-            </div>
-          ))
-        }
-      </div>
     </div>
-  </section>
-
-  <!-- Ways to work together -->
-  <section class="mkt-band">
-    <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-      <h2
-        class="font-display font-semibold tracking-[-0.02em] mkt-text text-[clamp(1.7rem,1.35rem+1.4vw,2.2rem)] leading-[1.1] max-w-3xl"
-      >
-        Ways to work together
-      </h2>
-      <p class="mt-4 max-w-2xl text-lg mkt-text-muted">
-        Collaboration usually starts with a short conversation about your data,
-        your constraints, and what “good” looks like for you.
-      </p>
-
-      <div class="mt-12 grid gap-10 sm:grid-cols-3">
-        {
-          engagements.map((e) => (
-            <div>
-              <span class="mkt-accent-surface inline-flex h-11 w-11 items-center justify-center rounded-lg">
-                <Icon name={e.icon} class="h-[22px] w-[22px]" />
-              </span>
-              <h3 class="mt-4 text-base font-semibold mkt-text">{e.title}</h3>
-              <p class="mt-2 text-sm mkt-text-muted leading-relaxed">{e.body}</p>
-            </div>
-          ))
-        }
-      </div>
-    </div>
-  </section>
-
-  <!-- Close: single clear action -->
-  <section class="mkt-band mkt-section-alt">
-    <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-      <div class="mkt-card rounded-2xl p-8 sm:p-12">
-        <h2 class="font-display text-2xl font-semibold tracking-[-0.02em] mkt-text sm:text-3xl">
-          Let’s talk about your use case
-        </h2>
-        <p class="mt-4 max-w-2xl text-base mkt-text-muted leading-relaxed">
-          The fastest way to reach {AUTHOR_NAME} is a direct message on LinkedIn.
-          Tell me what you are building and where retrieval is getting in the
-          way — I read every message.
-        </p>
-
-        <div class="mt-8 flex flex-wrap items-center gap-3">
-          <Button href={AUTHOR_LINKEDIN} variant="primary" size="lg" external>
-            <svg class="mr-2 h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"
-              ></path>
-            </svg>
-            Message Raphael on LinkedIn
-          </Button>
-          <Button href="/enterprise/" variant="outline" size="lg">Enterprise overview</Button>
-        </div>
-
-        <p class="mt-6 text-sm mkt-text-dim">
-          Prefer company channels? EdgeQuake is built with
-          <a href={AUTHOR_COMPANY_URL} target="_blank" rel="noopener noreferrer" class="mkt-inline-link">{AUTHOR_COMPANY}</a>,
-          and the <a href="/contact/" class="mkt-inline-link">contact page</a>
-          lists every verified route.
-        </p>
-      </div>
-    </div>
-  </section>
+  </Section>
 </MarketingLayout>

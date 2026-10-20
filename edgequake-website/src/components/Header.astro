@@ -1,21 +1,9 @@
 ---
-const navLinks = [
-  { label: "Docs", href: "/docs/" },
-  { label: "Tutorial", href: "/tutorial/" },
-  { label: "Demo", href: "/demo/" },
-  { label: "Ecosystem", href: "/ecosystem/" },
-  { label: "Enterprise", href: "/enterprise/" },
-  { label: "Collaborate", href: "/work-with-raphael/" },
-];
-
-const pathname = Astro.url.pathname;
-const isActivePath = (href: string) => {
-  if (href === "/docs/" || href === "/tutorial/") {
-    return pathname.startsWith(href);
-  }
-
-  return pathname === href || pathname.startsWith(href);
-};
+import {
+  CTA_GET_STARTED,
+  SITE_NAV,
+  isActivePath,
+} from "../lib/nav";
 ---
 
 <header
@@ -25,8 +13,7 @@ const isActivePath = (href: string) => {
   <div
     class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8"
   >
-    <!-- Logo -->
-      <a
+    <a
       href="/"
       class="flex min-h-11 cursor-pointer items-center gap-2 mkt-text hover:opacity-90 transition-opacity"
     >
@@ -38,20 +25,22 @@ const isActivePath = (href: string) => {
         stroke-width="2.5"
         stroke-linecap="round"
         stroke-linejoin="round"
+        aria-hidden="true"
       >
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
       </svg>
       <span class="text-lg font-bold tracking-tight">EdgeQuake</span>
     </a>
 
-    <!-- Desktop nav -->
-    <nav class="hidden lg:flex items-center gap-1" aria-label="Main navigation">
+    <nav class="hidden lg:flex items-center gap-0.5" aria-label="Main navigation">
       {
-        navLinks.map((link) => (
+        SITE_NAV.map((link) => (
           <a
             href={link.href}
-            class="mkt-nav-link px-3 py-2 text-sm font-medium"
-            aria-current={isActivePath(link.href) ? "page" : undefined}
+            class="mkt-nav-link inline-flex min-h-11 items-center px-2 py-2 text-[13px] font-medium xl:px-2.5 xl:text-sm"
+            aria-current={
+              isActivePath(Astro.url.pathname, link) ? "page" : undefined
+            }
           >
             {link.label}
           </a>
@@ -59,16 +48,13 @@ const isActivePath = (href: string) => {
       }
     </nav>
 
-    <!-- Actions -->
     <div class="flex items-center gap-2">
-      <!-- Theme toggle -->
       <button
         type="button"
         id="theme-toggle"
         class="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-md mkt-text-muted hover:mkt-text mkt-hover-bg transition-colors duration-200"
         aria-label="Toggle color theme"
       >
-        <!-- Sun icon (shown in dark mode) -->
         <svg
           class="h-5 w-5 theme-icon-sun"
           fill="none"
@@ -77,6 +63,7 @@ const isActivePath = (href: string) => {
           viewBox="0 0 24 24"
           stroke-linecap="round"
           stroke-linejoin="round"
+          aria-hidden="true"
         >
           <circle cx="12" cy="12" r="5"></circle>
           <line x1="12" y1="1" x2="12" y2="3"></line>
@@ -88,7 +75,6 @@ const isActivePath = (href: string) => {
           <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
           <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
         </svg>
-        <!-- Moon icon (shown in light mode) -->
         <svg
           class="h-5 w-5 theme-icon-moon"
           fill="none"
@@ -97,35 +83,33 @@ const isActivePath = (href: string) => {
           viewBox="0 0 24 24"
           stroke-linecap="round"
           stroke-linejoin="round"
+          aria-hidden="true"
         >
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
         </svg>
       </button>
 
-      <!-- GitHub -->
       <a
         href="https://github.com/raphaelmansuy/edgequake"
         target="_blank"
         rel="noopener noreferrer"
         class="hidden sm:inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-md mkt-text-muted hover:mkt-text mkt-hover-bg transition-colors duration-200"
-        aria-label="GitHub"
+        aria-label="GitHub repository"
       >
-        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path
             d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"
           ></path>
         </svg>
       </a>
 
-      <!-- Get Started CTA -->
       <a
-        href="/docs/getting-started/"
+        href={CTA_GET_STARTED.href}
         class="hidden sm:inline-flex min-h-11 cursor-pointer items-center rounded-lg bg-accent-600 px-4 py-2 text-sm font-semibold text-white hover:bg-accent-500 transition-colors duration-200"
       >
-        Get Started
+        {CTA_GET_STARTED.label}
       </a>
 
-      <!-- Mobile menu button -->
       <button
         type="button"
         class="lg:hidden inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-md mkt-text-muted hover:mkt-text mkt-hover-bg transition-colors duration-200"
@@ -140,6 +124,7 @@ const isActivePath = (href: string) => {
           stroke="currentColor"
           stroke-width="2"
           viewBox="0 0 24 24"
+          aria-hidden="true"
         >
           <path
             stroke-linecap="round"
@@ -150,7 +135,6 @@ const isActivePath = (href: string) => {
     </div>
   </div>
 
-  <!-- Mobile menu -->
   <nav
     id="mobile-menu"
     class="hidden lg:hidden mkt-border-subtle border-t mkt-bg-header backdrop-blur-lg"
@@ -159,27 +143,29 @@ const isActivePath = (href: string) => {
   >
     <div class="space-y-1 px-4 py-3">
       {
-        navLinks.map((link) => (
+        SITE_NAV.map((link) => (
           <a
             href={link.href}
-            class="mkt-nav-link block px-3 py-2 text-base font-medium"
-            aria-current={isActivePath(link.href) ? "page" : undefined}
+            class="mkt-nav-link flex min-h-11 items-center px-3 py-2 text-base font-medium"
+            aria-current={
+              isActivePath(Astro.url.pathname, link) ? "page" : undefined
+            }
           >
             {link.label}
           </a>
         ))
       }
       <a
-        href="/docs/getting-started/"
-        class="block rounded-md bg-accent-600 px-3 py-2 text-base font-semibold text-white hover:bg-accent-500 transition-colors"
+        href={CTA_GET_STARTED.href}
+        class="flex min-h-11 items-center rounded-md bg-accent-600 px-3 py-2 text-base font-semibold text-white hover:bg-accent-500 transition-colors"
       >
-        Get Started
+        {CTA_GET_STARTED.label}
       </a>
       <a
         href="https://github.com/raphaelmansuy/edgequake"
         target="_blank"
         rel="noopener noreferrer"
-        class="mkt-nav-link block px-3 py-2 text-base font-medium"
+        class="mkt-nav-link flex min-h-11 items-center px-3 py-2 text-base font-medium"
       >
         GitHub
       </a>
@@ -188,7 +174,6 @@ const isActivePath = (href: string) => {
 </header>
 
 <style>
-  /* Theme toggle icon visibility */
   :root[data-theme="light"] .theme-icon-moon {
     display: block;
   }
@@ -286,8 +271,9 @@ const isActivePath = (href: string) => {
         }
       });
 
+      // Match Tailwind `lg` (1024px) — desktop nav appears at lg, not md.
       window.addEventListener("resize", () => {
-        if (window.innerWidth >= 768) {
+        if (window.innerWidth >= 1024) {
           setMenuState(false);
         }
       });

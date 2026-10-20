@@ -16,10 +16,10 @@ The title is the workspace name, **Default Workspace**. The line under it, **All
 
 ## The four counts
 
-- **Documents** — **12**. These are the uploaded files. The caption says **Uploaded documents**.
-- **Entities** — **12,642**. These are the things pulled out of the files. The caption says **Extracted entities**.
-- **Relationships** — **11,382**. These are the lines between those things. The caption says **Entity connections**.
-- **Chunks** — **492**. These are the short pieces the files were cut into. The caption says **Text segments**.
+- **Documents** — **15**. These are the uploaded files. The caption says **Uploaded documents**.
+- **Entities** — **13,200**. These are the things pulled out of the files. The caption says **Extracted entities**.
+- **Relationships** — **12,023**. These are the lines between those things. The caption says **Entity connections**.
+- **Chunks** — **591**. These are the short pieces the files were cut into. The caption says **Text segments**.
 
 The numbers are for the workspace in the header chip. Switch workspace and the cards change.
 
@@ -31,11 +31,11 @@ The numbers are for the workspace in the header chip. Switch workspace and the c
 
 ## Recent activity
 
-**Recent Activity** lists the latest uploads. Each row is a file name, how long ago it arrived, and a green **Completed** pill. On this day the top rows included `bricks_2610.12452v1.pdf` and `tt2610.11570v1.pdf`.
+**Recent Activity** lists the latest uploads. Each row is a file name, how long ago it arrived, and a green **Completed** pill. On this day the top rows included `terra-incognita-public-20261015.pdf` and `math_2610.19864v1.pdf`.
 
 The green pill at the right of the heading says **All systems operational · openai**. That is the model provider the server is using for answers right now.
 
-**View all 12 documents** at the bottom jumps to the full file list.
+**View all 15 documents** at the bottom jumps to the full file list.
 
 ## Keep going
 

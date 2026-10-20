@@ -1,4 +1,31 @@
+# EdgeQuake — https://edgequake.com/
 User-agent: *
 Allow: /
+
+# Explicit allow for major AI crawlers (same as *).
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+# LLM-oriented site maps (llmstxt.org)
+# https://edgequake.com/llms.txt
+# https://edgequake.com/llms-full.txt
 
 Sitemap: https://edgequake.com/sitemap-index.xml

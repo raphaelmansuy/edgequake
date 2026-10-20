@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-20T06:24:43.495Z",
+  "files": [
+    "02-sign-in.png",
+    "03-dashboard.png",
+    "02-workspace-switcher.png",
+    "04-documents.png",
+    "05-document-preview.png",
+    "05-document.png",
+    "06-query.png",
+    "06-query-modes.png",
+    "06-answer.png",
+    "07-graph.png",
+    "07-graph-node.png",
+    "08-knowledge.png",
+    "08-knowledge-new.png",
+    "09-workspace.png",
+    "10-pipeline.png",
+    "11-costs.png",
+    "12-api-explorer.png",
+    "13-settings.png",
+    "13-settings-graph.png",
+    "13-settings-query.png",
+    "13-settings-connections.png",
+    "13-settings-data.png",
+    "14-members.png"
+  ]
+}

@@ -18,14 +18,14 @@ Type the username and password you were given. This tour does not print a passwo
 
 After you sign in, a column stays on the left on every page. The top is the EdgeQuake logo, which always returns to the Dashboard. Then four everyday items: **Dashboard**, **Documents**, **Query**, **Knowledge Graph**. Under the label **KNOWLEDGE** are **Knowledge** and **Workspace**. Under the label **SYSTEM** are **Pipeline**, **Costs**, **API Explorer**, and **Settings**.
 
-The black pill is the page you are on. **Collapse**, at the bottom of the column, shrinks the names to icons. The footer of the column shows **EdgeQuake** and **UI v0.33.0**, which is the website build in these pictures.
+The black pill is the page you are on. **Collapse**, at the bottom of the column, shrinks the names to icons. The footer of the column shows **EdgeQuake** and **UI v0.36.0**, which is the website build in these pictures.
 
 ## The header
 
 The thin bar across the top has four things:
 
 - The chip **Default — Default Workspace** is the organization and the collection you are looking at. Click it to switch.
-- The green **API v0.33.0** is the server. Green means it answered a health check.
+- The green **API v0.36.0** is the server. Green means it answered a health check.
 - The globe changes the language of the labels.
 - The sun or moon switches light and dark.
 - The person icon is the user menu, including sign out.

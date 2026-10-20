@@ -1,5 +1,7 @@
 ---
 import MarketingLayout from "../../layouts/MarketingLayout.astro";
+import PageHero from "../../components/primitives/PageHero.astro";
+import Section from "../../components/primitives/Section.astro";
 import { getProductVersion, DEMO_URL } from "../../lib/product";
 import { TUTORIAL_CHAPTERS } from "../../lib/tutorial";
 
@@ -10,86 +12,73 @@ const version = getProductVersion();
   title="Picture Tour — Click through EdgeQuake"
   description="A plain-English screenshot tour of EdgeQuake: sign in, documents, query modes, knowledge graph, members, and settings."
 >
-  <section class="py-16 sm:py-24">
-    <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-      <h1 class="font-display text-4xl font-bold tracking-tight mkt-text sm:text-5xl">
-        Click through EdgeQuake
-      </h1>
-      <p class="mt-6 text-lg mkt-text-muted leading-relaxed">
-        Every chapter is one screen, written in plain English. Screenshots come
-        from the product UI (v{version}). Counts in the pictures are from the
-        day they were taken — your install will show your own numbers.
-      </p>
-      <p class="mt-4 text-sm mkt-text-dim leading-relaxed">
-        Prefer a live stack?
-        <a href={DEMO_URL} class="mkt-inline-link"
-          >Open the public demo</a
-        >
-        or
-        <a href="/demo/" class="mkt-inline-link"
-          >see how to run locally</a
-        >. Command-line recipes live in
-        <a href="/docs/tutorials/" class="mkt-inline-link"
-          >docs tutorials</a
-        >.
-      </p>
+  <PageHero
+    title="Click through EdgeQuake"
+    lede={`Every chapter is one screen, written in plain English. Screenshots come from the product UI (v${version}). Counts in the pictures are from the day they were taken — your install will show your own numbers.`}
+    container="max-w-3xl"
+    glow
+  >
+    <p class="mt-4 text-sm mkt-text-dim leading-relaxed mkt-prose">
+      Prefer a live stack?{" "}
+      <a href={DEMO_URL} class="mkt-inline-link">Open the public demo</a> or{" "}
+      <a href="/demo/" class="mkt-inline-link">see how to run locally</a>.
+      Command-line recipes live in{" "}
+      <a href="/docs/tutorials/" class="mkt-inline-link">docs tutorials</a>.
+    </p>
+  </PageHero>
 
-      <div class="mt-10 space-y-3 mkt-text-muted text-sm leading-relaxed">
-        <p>
-          <strong class="mkt-text">Document</strong> — a file you add, such as a
-          PDF.
-        </p>
-        <p>
-          <strong class="mkt-text">Entity</strong> — a thing pulled from that
-          file: a person, company, product, place, or idea.
-        </p>
-        <p>
-          <strong class="mkt-text">Relationship</strong> — a line between two
-          entities.
-        </p>
-        <p>
-          <strong class="mkt-text">Knowledge graph</strong> — the map of those
-          entities and lines (sidebar: Knowledge Graph).
-        </p>
-        <p>
-          <strong class="mkt-text">Workspace</strong> — one collection of
-          documents and its map.
-        </p>
-      </div>
-
-      <ol class="mt-12 space-y-4">
-        {
-          TUTORIAL_CHAPTERS.map((ch, i) => (
-            <li>
-              <a
-                href={`/tutorial/${ch.slug}/`}
-                class="group flex cursor-pointer gap-4 rounded-lg border mkt-border p-4 transition-colors duration-200 hover:border-accent-500/40 focus-visible:outline-2 focus-visible:outline-offset-4"
-              >
-                {ch.image ? (
-                  <img
-                    src={`/tutorial/${ch.image}`}
-                    alt=""
-                    class="hidden sm:block h-16 w-24 shrink-0 rounded object-cover object-top border mkt-border"
-                    loading="lazy"
-                  />
-                ) : (
-                  <span class="hidden sm:flex h-16 w-24 shrink-0 items-center justify-center rounded border mkt-border text-sm font-mono mkt-text-dim">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                )}
-                <span class="min-w-0">
-                  <span class="block text-base font-semibold mkt-text group-hover:mkt-accent-text transition-colors">
-                    {i + 1}. {ch.title}
-                  </span>
-                  <span class="mt-1 block text-sm mkt-text-muted">
-                    {ch.summary}
-                  </span>
-                </span>
-              </a>
-            </li>
-          ))
-        }
-      </ol>
+  <Section container="max-w-3xl" tone="alt">
+    <div class="space-y-3 text-sm leading-relaxed mkt-text-muted">
+      <p>
+        <strong class="mkt-text">Document</strong> — a file you add, such as a PDF.
+      </p>
+      <p>
+        <strong class="mkt-text">Entity</strong> — a thing pulled from that file: a
+        person, company, product, place, or idea.
+      </p>
+      <p>
+        <strong class="mkt-text">Relationship</strong> — a line between two entities.
+      </p>
+      <p>
+        <strong class="mkt-text">Knowledge graph</strong> — the map of those entities
+        and lines (sidebar: Knowledge Graph).
+      </p>
+      <p>
+        <strong class="mkt-text">Workspace</strong> — one collection of documents and
+        its map.
+      </p>
     </div>
-  </section>
+
+    <ol class="mt-12 space-y-3 list-none p-0 m-0">
+      {
+        TUTORIAL_CHAPTERS.map((ch, i) => (
+          <li>
+            <a
+              href={`/tutorial/${ch.slug}/`}
+              class="group flex min-h-11 cursor-pointer gap-4 rounded-lg border mkt-border p-4 transition-colors duration-200 hover:border-accent-500/40 focus-visible:outline-2 focus-visible:outline-offset-4"
+            >
+              {ch.image ? (
+                <img
+                  src={`/tutorial/${ch.image}`}
+                  alt=""
+                  class="hidden sm:block h-16 w-24 shrink-0 rounded object-cover object-top border mkt-border"
+                  loading="lazy"
+                />
+              ) : (
+                <span class="hidden sm:flex h-16 w-24 shrink-0 items-center justify-center rounded border mkt-border text-sm font-mono mkt-text-dim">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+              )}
+              <span class="min-w-0 self-center">
+                <span class="block text-base font-semibold mkt-text group-hover:mkt-accent-text transition-colors">
+                  {i + 1}. {ch.title}
+                </span>
+                <span class="mt-1 block text-sm mkt-text-muted">{ch.summary}</span>
+              </span>
+            </a>
+          </li>
+        ))
+      }
+    </ol>
+  </Section>
 </MarketingLayout>

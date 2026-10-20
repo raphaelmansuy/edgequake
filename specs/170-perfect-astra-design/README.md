@@ -67,9 +67,13 @@
 - The dead-code [`FadeIn.astro`](../../edgequake-website/src/components/FadeIn.astro)
   (a no-op today) → replaced by a real, reduced-motion-safe reveal primitive.
 
-**Out of scope** — Starlight docs theming, tutorial content pages, the product
-WebUI (`edgequake_webui/`), and backend. Those are referenced only as the
-*source of truth* for screenshots and claims.
+**Round 4 extension** — marketing secondary routes, Starlight docs chrome
+(shared `SITE_NAV`, prose links), and agent entry points (`/llms.txt`,
+`/llms-full.txt`) are in scope for polish; capture harness:
+[`e2e/capture-docs.mjs`](./e2e/capture-docs.mjs).
+
+**Still out of scope** — product WebUI (`edgequake_webui/`) and backend. Those
+remain the *source of truth* for screenshots and claims.
 
 ## 2. Non-negotiable principles
 

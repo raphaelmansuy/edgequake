@@ -14,7 +14,7 @@ The title is **API Explorer**. Under it is the address of the description file, 
 
 Each row is a group of calls. A chevron opens the group. **Health** is open in the picture. Inside it:
 
-- **Deep health check with component status**, a **GET** (a read-only request). This is the check behind the green **API v0.33.0** dot in the header.
+- **Deep health check with component status**, a **GET** (a read-only request). This is the check behind the green **API v0.36.0** dot in the header.
 - **Liveness check (for Kubernetes)**, also a **GET**. A simple "the process is up". Kubernetes is the system that runs the demo server.
 - **Readiness check (for Kubernetes)**, a **GET**. A simple "the process can take work".
 
@@ -26,7 +26,7 @@ The footer of the list says **Powered by Scalar**, which is the component that d
 
 The right-hand pane is the overview:
 
-- A badge **v0.33.0** and **OpenAPI 3.1.0**. OpenAPI is the standard format of the description file.
+- A badge **v0.36.0** and **OpenAPI 3.1.0**. OpenAPI is the standard format of the description file.
 - **EdgeQuake API**, **Download OpenAPI Document**, and a one-line summary.
 - **Context Headers**. Almost every call needs two headers. **X-Tenant-ID** is the organization. **X-Workspace-ID** is the workspace. The website sets both when you pick **Default — Default Workspace** in the header. The example box shows the all-zero sample ids used in the documentation, not a secret.
 - **Server** is a menu of base addresses. **http://localhost:8080** is the usual address on your own machine. The demo you are looking at is `https://demo.edgequake.com`.

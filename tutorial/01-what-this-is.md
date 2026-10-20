@@ -17,7 +17,7 @@ You use it in a web browser. The public example is [https://demo.edgequake.com/]
 - **API Explorer** is the same product written as web requests, for people who want a program to talk to it.
 - **Settings** is your own look and feel, plus the connections to model providers.
 
-The header, on every page, shows which organization and which workspace you are in. On the demo that line reads **Default — Default Workspace**. The green dot and **API v0.33.0** mean the server behind the page is up. The pictures in this tour were taken there. The screens themselves are the same in the release that ships this tour.
+The header, on every page, shows which organization and which workspace you are in. On the demo that line reads **Default — Default Workspace**. The green dot and **API v0.36.0** mean the server behind the page is up. The pictures in this tour were taken there. The screens themselves are the same in the release that ships this tour.
 
 A typical visit is short. You look at the [Dashboard](03-dashboard.md), open a file under [Documents](04-documents.md), ask something on [Query](06-ask-a-question.md), then click a dot on [the map](07-the-map.md) to see why the answer mentioned that name.
 

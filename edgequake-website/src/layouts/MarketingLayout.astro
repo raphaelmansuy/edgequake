@@ -56,14 +56,40 @@ const schema = {
         "@id": "https://edgequake.com/#organization",
       },
       inLanguage: "en",
-      potentialAction: {
-        "@type": "SearchAction",
-        target: {
-          "@type": "EntryPoint",
-          urlTemplate: "https://edgequake.com/?q={search_term_string}",
+    },
+    {
+      "@type": "SiteNavigationElement",
+      "@id": "https://edgequake.com/#nav",
+      name: "Primary",
+      hasPart: [
+        { "@type": "WebPage", name: "Docs", url: "https://edgequake.com/docs/" },
+        {
+          "@type": "WebPage",
+          name: "Tutorial",
+          url: "https://edgequake.com/tutorial/",
         },
-        "query-input": "required name=search_term_string",
-      },
+        { "@type": "WebPage", name: "Demo", url: "https://edgequake.com/demo/" },
+        {
+          "@type": "WebPage",
+          name: "Ecosystem",
+          url: "https://edgequake.com/ecosystem/",
+        },
+        {
+          "@type": "WebPage",
+          name: "Enterprise",
+          url: "https://edgequake.com/enterprise/",
+        },
+        {
+          "@type": "WebPage",
+          name: "Collaborate",
+          url: "https://edgequake.com/work-with-raphael/",
+        },
+        {
+          "@type": "WebPage",
+          name: "Contact",
+          url: "https://edgequake.com/contact/",
+        },
+      ],
     },
     {
       "@type": "SoftwareApplication",
@@ -144,6 +170,20 @@ const schema = {
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="sitemap" href="/sitemap-index.xml" />
     <link rel="canonical" href={canonicalUrl} />
+    <!-- llmstxt.org v2: agents discover the covering brief via describedby -->
+    <link rel="describedby" href="/llms.txt" title="LLM site map" />
+    <link
+      rel="alternate"
+      type="text/plain"
+      href="/llms.txt"
+      title="llms.txt"
+    />
+    <link
+      rel="alternate"
+      type="text/plain"
+      href="/llms-full.txt"
+      title="llms-full.txt"
+    />
 
     <title>{resolvedTitle}</title>
     <meta name="description" content={description} />
@@ -239,7 +279,7 @@ const schema = {
     </script>
   </head>
   <body
-    class="min-h-screen mkt-bg mkt-text font-sans antialiased overflow-x-hidden"
+    class="mkt-site min-h-screen mkt-bg mkt-text font-sans antialiased overflow-x-hidden"
   >
     <a class="mkt-skip-link" href="#main-content">Skip to main content</a>
     <Header />

@@ -1,0 +1,76 @@
+---
+/**
+ * PageHero — shared marketing page shell (SPEC-170 round 4).
+ * Unifies H1/lede rhythm across secondary routes (contact, enterprise, etc.).
+ */
+interface Props {
+  title: string;
+  lede?: string;
+  eyebrow?: string;
+  /** "start" (default) or "center". */
+  align?: "start" | "center";
+  /** Taller padding + optional grid/glow. */
+  focal?: boolean;
+  /** Show faint grid + accent glow behind the hero. */
+  glow?: boolean;
+  /** Inner max-width utility. */
+  container?: string;
+  class?: string;
+}
+
+const {
+  title,
+  lede,
+  eyebrow,
+  align = "start",
+  focal = true,
+  glow = false,
+  container = "max-w-5xl",
+  class: className = "",
+} = Astro.props;
+
+const isCenter = align === "center";
+const hasLeading = Astro.slots.has("leading");
+const titleNeedsTop = Boolean(eyebrow || hasLeading);
+---
+
+<section
+  class:list={[
+    "relative overflow-clip",
+    focal ? "mkt-band-focal" : "mkt-band",
+    className,
+  ]}
+>
+  {
+    glow && (
+      <div class="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
+        <div class="mkt-grid-bg absolute inset-x-0 top-0 h-[420px]" />
+        <div class="absolute right-[-140px] top-[-120px] h-[380px] w-[560px] rounded-full bg-accent-500/12 blur-[120px]" />
+      </div>
+    )
+  }
+
+  <div
+    class:list={[
+      "mx-auto px-4 sm:px-6 lg:px-8",
+      container,
+      isCenter && "text-center",
+    ]}
+  >
+    <slot name="leading" />
+    {
+      eyebrow && (
+        <p class:list={["mkt-eyebrow", isCenter && "mx-auto"]}>{eyebrow}</p>
+      )
+    }
+    <h1 class:list={["mkt-display", titleNeedsTop && "mt-3"]}>
+      {title}
+    </h1>
+    {
+      lede && (
+        <p class:list={["mkt-lede", isCenter && "mx-auto"]}>{lede}</p>
+      )
+    }
+    <slot />
+  </div>
+</section>

@@ -20,13 +20,14 @@ const rows = [
 ];
 ---
 
-<Section focal>
+<Section focal container="max-w-7xl">
   <SectionHeader
+    align="center"
     title="Honest numbers"
     lede="Same GraphRAG-Bench medical-mid quality as LightRAG Python, productionised as a Rust binary with Postgres, auth, MCP, and explicit upgrades. When the confidence interval includes zero, we call it a tie rather than a win."
   />
 
-  <div class="mt-12 grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4">
+  <div class="mt-12 grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4 sm:text-center">
     {
       headlineStats.map((s) => (
         <div>
@@ -39,9 +40,9 @@ const rows = [
     }
   </div>
 
-  <div class="mt-12">
+  <div class="mt-12 mx-auto max-w-3xl">
     <div class="overflow-x-auto">
-      <table class="w-full max-w-3xl text-left text-sm">
+      <table class="w-full text-left text-sm">
         <thead>
           <tr class="mkt-border-subtle border-b">
             <th class="py-3 pr-4 font-semibold mkt-text">Metric</th>
@@ -70,14 +71,16 @@ const rows = [
     </div>
   </div>
 
-  <p class="mt-6 text-sm mkt-text-dim max-w-2xl">
+  <p class="mt-6 mx-auto max-w-2xl text-center text-sm mkt-text-dim">
     Pack: medical-mid, n=200, on the v0.36.0 cut. Methodology:
-    <a href="/docs/comparisons/eq-vs-lightrag-acc-bench/" class="mkt-inline-link"
+    <a
+      href="/docs/comparisons/eq-vs-lightrag-acc-bench/"
+      class="mkt-inline-link inline-flex min-h-11 items-center"
       >EQ vs LightRAG Acc</a
     >.
   </p>
 
-  <details class="mt-8 max-w-2xl">
+  <details class="mt-8 mx-auto max-w-2xl">
     <summary
       class="text-xs mkt-text-dim cursor-pointer hover:mkt-text transition-colors select-none"
     >

@@ -1,6 +1,8 @@
 ---
 import EcosystemSection from "../components/sections/Ecosystem.astro";
 import MarketingLayout from "../layouts/MarketingLayout.astro";
+import PageHero from "../components/primitives/PageHero.astro";
+import Section from "../components/primitives/Section.astro";
 import { getProductVersion } from "../lib/product";
 
 const version = getProductVersion();
@@ -10,45 +12,29 @@ const version = getProductVersion();
   title="Ecosystem — UI, API, MCP, and crates"
   description="EdgeQuake product surfaces: Web UI, REST/OpenAPI, MCP for agents, GHCR images, and the modular Rust workspace."
 >
-  <section class="pt-24 pb-8 sm:pt-32">
-    <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">
-      <h1 class="font-display text-4xl font-bold tracking-tight mkt-text sm:text-5xl">
-        The EdgeQuake ecosystem
-      </h1>
-      <p class="mt-6 text-lg mkt-text-muted">
-        Ship the product as Docker images, talk to it over REST or MCP, or embed
-        the Rust crates. Current line: <strong class="mkt-text-secondary"
-          >v{version}</strong
-        >.
-      </p>
-    </div>
-  </section>
+  <PageHero
+    title="The EdgeQuake ecosystem"
+    lede={`Ship the product as Docker images, talk to it over REST or MCP, or embed the Rust crates. Current line: v${version}.`}
+    align="center"
+    container="max-w-3xl"
+  />
 
   <EcosystemSection />
 
-  <section class="pb-20">
-    <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 space-y-8">
-      <div>
-        <h2 class="text-xl font-semibold mkt-text">Fastest install</h2>
-        <p class="mt-2 text-sm mkt-text-muted">
-          Prefer Docker over crates.io for the full stack (UI + API + Postgres):
-        </p>
-        <pre
-          class="mt-3 mkt-code-surface rounded-lg p-4 text-sm overflow-x-auto mkt-accent-text"
-        ><code>curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/quickstart.sh | sh</code></pre>
-      </div>
-      <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-        <a href="/demo/" class="mkt-inline-link">Try the demo</a>
-        <a href="/docs/getting-started/" class="mkt-inline-link"
-          >Getting started</a
-        >
-        <a href="/docs/integrations/" class="mkt-inline-link"
-          >MCP and integrations</a
-        >
-        <a href="/enterprise/" class="mkt-inline-link"
-          >Enterprise</a
-        >
-      </div>
+  <Section container="max-w-3xl">
+    <h2 class="text-xl font-semibold mkt-text">Fastest install</h2>
+    <p class="mt-2 text-sm mkt-text-muted">
+      Prefer Docker over crates.io for the full stack (UI + API + Postgres):
+    </p>
+    <pre
+      class="mt-3 mkt-code-surface rounded-lg p-4 text-sm overflow-x-auto mkt-accent-text"
+    ><code>curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/quickstart.sh | sh</code></pre>
+
+    <div class="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+      <a href="/demo/" class="mkt-inline-link">Try the demo</a>
+      <a href="/docs/getting-started/" class="mkt-inline-link">Getting started</a>
+      <a href="/docs/integrations/" class="mkt-inline-link">MCP and integrations</a>
+      <a href="/enterprise/" class="mkt-inline-link">Enterprise</a>
     </div>
-  </section>
+  </Section>
 </MarketingLayout>

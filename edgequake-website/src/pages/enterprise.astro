@@ -2,139 +2,124 @@
 import EnterpriseCTA from "../components/sections/EnterpriseCTA.astro";
 import Icon from "../components/primitives/Icon.astro";
 import MarketingLayout from "../layouts/MarketingLayout.astro";
+import PageHero from "../components/primitives/PageHero.astro";
+import Section from "../components/primitives/Section.astro";
+import SectionHeader from "../components/primitives/SectionHeader.astro";
+
+const pillars = [
+  {
+    title: "Self-Hosted",
+    description:
+      "Deploy on your own infrastructure. Air-gapped environments, private clouds, or on-premises — EdgeQuake runs wherever you need it.",
+    bullets: [
+      "Docker & Kubernetes ready",
+      "Private LLM support (Ollama/vLLM)",
+      "No data leaves your network",
+    ],
+  },
+  {
+    title: "Multi-tenant + SSO",
+    description:
+      "Postgres row-level security isolates workspaces. Invite members, set roles, and connect Keycloak / OIDC when you need enterprise sign-in.",
+    bullets: [
+      "Members, invites, magic links",
+      "OIDC / Keycloak SSO",
+      "Audit logging",
+    ],
+  },
+  {
+    title: "Scalable",
+    description:
+      "Process millions of documents with constant memory usage. Horizontal scaling via PostgreSQL and stateless API servers.",
+    bullets: [
+      "300MB memory per core",
+      "Horizontal API scaling",
+      "Connection pooling built-in",
+    ],
+  },
+];
+
+const links = [
+  {
+    href: "/docs/operations/deployment/",
+    title: "Deployment guide",
+    body: "Review environment setup, service architecture, and deployment mechanics.",
+  },
+  {
+    href: "/docs/operations/configuration/",
+    title: "Configuration reference",
+    body: "Understand provider, database, and runtime configuration options.",
+  },
+  {
+    href: "/contact/",
+    title: "Implementation support",
+    body: "Talk to the team about architecture reviews, rollout planning, or custom integration work.",
+  },
+];
 ---
 
 <MarketingLayout
   title="Enterprise Graph-RAG | EdgeQuake"
   description="EdgeQuake for enterprise: self-hosted Graph-RAG with workspace isolation, Apache 2.0 license, on-premise deployment, and no cloud embedding dependency."
 >
-  <section class="py-24 sm:py-32">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div class="text-center max-w-3xl mx-auto">
-        <h1 class="font-display text-4xl font-bold tracking-tight mkt-text sm:text-5xl">
-          EdgeQuake for Enterprise
-        </h1>
-        <p class="mt-6 text-lg mkt-text-muted">
-          Production-grade Graph-RAG for teams that need deployment control,
-          workspace isolation, reliable operations, and a path from prototype to
-          internal platform.
-        </p>
-        <p class="mt-4 text-sm leading-relaxed mkt-text-dim">
-          Use this page to understand how EdgeQuake fits air-gapped
-          environments, private model hosting, customer-facing systems, and
-          multi-team knowledge platforms.
-        </p>
-      </div>
+  <PageHero
+    title="EdgeQuake for Enterprise"
+    lede="Production-grade Graph-RAG for teams that need deployment control, workspace isolation, reliable operations, and a path from prototype to internal platform."
+    align="center"
+    container="max-w-3xl"
+  >
+    <p class="mx-auto mt-4 max-w-2xl text-sm leading-relaxed mkt-text-dim">
+      Use this page to understand how EdgeQuake fits air-gapped environments,
+      private model hosting, customer-facing systems, and multi-team knowledge
+      platforms.
+    </p>
+  </PageHero>
+
+  <Section tone="alt">
+    <SectionHeader
+      title="What buyers need from Graph-RAG"
+      lede="Control, isolation, and a path that scales — without a card-kit of floating boxes."
+    />
+
+    <div class="mt-12 grid gap-x-12 gap-y-0 md:grid-cols-3">
+      {
+        pillars.map((p) => (
+          <div class="border-t mkt-border-subtle py-7">
+            <h2 class="text-lg font-semibold mkt-text">{p.title}</h2>
+            <p class="mt-3 text-sm leading-relaxed mkt-text-muted">
+              {p.description}
+            </p>
+            <ul class="mt-4 space-y-2 text-sm mkt-text-muted">
+              {p.bullets.map((b) => (
+                <li class="flex items-center gap-2">
+                  <Icon name="check" class="h-4 w-4 shrink-0 mkt-success-text" />
+                  {b}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
     </div>
-  </section>
 
-  <!-- Feature pillars -->
-  <section class="py-16">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div class="grid gap-8 md:grid-cols-3">
-        <div class="mkt-card rounded-xl p-8">
-          <h2 class="text-xl font-semibold mkt-text">Self-Hosted</h2>
-          <p class="mt-3 mkt-text-muted">
-            Deploy on your own infrastructure. Air-gapped environments, private
-            clouds, or on-premises — EdgeQuake runs wherever you need it.
-          </p>
-          <ul class="mt-4 space-y-2 text-sm mkt-text-muted">
-            <li class="flex items-center gap-2">
-              <Icon name="check" class="h-4 w-4 shrink-0 mkt-success-text" />
-              Docker &amp; Kubernetes ready
-            </li>
-            <li class="flex items-center gap-2">
-              <Icon name="check" class="h-4 w-4 shrink-0 mkt-success-text" />
-              Private LLM support (Ollama/vLLM)
-            </li>
-            <li class="flex items-center gap-2">
-              <Icon name="check" class="h-4 w-4 shrink-0 mkt-success-text" />
-              No data leaves your network
-            </li>
-          </ul>
-        </div>
-
-        <div class="mkt-card rounded-xl p-8">
-          <h2 class="text-xl font-semibold mkt-text">Multi-tenant + SSO</h2>
-          <p class="mt-3 mkt-text-muted">
-            Postgres row-level security isolates workspaces. Invite members,
-            set roles, and connect Keycloak / OIDC when you need enterprise
-            sign-in.
-          </p>
-          <ul class="mt-4 space-y-2 text-sm mkt-text-muted">
-            <li class="flex items-center gap-2">
-              <Icon name="check" class="h-4 w-4 shrink-0 mkt-success-text" />
-              Members, invites, magic links
-            </li>
-            <li class="flex items-center gap-2">
-              <Icon name="check" class="h-4 w-4 shrink-0 mkt-success-text" />
-              OIDC / Keycloak SSO
-            </li>
-            <li class="flex items-center gap-2">
-              <Icon name="check" class="h-4 w-4 shrink-0 mkt-success-text" />
-              Audit logging
-            </li>
-          </ul>
-        </div>
-
-        <div class="mkt-card rounded-xl p-8">
-          <h2 class="text-xl font-semibold mkt-text">Scalable</h2>
-          <p class="mt-3 mkt-text-muted">
-            Process millions of documents with constant memory usage. Horizontal
-            scaling via PostgreSQL and stateless API servers.
-          </p>
-          <ul class="mt-4 space-y-2 text-sm mkt-text-muted">
-            <li class="flex items-center gap-2">
-              <Icon name="check" class="h-4 w-4 shrink-0 mkt-success-text" />
-              300MB memory per core
-            </li>
-            <li class="flex items-center gap-2">
-              <Icon name="check" class="h-4 w-4 shrink-0 mkt-success-text" />
-              Horizontal API scaling
-            </li>
-            <li class="flex items-center gap-2">
-              <Icon name="check" class="h-4 w-4 shrink-0 mkt-success-text" />
-              Connection pooling built-in
-            </li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="mt-10 grid gap-6 lg:grid-cols-3">
-        <a
-          href="/docs/operations/deployment/"
-          class="mkt-card cursor-pointer rounded-xl p-6 transition-colors hover:border-accent-500/30 focus-visible:outline-2 focus-visible:outline-offset-4"
-        >
-          <h2 class="text-lg font-semibold mkt-text">Deployment guide</h2>
-          <p class="mt-2 text-sm mkt-text-muted">
-            Review environment setup, service architecture, and deployment
-            mechanics.
-          </p>
-        </a>
-        <a
-          href="/docs/operations/configuration/"
-          class="mkt-card cursor-pointer rounded-xl p-6 transition-colors hover:border-accent-500/30 focus-visible:outline-2 focus-visible:outline-offset-4"
-        >
-          <h2 class="text-lg font-semibold mkt-text">
-            Configuration reference
-          </h2>
-          <p class="mt-2 text-sm mkt-text-muted">
-            Understand provider, database, and runtime configuration options.
-          </p>
-        </a>
-        <a
-          href="/contact/"
-          class="mkt-card cursor-pointer rounded-xl p-6 transition-colors hover:border-accent-500/30 focus-visible:outline-2 focus-visible:outline-offset-4"
-        >
-          <h2 class="text-lg font-semibold mkt-text">Implementation support</h2>
-          <p class="mt-2 text-sm mkt-text-muted">
-            Talk to the team about architecture reviews, rollout planning, or
-            custom integration work.
-          </p>
-        </a>
-      </div>
-    </div>
-  </section>
+    <ul class="mt-12 grid list-none gap-0 p-0 m-0 sm:grid-cols-3 sm:gap-x-10">
+      {
+        links.map((l) => (
+          <li class="min-w-0 border-t mkt-border-subtle py-6">
+            <h3 class="text-base font-semibold leading-snug">
+              <a
+                href={l.href}
+                class="mkt-text transition-colors duration-200 hover:mkt-accent-text focus-visible:outline-2 focus-visible:outline-offset-4"
+              >
+                {l.title}
+              </a>
+            </h3>
+            <p class="mt-2 text-sm leading-relaxed mkt-text-muted">{l.body}</p>
+          </li>
+        ))
+      }
+    </ul>
+  </Section>
 
   <EnterpriseCTA />
 </MarketingLayout>

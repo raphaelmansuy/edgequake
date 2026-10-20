@@ -4,7 +4,7 @@ This is a picture tour of the EdgeQuake website. Every chapter is one screen, wr
 
 Open the demo, sign in with the username and password you were given, and follow the chapters in order. You can also jump to the screen you care about.
 
-The counts in the pictures (12 documents, 12,642 entities, and so on) are what the demo showed on the day the pictures were taken. Your own install will show your own numbers.
+The counts in the pictures (15 documents, 13,200 entities, and so on) are what the demo showed on the day the pictures were taken. Your own install will show your own numbers.
 
 ## Words used in this tour
 

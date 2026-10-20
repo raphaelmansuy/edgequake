@@ -1,0 +1,1162 @@
+[
+  {
+    "name": "docs-index",
+    "path": "/docs/",
+    "vn": "desktop",
+    "theme": "light",
+    "status": 200,
+    "file": "docs-index-desktop-light.png",
+    "linkAudit": [
+      {
+        "text": "OpenAPI snapshot",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "../edgequake_webui/openapi/openapi.snapshot.json"
+      },
+      {
+        "text": "Ingestion cancel and fairness",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "ingestion-cancel-and-fairness.md"
+      },
+      {
+        "text": "Try EdgeQuake",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "https://edgequake.com/demo/"
+      },
+      {
+        "text": "demo.edgequake.com",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "https://demo.edgequake.com/"
+      },
+      {
+        "text": "picture tour",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "https://edgequake.com/tutorial/"
+      },
+      {
+        "text": "work with Raphael",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "https://edgequake.com/work-with-raphael/"
+      },
+      {
+        "text": "Section titled “Where to start”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#where-to-start"
+      },
+      {
+        "text": "Section titled “Explore the documentatio",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#explore-the-documentation"
+      }
+    ]
+  },
+  {
+    "name": "docs-index",
+    "path": "/docs/",
+    "vn": "desktop",
+    "theme": "dark",
+    "status": 200,
+    "file": "docs-index-desktop-dark.png",
+    "linkAudit": [
+      {
+        "text": "OpenAPI snapshot",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "../edgequake_webui/openapi/openapi.snapshot.json"
+      },
+      {
+        "text": "Ingestion cancel and fairness",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "ingestion-cancel-and-fairness.md"
+      },
+      {
+        "text": "Try EdgeQuake",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "https://edgequake.com/demo/"
+      },
+      {
+        "text": "demo.edgequake.com",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "https://demo.edgequake.com/"
+      },
+      {
+        "text": "picture tour",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "https://edgequake.com/tutorial/"
+      },
+      {
+        "text": "work with Raphael",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "https://edgequake.com/work-with-raphael/"
+      },
+      {
+        "text": "Section titled “Where to start”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#where-to-start"
+      },
+      {
+        "text": "Section titled “Explore the documentatio",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#explore-the-documentation"
+      }
+    ]
+  },
+  {
+    "name": "docs-index",
+    "path": "/docs/",
+    "vn": "mobile",
+    "theme": "light",
+    "status": 200,
+    "file": "docs-index-mobile-light.png",
+    "linkAudit": [
+      {
+        "text": "OpenAPI snapshot",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "../edgequake_webui/openapi/openapi.snapshot.json"
+      },
+      {
+        "text": "Ingestion cancel and fairness",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "ingestion-cancel-and-fairness.md"
+      },
+      {
+        "text": "Try EdgeQuake",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "https://edgequake.com/demo/"
+      },
+      {
+        "text": "demo.edgequake.com",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "https://demo.edgequake.com/"
+      },
+      {
+        "text": "picture tour",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "https://edgequake.com/tutorial/"
+      },
+      {
+        "text": "work with Raphael",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "https://edgequake.com/work-with-raphael/"
+      },
+      {
+        "text": "Section titled “Where to start”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#where-to-start"
+      },
+      {
+        "text": "Section titled “Explore the documentatio",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#explore-the-documentation"
+      }
+    ]
+  },
+  {
+    "name": "docs-index",
+    "path": "/docs/",
+    "vn": "mobile",
+    "theme": "dark",
+    "status": 200,
+    "file": "docs-index-mobile-dark.png",
+    "linkAudit": [
+      {
+        "text": "OpenAPI snapshot",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "../edgequake_webui/openapi/openapi.snapshot.json"
+      },
+      {
+        "text": "Ingestion cancel and fairness",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "ingestion-cancel-and-fairness.md"
+      },
+      {
+        "text": "Try EdgeQuake",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "https://edgequake.com/demo/"
+      },
+      {
+        "text": "demo.edgequake.com",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "https://demo.edgequake.com/"
+      },
+      {
+        "text": "picture tour",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "https://edgequake.com/tutorial/"
+      },
+      {
+        "text": "work with Raphael",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "https://edgequake.com/work-with-raphael/"
+      },
+      {
+        "text": "Section titled “Where to start”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#where-to-start"
+      },
+      {
+        "text": "Section titled “Explore the documentatio",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#explore-the-documentation"
+      }
+    ]
+  },
+  {
+    "name": "docs-quick-start",
+    "path": "/docs/getting-started/quick-start/",
+    "vn": "desktop",
+    "theme": "light",
+    "status": 200,
+    "file": "docs-quick-start-desktop-light.png",
+    "linkAudit": [
+      {
+        "text": "OpenAPI snapshot",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "../../edgequake_webui/openapi/openapi.snapshot.json"
+      },
+      {
+        "text": "Ingestion cancel and fairness",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "../ingestion-cancel-and-fairness.md"
+      },
+      {
+        "text": "Section titled “Quick Start”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#quick-start"
+      },
+      {
+        "text": "Installation",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "installation.md"
+      },
+      {
+        "text": "Section titled “What you will do”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#what-you-will-do"
+      },
+      {
+        "text": "Section titled “Before you start”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#before-you-start"
+      },
+      {
+        "text": "Section titled “Authentication headers”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#authentication-headers"
+      },
+      {
+        "text": "Runtime auth hardening",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "../operations/runtime-auth-hardening.md"
+      }
+    ]
+  },
+  {
+    "name": "docs-quick-start",
+    "path": "/docs/getting-started/quick-start/",
+    "vn": "desktop",
+    "theme": "dark",
+    "status": 200,
+    "file": "docs-quick-start-desktop-dark.png",
+    "linkAudit": [
+      {
+        "text": "OpenAPI snapshot",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "../../edgequake_webui/openapi/openapi.snapshot.json"
+      },
+      {
+        "text": "Ingestion cancel and fairness",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "../ingestion-cancel-and-fairness.md"
+      },
+      {
+        "text": "Section titled “Quick Start”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#quick-start"
+      },
+      {
+        "text": "Installation",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "installation.md"
+      },
+      {
+        "text": "Section titled “What you will do”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#what-you-will-do"
+      },
+      {
+        "text": "Section titled “Before you start”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#before-you-start"
+      },
+      {
+        "text": "Section titled “Authentication headers”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#authentication-headers"
+      },
+      {
+        "text": "Runtime auth hardening",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "../operations/runtime-auth-hardening.md"
+      }
+    ]
+  },
+  {
+    "name": "docs-quick-start",
+    "path": "/docs/getting-started/quick-start/",
+    "vn": "mobile",
+    "theme": "light",
+    "status": 200,
+    "file": "docs-quick-start-mobile-light.png",
+    "linkAudit": [
+      {
+        "text": "OpenAPI snapshot",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "../../edgequake_webui/openapi/openapi.snapshot.json"
+      },
+      {
+        "text": "Ingestion cancel and fairness",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "../ingestion-cancel-and-fairness.md"
+      },
+      {
+        "text": "Section titled “Quick Start”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#quick-start"
+      },
+      {
+        "text": "Installation",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "installation.md"
+      },
+      {
+        "text": "Section titled “What you will do”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#what-you-will-do"
+      },
+      {
+        "text": "Section titled “Before you start”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#before-you-start"
+      },
+      {
+        "text": "Section titled “Authentication headers”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#authentication-headers"
+      },
+      {
+        "text": "Runtime auth hardening",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "../operations/runtime-auth-hardening.md"
+      }
+    ]
+  },
+  {
+    "name": "docs-quick-start",
+    "path": "/docs/getting-started/quick-start/",
+    "vn": "mobile",
+    "theme": "dark",
+    "status": 200,
+    "file": "docs-quick-start-mobile-dark.png",
+    "linkAudit": [
+      {
+        "text": "OpenAPI snapshot",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "../../edgequake_webui/openapi/openapi.snapshot.json"
+      },
+      {
+        "text": "Ingestion cancel and fairness",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "../ingestion-cancel-and-fairness.md"
+      },
+      {
+        "text": "Section titled “Quick Start”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#quick-start"
+      },
+      {
+        "text": "Installation",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "installation.md"
+      },
+      {
+        "text": "Section titled “What you will do”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#what-you-will-do"
+      },
+      {
+        "text": "Section titled “Before you start”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#before-you-start"
+      },
+      {
+        "text": "Section titled “Authentication headers”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#authentication-headers"
+      },
+      {
+        "text": "Runtime auth hardening",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "../operations/runtime-auth-hardening.md"
+      }
+    ]
+  },
+  {
+    "name": "docs-architecture",
+    "path": "/docs/architecture/",
+    "vn": "desktop",
+    "theme": "light",
+    "status": 200,
+    "file": "docs-architecture-desktop-light.png",
+    "linkAudit": [
+      {
+        "text": "Section titled “Architecture”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#architecture"
+      },
+      {
+        "text": "Section titled “Where to go next”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#where-to-go-next"
+      },
+      {
+        "text": "Overview",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "./overview.md"
+      },
+      {
+        "text": "Data flow",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "./data-flow.md"
+      },
+      {
+        "text": "Query flow",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "./query-flow.md"
+      },
+      {
+        "text": "Storage model",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "./storage-model.md"
+      },
+      {
+        "text": "Schema E/R diagrams",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "../data-layer/schema-er.md"
+      },
+      {
+        "text": "Tenancy and providers",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "./tenancy-and-providers.md"
+      }
+    ]
+  },
+  {
+    "name": "docs-architecture",
+    "path": "/docs/architecture/",
+    "vn": "desktop",
+    "theme": "dark",
+    "status": 200,
+    "file": "docs-architecture-desktop-dark.png",
+    "linkAudit": [
+      {
+        "text": "Section titled “Architecture”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#architecture"
+      },
+      {
+        "text": "Section titled “Where to go next”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#where-to-go-next"
+      },
+      {
+        "text": "Overview",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "./overview.md"
+      },
+      {
+        "text": "Data flow",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "./data-flow.md"
+      },
+      {
+        "text": "Query flow",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "./query-flow.md"
+      },
+      {
+        "text": "Storage model",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "./storage-model.md"
+      },
+      {
+        "text": "Schema E/R diagrams",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "../data-layer/schema-er.md"
+      },
+      {
+        "text": "Tenancy and providers",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "./tenancy-and-providers.md"
+      }
+    ]
+  },
+  {
+    "name": "docs-architecture",
+    "path": "/docs/architecture/",
+    "vn": "mobile",
+    "theme": "light",
+    "status": 200,
+    "file": "docs-architecture-mobile-light.png",
+    "linkAudit": [
+      {
+        "text": "Section titled “Architecture”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#architecture"
+      },
+      {
+        "text": "Section titled “Where to go next”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#where-to-go-next"
+      },
+      {
+        "text": "Overview",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "./overview.md"
+      },
+      {
+        "text": "Data flow",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "./data-flow.md"
+      },
+      {
+        "text": "Query flow",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "./query-flow.md"
+      },
+      {
+        "text": "Storage model",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "./storage-model.md"
+      },
+      {
+        "text": "Schema E/R diagrams",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "../data-layer/schema-er.md"
+      },
+      {
+        "text": "Tenancy and providers",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "./tenancy-and-providers.md"
+      }
+    ]
+  },
+  {
+    "name": "docs-architecture",
+    "path": "/docs/architecture/",
+    "vn": "mobile",
+    "theme": "dark",
+    "status": 200,
+    "file": "docs-architecture-mobile-dark.png",
+    "linkAudit": [
+      {
+        "text": "Section titled “Architecture”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#architecture"
+      },
+      {
+        "text": "Section titled “Where to go next”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#where-to-go-next"
+      },
+      {
+        "text": "Overview",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "./overview.md"
+      },
+      {
+        "text": "Data flow",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "./data-flow.md"
+      },
+      {
+        "text": "Query flow",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "./query-flow.md"
+      },
+      {
+        "text": "Storage model",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "./storage-model.md"
+      },
+      {
+        "text": "Schema E/R diagrams",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "../data-layer/schema-er.md"
+      },
+      {
+        "text": "Tenancy and providers",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "./tenancy-and-providers.md"
+      }
+    ]
+  },
+  {
+    "name": "docs-api-reference",
+    "path": "/docs/api-reference/",
+    "vn": "desktop",
+    "theme": "light",
+    "status": 200,
+    "file": "docs-api-reference-desktop-light.png",
+    "linkAudit": [
+      {
+        "text": "Section titled “API Reference”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#api-reference"
+      },
+      {
+        "text": "Section titled “Pick a page”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#pick-a-page"
+      },
+      {
+        "text": "REST API",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "rest-api.md#conventions"
+      },
+      {
+        "text": "Document upload",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "document-upload-quick-reference.md"
+      },
+      {
+        "text": "REST API: Query and Chat",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "rest-api.md#query"
+      },
+      {
+        "text": "REST API: Graph",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "rest-api.md#graph"
+      },
+      {
+        "text": "Extended API",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "extended-api.md"
+      },
+      {
+        "text": "Lineage endpoints",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "lineage-endpoints.md"
+      }
+    ]
+  },
+  {
+    "name": "docs-api-reference",
+    "path": "/docs/api-reference/",
+    "vn": "desktop",
+    "theme": "dark",
+    "status": 200,
+    "file": "docs-api-reference-desktop-dark.png",
+    "linkAudit": [
+      {
+        "text": "Section titled “API Reference”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#api-reference"
+      },
+      {
+        "text": "Section titled “Pick a page”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#pick-a-page"
+      },
+      {
+        "text": "REST API",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "rest-api.md#conventions"
+      },
+      {
+        "text": "Document upload",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "document-upload-quick-reference.md"
+      },
+      {
+        "text": "REST API: Query and Chat",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "rest-api.md#query"
+      },
+      {
+        "text": "REST API: Graph",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "rest-api.md#graph"
+      },
+      {
+        "text": "Extended API",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "extended-api.md"
+      },
+      {
+        "text": "Lineage endpoints",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "lineage-endpoints.md"
+      }
+    ]
+  },
+  {
+    "name": "docs-api-reference",
+    "path": "/docs/api-reference/",
+    "vn": "mobile",
+    "theme": "light",
+    "status": 200,
+    "file": "docs-api-reference-mobile-light.png",
+    "linkAudit": [
+      {
+        "text": "Section titled “API Reference”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#api-reference"
+      },
+      {
+        "text": "Section titled “Pick a page”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#pick-a-page"
+      },
+      {
+        "text": "REST API",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "rest-api.md#conventions"
+      },
+      {
+        "text": "Document upload",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "document-upload-quick-reference.md"
+      },
+      {
+        "text": "REST API: Query and Chat",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "rest-api.md#query"
+      },
+      {
+        "text": "REST API: Graph",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "rest-api.md#graph"
+      },
+      {
+        "text": "Extended API",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "extended-api.md"
+      },
+      {
+        "text": "Lineage endpoints",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "lineage-endpoints.md"
+      }
+    ]
+  },
+  {
+    "name": "docs-api-reference",
+    "path": "/docs/api-reference/",
+    "vn": "mobile",
+    "theme": "dark",
+    "status": 200,
+    "file": "docs-api-reference-mobile-dark.png",
+    "linkAudit": [
+      {
+        "text": "Section titled “API Reference”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#api-reference"
+      },
+      {
+        "text": "Section titled “Pick a page”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#pick-a-page"
+      },
+      {
+        "text": "REST API",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "rest-api.md#conventions"
+      },
+      {
+        "text": "Document upload",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "document-upload-quick-reference.md"
+      },
+      {
+        "text": "REST API: Query and Chat",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "rest-api.md#query"
+      },
+      {
+        "text": "REST API: Graph",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "rest-api.md#graph"
+      },
+      {
+        "text": "Extended API",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "extended-api.md"
+      },
+      {
+        "text": "Lineage endpoints",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "lineage-endpoints.md"
+      }
+    ]
+  },
+  {
+    "name": "docs-faq",
+    "path": "/docs/faq/",
+    "vn": "desktop",
+    "theme": "light",
+    "status": 200,
+    "file": "docs-faq-desktop-light.png",
+    "linkAudit": [
+      {
+        "text": "OpenAPI snapshot",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "../edgequake_webui/openapi/openapi.snapshot.json"
+      },
+      {
+        "text": "Ingestion cancel and fairness",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "ingestion-cancel-and-fairness.md"
+      },
+      {
+        "text": "Section titled “Frequently Asked Questio",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#frequently-asked-questions"
+      },
+      {
+        "text": "Getting Started",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "getting-started/index.md"
+      },
+      {
+        "text": "Section titled “General”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#general"
+      },
+      {
+        "text": "Section titled “What is EdgeQuake?”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#what-is-edgequake"
+      },
+      {
+        "text": "Graph-RAG",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "concepts/graph-rag.md"
+      },
+      {
+        "text": "Section titled “How is EdgeQuake differe",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#how-is-edgequake-different-from-vector-only-rag"
+      }
+    ]
+  },
+  {
+    "name": "docs-faq",
+    "path": "/docs/faq/",
+    "vn": "desktop",
+    "theme": "dark",
+    "status": 200,
+    "file": "docs-faq-desktop-dark.png",
+    "linkAudit": [
+      {
+        "text": "OpenAPI snapshot",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "../edgequake_webui/openapi/openapi.snapshot.json"
+      },
+      {
+        "text": "Ingestion cancel and fairness",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "ingestion-cancel-and-fairness.md"
+      },
+      {
+        "text": "Section titled “Frequently Asked Questio",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#frequently-asked-questions"
+      },
+      {
+        "text": "Getting Started",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "getting-started/index.md"
+      },
+      {
+        "text": "Section titled “General”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#general"
+      },
+      {
+        "text": "Section titled “What is EdgeQuake?”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#what-is-edgequake"
+      },
+      {
+        "text": "Graph-RAG",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "concepts/graph-rag.md"
+      },
+      {
+        "text": "Section titled “How is EdgeQuake differe",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#how-is-edgequake-different-from-vector-only-rag"
+      }
+    ]
+  },
+  {
+    "name": "docs-faq",
+    "path": "/docs/faq/",
+    "vn": "mobile",
+    "theme": "light",
+    "status": 200,
+    "file": "docs-faq-mobile-light.png",
+    "linkAudit": [
+      {
+        "text": "OpenAPI snapshot",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "../edgequake_webui/openapi/openapi.snapshot.json"
+      },
+      {
+        "text": "Ingestion cancel and fairness",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "ingestion-cancel-and-fairness.md"
+      },
+      {
+        "text": "Section titled “Frequently Asked Questio",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#frequently-asked-questions"
+      },
+      {
+        "text": "Getting Started",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "getting-started/index.md"
+      },
+      {
+        "text": "Section titled “General”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#general"
+      },
+      {
+        "text": "Section titled “What is EdgeQuake?”",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#what-is-edgequake"
+      },
+      {
+        "text": "Graph-RAG",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "concepts/graph-rag.md"
+      },
+      {
+        "text": "Section titled “How is EdgeQuake differe",
+        "color": "rgb(74, 91, 240)",
+        "decoration": "underline",
+        "href": "#how-is-edgequake-different-from-vector-only-rag"
+      }
+    ]
+  },
+  {
+    "name": "docs-faq",
+    "path": "/docs/faq/",
+    "vn": "mobile",
+    "theme": "dark",
+    "status": 200,
+    "file": "docs-faq-mobile-dark.png",
+    "linkAudit": [
+      {
+        "text": "OpenAPI snapshot",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "../edgequake_webui/openapi/openapi.snapshot.json"
+      },
+      {
+        "text": "Ingestion cancel and fairness",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "ingestion-cancel-and-fairness.md"
+      },
+      {
+        "text": "Section titled “Frequently Asked Questio",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#frequently-asked-questions"
+      },
+      {
+        "text": "Getting Started",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "getting-started/index.md"
+      },
+      {
+        "text": "Section titled “General”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#general"
+      },
+      {
+        "text": "Section titled “What is EdgeQuake?”",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#what-is-edgequake"
+      },
+      {
+        "text": "Graph-RAG",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "concepts/graph-rag.md"
+      },
+      {
+        "text": "Section titled “How is EdgeQuake differe",
+        "color": "rgb(163, 173, 255)",
+        "decoration": "underline",
+        "href": "#how-is-edgequake-different-from-vector-only-rag"
+      }
+    ]
+  }
+]

@@ -10,7 +10,7 @@ order: 7
 
 Knowledge Graph is the picture of the workspace. Each dot is an entity. Each line is a relationship. The sidebar calls this page **Knowledge Graph**.
 
-The demo map is large: **12,642** dots and many thousands of lines. The page draws a sample so the browser stays usable. The orange bar at the bottom says **200 of 12,642 nodes (2%)**. **Load More** asks for the next batch.
+The demo map is large: **13,200** dots and many thousands of lines. The page draws a sample so the browser stays usable. The orange bar at the bottom says **200 of 13,200 nodes (2%)**. **Load More** asks for the next batch.
 
 ![The map, with 200 dots drawn. A list of entities is on the left, filters are on the right, and a Neighbourhood card offers 1 hop, 2 hops, and 3 hops.](/tutorial/07-graph.png)
 
@@ -28,7 +28,7 @@ The toolbar on that title row, from left to right after the title:
 
 - **Search nodes...** finds a dot by name. The **×** clears the search.
 - The table icon switches the dots to a table. Click it again to come back to the picture.
-- The badge **200 / 12,642 (2%)** is the same "how much is drawn" count as the orange bar.
+- The badge **200 / 13,200 (2%)** is the same "how much is drawn" count as the orange bar.
 - The layout control and **Apply Layout** place the dots again.
 - **Export** downloads a picture of the map.
 - **Refresh** reloads the dots from the server.

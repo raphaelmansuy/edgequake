@@ -75,12 +75,20 @@ const features: {
           <h3 class="mt-4 text-base font-semibold leading-snug">
             <a
               href={f.href}
-              class="mkt-text transition-colors duration-200 hover:mkt-accent-text focus-visible:outline-2 focus-visible:outline-offset-4"
+              class="inline-flex min-h-11 items-center mkt-text transition-colors duration-200 hover:mkt-accent-text focus-visible:outline-2 focus-visible:outline-offset-4"
             >
               {f.title}
             </a>
           </h3>
-          <p class="mt-2 text-sm leading-relaxed mkt-text-muted">{f.description}</p>
+          <p class="mt-1 text-sm leading-relaxed mkt-text-muted">{f.description}</p>
+          <p class="mt-2">
+            <a
+              href={f.href}
+              class="mkt-inline-link inline-flex min-h-11 items-center text-sm cursor-pointer"
+            >
+              Read in docs
+            </a>
+          </p>
         </li>
       ))
     }
@@ -90,6 +98,10 @@ const features: {
     Plus explicit{" "}
     <code class="mkt-text-secondary">edgequake migrate</code> upgrades, hybrid
     cloud LLM with local embeddings, and side-by-side PDF citations.{" "}
-    <a href="/docs/whats-new/" class="mkt-inline-link">See what’s new</a>.
+    <a
+      href="/docs/whats-new/"
+      class="mkt-inline-link inline-flex min-h-11 items-center"
+      >See what’s new</a
+    >.
   </p>
 </Section>

@@ -40,8 +40,10 @@ Worst CLS **0.0229**, worst overflow **0 px**. Target: all CLS → **0**.
 | 1 | metric-matched font fallbacks + tokens + primitives + hero/showcase/section refactor; contained glow; framed real graph | **0 / 0.0007** | **0.001 / 0.001** | 0 | font-swap CLS gone; desktop overflowers 1→0 |
 | 2 | contrast fixes (`--mkt-text-dim` dark, frame-bar labels) | 0.0007 / 0.001 | 0.001 / 0.0007 | 0 | all contrast AA; CLS stable ≈0 (≤0.001 noise) |
 | 3 | **frontend-design skill applied**: typefaces → Space Grotesk + IBM Plex Sans (replaces the hated serif pairing); cool-ink + electric-indigo palette; removed AI tells (ALL-CAPS eyebrows, `→`, middots, single-phrase accent, uniform card kit, fade-up-everywhere); theme-aware product screenshots (demo light + dark) | **0.0002 / 0.0002** | **0.0001 / 0** | 0 | new font fallbacks → CLS even lower; 0 visual defects across 4 viewports × 2 themes |
+| 4 | **Round 4 UX**: PageHero + secondary-page rhythm; scoped `body.mkt-site` link reset; Starlight prose underlines; shared `SITE_NAV` (+ Contact); `/llms.txt` + `/llms-full.txt`; JSON-LD SiteNavigationElement; docs capture harness | **0 / 0** | **0 / 0** | 0 | CLS stays 0; nav/SEO/LLM entry points aligned |
+| 5 | **Astra-only polish**: pastel home Architecture SVG; mermaid theme fonts → IBM Plex + softer pastels; denser nav so Contact fits | **0 / 0** | **0 / 0** | 0 | product WebUI out of scope |
 
-**Verdict:** worst CLS **0.0229 → 0.0004** (≈0); worst overflow **0 px**; **0 visual
+**Verdict:** worst CLS **0.0229 → 0** (round 4 audit); worst overflow **0 px**; **0 visual
 defects** (broken images, clipping, overlap, viewport escape) across 8
 viewport/theme combinations via [`e2e/inspect.mjs`](./e2e/inspect.mjs).
 
