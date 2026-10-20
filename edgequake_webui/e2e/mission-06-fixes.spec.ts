@@ -411,7 +411,13 @@ test.describe('Mission 06 regression proof', () => {
     await expect(alphaRow).toBeVisible({ timeout: 10000 });
     await alphaRow.click();
 
-    await expect(page.getByRole('button', { name: /^Edit entity/i })).toBeVisible();
+    // selectNode opens the right Details panel (canvas-first default is collapsed).
+    await expect(page.locator('[data-tour="details-panel"]')).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(page.getByRole('button', { name: /^Edit entity/i })).toBeVisible({
+      timeout: 10_000,
+    });
     await expect(page.getByRole('button', { name: /^Merge entity/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /^Delete entity/i })).toBeVisible();
 

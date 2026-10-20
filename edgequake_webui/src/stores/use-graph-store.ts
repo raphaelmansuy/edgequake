@@ -259,7 +259,8 @@ const initialState: GraphState = {
   hoveredNodeId: null,
   selectedNodes: new Set(),
   showNodeDetails: true,
-  rightPanelCollapsed: true, // canvas-first: opens on node select (graph-viewer)
+  // Canvas-first until a node is selected; `selectNode` opens the panel.
+  rightPanelCollapsed: true,
   visibleEntityTypes: new Set(),
   visibleRelationshipTypes: new Set(),
   searchQuery: "",
@@ -500,9 +501,13 @@ export const useGraphStore = create<GraphStore>()((set, get) => ({
       .filter((edge): edge is GraphEdge => edge !== undefined);
   },
 
-  // Selection actions
+  // Selection actions — selecting a node reveals Details (Edit/Merge/Delete/Ask).
   selectNode: (nodeId) =>
-    set({ selectedNodeId: nodeId, showNodeDetails: nodeId !== null }),
+    set({
+      selectedNodeId: nodeId,
+      showNodeDetails: nodeId !== null,
+      ...(nodeId !== null ? { rightPanelCollapsed: false } : {}),
+    }),
 
   toggleNodeDetails: () =>
     set((state) => ({ showNodeDetails: !state.showNodeDetails })),

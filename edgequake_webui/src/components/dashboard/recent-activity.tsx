@@ -25,6 +25,12 @@ import { ActivityRow } from './activity-row';
 /** Rows shown before deferring to the Documents page (no inner scroller). */
 export const ACTIVITY_MAX_ROWS = 6;
 
+/**
+ * SPEC-100: reserve enough height for the 6-row skeleton so empty ↔ loading
+ * does not shift the page (CLS). Measured skeleton card ≈ 480px at 1280×900.
+ */
+export const ACTIVITY_CARD_MIN_HEIGHT_PX = 480;
+
 interface RecentActivityProps {
   documents: Document[];
   /** Workspace-wide document count, for the "View all" link. */
@@ -56,7 +62,7 @@ function ActivitySkeleton() {
 function EmptyActivity() {
   const { t } = useTranslation();
   return (
-    <div className="flex min-h-[220px] flex-col items-center justify-center py-8 text-center">
+    <div className="flex min-h-[336px] flex-col items-center justify-center py-8 text-center">
       <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
         <FileText className="h-6 w-6 text-muted-foreground" />
       </div>
@@ -82,7 +88,7 @@ export function RecentActivity({ documents, total, isLoading, headerAction }: Re
     <Card
       data-testid="spec100-dashboard-activity"
       className="gap-3 py-4"
-      style={{ minHeight: 380 }}
+      style={{ minHeight: ACTIVITY_CARD_MIN_HEIGHT_PX }}
     >
       <CardHeader className="pb-1">
         <CardTitle>{t('dashboard.recentActivity.title', 'Recent Activity')}</CardTitle>
@@ -97,7 +103,7 @@ export function RecentActivity({ documents, total, isLoading, headerAction }: Re
         ) : null}
       </CardHeader>
       {/* SPEC-100: min-h keeps empty↔list↔skeleton from shifting the page (CLS). */}
-      <CardContent className="min-h-[280px] px-2">
+      <CardContent className="min-h-[336px] px-2">
         {isLoading ? (
           <ActivitySkeleton />
         ) : items.length === 0 ? (
@@ -110,8 +116,10 @@ export function RecentActivity({ documents, total, isLoading, headerAction }: Re
           </div>
         )}
       </CardContent>
-      {isLoading ? <div className="min-h-[2.75rem]" aria-hidden="true" /> : null}
-      {!isLoading && items.length > 0 ? (
+      {/* Reserve footer height in every state so skeleton ↔ empty stays within CLS budget. */}
+      {isLoading || items.length === 0 ? (
+        <div className="min-h-[2.75rem]" aria-hidden="true" />
+      ) : (
         <div className="min-h-8 border-t px-4 pt-3">
           <Link
             href="/documents"
@@ -126,7 +134,7 @@ export function RecentActivity({ documents, total, isLoading, headerAction }: Re
             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Link>
         </div>
-      ) : null}
+      )}
     </Card>
   );
 }

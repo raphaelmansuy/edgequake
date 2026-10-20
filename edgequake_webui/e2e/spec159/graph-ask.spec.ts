@@ -66,7 +66,11 @@ test.describe("SPEC-159 graph Ask @spec159", () => {
   test("spec159_graph_details_ask", async ({ page }) => {
     await prepareGraphAskPage(page);
     // Select the first entity in the browser so the details header mounts Ask.
+    // selectNode opens the right Details panel (default is canvas-first / collapsed).
     await page.getByText("Pe8 Entity A", { exact: false }).first().click();
+    await expect(page.locator('[data-tour="details-panel"]')).toBeVisible({
+      timeout: 10_000,
+    });
     const detailsAsk = page.getByTestId("node-details-ask");
     await expect(detailsAsk).toBeVisible({ timeout: 10_000 });
     await detailsAsk.click();

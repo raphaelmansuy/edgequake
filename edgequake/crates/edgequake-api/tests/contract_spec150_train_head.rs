@@ -31,8 +31,8 @@ fn numbered_sql_versions() -> Vec<i64> {
 fn head_train_includes_160_through_169() {
     let versions = numbered_sql_versions();
     let max = *versions.last().expect("at least one migration");
-    assert_eq!(max, 212, "HEAD schema train must end at 212");
-    for v in 160..=212 {
+    assert_eq!(max, 214, "HEAD schema train must end at 214");
+    for v in 160..=214 {
         assert!(
             versions.contains(&v),
             "missing migration {v} in edgequake/migrations/"
@@ -48,7 +48,7 @@ fn manifest_compat_serve_max_matches_head() {
         .find(|l| l.starts_with("compat_serve_max"))
         .expect("compat_serve_max");
     let digits: String = max_line.chars().filter(|c| c.is_ascii_digit()).collect();
-    assert_eq!(digits, "212");
+    assert_eq!(digits, "214");
 }
 
 #[test]
@@ -842,6 +842,10 @@ fn progress_module_release_map_covers_head() {
         "release_for_schema must map 207 to v0.35.1"
     );
     assert!(
+        src.contains("208..=214 => \"v0.36.0\""),
+        "release_for_schema must map 208–214 to v0.36.0"
+    );
+    assert!(
         src.contains("149 => \"v0.26.0–v0.26.10\""),
         "release_for_schema must map 149 to v0.26.x"
     );
@@ -982,4 +986,28 @@ fn migrations_211_212_give_relationships_their_own_chunk_keys() {
         include_str!("../../edgequake-storage/src/adapters/postgres/document_lineage_sql.rs");
     assert!(search.contains("r.source_chunk_keys"));
     assert!(search.contains("e.source_chunk_ids"));
+}
+
+#[test]
+fn migrations_213_214_add_spec169_invites_and_access_links() {
+    let manifest = include_str!("../../../migrations/manifest.toml");
+    let v213 = manifest
+        .split("version = 213")
+        .nth(1)
+        .expect("migration 213");
+    assert!(v213.contains("phase = \"expand\""));
+    assert!(!v213.contains("serving_floor"));
+    let invites = include_str!("../../../migrations/213_spec169_tenant_invitations.sql");
+    assert!(invites.contains("CREATE TABLE IF NOT EXISTS tenant_invitations"));
+    assert!(invites.contains("uq_tenant_invitations_open_email"));
+
+    let v214 = manifest
+        .split("version = 214")
+        .nth(1)
+        .expect("migration 214");
+    assert!(v214.contains("phase = \"expand\""));
+    assert!(!v214.contains("serving_floor"));
+    let links = include_str!("../../../migrations/214_spec169_user_access_links.sql");
+    assert!(links.contains("CREATE TABLE IF NOT EXISTS user_access_links"));
+    assert!(links.contains("uq_user_access_links_open"));
 }
