@@ -6,6 +6,7 @@ exit is still visible: the report is stored on the volume and served on
 DATABRICKS_APP_PORT. A healthy child keeps that port.
 """
 
+import http.client
 import os
 import re
 import signal
@@ -15,6 +16,19 @@ import sys
 import threading
 import time
 import urllib.request
+
+# EdgeQuake binds here. Python owns DATABRICKS_APP_PORT so GET / is a page.
+INTERNAL_PORT = 18080
+HOP_HEADERS = {
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailers",
+    "transfer-encoding",
+    "upgrade",
+}
 
 SAFE_VALUES = (
     "LAKEBASE_ENDPOINT",
@@ -164,6 +178,109 @@ def stop_holder(httpd: object) -> None:
     httpd.server_close()
 
 
+def home_path(url_path: str) -> bool:
+    return url_path.split("?", 1)[0] in ("", "/")
+
+
+def home_page() -> bytes:
+    path = os.path.join(os.path.dirname(__file__), "index.html")
+    with open(path, "rb") as handle:
+        return handle.read()
+
+
+def start_proxy() -> object:
+    """Serve `/` and forward every other path to the API on INTERNAL_PORT."""
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    page = home_page()
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_GET(self) -> None:
+            self._dispatch()
+
+        def do_POST(self) -> None:
+            self._dispatch()
+
+        def do_PUT(self) -> None:
+            self._dispatch()
+
+        def do_PATCH(self) -> None:
+            self._dispatch()
+
+        def do_DELETE(self) -> None:
+            self._dispatch()
+
+        def do_HEAD(self) -> None:
+            self._dispatch()
+
+        def _dispatch(self) -> None:
+            if self.command in ("GET", "HEAD") and home_path(self.path):
+                self._home()
+                return
+            self._forward()
+
+        def _home(self) -> None:
+            body = b"" if self.command == "HEAD" else page
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(page)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            if body:
+                self.wfile.write(body)
+
+        def _forward(self) -> None:
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            payload = self.rfile.read(length) if length else None
+            headers = {
+                key: value
+                for key, value in self.headers.items()
+                if key.lower() not in HOP_HEADERS and key.lower() != "host"
+            }
+            headers["Host"] = f"127.0.0.1:{INTERNAL_PORT}"
+            conn = http.client.HTTPConnection("127.0.0.1", INTERNAL_PORT, timeout=600)
+            try:
+                conn.request(self.command, self.path, body=payload, headers=headers)
+                response = conn.getresponse()
+                self.send_response(response.status)
+                for key, value in response.getheaders():
+                    if key.lower() in HOP_HEADERS:
+                        continue
+                    self.send_header(key, value)
+                self.send_header("Connection", "close")
+                self.end_headers()
+                if self.command != "HEAD":
+                    while True:
+                        chunk = response.read(64 * 1024)
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
+            except Exception as exc:
+                message = f"EdgeQuake API is not reachable: {exc}".encode()
+                self.send_response(502)
+                self.send_header("Content-Type", "text/plain")
+                self.send_header("Content-Length", str(len(message)))
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(message)
+            finally:
+                conn.close()
+
+        def log_message(self, fmt: str, *args: object) -> None:
+            print(fmt % args, flush=True)
+
+    port = int(os.environ.get("DATABRICKS_APP_PORT") or os.environ.get("PORT") or "8000")
+
+    class ReuseServer(ThreadingHTTPServer):
+        allow_reuse_address = True
+
+    httpd = ReuseServer(("0.0.0.0", port), Handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    return httpd
+
+
 def run_server(
     local: str,
     env: dict[str, str],
@@ -174,12 +291,31 @@ def run_server(
 
     Returns the child exit code. A healthy server does not return.
     """
+    child_env = env.copy()
+    # The public port serves the home page. The API listens beside it.
+    child_env["PORT"] = str(INTERNAL_PORT)
+    child_env["HOST"] = "127.0.0.1"
     proc = subprocess.Popen(
         [local],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        env=env,
+        env=child_env,
     )
+    proxy = start_proxy()
+    try:
+        code = _wait_server(proc, lines, serve_on_exit)
+    finally:
+        stop_holder(proxy)
+    if serve_on_exit and code is not None:
+        serve("\n".join(lines))
+    return code
+
+
+def _wait_server(
+    proc: subprocess.Popen[bytes],
+    lines: list[str],
+    serve_on_exit: bool,
+) -> int | None:
     chunks: list[bytes] = []
 
     def reader() -> None:
@@ -209,17 +345,13 @@ def run_server(
             published = True
             if code is not None:
                 lines[:] = snapshot
-                if serve_on_exit and not stopping["value"]:
-                    serve("\n".join(snapshot))
-                return code
+                return None if stopping["value"] else code
         if published:
             code = proc.wait()
             snapshot = lines + server_tail(chunks, code)
             publish(snapshot)
             lines[:] = snapshot
-            if serve_on_exit and not stopping["value"]:
-                serve("\n".join(snapshot))
-            return code
+            return None if stopping["value"] else code
         time.sleep(1)
 
 
