@@ -940,9 +940,9 @@ async fn async_main_postgres() -> Result<()> {
     // Get API key from environment (optional - Ollama doesn't need it)
     let api_key = std::env::var("OPENAI_API_KEY").unwrap_or_default();
 
-    let database_url = std::env::var("DATABASE_URL").context(
-        "DATABASE_URL is required; start PostgreSQL and rerun make dev or make dev-auth",
-    )?;
+    let database_url = edgequake_api::databricks::resolve_database_url()
+        .await
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
 
     let redacted_database_url = redact_database_url(&database_url);
     info!("🐘 PostgreSQL storage mode using {}", redacted_database_url);
@@ -962,7 +962,12 @@ async fn async_main_postgres() -> Result<()> {
     }
 
     let mut state = match AppState::new_postgres(&database_url, &api_key).await {
-        Ok(state) => state,
+        Ok(state) => {
+            if let Some(bundle) = state.pool_bundle.clone() {
+                edgequake_api::databricks::spawn_credential_refresh(bundle);
+            }
+            state
+        }
         Err(error) => {
             let message = error.to_string();
             // SPEC-091 Doc 17 (LD-15): boot-gate refusals exit 78 (EX_CONFIG) so
