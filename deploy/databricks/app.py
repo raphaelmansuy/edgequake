@@ -210,6 +210,8 @@ def start_proxy(ui_port: int | None) -> object:
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
+        # Unbuffered so a WebSocket frame is not stuck in the header buffer.
+        rbufsize = 0
 
         def do_GET(self) -> None:
             self._dispatch()
@@ -230,6 +232,9 @@ def start_proxy(ui_port: int | None) -> object:
             self._dispatch()
 
         def _dispatch(self) -> None:
+            if self.headers.get("Upgrade", "").lower() == "websocket":
+                self._tunnel(INTERNAL_PORT if api_path(self.path) else (ui_port or INTERNAL_PORT))
+                return
             if api_path(self.path):
                 self._forward(INTERNAL_PORT)
                 return
@@ -240,6 +245,47 @@ def start_proxy(ui_port: int | None) -> object:
                 self._home()
                 return
             self._forward(INTERNAL_PORT)
+
+        def _tunnel(self, port: int) -> None:
+            """Pass the raw request through, including the WebSocket handshake.
+
+            http.client drops hop-by-hop Upgrade and Connection headers, so the
+            API answered 400 and the browser reported the connection as lost.
+            """
+            import socket
+
+            upstream = socket.create_connection(("127.0.0.1", port), timeout=30)
+            upstream.settimeout(None)
+            lines = [f"{self.command} {self.path} {self.request_version}"]
+            for key, value in self.headers.items():
+                lines.append(f"{key}: {value}")
+            raw = ("\r\n".join(lines) + "\r\n\r\n").encode("iso-8859-1")
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            if length:
+                raw += self.rfile.read(length)
+            upstream.sendall(raw)
+            client = self.connection
+            self.close_connection = True
+
+            def pump(src: socket.socket, dst: socket.socket) -> None:
+                try:
+                    while True:
+                        chunk = src.recv(65536)
+                        if not chunk:
+                            break
+                        dst.sendall(chunk)
+                except Exception:
+                    pass
+                try:
+                    dst.shutdown(socket.SHUT_WR)
+                except Exception:
+                    pass
+
+            backward = threading.Thread(target=pump, args=(upstream, client), daemon=True)
+            backward.start()
+            pump(client, upstream)
+            backward.join(timeout=2)
+            upstream.close()
 
         def _home(self) -> None:
             body = b"" if self.command == "HEAD" else page
