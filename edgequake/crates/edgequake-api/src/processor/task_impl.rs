@@ -39,7 +39,24 @@ impl TaskProcessor for DocumentTaskProcessor {
     }
 
     async fn on_permanent_failure(&self, task: &Task, error_msg: &str) {
-        self.on_permanent_failure_body(task, error_msg).await
+        // The worker calls this after `process_with_fairness` has left its
+        // tenant scope. Status resets (including stuck `deleting` rows) have
+        // to re-enter that task's own tenant or FORCE RLS updates zero rows.
+        #[cfg(feature = "postgres")]
+        {
+            let scope = edgequake_storage::adapters::postgres::rls::RlsScope {
+                tenant_id: task.tenant_id,
+                workspace_id: Some(task.workspace_id),
+                user_id: None,
+            };
+            return edgequake_storage::adapters::postgres::rls::RLS_SCOPE
+                .scope(scope, self.on_permanent_failure_body(task, error_msg))
+                .await;
+        }
+        #[cfg(not(feature = "postgres"))]
+        {
+            self.on_permanent_failure_body(task, error_msg).await
+        }
     }
 }
 

@@ -7,6 +7,7 @@ DATABRICKS_APP_PORT. A healthy child keeps that port.
 """
 
 import http.client
+import json
 import os
 import re
 import shutil
@@ -15,6 +16,7 @@ import stat
 import subprocess
 import sys
 import tarfile
+import tempfile
 import threading
 import time
 import urllib.request
@@ -95,8 +97,180 @@ def read_request_body(headers, rfile) -> bytes | None:
         raise BodyReadError("request body exceeds limit")
     payload = rfile.read(length)
     if len(payload) != length:
-        raise BodyReadError("request body shorter than Content-Length")
+        raise BodyReadError(
+            f"request body shorter than Content-Length ({len(payload)} of {length})"
+        )
     return payload
+
+
+_UPLOADS_LOCK = threading.Lock()
+_UPLOADS: dict[str, dict[str, object]] = {}
+_MAX_UPLOAD_SESSIONS = 32
+_UPLOAD_TTL_SECONDS = 600
+
+
+def reset_uploads_for_tests() -> None:
+    with _UPLOADS_LOCK:
+        for item in _UPLOADS.values():
+            path = item.get("path")
+            if isinstance(path, str):
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+        _UPLOADS.clear()
+
+
+def _upload_token(headers, name: str) -> str:
+    return _header(headers, name).strip()
+
+
+def _safe_upload_id(value: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9]{16,64}", value or ""):
+        raise BodyReadError("invalid upload id")
+    return value
+
+
+def _disposition(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\r", "").replace("\n", "")
+
+
+def _drop_upload(upload_id: str) -> None:
+    item = _UPLOADS.pop(upload_id, None)
+    if not item:
+        return
+    path = item.get("path")
+    if isinstance(path, str):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def accept_upload_chunk(headers, body: bytes) -> dict[str, object]:
+    """Collect browser slices that stay under the Apps gateway body limit.
+
+    A large Content-Length upload is closed early by the gateway, so the page
+    sends one small JSON description and then file slices. When the last slice
+    arrives, this returns the multipart body to forward on localhost.
+    """
+    upload_id = _safe_upload_id(_upload_token(headers, "X-EdgeQuake-Upload-Id"))
+    role = _upload_token(headers, "X-EdgeQuake-Upload-Role").lower()
+    now = time.time()
+    with _UPLOADS_LOCK:
+        expired = [
+            key
+            for key, item in _UPLOADS.items()
+            if now - float(item.get("created") or 0) > _UPLOAD_TTL_SECONDS
+        ]
+        for key in expired:
+            _drop_upload(key)
+        if role == "fields":
+            return _accept_upload_fields(upload_id, body, now)
+        if role == "bytes":
+            return _accept_upload_bytes(upload_id, headers, body)
+        raise BodyReadError("invalid upload role")
+
+
+def _accept_upload_fields(upload_id: str, body: bytes, now: float) -> dict[str, object]:
+    if upload_id in _UPLOADS:
+        raise BodyReadError("upload already started")
+    if len(_UPLOADS) >= _MAX_UPLOAD_SESSIONS:
+        raise BodyReadError("too many uploads")
+    try:
+        meta = json.loads(body.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise BodyReadError("invalid upload description") from exc
+    if not isinstance(meta, dict):
+        raise BodyReadError("invalid upload description")
+    try:
+        total = int(meta.get("total"))
+    except (TypeError, ValueError) as exc:
+        raise BodyReadError("invalid upload length") from exc
+    if total < 0 or total > MAX_PROXY_BODY:
+        raise BodyReadError("request body exceeds limit")
+    raw_fields = meta.get("fields") or {}
+    if not isinstance(raw_fields, dict):
+        raise BodyReadError("invalid upload field")
+    fields = {}
+    for key, value in raw_fields.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise BodyReadError("invalid upload field")
+        fields[key] = value
+    filename = str(meta.get("filename") or "upload")
+    field = str(meta.get("field") or "file")
+    content_type = str(meta.get("content_type") or "application/octet-stream")
+    if any(char in content_type for char in "\r\n"):
+        raise BodyReadError("invalid upload type")
+    handle = tempfile.NamedTemporaryFile(prefix="eq-upload-", delete=False)
+    path = handle.name
+    handle.close()
+    os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+    _UPLOADS[upload_id] = {
+        "path": path,
+        "received": 0,
+        "total": total,
+        "filename": filename,
+        "field": field,
+        "content_type": content_type,
+        "fields": fields,
+        "created": now,
+    }
+    return {"done": False}
+
+
+def _accept_upload_bytes(upload_id: str, headers, body: bytes) -> dict[str, object]:
+    item = _UPLOADS.get(upload_id)
+    if item is None:
+        raise BodyReadError("unknown upload")
+    try:
+        offset = int(_upload_token(headers, "X-EdgeQuake-Upload-Offset"))
+        total = int(_upload_token(headers, "X-EdgeQuake-Upload-Total"))
+    except ValueError as exc:
+        raise BodyReadError("invalid upload length") from exc
+    if total != item["total"] or offset != item["received"]:
+        raise BodyReadError("upload chunk out of order")
+    if offset + len(body) > int(item["total"]):
+        raise BodyReadError("request body exceeds limit")
+    path = item["path"]
+    if not isinstance(path, str):
+        raise BodyReadError("unknown upload")
+    with open(path, "ab") as handle:
+        handle.write(body)
+    item["received"] = offset + len(body)
+    if item["received"] < item["total"]:
+        return {"done": False}
+    with open(path, "rb") as handle:
+        file_bytes = handle.read()
+    content_type, payload = _multipart_from_upload(upload_id, item, file_bytes)
+    _drop_upload(upload_id)
+    return {"done": True, "content_type": content_type, "body": payload}
+
+
+def _multipart_from_upload(upload_id: str, item: dict[str, object], file_bytes: bytes) -> tuple[str, bytes]:
+    boundary = "----eqproxy" + upload_id
+    chunks: list[bytes] = []
+    fields = item["fields"]
+    if isinstance(fields, dict):
+        for key, value in fields.items():
+            chunks.append(
+                (
+                    f'--{boundary}\r\nContent-Disposition: form-data; name="{_disposition(str(key))}"\r\n\r\n'
+                    f"{value}\r\n"
+                ).encode()
+            )
+    field = _disposition(str(item["field"]))
+    filename = _disposition(str(item["filename"]))
+    content_type = str(item["content_type"])
+    chunks.append(
+        (
+            f'--{boundary}\r\nContent-Disposition: form-data; name="{field}"; filename="{filename}"\r\n'
+            f"Content-Type: {content_type}\r\n\r\n"
+        ).encode()
+    )
+    chunks.append(file_bytes)
+    chunks.append(f"\r\n--{boundary}--\r\n".encode())
+    return f"multipart/form-data; boundary={boundary}", b"".join(chunks)
 
 
 def read_chunked_body(rfile, limit: int = MAX_PROXY_BODY) -> bytes:
@@ -406,21 +580,28 @@ def start_proxy(ui_port: int | None) -> object:
         def _forward(self, port: int) -> None:
             try:
                 payload = read_request_body(self.headers, self.rfile)
+                forced_type = None
+                if _header(self.headers, "X-EdgeQuake-Upload-Id"):
+                    outcome = accept_upload_chunk(self.headers, payload or b"")
+                    if not outcome["done"]:
+                        self._json(202, {"message": "chunk accepted", "status": 202})
+                        return
+                    payload = outcome["body"]
+                    forced_type = str(outcome["content_type"])
             except BodyReadError as exc:
-                message = str(exc).encode()
-                self.send_response(400)
-                self.send_header("Content-Type", "text/plain")
-                self.send_header("Content-Length", str(len(message)))
-                self.send_header("Connection", "close")
-                self.end_headers()
-                self.wfile.write(message)
+                # The upload client only reads a JSON `message`. A text/plain
+                # body with an empty HTTP/2 status line becomes "Request failed".
+                self._json(400, {"message": str(exc), "status": 400, "code": "BAD_REQUEST"})
                 return
             headers = {
                 key: value
                 for key, value in self.headers.items()
                 if key.lower() not in HOP_HEADERS
                 and key.lower() not in {"content-length", "expect"}
+                and not key.lower().startswith("x-edgequake-upload-")
             }
+            if forced_type:
+                headers["Content-Type"] = forced_type
             apply_session_authorization(headers)
             public_host = headers.get("Host") or self.headers.get("Host", "")
             headers["X-Forwarded-Proto"] = "https"
@@ -459,6 +640,15 @@ def start_proxy(ui_port: int | None) -> object:
                 self.wfile.write(message)
             finally:
                 conn.close()
+
+        def _json(self, status: int, payload: dict[str, object]) -> None:
+            message = json.dumps(payload).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(message)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(message)
 
         def _session_cookie(self, body: bytes) -> str:
             path = self.path.split("?", 1)[0]
@@ -618,25 +808,25 @@ def apply_session_authorization(headers: dict[str, str]) -> None:
         headers["Authorization"] = "Bearer " + token
 
 
-# Runs before the app's own scripts. Copies the in-memory bearer into a header
-# the Apps proxy does not replace. fetch() covers JSON calls. PDF upload uses
-# XMLHttpRequest, which never entered that wrapper, so the gateway's
-# Authorization replacement reached EdgeQuake with no session bearer.
-FETCH_SHIM = (
-    b"<script>(function(){"
-    b"var f=window.fetch;if(f&&!f.__eq){function w(i,n){n=n||{};try{var h=new Headers(n.headers||(i&&i.headers));"
-    b"var a=h.get('Authorization');if(a&&!h.get('X-EdgeQuake-Authorization')){h.set('X-EdgeQuake-Authorization',a);n.headers=h;}}"
-    b"catch(e){}return f.call(this,i,n);}w.__eq=1;window.fetch=w;}"
-    b"var XP=window.XMLHttpRequest&&window.XMLHttpRequest.prototype;if(XP&&!XP.__eqAuth){"
-    b"var set=XP.setRequestHeader;XP.setRequestHeader=function(name,value){"
-    b"var lower=String(name).toLowerCase();"
-    b"if(lower==='x-edgequake-authorization'){this.__eqSet=1;}"
-    b"try{set.call(this,name,value);}catch(e){if(lower!=='x-edgequake-authorization')throw e;}"
-    b"if(lower==='authorization'&&value&&!this.__eqSet){this.__eqSet=1;"
-    b"try{set.call(this,'X-EdgeQuake-Authorization',value);}catch(e){}}"
-    b"};XP.__eqAuth=1;}"
-    b"})();</script>"
-)
+def load_fetch_shim() -> bytes:
+    """Auth header copy plus chunked FormData uploads.
+
+    The Apps gateway replaces Authorization, and it closes a large
+    Content-Length body before Python finishes reading it. PDF upload uses
+    XMLHttpRequest, which always sends Content-Length. The shim re-posts that
+    FormData with fetch + a ReadableStream so the browser omits Content-Length
+    and the gateway forwards a chunked body. The script is injected into HTML,
+    so the packaged web UI does not have to be rebuilt.
+    """
+    path = os.path.join(os.path.dirname(__file__), "fetch_shim.js")
+    with open(path, "rb") as handle:
+        script = handle.read().strip()
+    if b"</script" in script.lower():
+        raise RuntimeError("fetch shim must not close the script element")
+    return b"<script>" + script + b"</script>"
+
+
+FETCH_SHIM = load_fetch_shim()
 
 
 def inject_fetch_shim(body: bytes, content_type: str) -> bytes:
