@@ -14,6 +14,8 @@ env:
     value: "1024"
   - name: EDGEQUAKE_LLM_OMIT_TEMPERATURE
     value: "1"
+  - name: EDGEQUAKE_CORS_ORIGINS
+    value: "https://edgequake-7474647158015570.aws.databricksapps.com"
   - name: LAKEBASE_ENDPOINT
     valueFrom: postgres
   - name: EDGEQUAKE_BINARY_PATH
