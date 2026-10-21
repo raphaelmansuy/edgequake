@@ -2902,3 +2902,91 @@ embedding_dimension = 0
 # output_per_1k = 0.0
 # embedding_per_1k = 0.0
 # image_per_unit = 0.0
+
+# =============================================================================
+# DATABRICKS PROVIDER
+# =============================================================================
+# Databricks AI Gateway / MLflow. Available when DATABRICKS_HOST is set
+# (Databricks Apps injects it). Chat and embeddings use system.ai.* names.
+
+[[providers]]
+name = "databricks"
+display_name = "Databricks"
+type = "databricks"
+api_base = ""
+api_key_env = "DATABRICKS_HOST"
+enabled = true
+priority = 8
+description = "Databricks AI Gateway models for chat, vision, and embeddings"
+
+[[providers.models]]
+name = "system.ai.llama-4-maverick"
+display_name = "Llama 4 Maverick"
+model_type = "llm"
+description = "Databricks system.ai Llama 4 Maverick for chat and vision"
+deprecated = false
+tags = ["default", "recommended", "multimodal"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 8192
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "system.ai.qwen3-next-80b-a3b-instruct"
+display_name = "Qwen3 Next 80B"
+model_type = "llm"
+description = "Databricks system.ai Qwen3 Next instruct model"
+deprecated = false
+tags = ["reasoning"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 8192
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "system.ai.gte-large-en"
+display_name = "GTE Large English"
+model_type = "embedding"
+description = "Databricks system.ai GTE large English embeddings, 1024 dimensions"
+deprecated = false
+tags = ["default", "recommended", "embedding"]
+
+[providers.models.capabilities]
+context_length = 8192
+max_output_tokens = 0
+supports_vision = false
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 1024
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0

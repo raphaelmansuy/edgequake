@@ -572,7 +572,9 @@ impl Workspace {
             "mistral-embed" | "mistral-embed-2312" | "codestral-embed" | "codestral-embed-2505" => {
                 Some(1024)
             }
-            "mxbai-embed-large" | "mxbai-embed-large:latest" => Some(1024),
+            "system.ai.gte-large-en" | "mxbai-embed-large" | "mxbai-embed-large:latest" => {
+                Some(1024)
+            }
             _ if model.contains("768") => Some(768),
             _ if model.contains("1024") => Some(1024),
             _ if model.contains("3072") => Some(3072),
