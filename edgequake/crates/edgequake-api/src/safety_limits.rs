@@ -1034,6 +1034,22 @@ pub fn vision_pass_b_timeout_secs(provider_name: &str) -> u64 {
     }
 }
 
+/// Vision client for providers `ProviderFactory` does not know.
+///
+/// `None` means the pdf2md factory path is correct (Ollama, OpenAI, …).
+/// Databricks AI Gateway is built here so page OCR does not die with
+/// `Unknown LLM provider: databricks`.
+pub fn injected_vision_llm(
+    provider_name: &str,
+    model: &str,
+) -> Result<Option<Arc<dyn LLMProvider>>> {
+    if provider_name.eq_ignore_ascii_case("databricks") {
+        create_safe_vision_provider(provider_name, model).map(Some)
+    } else {
+        Ok(None)
+    }
+}
+
 /// Validate vision provider credentials before pdf2md factory resolution (SPEC-043).
 pub fn check_vision_provider_available(provider_name: &str, model: &str) -> Result<()> {
     check_api_key(provider_name)?;
@@ -1289,6 +1305,16 @@ pub fn default_model_for_provider(provider_name: &str) -> &'static str {
 #[cfg(test)]
 mod default_model_tests {
     use super::*;
+
+    #[test]
+    fn factory_providers_are_not_injected() {
+        assert!(injected_vision_llm("ollama", "gemma3:latest")
+            .expect("ollama")
+            .is_none());
+        assert!(injected_vision_llm("openai", "gpt-5.6-luna")
+            .expect("openai")
+            .is_none());
+    }
 
     #[test]
     fn openai_default_is_not_a_retired_model() {

@@ -150,8 +150,9 @@ def _drop_upload(upload_id: str) -> None:
 def accept_upload_chunk(headers, body: bytes) -> dict[str, object]:
     """Collect browser slices that stay under the Apps gateway body limit.
 
-    A large Content-Length upload is closed early by the gateway, so the page
-    sends one small JSON description and then file slices. When the last slice
+    A large Content-Length upload is closed early by the gateway (a 128KiB
+    body arrived as 78021 bytes). The page sends one small JSON description
+    and then slices that stay under that cutoff. When the last slice
     arrives, this returns the multipart body to forward on localhost.
     """
     upload_id = _safe_upload_id(_upload_token(headers, "X-EdgeQuake-Upload-Id"))

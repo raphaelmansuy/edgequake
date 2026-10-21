@@ -37,6 +37,9 @@ pub fn llm_from_connection(spec: &ConnectionSpec) -> Result<Arc<dyn LLMProvider>
                 .with_base_url(&spec.base_url)
                 .with_model(&spec.model),
         ),
+        "databricks" => {
+            crate::databricks::llm_for_model(&spec.model).map_err(ApiError::BadRequest)?
+        }
         other => ProviderFactory::create_llm_provider(other, &spec.model)
             .map_err(|e| ApiError::BadRequest(e.to_string()))?,
     };

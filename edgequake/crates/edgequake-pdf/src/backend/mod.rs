@@ -177,6 +177,9 @@ pub struct VisionConversionConfig {
     pub reasoning_effort: Option<String>,
     /// Per-page VLM API timeout forwarded to pdf2md `api_timeout_secs`.
     pub api_timeout_secs: Option<u64>,
+    /// Prebuilt chat client. `ProviderFactory` rejects `databricks`; the API
+    /// injects the AI Gateway client here and page OCR uses it instead.
+    pub llm: Option<Arc<dyn edgequake_llm::LLMProvider>>,
 }
 
 impl std::fmt::Debug for VisionConversionConfig {
@@ -204,6 +207,7 @@ impl std::fmt::Debug for VisionConversionConfig {
             .field("pages", &self.pages)
             .field("reasoning_effort", &self.reasoning_effort)
             .field("api_timeout_secs", &self.api_timeout_secs)
+            .field("llm", &self.llm.as_ref().map(|provider| provider.name()))
             .finish()
     }
 }

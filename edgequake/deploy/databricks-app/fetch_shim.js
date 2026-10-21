@@ -39,7 +39,9 @@
 
   // Stay under the Apps gateway Content-Length cutoff. 1.5MB bodies are closed
   // early; slices this size are forwarded whole.
-  var SLICE = 128 * 1024;
+  // The Apps gateway closed a 128KiB Content-Length body after 78021 bytes.
+  // Stay under that cutoff so each slice arrives intact.
+  var SLICE = 48 * 1024;
 
   proto.open = function (method, url) {
     this.__eqMethod = method;

@@ -89,8 +89,11 @@ impl PdfConverter for VisionPdfConverter {
         // image size guard wraps every Pass-A page OCR call. Providers reject
         // oversized page renders silently; the guard re-encodes them first.
         {
-            let base = ProviderFactory::create_llm_provider(&provider_name, &model)
-                .map_err(|error| PdfConversionError::Backend(error.to_string()))?;
+            let base = match vision.llm.clone() {
+                Some(provider) => provider,
+                None => ProviderFactory::create_llm_provider(&provider_name, &model)
+                    .map_err(|error| PdfConversionError::Backend(error.to_string()))?,
+            };
             let modality = config
                 .page_drawing_assets
                 .as_ref()

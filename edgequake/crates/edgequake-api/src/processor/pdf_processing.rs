@@ -1217,6 +1217,15 @@ impl DocumentTaskProcessor {
         // Stall-watchdog heartbeat: resets on every page/status progress signal so
         // slow-but-progressing Vision conversions are not killed by a fixed wall clock.
         let vision_heartbeat = crate::services::VisionProgressHeartbeat::new();
+        let injected_vision_llm = match vision_model.as_deref() {
+            Some(model) => crate::safety_limits::injected_vision_llm(&vision_provider, model)
+                .map_err(|error| {
+                    edgequake_tasks::TaskError::Processing(format!(
+                        "PDF vision provider {vision_provider} unavailable: {error}"
+                    ))
+                })?,
+            None => None,
+        };
         let conversion_config = edgequake_pdf::PdfConversionConfig {
             page_count_hint: page_count_opt.map(|count| count as usize),
             table_method: None,
@@ -1285,6 +1294,7 @@ impl DocumentTaskProcessor {
                     api_timeout_secs: Some(crate::safety_limits::vision_page_timeout_secs(
                         &vision_provider,
                     )),
+                    llm: injected_vision_llm.clone(),
                 }
             }),
         };

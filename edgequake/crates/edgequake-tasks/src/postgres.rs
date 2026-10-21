@@ -141,7 +141,15 @@ impl PostgresTaskStorage {
         F: FnMut(sqlx::pool::PoolConnection<sqlx::Postgres>) -> Fut,
         Fut: std::future::Future<Output = TaskResult<Option<T>>>,
     {
-        let scopes = queue_claim_scopes(&*self.pool).await?;
+        // List tenants on a short-lived connection. Claim must not call this
+        // while it already holds a transaction: a second checkout deadlocks a
+        // small queue pool (every worker times out probing the catalog).
+        let scopes = {
+            let mut conn = self.pool.acquire().await.map_err(|e| {
+                TaskError::StorageError(format!("Failed to acquire queue connection: {e}"))
+            })?;
+            queue_claim_scopes(&mut conn).await?
+        };
         for scope in scopes {
             let mut conn = self.pool.acquire().await.map_err(|e| {
                 TaskError::StorageError(format!("Failed to acquire queue connection: {e}"))
@@ -162,16 +170,16 @@ impl PostgresTaskStorage {
 /// row. `public.tenants` is not under that guard. `None` means "do not bind"
 /// (no catalog, or tests that have not created one).
 #[cfg(feature = "postgres")]
-async fn queue_claim_scopes(pool: &PgPool) -> TaskResult<Vec<Option<Uuid>>> {
+async fn queue_claim_scopes(conn: &mut sqlx::PgConnection) -> TaskResult<Vec<Option<Uuid>>> {
     let present: Option<String> = sqlx::query_scalar("SELECT to_regclass('public.tenants')::text")
-        .fetch_one(pool)
+        .fetch_one(&mut *conn)
         .await
         .map_err(|e| TaskError::StorageError(format!("Failed to probe tenants catalog: {e}")))?;
     if present.is_none() {
         return Ok(vec![None]);
     }
     let ids: Vec<Uuid> = sqlx::query_scalar("SELECT tenant_id FROM public.tenants")
-        .fetch_all(pool)
+        .fetch_all(&mut *conn)
         .await
         .map_err(|e| TaskError::StorageError(format!("Failed to list tenants: {e}")))?;
     if ids.is_empty() {
@@ -1027,7 +1035,9 @@ impl TaskStorage for PostgresTaskStorage {
 
         // One transaction, one catalog tenant at a time. An empty GUC matches
         // no FORCE RLS row, which left deletions pending forever on Lakebase.
-        let scopes = queue_claim_scopes(&self.pool).await?;
+        // The catalog read uses this same connection. A second pool checkout
+        // while `tx` is open exhausts the queue pool under the worker fan-out.
+        let scopes = queue_claim_scopes(&mut *tx).await?;
         let mut claimed_row: Option<PgRow> = None;
         for scope in scopes {
             if let Some(tenant_id) = scope {

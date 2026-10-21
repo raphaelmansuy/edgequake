@@ -48,7 +48,7 @@ class ReadRequestBodyTest(unittest.TestCase):
         script = script_path.read_bytes()
         self.assertIn(b"X-EdgeQuake-Upload-Role", script)
         self.assertIn(b"FormData", script)
-        self.assertIn(b"128 * 1024", script)
+        self.assertIn(b"48 * 1024", script)
         self.assertNotIn(b"</script", script.lower())
         self.assertIn(script.strip(), FETCH_SHIM)
         page = inject_fetch_shim(b"<html><head><title>x</title></head></html>", "text/html")

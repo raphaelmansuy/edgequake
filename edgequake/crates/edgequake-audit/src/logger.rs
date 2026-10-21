@@ -87,6 +87,25 @@ async fn write_audit_event(pool: &Pool<Postgres>, event: &AuditEvent) -> Result<
     let result = audit_enum_label(&event.result);
     let severity = audit_enum_label(&event.severity);
 
+    let mut tx = pool.begin().await?;
+    // `audit_logs` is FORCE RLS. The insert policy admits the application
+    // service only when `app.is_admin` is true, and a tenant guard (when
+    // present) requires this event's tenant. Both settings are transaction
+    // local and do not change the caller's session.
+    let workspace = event.workspace_id.clone().unwrap_or_default();
+    let user_id = event.user_id.clone().unwrap_or_default();
+    sqlx::query(
+        "SELECT set_config('app.current_tenant_id', $1, true), \
+                set_config('app.current_workspace_id', $2, true), \
+                set_config('app.current_user_id', $3, true), \
+                set_config('app.is_admin', 'true', true)",
+    )
+    .bind(&event.tenant_id)
+    .bind(&workspace)
+    .bind(&user_id)
+    .execute(&mut *tx)
+    .await?;
+
     sqlx::query(
         r#"
         INSERT INTO audit_logs (
@@ -130,8 +149,9 @@ async fn write_audit_event(pool: &Pool<Postgres>, event: &AuditEvent) -> Result<
     .bind(&event.error_message)
     .bind(event.retention_days)
     .bind(event.duration_ms)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    tx.commit().await?;
 
     debug!(
         event_id = %event.id,
