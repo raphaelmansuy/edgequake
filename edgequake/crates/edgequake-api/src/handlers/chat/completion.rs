@@ -406,7 +406,7 @@ pub async fn chat_completion(
         let title_tenant_id = tenant_id;
         let title_user_id = user_id;
 
-        tokio::spawn(async move {
+        crate::pg_session::spawn_with_rls(async move {
             let title =
                 crate::handlers::title_generator::generate_title(title_llm, &title_first_msg).await;
 

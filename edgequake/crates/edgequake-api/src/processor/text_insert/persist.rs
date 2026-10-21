@@ -223,7 +223,7 @@ impl DocumentTaskProcessor {
                 let track_id = track_id_cb.clone();
                 let doc_id = doc_id_cb.clone();
                 let kv = kv_storage.clone();
-                tokio::spawn(async move {
+                crate::pg_session::spawn_with_rls(async move {
                     pipeline_state
                         .broadcast_graph_storage_progress(
                             &track_id,

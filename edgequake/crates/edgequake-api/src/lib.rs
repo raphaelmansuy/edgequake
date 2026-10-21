@@ -118,6 +118,7 @@ pub mod openapi_examples;
 pub mod openapi_path_ssot;
 pub mod openapi_security;
 pub mod path_validation;
+mod pg_session;
 pub mod pipeline_progress_callback;
 #[cfg(feature = "postgres")]
 pub mod postgres_entity_sink;

@@ -56,6 +56,78 @@ use uuid::Uuid;
 
 use crate::error::{Result, StorageError};
 
+/// Tenant scope for the current Tokio task.
+///
+/// Lakebase connections are not `BYPASSRLS`. Inserts that never call
+/// [`with_rls_transaction`] (messages, pdf_documents, chunks) still have to
+/// satisfy `tenant_access_guard` and `messages_access`. Pool checkout copies
+/// this scope into session GUCs. `tokio::spawn` does not inherit task-locals,
+/// so background work must use [`spawn_with_rls`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RlsScope {
+    pub tenant_id: Uuid,
+    pub workspace_id: Option<Uuid>,
+    pub user_id: Option<Uuid>,
+}
+
+tokio::task_local! {
+    pub static RLS_SCOPE: RlsScope;
+}
+
+/// Scope installed on this task, if the request or worker entered one.
+pub fn current_rls_scope() -> Option<RlsScope> {
+    RLS_SCOPE.try_with(|scope| scope.clone()).ok()
+}
+
+/// `tokio::spawn` that keeps the caller's tenant scope.
+pub fn spawn_with_rls<F>(future: F) -> tokio::task::JoinHandle<F::Output>
+where
+    F: Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    match current_rls_scope() {
+        Some(scope) => tokio::spawn(RLS_SCOPE.scope(scope, future)),
+        None => tokio::spawn(future),
+    }
+}
+
+/// Session-level tenant GUCs (`set_config` is_local = false).
+///
+/// `set_tenant_context` is transaction-local and disappears at the end of the
+/// next autocommit statement. Checkout runs outside a transaction, so the
+/// values have to be session-level. `after_release` runs `RESET ALL`.
+pub async fn install_session_rls(
+    conn: &mut sqlx::PgConnection,
+    scope: &RlsScope,
+) -> std::result::Result<(), sqlx::Error> {
+    sqlx::query(
+        "SELECT set_config('app.current_tenant_id', $1, false), \
+                set_config('app.current_workspace_id', $2, false), \
+                set_config('app.current_user_id', $3, false)",
+    )
+    .bind(scope.tenant_id.to_string())
+    .bind(
+        scope
+            .workspace_id
+            .map(|id| id.to_string())
+            .unwrap_or_default(),
+    )
+    .bind(scope.user_id.map(|id| id.to_string()).unwrap_or_default())
+    .execute(&mut *conn)
+    .await?;
+    Ok(())
+}
+
+/// Install [`RLS_SCOPE`] when the acquiring task has one.
+pub async fn apply_current_session_rls(
+    conn: &mut sqlx::PgConnection,
+) -> std::result::Result<(), sqlx::Error> {
+    if let Some(scope) = current_rls_scope() {
+        install_session_rls(conn, &scope).await?;
+    }
+    Ok(())
+}
+
 /// Boxed future returned by RLS transaction callbacks (ties Future lifetime to conn).
 pub type RlsTxFuture<'c, T> = Pin<Box<dyn Future<Output = Result<T>> + Send + 'c>>;
 
@@ -496,6 +568,26 @@ impl RlsQueryBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn spawn_with_rls_copies_scope_into_the_new_task() {
+        let tenant = Uuid::from_u128(2);
+        let user = Uuid::from_u128(4);
+        let scope = RlsScope {
+            tenant_id: tenant,
+            workspace_id: Some(Uuid::from_u128(3)),
+            user_id: Some(user),
+        };
+        let seen = RLS_SCOPE
+            .scope(scope, async move {
+                spawn_with_rls(async { current_rls_scope().and_then(|scope| scope.user_id) })
+                    .await
+                    .expect("spawn")
+            })
+            .await;
+        assert_eq!(seen, Some(user));
+        assert!(current_rls_scope().is_none());
+    }
 
     #[test]
     fn test_rls_query_builder() {

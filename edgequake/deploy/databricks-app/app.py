@@ -62,6 +62,103 @@ SECRET_LEN = (
     "PGPASSWORD",
 )
 
+# Keep request bodies under the API upload cap (50 MiB) with room for framing.
+MAX_PROXY_BODY = 64 * 1024 * 1024
+
+
+class BodyReadError(Exception):
+    """The inbound HTTP body could not be framed."""
+
+
+def read_request_body(headers, rfile) -> bytes | None:
+    """Read a POST body, including chunked uploads.
+
+    The Apps proxy sometimes forwards a browser upload as chunked encoding
+    and also sets Content-Length. Reading Content-Length bytes of a chunked
+    stream stops inside the file part, and the API reports a multipart parse
+    error. Chunked encoding wins. A declared length that ends early is a
+    client error, not a short buffer forwarded upstream.
+    """
+    encoding = _header(headers, "Transfer-Encoding")
+    if "chunked" in encoding.lower():
+        return read_chunked_body(rfile)
+    raw_length = _header(headers, "Content-Length") or "0"
+    try:
+        length = int(raw_length)
+    except ValueError as exc:
+        raise BodyReadError("invalid Content-Length") from exc
+    if length < 0:
+        raise BodyReadError("invalid Content-Length")
+    if length == 0:
+        return None
+    if length > MAX_PROXY_BODY:
+        raise BodyReadError("request body exceeds limit")
+    payload = rfile.read(length)
+    if len(payload) != length:
+        raise BodyReadError("request body shorter than Content-Length")
+    return payload
+
+
+def read_chunked_body(rfile, limit: int = MAX_PROXY_BODY) -> bytes:
+    body = bytearray()
+    while True:
+        line = rfile.readline(64 * 1024)
+        if not line:
+            raise BodyReadError("truncated chunked body")
+        size_token = line.split(b";", 1)[0].strip()
+        try:
+            size = int(size_token, 16)
+        except ValueError as exc:
+            raise BodyReadError("invalid chunk size") from exc
+        if size < 0:
+            raise BodyReadError("invalid chunk size")
+        if size == 0:
+            while True:
+                trailer = rfile.readline(64 * 1024)
+                if trailer in (b"\r\n", b"\n", b""):
+                    break
+            return bytes(body)
+        if len(body) + size > limit:
+            raise BodyReadError("chunked body exceeds limit")
+        body.extend(_read_exact(rfile, size))
+        _read_chunk_delimiter(rfile)
+
+
+def _read_exact(rfile, size: int) -> bytes:
+    buf = bytearray()
+    while len(buf) < size:
+        chunk = rfile.read(size - len(buf))
+        if not chunk:
+            raise BodyReadError("truncated chunked body")
+        buf.extend(chunk)
+    return bytes(buf)
+
+
+def _read_chunk_delimiter(rfile) -> None:
+    first = rfile.read(1)
+    if first == b"\n":
+        return
+    if first == b"\r" and rfile.read(1) == b"\n":
+        return
+    raise BodyReadError("invalid chunk delimiter")
+
+
+def _header(headers, name: str) -> str:
+    if headers is None:
+        return ""
+    getter = getattr(headers, "get", None)
+    if getter is None:
+        return ""
+    value = getter(name)
+    if value:
+        return str(value)
+    # email.message is case-insensitive. A plain dict is not.
+    if hasattr(headers, "items"):
+        for key, item in headers.items():
+            if str(key).lower() == name.lower() and item:
+                return str(item)
+    return ""
+
 
 def main() -> None:
     raw_volume = os.environ.get("EDGEQUAKE_BINARY_PATH", "")
@@ -307,12 +404,22 @@ def start_proxy(ui_port: int | None) -> object:
                 self.wfile.write(body)
 
         def _forward(self, port: int) -> None:
-            length = int(self.headers.get("Content-Length", "0") or "0")
-            payload = self.rfile.read(length) if length else None
+            try:
+                payload = read_request_body(self.headers, self.rfile)
+            except BodyReadError as exc:
+                message = str(exc).encode()
+                self.send_response(400)
+                self.send_header("Content-Type", "text/plain")
+                self.send_header("Content-Length", str(len(message)))
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(message)
+                return
             headers = {
                 key: value
                 for key, value in self.headers.items()
-                if key.lower() not in HOP_HEADERS and key.lower() != "content-length"
+                if key.lower() not in HOP_HEADERS
+                and key.lower() not in {"content-length", "expect"}
             }
             apply_session_authorization(headers)
             public_host = headers.get("Host") or self.headers.get("Host", "")

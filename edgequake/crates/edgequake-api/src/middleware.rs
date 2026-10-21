@@ -283,7 +283,7 @@ pub async fn protected_api_auth(
                 {
                     return error.into_response();
                 }
-                return next.run(request).await;
+                return continue_authenticated(request, next).await;
             }
             Ok(None) => {}
             Err(e) => {
@@ -293,6 +293,45 @@ pub async fn protected_api_auth(
     }
 
     unauthorized_response(&method, path)
+}
+
+async fn continue_authenticated(request: Request, next: Next) -> Response {
+    #[cfg(feature = "postgres")]
+    {
+        let scope = request_rls_scope(&request);
+        return edgequake_storage::adapters::postgres::rls::RLS_SCOPE
+            .scope(scope, next.run(request))
+            .await;
+    }
+    #[cfg(not(feature = "postgres"))]
+    {
+        let _ = &request;
+        next.run(request).await
+    }
+}
+
+/// Authenticated tenant, workspace, and user for pool checkout.
+///
+/// Message policies compare `current_user_id()` to the conversation owner.
+/// PDF rows compare `current_workspace_id()` to the workspace column. Both
+/// come from the verified request context, not from a client-supplied override
+/// that failed the auth merge.
+#[cfg(feature = "postgres")]
+fn request_rls_scope(request: &Request) -> edgequake_storage::adapters::postgres::rls::RlsScope {
+    let ctx = request.extensions().get::<TenantContext>();
+    let tenant_id = ctx
+        .and_then(|ctx| ctx.tenant_id_uuid())
+        .unwrap_or_else(default_tenant_uuid);
+    let workspace_id = Some(
+        ctx.and_then(|ctx| ctx.workspace_id_uuid())
+            .unwrap_or_else(default_workspace_uuid),
+    );
+    let user_id = ctx.and_then(|ctx| ctx.user_id_uuid());
+    edgequake_storage::adapters::postgres::rls::RlsScope {
+        tenant_id,
+        workspace_id,
+        user_id,
+    }
 }
 
 /// Gate Ollama-compatible routes when disabled — SPEC-027 IMP-005.
@@ -1334,10 +1373,7 @@ mod tests {
         use axum::http::HeaderValue;
 
         let mut headers = axum::http::HeaderMap::new();
-        headers.insert(
-            "x-edgequake-authorization",
-            HeaderValue::from_static(""),
-        );
+        headers.insert("x-edgequake-authorization", HeaderValue::from_static(""));
         headers.insert(
             "authorization",
             HeaderValue::from_static("Bearer eq-session-jwt"),
@@ -1373,6 +1409,26 @@ mod tests {
             super::ws_validate_origin(&state, &headers),
             Err(StatusCode::FORBIDDEN)
         );
+    }
+
+    #[cfg(feature = "postgres")]
+    #[test]
+    fn request_rls_scope_uses_authenticated_context() {
+        let tenant = uuid::Uuid::from_u128(11);
+        let workspace = uuid::Uuid::from_u128(12);
+        let user = uuid::Uuid::from_u128(13);
+        let mut request = axum::http::Request::builder()
+            .body(axum::body::Body::empty())
+            .unwrap();
+        request.extensions_mut().insert(TenantContext {
+            tenant_id: Some(tenant.to_string()),
+            workspace_id: Some(workspace.to_string()),
+            user_id: Some(user.to_string()),
+        });
+        let scope = super::request_rls_scope(&request);
+        assert_eq!(scope.tenant_id, tenant);
+        assert_eq!(scope.workspace_id, Some(workspace));
+        assert_eq!(scope.user_id, Some(user));
     }
 
     #[test]

@@ -517,6 +517,9 @@ fn create_inner_llm_provider(
     if provider == "vertexai" || provider == "vertex" {
         return create_vertex_llm_via_adc(model, ctx);
     }
+    if provider == "databricks" {
+        return crate::databricks::llm_for_model(model).map_err(LlmError::ConfigError);
+    }
     match ctx {
         Some(ctx) => ProviderFactory::create_llm_provider_with_context(provider_name, model, ctx),
         None => ProviderFactory::create_llm_provider(provider_name, model),
