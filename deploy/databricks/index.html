@@ -40,11 +40,22 @@
     <button type="submit">Create workspace</button>
     <p id="setup-result"></p>
   </form>
+  <form id="login" hidden>
+    <h2>Sign in</h2>
+    <label for="login-username">Username</label>
+    <input id="login-username" autocomplete="username" required minlength="3">
+    <label for="login-password">Password</label>
+    <input id="login-password" type="password" autocomplete="current-password" required minlength="8">
+    <button type="submit">Sign in</button>
+    <p id="login-result"></p>
+  </form>
 </main>
 <script>
 const status = document.getElementById("status");
 const form = document.getElementById("setup");
 const result = document.getElementById("setup-result");
+const loginForm = document.getElementById("login");
+const loginResult = document.getElementById("login-result");
 
 function show(text, ok) {
   status.textContent = text;
@@ -71,8 +82,9 @@ async function load() {
     if (!setup.ok) return;
     const info = await setup.json();
     if (info.needs_setup) form.hidden = false;
+    else loginForm.hidden = false;
   } catch (error) {
-    /* setup status is optional on this page */
+    loginForm.hidden = false;
   }
 }
 
@@ -99,10 +111,32 @@ form.addEventListener("submit", async (event) => {
   if (response.ok) {
     form.hidden = true;
     result.textContent = "";
-    show("Workspace created. Sign in from the API reference with the admin user you just set.", true);
+    loginForm.hidden = false;
+    show("Workspace created. Sign in with the admin user you just set.", true);
   } else {
     result.textContent = text.slice(0, 500);
   }
+});
+
+loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  loginResult.textContent = "Signing in…";
+  const response = await fetch("/api/v1/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      username: document.getElementById("login-username").value,
+      password: document.getElementById("login-password").value
+    })
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    loginResult.textContent = text.slice(0, 400);
+    return;
+  }
+  loginForm.hidden = true;
+  show("Signed in. Open the API reference to use this workspace.", true);
+  window.location.href = "/";
 });
 
 load();

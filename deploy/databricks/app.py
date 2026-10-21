@@ -9,16 +9,19 @@ DATABRICKS_APP_PORT. A healthy child keeps that port.
 import http.client
 import os
 import re
+import shutil
 import signal
 import stat
 import subprocess
 import sys
+import tarfile
 import threading
 import time
 import urllib.request
 
 # EdgeQuake binds here. Python owns DATABRICKS_APP_PORT so GET / is a page.
 INTERNAL_PORT = 18080
+UI_PORT = 3000
 HOP_HEADERS = {
     "connection",
     "keep-alive",
@@ -178,6 +181,13 @@ def stop_holder(httpd: object) -> None:
     httpd.server_close()
 
 
+def api_path(url_path: str) -> bool:
+    bare = url_path.split("?", 1)[0]
+    if bare in {"/health", "/ready", "/live", "/metrics", "/api"}:
+        return True
+    return bare.startswith(("/api/", "/swagger-ui", "/api-docs", "/ws/", "/mcp"))
+
+
 def home_path(url_path: str) -> bool:
     return url_path.split("?", 1)[0] in ("", "/")
 
@@ -188,8 +198,12 @@ def home_page() -> bytes:
         return handle.read()
 
 
-def start_proxy() -> object:
-    """Serve `/` and forward every other path to the API on INTERNAL_PORT."""
+def start_proxy(ui_port: int | None) -> object:
+    """Serve the public port.
+
+    API paths go to EdgeQuake. Everything else goes to the web UI when it is
+    running, and `/` falls back to the small home page when it is not.
+    """
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     page = home_page()
@@ -216,10 +230,16 @@ def start_proxy() -> object:
             self._dispatch()
 
         def _dispatch(self) -> None:
+            if api_path(self.path):
+                self._forward(INTERNAL_PORT)
+                return
+            if ui_port is not None:
+                self._forward(ui_port)
+                return
             if self.command in ("GET", "HEAD") and home_path(self.path):
                 self._home()
                 return
-            self._forward()
+            self._forward(INTERNAL_PORT)
 
         def _home(self) -> None:
             body = b"" if self.command == "HEAD" else page
@@ -231,16 +251,19 @@ def start_proxy() -> object:
             if body:
                 self.wfile.write(body)
 
-        def _forward(self) -> None:
+        def _forward(self, port: int) -> None:
             length = int(self.headers.get("Content-Length", "0") or "0")
             payload = self.rfile.read(length) if length else None
             headers = {
                 key: value
                 for key, value in self.headers.items()
-                if key.lower() not in HOP_HEADERS and key.lower() != "host"
+                if key.lower() not in HOP_HEADERS and key.lower() != "content-length"
             }
-            headers["Host"] = f"127.0.0.1:{INTERNAL_PORT}"
-            conn = http.client.HTTPConnection("127.0.0.1", INTERNAL_PORT, timeout=600)
+            public_host = headers.get("Host") or self.headers.get("Host", "")
+            headers["X-Forwarded-Proto"] = "https"
+            if public_host:
+                headers["X-Forwarded-Host"] = public_host
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=600)
             try:
                 conn.request(self.command, self.path, body=payload, headers=headers)
                 response = conn.getresponse()
@@ -258,7 +281,7 @@ def start_proxy() -> object:
                             break
                         self.wfile.write(chunk)
             except Exception as exc:
-                message = f"EdgeQuake API is not reachable: {exc}".encode()
+                message = f"upstream {port} is not reachable: {exc}".encode()
                 self.send_response(502)
                 self.send_header("Content-Type", "text/plain")
                 self.send_header("Content-Length", str(len(message)))
@@ -281,6 +304,67 @@ def start_proxy() -> object:
     return httpd
 
 
+def start_ui(lines: list[str]) -> int | None:
+    """Start the Next.js UI beside the API. Return its port, or None."""
+    node = shutil.which("node")
+    lines.append("node " + (node or "missing"))
+    if not node:
+        return None
+    archive = "/tmp/webui.tar.gz"
+    try:
+        download_volume_file("webui.tar.gz", archive)
+    except Exception as exc:
+        lines.append(f"ui-download {type(exc).__name__}: {exc}")
+        return None
+    root = "/tmp/edgequake-webui"
+    shutil.rmtree(root, ignore_errors=True)
+    os.makedirs(root, exist_ok=True)
+    with tarfile.open(archive, "r:gz") as bundle:
+        bundle.extractall(root)
+    server = os.path.join(root, "server.js")
+    if not os.path.exists(server):
+        for dirpath, _, files in os.walk(root):
+            if "server.js" in files:
+                root = dirpath
+                server = os.path.join(dirpath, "server.js")
+                break
+    if not os.path.exists(server):
+        lines.append("ui-missing server.js")
+        return None
+    ui_env = os.environ.copy()
+    ui_env["PORT"] = str(UI_PORT)
+    ui_env["HOSTNAME"] = "0.0.0.0"
+    ui_env["NODE_ENV"] = "production"
+    ui_env["NEXT_PUBLIC_AUTH_ENABLED"] = "true"
+    ui_env["NEXT_PUBLIC_DISABLE_DEMO_LOGIN"] = "true"
+    ui_env["EDGEQUAKE_API_URL"] = ""
+    log = open("/tmp/webui.log", "ab")
+    proc = subprocess.Popen(
+        [node, server],
+        cwd=root,
+        env=ui_env,
+        stdout=log,
+        stderr=subprocess.STDOUT,
+    )
+    deadline = time.time() + 45
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            lines.append(f"ui-exit {proc.returncode}")
+            return None
+        try:
+            conn = http.client.HTTPConnection("127.0.0.1", UI_PORT, timeout=2)
+            conn.request("GET", "/login")
+            status = conn.getresponse().status
+            conn.close()
+            if status < 500:
+                lines.append(f"ui-ready {status}")
+                return UI_PORT
+        except Exception:
+            time.sleep(1)
+    lines.append("ui-timeout")
+    return UI_PORT if proc.poll() is None else None
+
+
 def run_server(
     local: str,
     env: dict[str, str],
@@ -301,7 +385,8 @@ def run_server(
         stderr=subprocess.STDOUT,
         env=child_env,
     )
-    proxy = start_proxy()
+    ui_port = start_ui(lines)
+    proxy = start_proxy(ui_port)
     try:
         code = _wait_server(proc, lines, serve_on_exit)
     finally:
@@ -380,11 +465,15 @@ def workspace_url() -> str:
 
 
 def download(local: str) -> None:
+    download_volume_file("edgequake", local)
+
+
+def download_volume_file(name: str, local: str) -> None:
     volume = volume_root()
     if not volume:
         raise RuntimeError("EDGEQUAKE_BINARY_PATH is empty")
     request = urllib.request.Request(
-        workspace_url() + "/api/2.0/fs/files" + volume + "/edgequake",
+        workspace_url() + "/api/2.0/fs/files" + volume + "/" + name,
         headers={"Authorization": "Bearer " + workspace_token()},
     )
     with urllib.request.urlopen(request, timeout=180) as response, open(local, "wb") as out:
