@@ -262,7 +262,9 @@ impl RelationalEntitySink for PostgresEntitySink {
             r#"INSERT INTO entities
                    (name, entity_type, description, tenant_id, workspace_id,
                     source_chunk_ids, sync_status, created_at, updated_at)
-               VALUES ($1, $2, $3, $4, $5, $6, 'synced', NOW(), NOW())
+               SELECT $1, $2, $3, $4, $5, $6, 'synced', NOW(), NOW()
+               FROM (SELECT set_config('app.current_tenant_id', COALESCE($4::text, ''), true),
+                            set_config('app.current_workspace_id', COALESCE($5::text, ''), true)) ctx
                ON CONFLICT (tenant_id, workspace_id, name) DO UPDATE SET
                    entity_type      = EXCLUDED.entity_type,
                    description      = EXCLUDED.description,
@@ -373,6 +375,10 @@ impl RelationalEntitySink for PostgresEntitySink {
                 $5::uuid[],
                 $6::jsonb[]
             ) AS u(n, t, d, tn, ws, src)
+            CROSS JOIN LATERAL (
+                SELECT set_config('app.current_tenant_id', COALESCE(u.tn::text, ''), true),
+                       set_config('app.current_workspace_id', COALESCE(u.ws::text, ''), true)
+            ) ctx
             ON CONFLICT (tenant_id, workspace_id, name) DO UPDATE SET
                 entity_type      = EXCLUDED.entity_type,
                 description      = EXCLUDED.description,
@@ -441,7 +447,9 @@ impl RelationalEntitySink for PostgresEntitySink {
             r#"INSERT INTO relationships
                    (source_id, target_id, tenant_id, workspace_id, relation_type,
                     description, weight, source_chunk_keys, created_at, updated_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+               SELECT $1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW()
+               FROM (SELECT set_config('app.current_tenant_id', COALESCE($3::text, ''), true),
+                            set_config('app.current_workspace_id', COALESCE($4::text, ''), true)) ctx
                ON CONFLICT (tenant_id, workspace_id, source_id, target_id, relation_type)
                DO UPDATE SET
                    description = EXCLUDED.description,
@@ -639,6 +647,10 @@ impl RelationalEntitySink for PostgresEntitySink {
                 $6::text[],
                 $7::real[]
             ) WITH ORDINALITY AS u(s, t, tn, ws, rt, d, w, ord)
+            CROSS JOIN LATERAL (
+                SELECT set_config('app.current_tenant_id', COALESCE(u.tn::text, ''), true),
+                       set_config('app.current_workspace_id', COALESCE(u.ws::text, ''), true)
+            ) ctx
             ON CONFLICT (tenant_id, workspace_id, source_id, target_id, relation_type)
             DO UPDATE SET
                 description = EXCLUDED.description,

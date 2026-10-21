@@ -377,7 +377,12 @@ impl TaskStorage for PostgresTaskStorage {
                 max_retries, consecutive_timeout_failures, circuit_breaker_tripped,
                 payload, progress, result, lease_owner, lease_token, lease_expires_at, pdf_id,
                 document_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+            )
+            SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
+            FROM (
+                SELECT set_config('app.current_tenant_id', $2::text, true),
+                       set_config('app.current_workspace_id', $3::text, true)
+            ) ctx
             "#,
         )
         .bind(&task.track_id)

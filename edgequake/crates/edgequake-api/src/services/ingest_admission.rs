@@ -77,7 +77,11 @@ pub async fn provision_relational_document_shell(
                             metadata, file_size_bytes, content_type, status, track_id,
                             created_at, updated_at
                         )
-                        VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, 'pending', $9, NOW(), NOW())
+                        SELECT $1, $2, $3, $4, '', $5, $6, $7, $8, 'pending', $9, NOW(), NOW()
+                        FROM (
+                            SELECT set_config('app.current_tenant_id', $2::text, true),
+                                   set_config('app.current_workspace_id', $3::text, true)
+                        ) ctx
                         ON CONFLICT (id) DO NOTHING
                         "#,
                     )

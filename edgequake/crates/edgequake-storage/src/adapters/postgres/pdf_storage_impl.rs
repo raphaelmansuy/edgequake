@@ -697,7 +697,11 @@ impl PdfDocumentStorage for PostgresPdfStorage {
                         sqlx::query(
                             r#"
                             INSERT INTO public.documents (id, tenant_id, workspace_id, title, content, status, updated_at)
-                            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                            SELECT $1, $2, $3, $4, $5, $6, NOW()
+                            FROM (
+                                SELECT set_config('app.current_tenant_id', COALESCE($2::text, ''), true),
+                                       set_config('app.current_workspace_id', $3::text, true)
+                            ) ctx
                             ON CONFLICT (id) DO UPDATE SET
                                 content = CASE
                                     WHEN length(EXCLUDED.content) >= length(documents.content)
@@ -729,7 +733,11 @@ impl PdfDocumentStorage for PostgresPdfStorage {
         sqlx::query(
             r#"
             INSERT INTO public.documents (id, tenant_id, workspace_id, title, content, status, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+            SELECT $1, $2, $3, $4, $5, $6, NOW()
+            FROM (
+                SELECT set_config('app.current_tenant_id', COALESCE($2::text, ''), true),
+                       set_config('app.current_workspace_id', $3::text, true)
+            ) ctx
             ON CONFLICT (id) DO UPDATE SET
                 content = CASE
                     WHEN length(EXCLUDED.content) >= length(documents.content)

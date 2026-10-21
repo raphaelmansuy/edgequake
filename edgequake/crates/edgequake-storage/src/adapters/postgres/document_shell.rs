@@ -399,6 +399,8 @@ where
          SELECT u.id, u.title, '', u.status, u.metadata, w.workspace_id, t.tenant_id \
          FROM unnest($1::uuid[], $2::jsonb[], $3::text[], $4::uuid[], $5::uuid[], $6::text[]) \
              AS u(id, metadata, title, ws, tn, status) \
+         CROSS JOIN LATERAL (SELECT set_config('app.current_tenant_id', COALESCE(u.tn::text, ''), true), \
+                                    set_config('app.current_workspace_id', COALESCE(u.ws::text, ''), true)) ctx \
          LEFT JOIN workspaces w ON w.workspace_id = u.ws \
          LEFT JOIN tenants t ON t.tenant_id = u.tn \
          ON CONFLICT (id) DO UPDATE SET metadata = EXCLUDED.metadata, \
@@ -523,6 +525,8 @@ async fn batch_shell_content_scoped(
          SELECT u.id, u.content, 'processing', t.tenant_id, w.workspace_id \
          FROM unnest($1::uuid[], $2::text[], $3::uuid[], $4::uuid[]) \
              AS u(id, content, tenant_id, workspace_id) \
+         CROSS JOIN LATERAL (SELECT set_config('app.current_tenant_id', COALESCE(u.tenant_id::text, ''), true), \
+                                    set_config('app.current_workspace_id', COALESCE(u.workspace_id::text, ''), true)) ctx \
          LEFT JOIN public.tenants t ON t.tenant_id = u.tenant_id \
          LEFT JOIN public.workspaces w ON w.workspace_id = u.workspace_id AND w.tenant_id = t.tenant_id \
          ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content, updated_at = now()",
@@ -614,6 +618,8 @@ where
          SELECT u.id, u.title, '', u.status, u.metadata \
          FROM unnest($1::uuid[], $2::jsonb[], $3::text[], $4::text[]) \
              AS u(id, metadata, title, status) \
+         CROSS JOIN LATERAL (SELECT set_config('app.current_tenant_id', COALESCE(u.metadata->>'tenant_id', ''), true), \
+                                    set_config('app.current_workspace_id', COALESCE(u.metadata->>'workspace_id', ''), true)) ctx \
          ON CONFLICT (id) DO UPDATE SET metadata = EXCLUDED.metadata, \
              title = CASE WHEN EXCLUDED.title = '' THEN documents.title \
                           ELSE EXCLUDED.title END, \
