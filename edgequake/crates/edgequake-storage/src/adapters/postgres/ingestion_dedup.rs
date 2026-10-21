@@ -12,6 +12,7 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::adapters::postgres::rls::with_rls_transaction;
 use crate::error::StorageError;
 
 /// Durable reservation discriminator (successfully ingested documents).
@@ -49,6 +50,14 @@ pub async fn lookup_document(
 /// Reserve (upsert) a hash for a document. Idempotent: the latest writer wins,
 /// mirroring the KV `upsert` semantics it replaces. Ensures the `documents`
 /// parent row exists first (FK).
+///
+/// The parent insert and the reservation share one tenant transaction:
+/// `SET LOCAL ROLE edgequake_tenant_access` plus `set_tenant_context` for the
+/// workspace owner. `tenant_access_guard` then sees `tenant_id =
+/// current_tenant_id()` and a matching workspace. A tenant that does not own
+/// the workspace is rejected before any row is written. The row's tenant is
+/// the same id installed in the session — this does not grant a write for an
+/// arbitrary tenant.
 pub async fn upsert_reservation(
     pool: &PgPool,
     workspace_id: &str,
@@ -65,28 +74,43 @@ pub async fn upsert_reservation(
         );
         return Ok(());
     };
-    crate::adapters::postgres::chunk_repository::ensure_document_parent(
-        pool,
-        doc,
-        tenant_id.and_then(parse_id),
-        Some(ws),
-    )
-    .await?;
-    sqlx::query(
-        "INSERT INTO public.ingestion_dedup \
-             (workspace_id, content_hash, pipeline_version, document_id) \
-         VALUES ($1, $2, $3, $4) \
-         ON CONFLICT (workspace_id, content_hash, pipeline_version) \
-         DO UPDATE SET document_id = EXCLUDED.document_id",
-    )
-    .bind(ws)
-    .bind(content_hash)
-    .bind(pipeline_version)
-    .bind(doc)
-    .execute(pool)
+    let Some(tenant) = tenant_id.and_then(parse_id) else {
+        return Err(StorageError::InvalidInput(
+            "ingestion_dedup reservation requires a tenant id".into(),
+        ));
+    };
+    let content_hash = content_hash.to_string();
+    let pipeline_version = pipeline_version.to_string();
+
+    with_rls_transaction(pool, tenant, Some(ws), None, move |conn| {
+        let content_hash = content_hash.clone();
+        let pipeline_version = pipeline_version.clone();
+        Box::pin(async move {
+            crate::adapters::postgres::chunk_repository::ensure_document_parent(
+                &mut *conn,
+                doc,
+                Some(tenant),
+                Some(ws),
+            )
+            .await?;
+            sqlx::query(
+                "INSERT INTO public.ingestion_dedup \
+                     (workspace_id, content_hash, pipeline_version, document_id) \
+                 VALUES ($1, $2, $3, $4) \
+                 ON CONFLICT (workspace_id, content_hash, pipeline_version) \
+                 DO UPDATE SET document_id = EXCLUDED.document_id",
+            )
+            .bind(ws)
+            .bind(content_hash)
+            .bind(pipeline_version)
+            .bind(doc)
+            .execute(&mut *conn)
+            .await
+            .map_err(|e| StorageError::Database(format!("ingestion_dedup upsert failed: {e}")))?;
+            Ok(())
+        })
+    })
     .await
-    .map_err(|e| StorageError::Database(format!("ingestion_dedup upsert failed: {e}")))?;
-    Ok(())
 }
 
 /// Delete one versioned reservation (staging release / rollback).

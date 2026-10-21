@@ -364,14 +364,23 @@ pub(crate) async fn ensure_document_parent_in_transaction(
 /// Status is `processing`: the row is a spine placeholder created at ingest
 /// time, later enriched by the document lifecycle (status/title/content).
 /// `ON CONFLICT (id) DO NOTHING` protects authoritative rows (PDF path,
-/// backfill-adopted rows). Shared by the chunk batch writer and the typed
-/// `ingestion_dedup` reservation (FK precondition).
-pub(crate) async fn ensure_document_parent(
-    pool: &PgPool,
+/// backfill-adopted rows).
+///
+/// `documents` is FORCE RLS. `tenant_access_guard` accepts the insert only when
+/// the row's `tenant_id` equals `current_tenant_id()` and the workspace matches
+/// the session (or the session workspace is unset). Callers subject to that
+/// policy must run this on a connection that already installed that context
+/// (`enforce_tenant_context` / `with_rls_transaction`). A bare pool checkout
+/// leaves both GUCs null, and the restrictive WITH CHECK rejects the row.
+pub(crate) async fn ensure_document_parent<'e, E>(
+    executor: E,
     document_id: Uuid,
     tenant_id: Option<Uuid>,
     workspace_id: Option<Uuid>,
-) -> Result<(), StorageError> {
+) -> Result<(), StorageError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+{
     sqlx::query(
         r#"
         INSERT INTO public.documents (id, tenant_id, workspace_id, content, status)
@@ -382,7 +391,7 @@ pub(crate) async fn ensure_document_parent(
     .bind(document_id)
     .bind(tenant_id)
     .bind(workspace_id)
-    .execute(pool)
+    .execute(executor)
     .await
     .map_err(|e| StorageError::Database(format!("ensure document parent failed: {e}")))?;
     Ok(())
