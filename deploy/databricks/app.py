@@ -257,8 +257,17 @@ def start_proxy(ui_port: int | None) -> object:
             upstream = socket.create_connection(("127.0.0.1", port), timeout=30)
             upstream.settimeout(None)
             lines = [f"{self.command} {self.path} {self.request_version}"]
+            cookie = self.headers.get("Cookie", "")
+            token = session_token(cookie)
+            protocol = self.headers.get("Sec-WebSocket-Protocol", "")
             for key, value in self.headers.items():
+                if token and key.lower() == "sec-websocket-protocol":
+                    continue
                 lines.append(f"{key}: {value}")
+            if token and "edgequake.bearer" not in protocol:
+                lines.append(f"Sec-WebSocket-Protocol: edgequake.bearer, {token}")
+            elif token and protocol:
+                lines.append(f"Sec-WebSocket-Protocol: {protocol}")
             raw = ("\r\n".join(lines) + "\r\n\r\n").encode("iso-8859-1")
             length = int(self.headers.get("Content-Length", "0") or "0")
             if length:
@@ -305,6 +314,7 @@ def start_proxy(ui_port: int | None) -> object:
                 for key, value in self.headers.items()
                 if key.lower() not in HOP_HEADERS and key.lower() != "content-length"
             }
+            apply_session_authorization(headers)
             public_host = headers.get("Host") or self.headers.get("Host", "")
             headers["X-Forwarded-Proto"] = "https"
             if public_host:
@@ -313,19 +323,20 @@ def start_proxy(ui_port: int | None) -> object:
             try:
                 conn.request(self.command, self.path, body=payload, headers=headers)
                 response = conn.getresponse()
+                body = b"" if self.command == "HEAD" else response.read()
                 self.send_response(response.status)
                 for key, value in response.getheaders():
-                    if key.lower() in HOP_HEADERS:
+                    if key.lower() in HOP_HEADERS or key.lower() == "content-length":
                         continue
                     self.send_header(key, value)
+                session_cookie = self._session_cookie(body)
+                if session_cookie:
+                    self.send_header("Set-Cookie", session_cookie)
+                self.send_header("Content-Length", str(len(body)))
                 self.send_header("Connection", "close")
                 self.end_headers()
-                if self.command != "HEAD":
-                    while True:
-                        chunk = response.read(64 * 1024)
-                        if not chunk:
-                            break
-                        self.wfile.write(chunk)
+                if body:
+                    self.wfile.write(body)
             except Exception as exc:
                 message = f"upstream {port} is not reachable: {exc}".encode()
                 self.send_response(502)
@@ -336,6 +347,22 @@ def start_proxy(ui_port: int | None) -> object:
                 self.wfile.write(message)
             finally:
                 conn.close()
+
+        def _session_cookie(self, body: bytes) -> str:
+            path = self.path.split("?", 1)[0]
+            if path == "/api/v1/auth/logout":
+                return f"{SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"
+            if path not in ("/api/v1/auth/login", "/api/v1/auth/refresh"):
+                return ""
+            try:
+                import json
+
+                token = json.loads(body).get("access_token")
+            except Exception:
+                return ""
+            if not isinstance(token, str) or not token:
+                return ""
+            return f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; Secure; SameSite=Lax"
 
         def log_message(self, fmt: str, *args: object) -> None:
             print(fmt % args, flush=True)
@@ -440,6 +467,25 @@ def run_server(
     if serve_on_exit and code is not None:
         serve("\n".join(lines))
     return code
+
+
+SESSION_COOKIE = "eq_access"
+
+
+def session_token(cookie_header: str) -> str:
+    """EdgeQuake access token carried in a cookie the Apps proxy forwards."""
+    for part in cookie_header.split(";"):
+        name, _, value = part.strip().partition("=")
+        if name == SESSION_COOKIE and value:
+            return value
+    return ""
+
+
+def apply_session_authorization(headers: dict[str, str]) -> None:
+    """Restore the EdgeQuake bearer after the Apps proxy replaces Authorization."""
+    token = session_token(headers.get("Cookie", "") or headers.get("cookie", ""))
+    if token:
+        headers["Authorization"] = "Bearer " + token
 
 
 def _wait_server(
