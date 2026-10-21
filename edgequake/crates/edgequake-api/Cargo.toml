@@ -76,6 +76,7 @@ reqwest = { version = "0.12", default-features = false, features = [
     "blocking",
     "json",
     "rustls-tls",
+    "stream",
 ] }
 openidconnect = { version = "4.0", default-features = false, features = ["reqwest"] }
 url = "2.5"

@@ -130,14 +130,30 @@ impl AppState {
         super::provider_setup::apply_chat_env_aliases();
         super::provider_setup::normalize_local_provider_hosts_for_docker();
 
-        // Create providers via factory (auto-detects from environment)
-        let (llm_provider, embedding_provider) = ProviderFactory::from_env().map_err(|e| {
-            format!(
-                "Failed to create LLM provider from environment: {e}. \
-                 Set EDGEQUAKE_LLM_PROVIDER (ollama, openai, omlx, …) and the matching key or host, \
-                 or run `edgequake doctor`."
-            )
-        })?;
+        // Databricks MLflow is an in-tree provider. Other names stay on the factory.
+        let (llm_provider, embedding_provider): (
+            Arc<dyn edgequake_llm::traits::LLMProvider>,
+            Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+        ) = if crate::databricks::databricks_llm_enabled() {
+            let provider = Arc::new(
+                crate::databricks::DatabricksMLflowProvider::from_env().map_err(|e| {
+                    format!(
+                        "Failed to create Databricks MLflow provider: {e}. \
+                         Set DATABRICKS_HOST and either DATABRICKS_CLIENT_ID/DATABRICKS_CLIENT_SECRET \
+                         or DATABRICKS_TOKEN."
+                    )
+                })?,
+            );
+            (provider.clone(), provider)
+        } else {
+            ProviderFactory::from_env().map_err(|e| {
+                format!(
+                    "Failed to create LLM provider from environment: {e}. \
+                     Set EDGEQUAKE_LLM_PROVIDER (ollama, openai, omlx, databricks, …) \
+                     and the matching key or host, or run `edgequake doctor`."
+                )
+            })?
+        };
 
         // Application runtime must never serve Mock as the process-wide default
         // unless an explicit test escape hatch is set (EDGEQUAKE_ALLOW_MOCK_PROVIDER=1).
@@ -187,6 +203,7 @@ impl AppState {
             Some(worker_floor.max(1)),
         )
         .await?;
+        crate::databricks::spawn_pool_refresh(pool_bundle.clone());
         let pool = pool_bundle.ingest.clone();
         let admin_pool = pool_bundle.admin.clone();
         let queue_pool = pool_bundle.queue.clone();

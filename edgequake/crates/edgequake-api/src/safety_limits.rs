@@ -514,6 +514,16 @@ fn create_inner_llm_provider(
     ctx: Option<ApplicationContext>,
 ) -> Result<Arc<dyn LLMProvider>> {
     let provider = provider_name.to_ascii_lowercase();
+    if crate::databricks::is_databricks_provider(&provider) {
+        let built = crate::databricks::DatabricksMLflowProvider::from_env()
+            .map_err(LlmError::ConfigError)?;
+        let built = if model.is_empty() {
+            built
+        } else {
+            built.with_chat_model(model)
+        };
+        return Ok(Arc::new(built));
+    }
     if provider == "vertexai" || provider == "vertex" {
         return create_vertex_llm_via_adc(model, ctx);
     }
@@ -765,6 +775,18 @@ pub fn create_safe_embedding_provider(
 
     // FIX #163: If embedding-specific env vars are set and provider is openai-compatible,
     // create the provider with dedicated credentials.
+    if crate::databricks::is_databricks_provider(&provider_name) {
+        let built = crate::databricks::DatabricksMLflowProvider::from_env()
+            .map_err(LlmError::ConfigError)?
+            .with_embedding(&model, dimension);
+        let inner: Arc<dyn EmbeddingProvider> = Arc::new(built);
+        let config = SafetyLimitsConfig::from_env();
+        let inner = crate::state::provider_setup::stamp_embedding_model(inner, &model);
+        return Ok(Arc::new(SafetyLimitedEmbeddingProviderWrapper::new(
+            inner, config,
+        )));
+    }
+
     let is_openai_compatible = matches!(
         provider_name.to_ascii_lowercase().as_str(),
         "openai" | "openai-compatible" | "openai_compatible"

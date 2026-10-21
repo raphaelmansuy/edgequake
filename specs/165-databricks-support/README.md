@@ -1,6 +1,8 @@
 # SPEC-165 — Databricks Apps, Lakebase, and AI Gateway
 
-> **Status:** Study. No product code in this spec.  
+> **Status:** Lakebase OAuth, the MLflow AI Gateway client, and the App launcher are implemented.  
+> **Live proof (2026-10-21):** `edgequake migrate` reached schema 214 on `edgequake-spec165-probe` with `age_absent=true`. A server on that database reported `llm_provider_name=databricks`, pgvector 0.8.6, and embedding dimension 1024. One sentence was indexed and a chat answer cited Grace Hopper, 1952.  
+> **App:** `edgequake` at `https://edgequake-7474647158015570.aws.databricksapps.com`. The URL requires a workspace login. The release binary needs glibc 2.38 (`__isoc23_sscanf`, `__isoc23_strtol`). The Apps doc still says Ubuntu 22.04 (glibc 2.35), so a 2.35 build is the remaining host step.  
 > **Probe date:** 2026-10-21 (UTC).  
 > **Workspace:** `https://dbc-cb61f1e1-bd8e.cloud.databricks.com`  
 > **Lakebase project left in place:** `edgequake-spec165-probe` (Postgres 18, branch `production`, endpoint `primary`).  

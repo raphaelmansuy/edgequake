@@ -37,6 +37,12 @@ pub fn llm_from_connection(spec: &ConnectionSpec) -> Result<Arc<dyn LLMProvider>
                 .with_base_url(&spec.base_url)
                 .with_model(&spec.model),
         ),
+        "databricks" | "mlflow" | "databricks-mlflow" => {
+            let built = crate::databricks::DatabricksMLflowProvider::from_env()
+                .map_err(ApiError::BadRequest)?
+                .with_chat_model(&spec.model);
+            Arc::new(built)
+        }
         other => ProviderFactory::create_llm_provider(other, &spec.model)
             .map_err(|e| ApiError::BadRequest(e.to_string()))?,
     };
@@ -63,6 +69,14 @@ pub fn embedding_from_connection(
         | "lmstudio" => Arc::new(
             OpenAIProvider::compatible(key, spec.base_url.clone()).with_embedding_model(&model),
         ),
+        "databricks" | "mlflow" | "databricks-mlflow" => {
+            let dim = spec.embedding_dimension.unwrap_or(1024);
+            Arc::new(
+                crate::databricks::DatabricksMLflowProvider::from_env()
+                    .map_err(ApiError::BadRequest)?
+                    .with_embedding(&model, dim),
+            )
+        }
         other => {
             let dim = spec.embedding_dimension.unwrap_or(768);
             ProviderFactory::create_embedding_provider(other, &model, dim)

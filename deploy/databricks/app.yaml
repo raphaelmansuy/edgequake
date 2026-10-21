@@ -1,0 +1,20 @@
+command:
+  - python
+  - app.py
+env:
+  - name: EDGEQUAKE_DB_AUTH
+    value: lakebase_oauth
+  - name: EDGEQUAKE_LLM_PROVIDER
+    value: databricks
+  - name: EDGEQUAKE_LLM_MODEL
+    value: system.ai.llama-4-maverick
+  - name: EDGEQUAKE_EMBEDDING_MODEL
+    value: system.ai.gte-large-en
+  - name: EDGEQUAKE_EMBEDDING_DIMENSION
+    value: "1024"
+  - name: EDGEQUAKE_LLM_OMIT_TEMPERATURE
+    value: "1"
+  - name: LAKEBASE_ENDPOINT
+    valueFrom: postgres
+  - name: EDGEQUAKE_BINARY_PATH
+    valueFrom: volume
