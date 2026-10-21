@@ -4,5 +4,7 @@
 //! `DATABASE_URL` boot does not call Databricks.
 
 mod lakebase;
+mod provider;
 
 pub use lakebase::{resolve_database_url, spawn_credential_refresh, DbUrlError};
+pub use provider::{embedding_provider_from_env, llm_provider_selected, providers_from_env};

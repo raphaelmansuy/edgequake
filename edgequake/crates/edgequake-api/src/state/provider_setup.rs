@@ -105,6 +105,25 @@ pub fn resolve_embedding_provider(
     // to the auto-detection logic below.
     if let Ok(provider_name) = std::env::var("EDGEQUAKE_EMBEDDING_PROVIDER") {
         if !provider_name.is_empty() {
+            if provider_name.eq_ignore_ascii_case("databricks") {
+                match crate::databricks::embedding_provider_from_env() {
+                    Ok(provider) => {
+                        tracing::info!(
+                            provider = "databricks",
+                            model = provider.model(),
+                            dimension = provider.dimension(),
+                            "Embedding provider overridden via EDGEQUAKE_EMBEDDING_PROVIDER"
+                        );
+                        return provider;
+                    }
+                    Err(error) => {
+                        tracing::warn!(
+                            error = %error,
+                            "Failed to create Databricks embedding provider; using default"
+                        );
+                    }
+                }
+            }
             // WHY: Use provider-aware model resolution so that e.g. MISTRAL_EMBEDDING_MODEL
             // is not shadowed by OLLAMA_EMBEDDING_MODEL from an unrelated .env entry.
             let model = embedding_model_for_provider(&provider_name);

@@ -171,9 +171,26 @@ struct CredBody {
     expire_time: Option<String>,
 }
 
-async fn workspace_access_token() -> Result<String, DbUrlError> {
-    if let Some(token) = nonempty("DATABRICKS_TOKEN") {
+pub(crate) async fn workspace_access_token() -> Result<String, DbUrlError> {
+    if let Some(token) = fresh_cached_token() {
         return Ok(token);
+    }
+    let issued = issue_workspace_access_token().await?;
+    store_cached_token(&issued.token, issued.ttl);
+    Ok(issued.token)
+}
+
+struct IssuedToken {
+    token: String,
+    ttl: Duration,
+}
+
+async fn issue_workspace_access_token() -> Result<IssuedToken, DbUrlError> {
+    if let Some(token) = nonempty("DATABRICKS_TOKEN") {
+        return Ok(IssuedToken {
+            token,
+            ttl: Duration::from_secs(45 * 60),
+        });
     }
     if std::env::var("DATABRICKS_TOKEN")
         .ok()
@@ -223,15 +240,51 @@ async fn workspace_access_token() -> Result<String, DbUrlError> {
             "databricks oidc response has no access_token".into(),
         ));
     }
-    Ok(parsed.access_token)
+    let ttl = parsed
+        .expires_in
+        .unwrap_or(3600)
+        .saturating_sub(5 * 60)
+        .max(60);
+    Ok(IssuedToken {
+        token: parsed.access_token,
+        ttl: Duration::from_secs(ttl),
+    })
 }
 
 #[derive(Deserialize)]
 struct OidcBody {
     access_token: String,
+    #[serde(default)]
+    expires_in: Option<u64>,
 }
 
-fn workspace_host() -> Result<String, DbUrlError> {
+struct CachedAccess {
+    token: String,
+    valid_until: SystemTime,
+}
+
+fn fresh_cached_token() -> Option<String> {
+    let guard = ACCESS_CACHE.lock().unwrap_or_else(|err| err.into_inner());
+    let cached = guard.as_ref()?;
+    if SystemTime::now() < cached.valid_until {
+        Some(cached.token.clone())
+    } else {
+        None
+    }
+}
+
+fn store_cached_token(token: &str, ttl: Duration) {
+    let valid_until = SystemTime::now() + ttl;
+    let mut guard = ACCESS_CACHE.lock().unwrap_or_else(|err| err.into_inner());
+    *guard = Some(CachedAccess {
+        token: token.to_string(),
+        valid_until,
+    });
+}
+
+static ACCESS_CACHE: std::sync::Mutex<Option<CachedAccess>> = std::sync::Mutex::new(None);
+
+pub(crate) fn workspace_host() -> Result<String, DbUrlError> {
     let Some(raw) = std::env::var("DATABRICKS_HOST").ok() else {
         return Err(DbUrlError::Message("DATABRICKS_HOST is required".into()));
     };
