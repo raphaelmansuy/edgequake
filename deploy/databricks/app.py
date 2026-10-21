@@ -323,7 +323,12 @@ def start_proxy(ui_port: int | None) -> object:
             try:
                 conn.request(self.command, self.path, body=payload, headers=headers)
                 response = conn.getresponse()
+                raw_type = ""
+                for key, value in response.getheaders():
+                    if key.lower() == "content-type":
+                        raw_type = value
                 body = b"" if self.command == "HEAD" else response.read()
+                body = inject_fetch_shim(body, raw_type)
                 self.send_response(response.status)
                 for key, value in response.getheaders():
                     if key.lower() in HOP_HEADERS or key.lower() == "content-length":
@@ -481,11 +486,46 @@ def session_token(cookie_header: str) -> str:
     return ""
 
 
+def header_value(headers: dict[str, str], name: str) -> str:
+    for key, value in headers.items():
+        if key.lower() == name.lower() and value:
+            return value
+    return ""
+
+
 def apply_session_authorization(headers: dict[str, str]) -> None:
-    """Restore the EdgeQuake bearer after the Apps proxy replaces Authorization."""
-    token = session_token(headers.get("Cookie", "") or headers.get("cookie", ""))
+    """Put the EdgeQuake bearer back on the internal request.
+
+    The Apps proxy replaces Authorization. The page copies its token into
+    X-EdgeQuake-Authorization, and login stores the same token in eq_access.
+    """
+    token = header_value(headers, "X-EdgeQuake-Authorization")
+    if token.lower().startswith("bearer "):
+        token = token.split(" ", 1)[1].strip()
+    if not token:
+        token = session_token(header_value(headers, "Cookie"))
     if token:
         headers["Authorization"] = "Bearer " + token
+
+
+# Runs before the app's own scripts. Copies the in-memory bearer into a header
+# the Apps proxy does not replace.
+FETCH_SHIM = (
+    b"<script>(function(){var f=window.fetch;if(!f||f.__eq)return;"
+    b"function w(i,n){n=n||{};try{var h=new Headers(n.headers||(i&&i.headers));"
+    b"var a=h.get('Authorization');if(a){h.set('X-EdgeQuake-Authorization',a);n.headers=h;}}"
+    b"catch(e){}return f.call(this,i,n);}w.__eq=1;window.fetch=w;})();</script>"
+)
+
+
+def inject_fetch_shim(body: bytes, content_type: str) -> bytes:
+    if "text/html" not in content_type.lower() or b"<head" not in body.lower():
+        return body
+    start = body.lower().find(b"<head")
+    end = body.find(b">", start)
+    if end < 0:
+        return body
+    return body[: end + 1] + FETCH_SHIM + body[end + 1 :]
 
 
 def _wait_server(
