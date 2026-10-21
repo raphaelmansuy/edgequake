@@ -56,33 +56,53 @@ pub async fn provision_relational_document_shell(
             "stage_message": "Waiting for a processing slot",
             "admission_staging": true,
         });
-        sqlx::query(
-            r#"
-            INSERT INTO documents (
-                id, tenant_id, workspace_id, title, content, content_hash,
-                metadata, file_size_bytes, content_type, status, track_id,
-                created_at, updated_at
-            )
-            VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, 'pending', $9, NOW(), NOW())
-            ON CONFLICT (id) DO NOTHING
-            "#,
+        let title = shell.title.clone();
+        let content_hash = shell.content_hash.clone();
+        let content_type = shell.content_type.clone();
+        let track_id = shell.track_id.clone();
+        let file_size_bytes = shell.file_size_bytes;
+        let tenant_id = shell.tenant_id;
+        let workspace_id = shell.workspace_id;
+        let metadata = metadata.clone();
+        edgequake_storage::adapters::postgres::with_tenant_if_forced(
+            pool,
+            Some(tenant_id),
+            Some(workspace_id),
+            move |conn| {
+                Box::pin(async move {
+                    sqlx::query(
+                        r#"
+                        INSERT INTO documents (
+                            id, tenant_id, workspace_id, title, content, content_hash,
+                            metadata, file_size_bytes, content_type, status, track_id,
+                            created_at, updated_at
+                        )
+                        VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, 'pending', $9, NOW(), NOW())
+                        ON CONFLICT (id) DO NOTHING
+                        "#,
+                    )
+                    .bind(document_id)
+                    .bind(tenant_id)
+                    .bind(workspace_id)
+                    .bind(title)
+                    .bind(content_hash)
+                    .bind(metadata)
+                    .bind(file_size_bytes)
+                    .bind(content_type)
+                    .bind(track_id)
+                    .execute(&mut *conn)
+                    .await
+                    .map_err(|e| {
+                        edgequake_storage::StorageError::Database(format!(
+                            "failed to provision relational document shell: {e}"
+                        ))
+                    })?;
+                    Ok(())
+                })
+            },
         )
-        .bind(document_id)
-        .bind(shell.tenant_id)
-        .bind(shell.workspace_id)
-        .bind(&shell.title)
-        .bind(&shell.content_hash)
-        .bind(metadata)
-        .bind(shell.file_size_bytes)
-        .bind(&shell.content_type)
-        .bind(&shell.track_id)
-        .execute(pool)
         .await
-        .map_err(|e| {
-            crate::error::ApiError::Internal(format!(
-                "failed to provision relational document shell: {e}"
-            ))
-        })?;
+        .map_err(|e| crate::error::ApiError::Internal(e.to_string()))?;
     }
 
     #[cfg(not(feature = "postgres"))]

@@ -24,6 +24,19 @@ impl PostgresPdfStorage {
     }
 }
 
+async fn documents_rls_forced(pool: &PgPool) -> bool {
+    !super::rls::pool_bypasses_rls(pool).await.unwrap_or(true)
+}
+
+async fn active_tenant_ids(pool: &PgPool) -> Result<Vec<Uuid>> {
+    sqlx::query_scalar("SELECT tenant_id FROM public.tenants WHERE is_active")
+        .fetch_all(pool)
+        .await
+        .map_err(|e| {
+            StorageError::Database(format!("Failed to list tenants for document RLS: {e}"))
+        })
+}
+
 impl PostgresPdfStorage {
     /// PostgreSQL `undefined_column` (42703) — migration 041 not applied yet.
     ///
@@ -667,6 +680,52 @@ impl PdfDocumentStorage for PostgresPdfStorage {
         // @implements FIX-ISSUE-74: Ensure document record exists before FK link
         // SPEC-129: storage owns CHECK projection — never bind raw KV stages.
         let pg_status = crate::relational_documents_status_for_write(status);
+        if tenant_id.is_some() && documents_rls_forced(&self.pool).await {
+            let tenant = *tenant_id.expect("tenant checked above");
+            let workspace = *workspace_id;
+            let document_id = *document_id;
+            let title = title.to_string();
+            let content = content.to_string();
+            let pg_status = pg_status.clone();
+            return super::rls::with_rls_transaction(
+                &self.pool,
+                tenant,
+                Some(workspace),
+                None,
+                move |conn| {
+                    Box::pin(async move {
+                        sqlx::query(
+                            r#"
+                            INSERT INTO public.documents (id, tenant_id, workspace_id, title, content, status, updated_at)
+                            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                            ON CONFLICT (id) DO UPDATE SET
+                                content = CASE
+                                    WHEN length(EXCLUDED.content) >= length(documents.content)
+                                        THEN EXCLUDED.content
+                                    ELSE documents.content
+                                END,
+                                status  = EXCLUDED.status,
+                                title   = EXCLUDED.title,
+                                updated_at = NOW()
+                            "#,
+                        )
+                        .bind(document_id)
+                        .bind(tenant)
+                        .bind(workspace)
+                        .bind(title)
+                        .bind(content)
+                        .bind(pg_status)
+                        .execute(&mut *conn)
+                        .await
+                        .map_err(|e| {
+                            StorageError::Database(format!("Failed to ensure document record: {e}"))
+                        })?;
+                        Ok(())
+                    })
+                },
+            )
+            .await;
+        }
         sqlx::query(
             r#"
             INSERT INTO public.documents (id, tenant_id, workspace_id, title, content, status, updated_at)
@@ -720,6 +779,79 @@ impl PdfDocumentStorage for PostgresPdfStorage {
 
         // SPEC-129: defense-in-depth — never bind a raw KV stage to the column.
         let pg_status = crate::relational_documents_status_for_write(stats.status);
+
+        if documents_rls_forced(&self.pool).await {
+            let tenants = active_tenant_ids(&self.pool).await?;
+            for tenant in tenants {
+                let status_label = pg_status.clone();
+                let pg_status = pg_status.clone();
+                let error_message = stats.error_message.map(str::to_string);
+                let document_id = stats.document_id;
+                let chunk_count = chunk_count;
+                let entity_count = entity_count;
+                let relationship_count = relationship_count;
+                let cost_usd = stats.cost_usd;
+                let input_tokens = stats.input_tokens;
+                let output_tokens = stats.output_tokens;
+                let total_tokens = stats.total_tokens;
+                let affected =
+                    super::rls::with_rls_transaction(&self.pool, tenant, None, None, move |conn| {
+                        Box::pin(async move {
+                            let result = sqlx::query(
+                                r#"
+                                UPDATE public.documents SET
+                                    chunk_count        = $2,
+                                    entity_count       = $3,
+                                    relationship_count = $4,
+                                    cost_usd           = COALESCE($5, cost_usd),
+                                    input_tokens       = COALESCE($6, input_tokens),
+                                    output_tokens      = COALESCE($7, output_tokens),
+                                    total_tokens       = COALESCE($8, total_tokens),
+                                    error_message      = $9,
+                                    status             = $10,
+                                    updated_at         = NOW()
+                                WHERE id = $1
+                                "#,
+                            )
+                            .bind(document_id)
+                            .bind(chunk_count)
+                            .bind(entity_count)
+                            .bind(relationship_count)
+                            .bind(cost_usd)
+                            .bind(input_tokens)
+                            .bind(output_tokens)
+                            .bind(total_tokens)
+                            .bind(error_message)
+                            .bind(pg_status)
+                            .execute(&mut *conn)
+                            .await
+                            .map_err(|e| {
+                                StorageError::Database(format!(
+                                    "Failed to update document stats: {e}"
+                                ))
+                            })?;
+                            Ok(result.rows_affected())
+                        })
+                    })
+                    .await?;
+                if affected > 0 {
+                    debug!(
+                        document_id = %document_id,
+                        chunk_count,
+                        entity_count,
+                        relationship_count,
+                        status = %status_label,
+                        "Updated document stats (SPEC-021 P-A1)"
+                    );
+                    return Ok(());
+                }
+            }
+            warn!(
+                document_id = %stats.document_id,
+                "update_document_stats: documents row not found (race with ensure_document_record) — stats not persisted; will converge on next refresh"
+            );
+            return Ok(());
+        }
 
         let result = sqlx::query(
             r#"
@@ -793,6 +925,45 @@ impl PdfDocumentStorage for PostgresPdfStorage {
         // SPEC-129: project via SSOT so KV stages like `re_embedding` never
         // violate `documents_valid_status`.
         let pg_status = crate::relational_documents_status_for_write(status);
+        if documents_rls_forced(&self.pool).await {
+            let tenants = active_tenant_ids(&self.pool).await?;
+            let document_id = *document_id;
+            for tenant in tenants {
+                let pg_status = pg_status.clone();
+                let affected =
+                    super::rls::with_rls_transaction(&self.pool, tenant, None, None, move |conn| {
+                        Box::pin(async move {
+                            let result = sqlx::query(
+                                r#"
+                                UPDATE public.documents SET
+                                    status     = $2,
+                                    updated_at = NOW()
+                                WHERE id = $1
+                                "#,
+                            )
+                            .bind(document_id)
+                            .bind(pg_status)
+                            .execute(&mut *conn)
+                            .await
+                            .map_err(|e| {
+                                StorageError::Database(format!(
+                                    "Failed to touch document status: {e}"
+                                ))
+                            })?;
+                            Ok(result.rows_affected())
+                        })
+                    })
+                    .await?;
+                if affected > 0 {
+                    return Ok(());
+                }
+            }
+            warn!(
+                document_id = %document_id,
+                "touch_document_status: no documents row yet (non-fatal)"
+            );
+            return Ok(());
+        }
         let result = sqlx::query(
             r#"
             UPDATE public.documents SET
@@ -820,6 +991,31 @@ impl PdfDocumentStorage for PostgresPdfStorage {
         // WHY: CASCADE on chunks.document_id and pdf_documents.document_id
         // means this single DELETE propagates to related rows automatically.
         // @implements FIX-ISSUE-73: Cascade delete pdf_documents/chunks on document removal
+        if documents_rls_forced(&self.pool).await {
+            let tenants = active_tenant_ids(&self.pool).await?;
+            let document_id = *document_id;
+            for tenant in tenants {
+                let affected =
+                    super::rls::with_rls_transaction(&self.pool, tenant, None, None, move |conn| {
+                        Box::pin(async move {
+                            let result = sqlx::query("DELETE FROM public.documents WHERE id = $1")
+                                .bind(document_id)
+                                .execute(&mut *conn)
+                                .await
+                                .map_err(|e| {
+                                    StorageError::Database(format!(
+                                        "Failed to delete document record: {e}"
+                                    ))
+                                })?;
+                            Ok(result.rows_affected())
+                        })
+                    })
+                    .await?;
+                if affected > 0 {
+                    return Ok(());
+                }
+            }
+        }
         let result = sqlx::query(
             r#"
             DELETE FROM public.documents WHERE id = $1

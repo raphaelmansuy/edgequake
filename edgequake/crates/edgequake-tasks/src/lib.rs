@@ -91,6 +91,8 @@ pub mod queue_estimate;
 pub mod shutdown;
 pub mod state_machine;
 pub mod storage;
+#[cfg(feature = "postgres")]
+mod task_rls;
 pub mod tenant_limiter;
 pub mod types;
 pub mod worker;

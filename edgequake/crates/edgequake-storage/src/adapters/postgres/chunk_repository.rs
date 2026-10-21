@@ -372,20 +372,28 @@ pub(crate) async fn ensure_document_parent(
     tenant_id: Option<Uuid>,
     workspace_id: Option<Uuid>,
 ) -> Result<(), StorageError> {
-    sqlx::query(
-        r#"
+    const SQL: &str = r#"
         INSERT INTO public.documents (id, tenant_id, workspace_id, content, status)
         VALUES ($1, $2, $3, '', 'processing')
         ON CONFLICT (id) DO NOTHING
-        "#,
-    )
-    .bind(document_id)
-    .bind(tenant_id)
-    .bind(workspace_id)
-    .execute(pool)
+        "#;
+    // FORCE RLS rejects this INSERT unless current_tenant_id() is set in the
+    // same transaction. Superuser sessions skip SET ROLE and keep one commit.
+    super::rls::with_tenant_if_forced(pool, tenant_id, workspace_id, move |conn| {
+        Box::pin(async move {
+            sqlx::query(SQL)
+                .bind(document_id)
+                .bind(tenant_id)
+                .bind(workspace_id)
+                .execute(&mut *conn)
+                .await
+                .map_err(|e| {
+                    StorageError::Database(format!("ensure document parent failed: {e}"))
+                })?;
+            Ok(())
+        })
+    })
     .await
-    .map_err(|e| StorageError::Database(format!("ensure document parent failed: {e}")))?;
-    Ok(())
 }
 
 /// SPEC-091 Wave B3: admission-time `documents` row carrying workspace
@@ -431,8 +439,9 @@ pub async fn ensure_admission_document_row_with_track(
     } else {
         title
     };
-    sqlx::query(
-        r#"
+    let title_owned = title.to_string();
+    let track_owned = track_id.map(str::to_string);
+    const SQL: &str = r#"
         INSERT INTO public.documents (id, tenant_id, workspace_id, title, content, status, track_id)
         VALUES ($1, $2, $3, $4, '', 'processing', $5)
         ON CONFLICT (id) DO UPDATE SET
@@ -443,17 +452,24 @@ pub async fn ensure_admission_document_row_with_track(
                 ELSE documents.title
             END,
             track_id = COALESCE(EXCLUDED.track_id, documents.track_id)
-        "#,
-    )
-    .bind(document_id)
-    .bind(tenant_id)
-    .bind(workspace_id)
-    .bind(title)
-    .bind(track_id)
-    .execute(pool)
+        "#;
+    super::rls::with_tenant_if_forced(pool, tenant_id, workspace_id, move |conn| {
+        Box::pin(async move {
+            sqlx::query(SQL)
+                .bind(document_id)
+                .bind(tenant_id)
+                .bind(workspace_id)
+                .bind(title_owned)
+                .bind(track_owned.as_deref())
+                .execute(&mut *conn)
+                .await
+                .map_err(|e| {
+                    StorageError::Database(format!("ensure admission document row failed: {e}"))
+                })?;
+            Ok(())
+        })
+    })
     .await
-    .map_err(|e| StorageError::Database(format!("ensure admission document row failed: {e}")))?;
-    Ok(())
 }
 
 /// Batch variant of `ensure_document_parent` — one round trip per batch via
@@ -487,6 +503,38 @@ async fn ensure_document_parents(pool: &PgPool, chunks: &[Chunk]) -> Result<(), 
     Ok(())
 }
 
+async fn ensure_document_parents_on(
+    conn: &mut sqlx::PgConnection,
+    rows: &[ChunkInsertRow],
+) -> Result<(), StorageError> {
+    let mut seen = std::collections::HashSet::new();
+    let mut ids: Vec<Uuid> = Vec::new();
+    let mut tenants: Vec<Option<Uuid>> = Vec::new();
+    let mut workspaces: Vec<Option<Uuid>> = Vec::new();
+    for row in rows {
+        if seen.insert(row.document_id) {
+            ids.push(row.document_id);
+            tenants.push(row.tenant_id);
+            workspaces.push(row.workspace_id);
+        }
+    }
+    sqlx::query(
+        r#"
+        INSERT INTO public.documents (id, tenant_id, workspace_id, content, status)
+        SELECT id, tenant_id, workspace_id, '', 'processing'
+        FROM unnest($1::uuid[], $2::uuid[], $3::uuid[]) AS t(id, tenant_id, workspace_id)
+        ON CONFLICT (id) DO NOTHING
+        "#,
+    )
+    .bind(&ids)
+    .bind(&tenants)
+    .bind(&workspaces)
+    .execute(&mut *conn)
+    .await
+    .map_err(|e| StorageError::Database(format!("ensure document parents failed: {e}")))?;
+    Ok(())
+}
+
 #[async_trait]
 impl ChunkRepository for PostgresChunkRepository {
     /// LAW-D7: single round trip per batch via the shared `insert_chunks_batch`.
@@ -505,8 +553,6 @@ impl ChunkRepository for PostgresChunkRepository {
             return Ok(InsertReport::default());
         }
 
-        ensure_document_parents(&self.pool, chunks).await?;
-
         let rows: Vec<ChunkInsertRow> = chunks
             .iter()
             .map(|c| ChunkInsertRow {
@@ -524,7 +570,53 @@ impl ChunkRepository for PostgresChunkRepository {
             })
             .collect();
 
-        let inserted = insert_chunks_batch(&self.pool, &rows).await?.len() as u64;
+        // Superuser and tenant-less batches stay on the pool. A forced-RLS
+        // login (Lakebase) inserts each tenant scope inside one transaction
+        // so documents and chunks share current_tenant_id().
+        let forced = rows.iter().any(|row| row.tenant_id.is_some())
+            && !super::rls::pool_bypasses_rls(&self.pool).await?;
+        if !forced {
+            ensure_document_parents(&self.pool, chunks).await?;
+            let inserted = insert_chunks_batch(&self.pool, &rows).await?.len() as u64;
+            return Ok(InsertReport {
+                inserted,
+                skipped: chunks.len() as u64 - inserted,
+            });
+        }
+
+        let mut groups: std::collections::HashMap<(Uuid, Option<Uuid>), Vec<ChunkInsertRow>> =
+            std::collections::HashMap::new();
+        let mut unscoped = Vec::new();
+        for row in rows {
+            if let Some(tenant) = row.tenant_id {
+                groups
+                    .entry((tenant, row.workspace_id))
+                    .or_default()
+                    .push(row);
+            } else {
+                unscoped.push(row);
+            }
+        }
+        let mut inserted = 0u64;
+        for ((tenant, workspace), group) in groups {
+            inserted += super::rls::with_rls_transaction(
+                &self.pool,
+                tenant,
+                workspace,
+                None,
+                move |conn| {
+                    Box::pin(async move {
+                        ensure_document_parents_on(conn, &group).await?;
+                        let ids = insert_chunks_batch(&mut *conn, &group).await?;
+                        Ok(ids.len() as u64)
+                    })
+                },
+            )
+            .await?;
+        }
+        if !unscoped.is_empty() {
+            inserted += insert_chunks_batch(&self.pool, &unscoped).await?.len() as u64;
+        }
 
         Ok(InsertReport {
             inserted,
