@@ -628,13 +628,18 @@ pub(crate) fn extract_api_key(request: &Request) -> Option<String> {
 pub const WS_AUTH_PROTOCOL: &str = "edgequake.bearer";
 
 /// Extract bearer JWT or API key from HTTP headers (shared by REST + WebSocket upgrade).
+///
+/// Databricks Apps replaces `Authorization` with the workspace token before the
+/// request reaches EdgeQuake. The browser copies the EdgeQuake bearer into
+/// `X-EdgeQuake-Authorization`. Prefer that header when it is present so a
+/// signed-in upload is not checked as the Databricks token. An empty or missing
+/// value falls through to `Authorization`; it does not skip authentication.
 pub(crate) fn extract_token_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
-    if let Some(auth_header) = headers.get("authorization") {
-        if let Ok(auth_str) = auth_header.to_str() {
-            if let Some(key) = auth_str.strip_prefix("Bearer ") {
-                return Some(key.trim().to_string());
-            }
-        }
+    if let Some(token) = bearer_token(headers, "x-edgequake-authorization") {
+        return Some(token);
+    }
+    if let Some(token) = bearer_token(headers, "authorization") {
+        return Some(token);
     }
 
     if let Some(api_key_header) = headers.get("x-api-key") {
@@ -644,6 +649,20 @@ pub(crate) fn extract_token_from_headers(headers: &axum::http::HeaderMap) -> Opt
     }
 
     extract_token_from_ws_protocol(headers)
+}
+
+/// Bearer value from `name`, or the raw trimmed value when it has no scheme.
+fn bearer_token(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
+    let raw = headers.get(name)?.to_str().ok()?.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let token = raw.strip_prefix("Bearer ").unwrap_or(raw).trim();
+    if token.is_empty() {
+        None
+    } else {
+        Some(token.to_string())
+    }
 }
 
 /// Parse JWT/API key from `Sec-WebSocket-Protocol` (browser WebSocket cannot set Authorization).
@@ -1288,6 +1307,44 @@ mod tests {
         assert_eq!(
             super::extract_token_from_headers(&headers).as_deref(),
             Some("jwt-token-123")
+        );
+    }
+
+    #[test]
+    fn edgequake_authorization_wins_over_replaced_bearer() {
+        use axum::http::HeaderValue;
+
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            "authorization",
+            HeaderValue::from_static("Bearer databricks-workspace-token"),
+        );
+        headers.insert(
+            "x-edgequake-authorization",
+            HeaderValue::from_static("Bearer eq-session-jwt"),
+        );
+        assert_eq!(
+            super::extract_token_from_headers(&headers).as_deref(),
+            Some("eq-session-jwt")
+        );
+    }
+
+    #[test]
+    fn empty_edgequake_authorization_falls_through_to_bearer() {
+        use axum::http::HeaderValue;
+
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            "x-edgequake-authorization",
+            HeaderValue::from_static(""),
+        );
+        headers.insert(
+            "authorization",
+            HeaderValue::from_static("Bearer eq-session-jwt"),
+        );
+        assert_eq!(
+            super::extract_token_from_headers(&headers).as_deref(),
+            Some("eq-session-jwt")
         );
     }
 
