@@ -130,14 +130,26 @@ impl AppState {
         super::provider_setup::apply_chat_env_aliases();
         super::provider_setup::normalize_local_provider_hosts_for_docker();
 
-        // Create providers via factory (auto-detects from environment)
-        let (llm_provider, embedding_provider) = ProviderFactory::from_env().map_err(|e| {
-            format!(
-                "Failed to create LLM provider from environment: {e}. \
-                 Set EDGEQUAKE_LLM_PROVIDER (ollama, openai, omlx, …) and the matching key or host, \
-                 or run `edgequake doctor`."
-            )
-        })?;
+        // Create providers via factory (auto-detects from environment).
+        // `databricks` is not a factory name; the app crate maps it onto
+        // Foundation Model serving and refreshes the workspace token itself.
+        let (llm_provider, embedding_provider) = if crate::databricks::llm_provider_selected() {
+            crate::databricks::providers_from_env().map_err(|e| {
+                format!(
+                    "Failed to create LLM provider from environment: {e}. \
+                     Set EDGEQUAKE_LLM_PROVIDER (ollama, openai, omlx, …) and the matching key or host, \
+                     or run `edgequake doctor`."
+                )
+            })?
+        } else {
+            ProviderFactory::from_env().map_err(|e| {
+                format!(
+                    "Failed to create LLM provider from environment: {e}. \
+                     Set EDGEQUAKE_LLM_PROVIDER (ollama, openai, omlx, …) and the matching key or host, \
+                     or run `edgequake doctor`."
+                )
+            })?
+        };
 
         // Application runtime must never serve Mock as the process-wide default
         // unless an explicit test escape hatch is set (EDGEQUAKE_ALLOW_MOCK_PROVIDER=1).

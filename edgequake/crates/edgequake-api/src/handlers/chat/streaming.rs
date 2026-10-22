@@ -214,7 +214,7 @@ pub async fn chat_completion_stream(
 
     // 6. Spawn background task for LLM streaming
     let stream_request_id_spawn = stream_request_id.clone();
-    tokio::spawn(async move {
+    crate::pg_session::spawn_with_rls(async move {
         edgequake_observability::bind_langfuse_trace_identity_async(
             langfuse_id_spawn,
             async move {
@@ -786,7 +786,7 @@ pub async fn chat_completion_stream(
                     let title_tenant_id = tenant_id;
                     let title_user_id = user_id;
 
-                    tokio::spawn(async move {
+                    crate::pg_session::spawn_with_rls(async move {
                         let title = crate::handlers::title_generator::generate_title(
                             title_llm,
                             &title_first_msg,

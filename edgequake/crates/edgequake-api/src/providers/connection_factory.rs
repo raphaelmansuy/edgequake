@@ -37,6 +37,9 @@ pub fn llm_from_connection(spec: &ConnectionSpec) -> Result<Arc<dyn LLMProvider>
                 .with_base_url(&spec.base_url)
                 .with_model(&spec.model),
         ),
+        "databricks" => {
+            crate::databricks::llm_for_model(&spec.model).map_err(ApiError::BadRequest)?
+        }
         other => ProviderFactory::create_llm_provider(other, &spec.model)
             .map_err(|e| ApiError::BadRequest(e.to_string()))?,
     };
@@ -63,6 +66,10 @@ pub fn embedding_from_connection(
         | "lmstudio" => Arc::new(
             OpenAIProvider::compatible(key, spec.base_url.clone()).with_embedding_model(&model),
         ),
+        "databricks" => {
+            crate::databricks::embedding_for_model(&model, spec.embedding_dimension.unwrap_or(0))
+                .map_err(ApiError::BadRequest)?
+        }
         other => {
             let dim = spec.embedding_dimension.unwrap_or(768);
             ProviderFactory::create_embedding_provider(other, &model, dim)
@@ -147,5 +154,49 @@ mod tests {
         assert_eq!(LLMProvider::model(&built), "custom-chat");
         assert!(llm_from_connection(&spec).is_ok());
         assert!(embedding_from_connection(&spec).is_ok());
+    }
+
+    #[test]
+    fn databricks_workspace_embedding_connection_is_gateway() {
+        let previous = std::env::var("DATABRICKS_HOST").ok();
+        unsafe {
+            std::env::set_var("DATABRICKS_HOST", "https://example.cloud.databricks.com");
+        }
+        let spec = ConnectionSpec {
+            shape: "databricks".into(),
+            base_url: "https://ignored.example".into(),
+            api_key: None,
+            model: "system.ai.llama-4-maverick".into(),
+            embedding_model: Some("system.ai.gte-large-en".into()),
+            embedding_dimension: Some(1024),
+        };
+        let built = embedding_from_connection(&spec);
+        unsafe {
+            match previous {
+                Some(value) => std::env::set_var("DATABRICKS_HOST", value),
+                None => std::env::remove_var("DATABRICKS_HOST"),
+            }
+        }
+        let provider = built.expect("databricks connection embedder");
+        assert_eq!(provider.name(), "databricks");
+        assert_eq!(provider.model(), "system.ai.gte-large-en");
+        assert_eq!(provider.dimension(), 1024);
+
+        let unknown = ConnectionSpec {
+            shape: "not-a-provider".into(),
+            base_url: "https://ignored.example".into(),
+            api_key: None,
+            model: "x".into(),
+            embedding_model: None,
+            embedding_dimension: Some(8),
+        };
+        let message = match embedding_from_connection(&unknown) {
+            Ok(_) => panic!("unknown embedding shape must stay rejected"),
+            Err(error) => error.to_string(),
+        };
+        assert!(
+            message.contains("Unknown embedding provider"),
+            "unexpected error: {message}"
+        );
     }
 }

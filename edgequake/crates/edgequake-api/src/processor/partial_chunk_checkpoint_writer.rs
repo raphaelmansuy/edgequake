@@ -49,7 +49,7 @@ impl PartialChunkCheckpointWriter {
         let content_hash = PipelineCheckpoint::compute_content_hash(content);
         let (tx, rx) = mpsc::unbounded_channel();
         let chunks_submitted = Arc::new(AtomicU64::new(0));
-        tokio::spawn(async move {
+        crate::pg_session::spawn_with_rls(async move {
             run_writer_loop(
                 document_id,
                 workspace_id,

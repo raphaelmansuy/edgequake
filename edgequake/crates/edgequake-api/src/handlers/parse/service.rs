@@ -110,8 +110,20 @@ pub async fn run_parse(
             .model
             .clone()
             .unwrap_or_else(|| "gemma3:latest".into());
-        match edgequake_llm::ProviderFactory::create_llm_provider(&resolved.provider, &model) {
-            Ok(provider) => assets.attach_figure_filter_if_enabled(Some(provider)),
+        let built = if resolved.provider.eq_ignore_ascii_case("databricks") {
+            crate::safety_limits::create_safe_vision_provider(&resolved.provider, &model)
+                .map_err(|error| error.to_string())
+        } else {
+            edgequake_llm::ProviderFactory::create_llm_provider(&resolved.provider, &model)
+                .map_err(|error| error.to_string())
+        };
+        match built {
+            Ok(provider) => {
+                if let Some(vision) = config.vision.as_mut() {
+                    vision.llm = Some(std::sync::Arc::clone(&provider));
+                }
+                assets.attach_figure_filter_if_enabled(Some(provider));
+            }
             Err(e) => warn!(error = %e, "SPEC-128 parse: figure filter provider unavailable"),
         }
     }

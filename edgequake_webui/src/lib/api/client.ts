@@ -253,6 +253,12 @@ export function buildHeaders(customHeaders?: HeadersInit, body?: unknown): Heade
   const { accessToken: token } = getTokens();
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
+    // Databricks Apps replaces Authorization. XMLHttpRequest uploads do not
+    // pass through the fetch shim, so the same bearer must travel on this
+    // header. The app proxy and the API both honor it. Callers may override.
+    if (!headers.has("X-EdgeQuake-Authorization")) {
+      headers.set("X-EdgeQuake-Authorization", `Bearer ${token}`);
+    }
   }
 
   // SPEC-018: Per-request correlation for distributed tracing / support tickets

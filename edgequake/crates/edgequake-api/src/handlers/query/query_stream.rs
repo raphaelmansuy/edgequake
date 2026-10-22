@@ -312,7 +312,7 @@ pub async fn stream_query(
         .clone()
         .unwrap_or_else(|| "default".to_string());
     let langfuse_id_spawn = langfuse_id.clone();
-    tokio::spawn(async move {
+    crate::pg_session::spawn_with_rls(async move {
         edgequake_observability::bind_langfuse_trace_identity_async(langfuse_id_spawn, async {
         scope_llm_provider(spawn_provider.clone(), async {
             let retrieval_start = std::time::Instant::now();

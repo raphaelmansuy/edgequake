@@ -283,7 +283,7 @@ pub async fn protected_api_auth(
                 {
                     return error.into_response();
                 }
-                return next.run(request).await;
+                return continue_authenticated(request, next).await;
             }
             Ok(None) => {}
             Err(e) => {
@@ -293,6 +293,45 @@ pub async fn protected_api_auth(
     }
 
     unauthorized_response(&method, path)
+}
+
+async fn continue_authenticated(request: Request, next: Next) -> Response {
+    #[cfg(feature = "postgres")]
+    {
+        let scope = request_rls_scope(&request);
+        return edgequake_storage::adapters::postgres::rls::RLS_SCOPE
+            .scope(scope, next.run(request))
+            .await;
+    }
+    #[cfg(not(feature = "postgres"))]
+    {
+        let _ = &request;
+        next.run(request).await
+    }
+}
+
+/// Authenticated tenant, workspace, and user for pool checkout.
+///
+/// Message policies compare `current_user_id()` to the conversation owner.
+/// PDF rows compare `current_workspace_id()` to the workspace column. Both
+/// come from the verified request context, not from a client-supplied override
+/// that failed the auth merge.
+#[cfg(feature = "postgres")]
+fn request_rls_scope(request: &Request) -> edgequake_storage::adapters::postgres::rls::RlsScope {
+    let ctx = request.extensions().get::<TenantContext>();
+    let tenant_id = ctx
+        .and_then(|ctx| ctx.tenant_id_uuid())
+        .unwrap_or_else(default_tenant_uuid);
+    let workspace_id = Some(
+        ctx.and_then(|ctx| ctx.workspace_id_uuid())
+            .unwrap_or_else(default_workspace_uuid),
+    );
+    let user_id = ctx.and_then(|ctx| ctx.user_id_uuid());
+    edgequake_storage::adapters::postgres::rls::RlsScope {
+        tenant_id,
+        workspace_id,
+        user_id,
+    }
 }
 
 /// Gate Ollama-compatible routes when disabled — SPEC-027 IMP-005.
@@ -628,13 +667,18 @@ pub(crate) fn extract_api_key(request: &Request) -> Option<String> {
 pub const WS_AUTH_PROTOCOL: &str = "edgequake.bearer";
 
 /// Extract bearer JWT or API key from HTTP headers (shared by REST + WebSocket upgrade).
+///
+/// Databricks Apps replaces `Authorization` with the workspace token before the
+/// request reaches EdgeQuake. The browser copies the EdgeQuake bearer into
+/// `X-EdgeQuake-Authorization`. Prefer that header when it is present so a
+/// signed-in upload is not checked as the Databricks token. An empty or missing
+/// value falls through to `Authorization`; it does not skip authentication.
 pub(crate) fn extract_token_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
-    if let Some(auth_header) = headers.get("authorization") {
-        if let Ok(auth_str) = auth_header.to_str() {
-            if let Some(key) = auth_str.strip_prefix("Bearer ") {
-                return Some(key.trim().to_string());
-            }
-        }
+    if let Some(token) = bearer_token(headers, "x-edgequake-authorization") {
+        return Some(token);
+    }
+    if let Some(token) = bearer_token(headers, "authorization") {
+        return Some(token);
     }
 
     if let Some(api_key_header) = headers.get("x-api-key") {
@@ -644,6 +688,20 @@ pub(crate) fn extract_token_from_headers(headers: &axum::http::HeaderMap) -> Opt
     }
 
     extract_token_from_ws_protocol(headers)
+}
+
+/// Bearer value from `name`, or the raw trimmed value when it has no scheme.
+fn bearer_token(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
+    let raw = headers.get(name)?.to_str().ok()?.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let token = raw.strip_prefix("Bearer ").unwrap_or(raw).trim();
+    if token.is_empty() {
+        None
+    } else {
+        Some(token.to_string())
+    }
 }
 
 /// Parse JWT/API key from `Sec-WebSocket-Protocol` (browser WebSocket cannot set Authorization).
@@ -1292,6 +1350,41 @@ mod tests {
     }
 
     #[test]
+    fn edgequake_authorization_wins_over_replaced_bearer() {
+        use axum::http::HeaderValue;
+
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            "authorization",
+            HeaderValue::from_static("Bearer databricks-workspace-token"),
+        );
+        headers.insert(
+            "x-edgequake-authorization",
+            HeaderValue::from_static("Bearer eq-session-jwt"),
+        );
+        assert_eq!(
+            super::extract_token_from_headers(&headers).as_deref(),
+            Some("eq-session-jwt")
+        );
+    }
+
+    #[test]
+    fn empty_edgequake_authorization_falls_through_to_bearer() {
+        use axum::http::HeaderValue;
+
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("x-edgequake-authorization", HeaderValue::from_static(""));
+        headers.insert(
+            "authorization",
+            HeaderValue::from_static("Bearer eq-session-jwt"),
+        );
+        assert_eq!(
+            super::extract_token_from_headers(&headers).as_deref(),
+            Some("eq-session-jwt")
+        );
+    }
+
+    #[test]
     fn ws_validate_origin_rejects_unknown_origin_when_allowlisted() {
         let mut state = crate::state::AppState::test_state();
         state.security.cors_origins = Some(vec!["https://app.example.com".to_string()]);
@@ -1316,6 +1409,26 @@ mod tests {
             super::ws_validate_origin(&state, &headers),
             Err(StatusCode::FORBIDDEN)
         );
+    }
+
+    #[cfg(feature = "postgres")]
+    #[test]
+    fn request_rls_scope_uses_authenticated_context() {
+        let tenant = uuid::Uuid::from_u128(11);
+        let workspace = uuid::Uuid::from_u128(12);
+        let user = uuid::Uuid::from_u128(13);
+        let mut request = axum::http::Request::builder()
+            .body(axum::body::Body::empty())
+            .unwrap();
+        request.extensions_mut().insert(TenantContext {
+            tenant_id: Some(tenant.to_string()),
+            workspace_id: Some(workspace.to_string()),
+            user_id: Some(user.to_string()),
+        });
+        let scope = super::request_rls_scope(&request);
+        assert_eq!(scope.tenant_id, tenant);
+        assert_eq!(scope.workspace_id, Some(workspace));
+        assert_eq!(scope.user_id, Some(user));
     }
 
     #[test]

@@ -119,7 +119,7 @@ impl DocumentTaskProcessor {
             let sink_replacements =
                 Arc::new(std::sync::Mutex::new(BTreeMap::<usize, String>::new()));
             let sink_clone = Arc::clone(&sink_replacements);
-            let vision = VisionConversionConfig {
+            let mut vision = VisionConversionConfig {
                 provider_name: Some(data.vision_provider.clone()),
                 model: resolved_vision_model.clone(),
                 pages: Some(PageSelection::Set(pages_usize.clone())),
@@ -131,6 +131,16 @@ impl DocumentTaskProcessor {
                 })),
                 ..Default::default()
             };
+            if let Some(model) = resolved_vision_model.as_deref() {
+                vision.llm =
+                    crate::safety_limits::injected_vision_llm(&data.vision_provider, model)
+                        .map_err(|error| {
+                            edgequake_tasks::TaskError::Processing(format!(
+                                "PDF vision provider {} unavailable: {error}",
+                                data.vision_provider
+                            ))
+                        })?;
+            }
             let cfg = PdfConversionConfig {
                 vision: Some(vision),
                 pages: Some(PageSelection::Set(pages_usize.clone())),

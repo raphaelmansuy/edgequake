@@ -337,6 +337,12 @@ async fn batch_shell_metadata(
 }
 
 /// One round trip for `Content`/`StagingContent` shells (identical shape).
+///
+/// `tenant_access_guard` checks the INSERT candidate, including the row
+/// proposed by `ON CONFLICT DO UPDATE`. Content JSON has no tenant, so the
+/// candidate copies the parent row's tenant and workspace. A missing parent
+/// stays null and the guard rejects it. The conflict update does not retarget
+/// those columns.
 async fn batch_shell_content(pool: &PgPool, rows: &[ShellBatchRow<'_>]) -> Result<(), sqlx::Error> {
     let ids: Vec<Uuid> = rows.iter().map(|r| r.doc).collect();
     let texts: Vec<String> = rows
@@ -350,9 +356,10 @@ async fn batch_shell_content(pool: &PgPool, rows: &[ShellBatchRow<'_>]) -> Resul
         })
         .collect();
     sqlx::query(
-        "INSERT INTO public.documents (id, content, status) \
-         SELECT u.id, u.content, 'processing' \
+        "INSERT INTO public.documents (id, content, status, tenant_id, workspace_id) \
+         SELECT u.id, u.content, 'processing', d.tenant_id, d.workspace_id \
          FROM unnest($1::uuid[], $2::text[]) AS u(id, content) \
+         LEFT JOIN public.documents AS d ON d.id = u.id \
          ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content, \
              updated_at = now()",
     )
@@ -366,11 +373,14 @@ async fn batch_shell_content(pool: &PgPool, rows: &[ShellBatchRow<'_>]) -> Resul
 /// One round trip for `StagingMetadata` shells (marker injected per row).
 /// Promotes `metadata.title` to the `title` column so list reads do not stick
 /// on the schema DEFAULT `'Untitled'` while the doc is still staging.
+///
+/// The marker is merged first, then the metadata writer supplies `tenant_id`
+/// and `workspace_id`. The guard evaluates that INSERT candidate; omitting the
+/// columns made every staging shell fail as a null-tenant row.
 async fn batch_shell_staging_metadata(
     pool: &PgPool,
     rows: &[ShellBatchRow<'_>],
 ) -> Result<(), sqlx::Error> {
-    let ids: Vec<Uuid> = rows.iter().map(|r| r.doc).collect();
     let shells: Vec<Value> = rows
         .iter()
         .map(|r| {
@@ -379,34 +389,15 @@ async fn batch_shell_staging_metadata(
             shell
         })
         .collect();
-    let titles: Vec<String> = rows
+    let owned: Vec<ShellBatchRow<'_>> = rows
         .iter()
-        .map(|r| {
-            r.value
-                .get("title")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string()
+        .zip(shells.iter())
+        .map(|(row, value)| ShellBatchRow {
+            doc: row.doc,
+            value,
         })
         .collect();
-    let statuses: Vec<String> = rows.iter().map(|r| status_from_metadata(r.value)).collect();
-    sqlx::query(
-        "INSERT INTO public.documents (id, title, content, status, metadata) \
-         SELECT u.id, u.title, '', u.status, u.metadata \
-         FROM unnest($1::uuid[], $2::jsonb[], $3::text[], $4::text[]) \
-             AS u(id, metadata, title, status) \
-         ON CONFLICT (id) DO UPDATE SET metadata = EXCLUDED.metadata, \
-             title = CASE WHEN EXCLUDED.title = '' THEN documents.title \
-                          ELSE EXCLUDED.title END, \
-             status = EXCLUDED.status, updated_at = now()",
-    )
-    .bind(&ids)
-    .bind(&shells)
-    .bind(&titles)
-    .bind(&statuses)
-    .execute(pool)
-    .await?;
-    Ok(())
+    batch_shell_metadata(pool, &owned).await
 }
 
 /// Synthesize `-metadata` keys for all shell-backed documents (suffix scan

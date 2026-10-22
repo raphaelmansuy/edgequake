@@ -42,11 +42,14 @@ pub async fn stream_field_to_tempfile(
         .map_err(|e| ApiError::Internal(format!("Failed to create upload temp file: {e}")))?;
 
     let mut total: usize = 0;
-    while let Some(chunk) = field
-        .chunk()
-        .await
-        .map_err(|e| ApiError::BadRequest(format!("Failed to read file chunk: {e}")))?
-    {
+    while let Some(chunk) = field.chunk().await.map_err(|e| {
+        let mut detail = e.to_string();
+        if let Some(source) = std::error::Error::source(&e) {
+            detail.push_str(": ");
+            detail.push_str(&source.to_string());
+        }
+        ApiError::BadRequest(format!("Failed to read file chunk: {detail}"))
+    })? {
         total = total.saturating_add(chunk.len());
         temp.write_all(&chunk)
             .map_err(|e| ApiError::Internal(format!("Failed to write upload temp file: {e}")))?;

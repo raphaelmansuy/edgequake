@@ -17,6 +17,56 @@ impl TaskProcessor for DocumentTaskProcessor {
         cancel_token: CancellationToken,
         fairness: Option<edgequake_tasks::FairnessPermit>,
     ) -> TaskResult<serde_json::Value> {
+        #[cfg(feature = "postgres")]
+        {
+            let scope = edgequake_storage::adapters::postgres::rls::RlsScope {
+                tenant_id: task.tenant_id,
+                workspace_id: Some(task.workspace_id),
+                user_id: None,
+            };
+            return edgequake_storage::adapters::postgres::rls::RLS_SCOPE
+                .scope(
+                    scope,
+                    self.process_with_fairness_body(task, cancel_token, fairness),
+                )
+                .await;
+        }
+        #[cfg(not(feature = "postgres"))]
+        {
+            self.process_with_fairness_body(task, cancel_token, fairness)
+                .await
+        }
+    }
+
+    async fn on_permanent_failure(&self, task: &Task, error_msg: &str) {
+        // The worker calls this after `process_with_fairness` has left its
+        // tenant scope. Status resets (including stuck `deleting` rows) have
+        // to re-enter that task's own tenant or FORCE RLS updates zero rows.
+        #[cfg(feature = "postgres")]
+        {
+            let scope = edgequake_storage::adapters::postgres::rls::RlsScope {
+                tenant_id: task.tenant_id,
+                workspace_id: Some(task.workspace_id),
+                user_id: None,
+            };
+            return edgequake_storage::adapters::postgres::rls::RLS_SCOPE
+                .scope(scope, self.on_permanent_failure_body(task, error_msg))
+                .await;
+        }
+        #[cfg(not(feature = "postgres"))]
+        {
+            self.on_permanent_failure_body(task, error_msg).await
+        }
+    }
+}
+
+impl DocumentTaskProcessor {
+    async fn process_with_fairness_body(
+        &self,
+        task: &mut Task,
+        cancel_token: CancellationToken,
+        fairness: Option<edgequake_tasks::FairnessPermit>,
+    ) -> TaskResult<serde_json::Value> {
         // Fail at t=0 (not after 50 min of LLM spend) if the document was tombstoned.
         if let Some(error) = self.reject_if_document_tombstoned(task).await {
             return Err(error);
@@ -102,13 +152,15 @@ impl TaskProcessor for DocumentTaskProcessor {
         })
         .await
     }
+}
 
+impl DocumentTaskProcessor {
     /// Called when a task has permanently failed (retries exhausted or circuit breaker tripped).
     ///
     /// WHY: Updates document metadata to "failed" status so the frontend shows the actual
     /// error instead of leaving the document stuck in "processing" forever. Also updates
     /// PDF processing status for PDF tasks and cleans up progress tracking.
-    async fn on_permanent_failure(&self, task: &Task, error_msg: &str) {
+    async fn on_permanent_failure_body(&self, task: &Task, error_msg: &str) {
         // Extract document_id from task_data to update document status.
         // For PdfProcessing tasks, it's in existing_document_id.
         // For Insert/Upload tasks, it's in metadata.document_id.

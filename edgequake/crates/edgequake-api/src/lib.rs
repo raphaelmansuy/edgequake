@@ -95,6 +95,7 @@
 pub mod attribution;
 pub mod cache_manager;
 pub mod config_resolution;
+pub mod databricks;
 pub mod doctor;
 pub mod document_metadata;
 pub mod document_read_model;
@@ -117,6 +118,7 @@ pub mod openapi_examples;
 pub mod openapi_path_ssot;
 pub mod openapi_security;
 pub mod path_validation;
+mod pg_session;
 pub mod pipeline_progress_callback;
 #[cfg(feature = "postgres")]
 pub mod postgres_entity_sink;

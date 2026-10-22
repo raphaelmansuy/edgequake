@@ -517,6 +517,9 @@ fn create_inner_llm_provider(
     if provider == "vertexai" || provider == "vertex" {
         return create_vertex_llm_via_adc(model, ctx);
     }
+    if provider == "databricks" {
+        return crate::databricks::llm_for_model(model).map_err(LlmError::ConfigError);
+    }
     match ctx {
         Some(ctx) => ProviderFactory::create_llm_provider_with_context(provider_name, model, ctx),
         None => ProviderFactory::create_llm_provider(provider_name, model),
@@ -770,7 +773,13 @@ pub fn create_safe_embedding_provider(
         "openai" | "openai-compatible" | "openai_compatible"
     );
 
-    let inner = if is_openai_compatible {
+    // Workspace rows store `databricks` / `system.ai.gte-large-en`. ProviderFactory
+    // does not know that name and returns `Unknown embedding provider: databricks`
+    // before the first chunk. The AI Gateway client is the same one the server
+    // default embedder already uses.
+    let inner = if provider_name.eq_ignore_ascii_case("databricks") {
+        crate::databricks::embedding_for_model(&model, dimension).map_err(LlmError::ConfigError)?
+    } else if is_openai_compatible {
         let embed_base_url = std::env::var("EDGEQUAKE_EMBEDDING_BASE_URL").ok();
         let embed_api_key = std::env::var("EDGEQUAKE_EMBEDDING_API_KEY").ok();
 
@@ -1031,6 +1040,22 @@ pub fn vision_pass_b_timeout_secs(provider_name: &str) -> u64 {
     }
 }
 
+/// Vision client for providers `ProviderFactory` does not know.
+///
+/// `None` means the pdf2md factory path is correct (Ollama, OpenAI, …).
+/// Databricks AI Gateway is built here so page OCR does not die with
+/// `Unknown LLM provider: databricks`.
+pub fn injected_vision_llm(
+    provider_name: &str,
+    model: &str,
+) -> Result<Option<Arc<dyn LLMProvider>>> {
+    if provider_name.eq_ignore_ascii_case("databricks") {
+        create_safe_vision_provider(provider_name, model).map(Some)
+    } else {
+        Ok(None)
+    }
+}
+
 /// Validate vision provider credentials before pdf2md factory resolution (SPEC-043).
 pub fn check_vision_provider_available(provider_name: &str, model: &str) -> Result<()> {
     check_api_key(provider_name)?;
@@ -1286,6 +1311,48 @@ pub fn default_model_for_provider(provider_name: &str) -> &'static str {
 #[cfg(test)]
 mod default_model_tests {
     use super::*;
+
+    #[test]
+    fn factory_providers_are_not_injected() {
+        assert!(injected_vision_llm("ollama", "gemma3:latest")
+            .expect("ollama")
+            .is_none());
+        assert!(injected_vision_llm("openai", "gpt-5.6-luna")
+            .expect("openai")
+            .is_none());
+    }
+
+    #[test]
+    fn databricks_workspace_embedding_is_not_unknown() {
+        let previous_host = std::env::var("DATABRICKS_HOST").ok();
+        unsafe {
+            std::env::set_var("DATABRICKS_HOST", "https://example.cloud.databricks.com");
+        }
+        let built = create_safe_embedding_provider("databricks", "system.ai.gte-large-en", 1024);
+        unsafe {
+            match previous_host {
+                Some(value) => std::env::set_var("DATABRICKS_HOST", value),
+                None => std::env::remove_var("DATABRICKS_HOST"),
+            }
+        }
+        let provider = built.expect("databricks embedding provider");
+        assert_eq!(provider.name(), "databricks");
+        assert_eq!(provider.model(), "system.ai.gte-large-en");
+        assert_eq!(provider.dimension(), 1024);
+
+        let message = match create_safe_embedding_provider("not-a-provider", "x", 8) {
+            Ok(_) => panic!("unknown embedding provider must stay rejected"),
+            Err(error) => error.to_string(),
+        };
+        assert!(
+            message.contains("Unknown embedding provider"),
+            "unexpected error: {message}"
+        );
+        assert!(
+            !message.to_ascii_lowercase().contains("databricks"),
+            "unknown-provider rejection must not mention databricks: {message}"
+        );
+    }
 
     #[test]
     fn openai_default_is_not_a_retired_model() {

@@ -161,6 +161,9 @@ pub async fn vision_llm_preferring_connection(
     {
         let _ = (pool, ws);
     }
+    if provider.eq_ignore_ascii_case("databricks") {
+        return crate::safety_limits::create_safe_vision_provider(provider, model).ok();
+    }
     edgequake_llm::ProviderFactory::create_llm_provider(provider, model).ok()
 }
 

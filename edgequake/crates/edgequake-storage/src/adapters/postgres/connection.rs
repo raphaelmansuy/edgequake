@@ -153,7 +153,20 @@ pub fn with_session_hygiene_labeled(
         .after_connect(move |conn, _| {
             Box::pin(async move {
                 apply_session_baseline(conn, app_name).await?;
+                // New connections skip `before_acquire`. The acquiring task's
+                // tenant still has to be installed or the first checkout of a
+                // fresh connection writes with null GUCs.
+                super::rls::apply_current_session_rls(conn).await?;
                 Ok(())
+            })
+        })
+        .before_acquire(|conn, _meta| {
+            Box::pin(async move {
+                // Idle connections already ran `after_connect` without this
+                // task's scope. `after_release` RESET ALL cleared the previous
+                // tenant, so a checkout with no scope stays unset.
+                super::rls::apply_current_session_rls(conn).await?;
+                Ok(true)
             })
         })
         .after_release(move |conn, _meta| {
