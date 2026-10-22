@@ -1,17 +1,231 @@
 (function () {
+  // The browser gateway closed a 100KB JSON document after 16375 of 103316
+  // bytes, and a notebook client closed a 128KiB body at 81920. Markdown is
+  // posted with fetch, not FormData, so both paths stay under an 8KiB slice.
+  var SLICE = 8 * 1024;
   var nativeFetch = window.fetch;
+  var encoder = typeof TextEncoder !== "undefined" ? new TextEncoder() : null;
+
+  function uploadId() {
+    var id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    id = id.replace(/[^A-Za-z0-9]/g, "");
+    while (id.length < 16) id += "0";
+    return id.slice(0, 64);
+  }
+
+  function asRawSource(body) {
+    if (typeof body === "string") {
+      if (!encoder) return null;
+      var encoded = encoder.encode(body);
+      return {
+        size: encoded.byteLength,
+        typeHint: "application/json",
+        slice: function (start, end) {
+          return encoded.slice(start, end);
+        },
+      };
+    }
+    if (typeof Blob !== "undefined" && body instanceof Blob) {
+      return {
+        size: body.size,
+        typeHint: body.type || "application/octet-stream",
+        slice: function (start, end) {
+          return body.slice(start, end);
+        },
+      };
+    }
+    if (body instanceof ArrayBuffer) {
+      var view = new Uint8Array(body);
+      return {
+        size: view.byteLength,
+        typeHint: "application/octet-stream",
+        slice: function (start, end) {
+          return view.slice(start, end);
+        },
+      };
+    }
+    if (ArrayBuffer.isView(body)) {
+      var typed = new Uint8Array(body.buffer, body.byteOffset, body.byteLength);
+      return {
+        size: typed.byteLength,
+        typeHint: "application/octet-stream",
+        slice: function (start, end) {
+          return typed.slice(start, end);
+        },
+      };
+    }
+    return null;
+  }
+
+  function oneFormFile(body) {
+    if (typeof FormData === "undefined" || !(body instanceof FormData)) return null;
+    var file = null;
+    var field = "file";
+    var fields = {};
+    var files = 0;
+    body.forEach(function (value, key) {
+      var isFile =
+        value &&
+        typeof value.size === "number" &&
+        typeof value.slice === "function" &&
+        typeof value !== "string";
+      if (isFile) {
+        files += 1;
+        file = value;
+        field = key;
+      } else {
+        fields[key] = String(value == null ? "" : value);
+      }
+    });
+    if (files !== 1 || !file || file.size <= SLICE) return null;
+    return { file: file, field: field, fields: fields };
+  }
+
+  function headerBag(input, init) {
+    try {
+      return new Headers((init && init.headers) || (input && input.headers) || undefined);
+    } catch (error) {
+      return new Headers();
+    }
+  }
+
+  function requestUrl(input) {
+    if (typeof input === "string") return input;
+    if (input && typeof input.url === "string") return input.url;
+    return String(input);
+  }
+
+  function requestMethod(input, init) {
+    var method = (init && init.method) || (input && input.method) || "GET";
+    return String(method).toUpperCase();
+  }
+
+  function baseHeadersFrom(input, init) {
+    var source = headerBag(input, init);
+    var headers = new Headers();
+    source.forEach(function (value, key) {
+      var lower = String(key).toLowerCase();
+      if (lower === "content-length" || lower === "content-type") return;
+      if (lower.indexOf("x-edgequake-upload-") === 0) return;
+      headers.set(key, value);
+    });
+    return headers;
+  }
+
+  function contentTypeOf(input, init, fallback) {
+    try {
+      var declared = headerBag(input, init).get("content-type");
+      if (declared) return declared;
+    } catch (error) {}
+    return fallback || "application/octet-stream";
+  }
+
+  function runFetchSlices(url, method, baseHeaders, credentials, signal, total, description, readPiece, onAdvance) {
+    var id = uploadId();
+    var offset = 0;
+    function headers(extra) {
+      var copied = new Headers(baseHeaders);
+      Object.keys(extra).forEach(function (name) {
+        copied.set(name, extra[name]);
+      });
+      return copied;
+    }
+    function post(body, extra) {
+      var req = {
+        method: method,
+        headers: headers(extra),
+        body: body,
+        credentials: credentials || "same-origin",
+      };
+      if (signal) req.signal = signal;
+      return nativeFetch(url, req);
+    }
+    function sendSlice() {
+      var end = Math.min(offset + SLICE, total);
+      var at = offset;
+      return post(readPiece(at, end), {
+        "Content-Type": "application/octet-stream",
+        "X-EdgeQuake-Upload-Id": id,
+        "X-EdgeQuake-Upload-Role": "bytes",
+        "X-EdgeQuake-Upload-Offset": String(at),
+        "X-EdgeQuake-Upload-Total": String(total),
+      }).then(function (response) {
+        offset = end;
+        if (onAdvance) onAdvance(offset, total);
+        if (offset < total) {
+          if (response.status !== 202) return response;
+          return response.text().then(sendSlice);
+        }
+        return response;
+      });
+    }
+    return post(JSON.stringify(description), {
+      "Content-Type": "application/json",
+      "X-EdgeQuake-Upload-Id": id,
+      "X-EdgeQuake-Upload-Role": "fields",
+    }).then(function (response) {
+      if (response.status !== 202) return response;
+      return response.text().then(sendSlice);
+    });
+  }
+
   if (nativeFetch && !nativeFetch.__eq) {
     function wrapped(input, init) {
-      init = init || {};
+      init = Object.assign({}, init || {});
+      var headers = headerBag(input, init);
       try {
-        var headers = new Headers(init.headers || (input && input.headers));
         var authorization = headers.get("Authorization");
         if (authorization && !headers.get("X-EdgeQuake-Authorization")) {
           headers.set("X-EdgeQuake-Authorization", authorization);
           init.headers = headers;
         }
       } catch (error) {}
-      return nativeFetch.call(this, input, init);
+      if (headers.get("X-EdgeQuake-Upload-Id")) {
+        return nativeFetch.call(this, input, init);
+      }
+      var method = requestMethod(input, init);
+      if (method === "GET" || method === "HEAD") {
+        return nativeFetch.call(this, input, init);
+      }
+      var form = oneFormFile(init.body);
+      if (form) {
+        return runFetchSlices(
+          requestUrl(input),
+          method,
+          baseHeadersFrom(input, init),
+          init.credentials || "same-origin",
+          init.signal,
+          form.file.size,
+          {
+            filename: form.file.name || "upload",
+            field: form.field,
+            content_type: form.file.type || "application/octet-stream",
+            total: form.file.size,
+            fields: form.fields,
+          },
+          function (start, end) {
+            return form.file.slice(start, end);
+          }
+        );
+      }
+      var source = asRawSource(init.body);
+      if (!source || source.size <= SLICE) {
+        return nativeFetch.call(this, input, init);
+      }
+      return runFetchSlices(
+        requestUrl(input),
+        method,
+        baseHeadersFrom(input, init),
+        init.credentials || "same-origin",
+        init.signal,
+        source.size,
+        {
+          mode: "raw",
+          total: source.size,
+          content_type: contentTypeOf(input, init, source.typeHint),
+        },
+        source.slice
+      );
     }
     wrapped.__eq = 1;
     window.fetch = wrapped;
@@ -36,12 +250,6 @@
   } catch (error) {
     canShadowStatus = false;
   }
-
-  // Stay under the Apps gateway Content-Length cutoff. 1.5MB bodies are closed
-  // early; slices this size are forwarded whole.
-  // The Apps gateway closed a 128KiB Content-Length body after 78021 bytes.
-  // Stay under that cutoff so each slice arrives intact.
-  var SLICE = 48 * 1024;
 
   proto.open = function (method, url) {
     this.__eqMethod = method;
@@ -69,32 +277,6 @@
       this.__eqHeaders.push(["X-EdgeQuake-Authorization", value]);
     }
   };
-
-  proto.send = function (body) {
-    var form = typeof FormData !== "undefined" && body instanceof FormData;
-    if (!form || !canShadowStatus) return nativeSend.call(this, body);
-    var file = null;
-    var field = "file";
-    var fields = {};
-    var files = 0;
-    body.forEach(function (value, key) {
-      var isFile =
-        value &&
-        typeof value.size === "number" &&
-        typeof value.slice === "function" &&
-        typeof value !== "string";
-      if (isFile) {
-        files += 1;
-        file = value;
-        field = key;
-      } else {
-        fields[key] = String(value == null ? "" : value);
-      }
-    });
-    if (files !== 1 || !file || file.size <= SLICE) return nativeSend.call(this, body);
-    sliceUpload(this, file, field, fields);
-  };
-  proto.__eqAuth = 1;
 
   function report(xhr, loaded, total) {
     try {
@@ -143,14 +325,7 @@
     if (typeof xhr.onload === "function") xhr.onload({ target: xhr, type: "load" });
   }
 
-  function uploadId() {
-    var id = Math.random().toString(36).slice(2) + Date.now().toString(36);
-    id = id.replace(/[^A-Za-z0-9]/g, "");
-    while (id.length < 16) id += "0";
-    return id.slice(0, 64);
-  }
-
-  function storedHeaders(xhr, extra) {
+  function storedHeaders(xhr) {
     var headers = new Headers();
     var stored = xhr.__eqHeaders || [];
     for (var i = 0; i < stored.length; i++) {
@@ -159,16 +334,18 @@
       if (lower === "content-type" || lower === "content-length") continue;
       headers.set(name, stored[i][1]);
     }
-    Object.keys(extra).forEach(function (name) {
-      headers.set(name, extra[name]);
-    });
     return headers;
   }
 
-  function sliceUpload(xhr, file, field, fields) {
-    var id = uploadId();
-    var total = file.size;
-    var offset = 0;
+  function xhrContentType(xhr, fallback) {
+    var stored = xhr.__eqHeaders || [];
+    for (var i = 0; i < stored.length; i++) {
+      if (String(stored[i][0]).toLowerCase() === "content-type") return stored[i][1];
+    }
+    return fallback || "application/json";
+  }
+
+  function bindXhr(xhr, total, description, readPiece) {
     var timedOut = false;
     var timer = 0;
     var controller = new AbortController();
@@ -179,73 +356,71 @@
         if (typeof xhr.ontimeout === "function") xhr.ontimeout();
       }, xhr.timeout);
     }
-    function fail(error) {
-      if (timer) clearTimeout(timer);
-      if (timedOut) return;
-      try {
-        xhr.__eqErr = error && error.message ? String(error.message) : String(error);
-      } catch (ignored) {}
-      if (typeof xhr.onerror === "function") xhr.onerror();
-    }
-    function post(body, extra) {
-      return window.fetch(xhr.__eqUrl, {
-        method: xhr.__eqMethod || "POST",
-        headers: storedHeaders(xhr, extra),
-        body: body,
-        credentials: "same-origin",
-        signal: controller.signal,
-      });
-    }
-    post(
-      JSON.stringify({
-        filename: file.name || "upload",
-        field: field,
-        content_type: file.type || "application/octet-stream",
-        total: total,
-        fields: fields,
-      }),
-      {
-        "Content-Type": "application/json",
-        "X-EdgeQuake-Upload-Id": id,
-        "X-EdgeQuake-Upload-Role": "fields",
+    runFetchSlices(
+      xhr.__eqUrl,
+      xhr.__eqMethod || "POST",
+      storedHeaders(xhr),
+      "same-origin",
+      controller.signal,
+      total,
+      description,
+      readPiece,
+      function (loaded) {
+        report(xhr, loaded, total);
       }
     )
       .then(function (response) {
         return response.text().then(function (text) {
-          if (response.status !== 202) {
-            if (timer) clearTimeout(timer);
-            finish(xhr, response.status, response.statusText, text, response.headers);
-            return;
-          }
-          return sendSlice();
+          if (timer) clearTimeout(timer);
+          if (timedOut) return;
+          finish(xhr, response.status, response.statusText, text, response.headers);
         });
       })
-      .catch(fail);
-
-    function sendSlice() {
-      if (timedOut) return;
-      var end = Math.min(offset + SLICE, total);
-      var slice = file.slice(offset, end);
-      var at = offset;
-      return post(slice, {
-        "Content-Type": "application/octet-stream",
-        "X-EdgeQuake-Upload-Id": id,
-        "X-EdgeQuake-Upload-Role": "bytes",
-        "X-EdgeQuake-Upload-Offset": String(at),
-        "X-EdgeQuake-Upload-Total": String(total),
-      })
-        .then(function (response) {
-          return response.text().then(function (text) {
-            offset = end;
-            report(xhr, offset, total);
-            var last = offset >= total;
-            if (!last && response.status === 202) return sendSlice();
-            if (timer) clearTimeout(timer);
-            if (timedOut) return;
-            finish(xhr, response.status, response.statusText, text, response.headers);
-          });
-        })
-        .catch(fail);
-    }
+      .catch(function (error) {
+        if (timer) clearTimeout(timer);
+        if (timedOut) return;
+        try {
+          xhr.__eqErr = error && error.message ? String(error.message) : String(error);
+        } catch (ignored) {}
+        if (typeof xhr.onerror === "function") xhr.onerror();
+      });
   }
+
+  proto.send = function (body) {
+    if (!canShadowStatus) return nativeSend.call(this, body);
+    var form = oneFormFile(body);
+    if (form) {
+      bindXhr(
+        this,
+        form.file.size,
+        {
+          filename: form.file.name || "upload",
+          field: form.field,
+          content_type: form.file.type || "application/octet-stream",
+          total: form.file.size,
+          fields: form.fields,
+        },
+        function (start, end) {
+          return form.file.slice(start, end);
+        }
+      );
+      return;
+    }
+    var source = asRawSource(body);
+    if (source && source.size > SLICE) {
+      bindXhr(
+        this,
+        source.size,
+        {
+          mode: "raw",
+          total: source.size,
+          content_type: xhrContentType(this, source.typeHint),
+        },
+        source.slice
+      );
+      return;
+    }
+    return nativeSend.call(this, body);
+  };
+  proto.__eqAuth = 1;
 })();

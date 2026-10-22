@@ -12,11 +12,13 @@
 #[path = "support/postgres_test_config.rs"]
 mod postgres_test_config;
 
+use edgequake_storage::adapters::postgres::document_shell::dual_write_shell_upserts;
 use edgequake_storage::adapters::postgres::ingestion_dedup::{
     upsert_reservation, DEDUP_VERSION_STAGING,
 };
 use edgequake_storage::adapters::postgres::rls::with_rls_transaction;
 use edgequake_storage::StorageError;
+use serde_json::json;
 use sqlx::postgres::PgConnectOptions;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -180,6 +182,131 @@ async fn dedup_reserve_honors_tenant_access_guard() {
         .expect("cleanup tenants");
 }
 
+#[tokio::test]
+async fn staging_shell_upsert_satisfies_tenant_access_guard() {
+    let Some(config) = require_or_skip_postgres("shell_rls") else {
+        return;
+    };
+    let admin = contract_pg_pool(&config).await;
+    provision_writer(&admin).await;
+    let writer = writer_pool_limited(&config, 1).await;
+    let bypass: bool = sqlx::query_scalar(
+        "SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user",
+    )
+    .fetch_one(&writer)
+    .await
+    .expect("writer role flags");
+    assert!(!bypass, "fixture role must be subject to RLS");
+
+    let tenant = Uuid::new_v4();
+    let other = Uuid::new_v4();
+    let workspace = Uuid::new_v4();
+    let document = Uuid::new_v4();
+    let foreign_doc = Uuid::new_v4();
+    seed_scope(&admin, tenant, workspace, "shell").await;
+    seed_tenant(&admin, other, "shell-foreign").await;
+
+    sqlx::query(
+        "SELECT set_config('app.current_tenant_id', $1, false), \
+                set_config('app.current_workspace_id', $2, false)",
+    )
+    .bind(tenant.to_string())
+    .bind(workspace.to_string())
+    .execute(&writer)
+    .await
+    .expect("install session tenant");
+
+    dual_write_shell_upserts(
+        &writer,
+        &[(
+            format!("staging:{document}-metadata"),
+            json!({
+                "title": "eq-raw-probe.md",
+                "status": "pending",
+                "tenant_id": tenant.to_string(),
+                "workspace_id": workspace.to_string(),
+            }),
+        )],
+        true,
+    )
+    .await
+    .expect("owner staging shell");
+
+    dual_write_shell_upserts(
+        &writer,
+        &[(
+            format!("staging:{document}-content"),
+            json!({ "content": "markdown body" }),
+        )],
+        true,
+    )
+    .await
+    .expect("owner staging content");
+
+    let stored: (String, String, String, Uuid, Uuid) = sqlx::query_as(
+        "SELECT title, content, metadata->>'_shell', tenant_id, workspace_id \
+         FROM public.documents WHERE id = $1",
+    )
+    .bind(document)
+    .fetch_one(&admin)
+    .await
+    .expect("shell row");
+    assert_eq!(
+        stored,
+        (
+            "eq-raw-probe.md".to_string(),
+            "markdown body".to_string(),
+            "staging".to_string(),
+            tenant,
+            workspace,
+        )
+    );
+
+    let rejected = dual_write_shell_upserts(
+        &writer,
+        &[(
+            format!("staging:{foreign_doc}-metadata"),
+            json!({
+                "title": "foreign",
+                "tenant_id": other.to_string(),
+                "workspace_id": workspace.to_string(),
+            }),
+        )],
+        true,
+    )
+    .await
+    .expect_err("foreign tenant must not write a document shell");
+    let rejected_msg = rejected.to_string();
+    assert!(
+        rejected_msg.contains("tenant_access_guard"),
+        "foreign shell must still hit tenant_access_guard, got: {rejected_msg}"
+    );
+    let leaked: i64 = sqlx::query_scalar("SELECT count(*) FROM public.documents WHERE id = $1")
+        .bind(foreign_doc)
+        .fetch_one(&admin)
+        .await
+        .expect("foreign document count");
+    assert_eq!(leaked, 0, "rejected shell must not insert a document");
+
+    sqlx::query("DELETE FROM public.documents WHERE id = $1 OR id = $2")
+        .bind(document)
+        .bind(foreign_doc)
+        .execute(&admin)
+        .await
+        .expect("cleanup documents");
+    sqlx::query("DELETE FROM public.workspaces WHERE workspace_id = $1")
+        .bind(workspace)
+        .execute(&admin)
+        .await
+        .expect("cleanup workspace");
+    sqlx::query("DELETE FROM public.tenants WHERE tenant_id = $1 OR tenant_id = $2")
+        .bind(tenant)
+        .bind(other)
+        .execute(&admin)
+        .await
+        .expect("cleanup tenants");
+}
+
 async fn provision_writer(admin: &PgPool) {
     sqlx::query(&format!(
         "DO $$ BEGIN \
@@ -230,6 +357,10 @@ async fn provision_writer(admin: &PgPool) {
 }
 
 async fn writer_pool(config: &edgequake_storage::PostgresConfig) -> PgPool {
+    writer_pool_limited(config, 2).await
+}
+
+async fn writer_pool_limited(config: &edgequake_storage::PostgresConfig, max: u32) -> PgPool {
     let options = PgConnectOptions::new()
         .host(&config.host)
         .port(config.port)
@@ -237,7 +368,7 @@ async fn writer_pool(config: &edgequake_storage::PostgresConfig) -> PgPool {
         .username(WRITER_ROLE)
         .password(WRITER_PASSWORD);
     sqlx::postgres::PgPoolOptions::new()
-        .max_connections(2)
+        .max_connections(max)
         .connect_with(options)
         .await
         .expect("writer pool")

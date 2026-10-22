@@ -150,10 +150,12 @@ def _drop_upload(upload_id: str) -> None:
 def accept_upload_chunk(headers, body: bytes) -> dict[str, object]:
     """Collect browser slices that stay under the Apps gateway body limit.
 
-    A large Content-Length upload is closed early by the gateway (a 128KiB
-    body arrived as 78021 bytes). The page sends one small JSON description
-    and then slices that stay under that cutoff. When the last slice
-    arrives, this returns the multipart body to forward on localhost.
+    A large Content-Length upload is closed early by the gateway. A 128KiB
+    body arrived as 78021 bytes, and a 100KB JSON document arrived as 16375
+    of 103316. The page sends one small JSON description and then slices
+    under that cutoff. When the last slice arrives, a file upload becomes
+    one multipart body and a raw upload (JSON document) is the original
+    bytes, both forwarded on localhost.
     """
     upload_id = _safe_upload_id(_upload_token(headers, "X-EdgeQuake-Upload-Id"))
     role = _upload_token(headers, "X-EdgeQuake-Upload-Role").lower()
@@ -198,6 +200,9 @@ def _accept_upload_fields(upload_id: str, body: bytes, now: float) -> dict[str, 
         if not isinstance(key, str) or not isinstance(value, str):
             raise BodyReadError("invalid upload field")
         fields[key] = value
+    mode = str(meta.get("mode") or "file")
+    if mode not in {"file", "raw"}:
+        raise BodyReadError("invalid upload role")
     filename = str(meta.get("filename") or "upload")
     field = str(meta.get("field") or "file")
     content_type = str(meta.get("content_type") or "application/octet-stream")
@@ -215,6 +220,7 @@ def _accept_upload_fields(upload_id: str, body: bytes, now: float) -> dict[str, 
         "field": field,
         "content_type": content_type,
         "fields": fields,
+        "mode": mode,
         "created": now,
     }
     return {"done": False}
@@ -243,6 +249,10 @@ def _accept_upload_bytes(upload_id: str, headers, body: bytes) -> dict[str, obje
         return {"done": False}
     with open(path, "rb") as handle:
         file_bytes = handle.read()
+    if item.get("mode") == "raw":
+        content_type = str(item.get("content_type") or "application/json")
+        _drop_upload(upload_id)
+        return {"done": True, "content_type": content_type, "body": file_bytes}
     content_type, payload = _multipart_from_upload(upload_id, item, file_bytes)
     _drop_upload(upload_id)
     return {"done": True, "content_type": content_type, "body": payload}
@@ -810,14 +820,14 @@ def apply_session_authorization(headers: dict[str, str]) -> None:
 
 
 def load_fetch_shim() -> bytes:
-    """Auth header copy plus chunked FormData uploads.
+    """Auth header copy plus sliced uploads.
 
     The Apps gateway replaces Authorization, and it closes a large
-    Content-Length body before Python finishes reading it. PDF upload uses
-    XMLHttpRequest, which always sends Content-Length. The shim re-posts that
-    FormData with fetch + a ReadableStream so the browser omits Content-Length
-    and the gateway forwards a chunked body. The script is injected into HTML,
-    so the packaged web UI does not have to be rebuilt.
+    Content-Length body before Python finishes reading it. A browser JSON
+    document of 103316 bytes arrived as 16375. The shim splits FormData and
+    JSON bodies into 8KiB slices and this proxy forwards one body on
+    localhost. The script is injected into HTML, so the packaged web UI does
+    not have to be rebuilt.
     """
     path = os.path.join(os.path.dirname(__file__), "fetch_shim.js")
     with open(path, "rb") as handle:
@@ -864,23 +874,21 @@ def _wait_server(
     signal.signal(signal.SIGTERM, forward)
     signal.signal(signal.SIGINT, forward)
 
-    published = False
-    deadline = time.time() + 45
+    # Publish the first snapshot once the server has had time to boot, then
+    # refresh the redacted tail while it runs. A single 45s snapshot hides
+    # later request failures, and a shutdown snapshot can look like the new
+    # process exited.
+    next_publish = time.time() + 45
     while True:
         code = proc.poll()
-        if code is not None or (not published and time.time() >= deadline):
+        now = time.time()
+        if code is not None or now >= next_publish:
             snapshot = lines + server_tail(chunks, code)
             publish(snapshot)
-            published = True
+            next_publish = now + 20
             if code is not None:
                 lines[:] = snapshot
                 return None if stopping["value"] else code
-        if published:
-            code = proc.wait()
-            snapshot = lines + server_tail(chunks, code)
-            publish(snapshot)
-            lines[:] = snapshot
-            return None if stopping["value"] else code
         time.sleep(1)
 
 
