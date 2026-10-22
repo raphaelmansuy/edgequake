@@ -9,5 +9,6 @@ mod provider;
 
 pub use lakebase::{resolve_database_url, spawn_credential_refresh, DbUrlError};
 pub use provider::{
-    embedding_provider_from_env, llm_for_model, llm_provider_selected, providers_from_env,
+    embedding_for_model, embedding_provider_from_env, llm_for_model, llm_provider_selected,
+    providers_from_env,
 };

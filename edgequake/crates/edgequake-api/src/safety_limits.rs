@@ -773,7 +773,13 @@ pub fn create_safe_embedding_provider(
         "openai" | "openai-compatible" | "openai_compatible"
     );
 
-    let inner = if is_openai_compatible {
+    // Workspace rows store `databricks` / `system.ai.gte-large-en`. ProviderFactory
+    // does not know that name and returns `Unknown embedding provider: databricks`
+    // before the first chunk. The AI Gateway client is the same one the server
+    // default embedder already uses.
+    let inner = if provider_name.eq_ignore_ascii_case("databricks") {
+        crate::databricks::embedding_for_model(&model, dimension).map_err(LlmError::ConfigError)?
+    } else if is_openai_compatible {
         let embed_base_url = std::env::var("EDGEQUAKE_EMBEDDING_BASE_URL").ok();
         let embed_api_key = std::env::var("EDGEQUAKE_EMBEDDING_API_KEY").ok();
 
@@ -1314,6 +1320,38 @@ mod default_model_tests {
         assert!(injected_vision_llm("openai", "gpt-5.6-luna")
             .expect("openai")
             .is_none());
+    }
+
+    #[test]
+    fn databricks_workspace_embedding_is_not_unknown() {
+        let previous_host = std::env::var("DATABRICKS_HOST").ok();
+        unsafe {
+            std::env::set_var("DATABRICKS_HOST", "https://example.cloud.databricks.com");
+        }
+        let built = create_safe_embedding_provider("databricks", "system.ai.gte-large-en", 1024);
+        unsafe {
+            match previous_host {
+                Some(value) => std::env::set_var("DATABRICKS_HOST", value),
+                None => std::env::remove_var("DATABRICKS_HOST"),
+            }
+        }
+        let provider = built.expect("databricks embedding provider");
+        assert_eq!(provider.name(), "databricks");
+        assert_eq!(provider.model(), "system.ai.gte-large-en");
+        assert_eq!(provider.dimension(), 1024);
+
+        let message = match create_safe_embedding_provider("not-a-provider", "x", 8) {
+            Ok(_) => panic!("unknown embedding provider must stay rejected"),
+            Err(error) => error.to_string(),
+        };
+        assert!(
+            message.contains("Unknown embedding provider"),
+            "unexpected error: {message}"
+        );
+        assert!(
+            !message.to_ascii_lowercase().contains("databricks"),
+            "unknown-provider rejection must not mention databricks: {message}"
+        );
     }
 
     #[test]

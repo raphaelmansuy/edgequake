@@ -59,6 +59,28 @@ pub fn llm_for_model(model: &str) -> Result<Arc<dyn LLMProvider>, String> {
     Ok(Arc::new(provider))
 }
 
+/// Embedding provider for a caller-selected model (workspace ingestion).
+///
+/// `ProviderFactory` rejects the name `databricks`, so a workspace stored as
+/// `databricks` / `system.ai.gte-large-en` dies before the first chunk with
+/// `Unknown embedding provider: databricks`. An empty model keeps the env
+/// default. A non-positive dimension keeps `EDGEQUAKE_EMBEDDING_DIMENSION`
+/// (otherwise 1024).
+pub fn embedding_for_model(
+    model: &str,
+    dimension: usize,
+) -> Result<Arc<dyn EmbeddingProvider>, String> {
+    let mut provider = DatabricksProvider::from_env()?;
+    let requested = model.trim();
+    if !requested.is_empty() {
+        provider.embedding_model = model_service_name(requested);
+    }
+    if dimension > 0 {
+        provider.dimension = dimension;
+    }
+    Ok(Arc::new(provider))
+}
+
 /// Empty request keeps the fallback. Both sides are Unity Catalog service names.
 pub fn resolved_chat_model(requested: &str, fallback: &str) -> String {
     let requested = requested.trim();
@@ -363,5 +385,48 @@ mod tests {
         assert_eq!(embedding_dimension(Some("0")), 1024);
         assert_eq!(embedding_dimension(Some("nope")), 1024);
         assert_eq!(embedding_dimension(None), 1024);
+    }
+
+    #[test]
+    fn databricks_workspace_embedding_uses_gateway_model() {
+        let _host = EnvVar::set("DATABRICKS_HOST", "https://example.cloud.databricks.com");
+        let _model = EnvVar::set("EDGEQUAKE_EMBEDDING_MODEL", "system.ai.gte-large-en");
+        let _dimension = EnvVar::set("EDGEQUAKE_EMBEDDING_DIMENSION", "768");
+        let provider = embedding_for_model("system.ai.gte-large-en", 1024).expect("embedder");
+        assert_eq!(provider.name(), "databricks");
+        assert_eq!(provider.model(), "system.ai.gte-large-en");
+        assert_eq!(provider.dimension(), 1024);
+
+        let legacy = embedding_for_model("databricks-gte-large-en", 1024).expect("legacy name");
+        assert_eq!(legacy.model(), "system.ai.gte-large-en");
+
+        let kept = embedding_for_model("  ", 0).expect("env default");
+        assert_eq!(kept.model(), "system.ai.gte-large-en");
+        assert_eq!(kept.dimension(), 768);
+    }
+
+    /// Restores the previous value so later tests do not inherit a host.
+    struct EnvVar {
+        key: &'static str,
+        previous: Option<String>,
+    }
+
+    impl EnvVar {
+        fn set(key: &'static str, value: &str) -> Self {
+            let previous = std::env::var(key).ok();
+            unsafe { std::env::set_var(key, value) };
+            Self { key, previous }
+        }
+    }
+
+    impl Drop for EnvVar {
+        fn drop(&mut self) {
+            unsafe {
+                match self.previous.take() {
+                    Some(value) => std::env::set_var(self.key, value),
+                    None => std::env::remove_var(self.key),
+                }
+            }
+        }
     }
 }
