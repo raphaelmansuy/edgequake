@@ -110,9 +110,10 @@ image_per_unit = 0.0
 name = "o4-mini"
 display_name = "o4-mini"
 model_type = "llm"
-description = "OpenAI reasoning model with chain-of-thought, ideal for complex tasks"
-deprecated = false
-tags = ["reasoning", "chain-of-thought"]
+description = "Shut down on the OpenAI API on 2026-10-23, use GPT-5.6 Terra instead"
+deprecated = true
+replacement = "gpt-5.6-terra"
+tags = ["legacy", "reasoning"]
 
 [providers.models.capabilities]
 context_length = 200000
@@ -312,9 +313,9 @@ image_per_unit = 0.0
 name = "gpt-4-turbo"
 display_name = "GPT-4 Turbo"
 model_type = "llm"
-description = "Legacy model, use GPT-5.4 or GPT-4o instead"
+description = "Shut down on the OpenAI API on 2026-10-23, use GPT-5.6 Sol instead"
 deprecated = true
-replacement = "gpt-5.4"
+replacement = "gpt-5.6-sol"
 tags = ["legacy"]
 
 [providers.models.capabilities]
@@ -337,9 +338,9 @@ image_per_unit = 0.0
 name = "gpt-3.5-turbo"
 display_name = "GPT-3.5 Turbo"
 model_type = "llm"
-description = "Legacy model, use GPT-4o Mini or GPT-4.1 Nano instead"
+description = "Shut down on the OpenAI API on 2026-10-23, use GPT-5.6 Terra instead"
 deprecated = true
-replacement = "gpt-4o-mini"
+replacement = "gpt-5.6-terra"
 tags = ["legacy"]
 
 [providers.models.capabilities]

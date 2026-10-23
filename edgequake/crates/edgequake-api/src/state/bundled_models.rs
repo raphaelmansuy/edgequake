@@ -47,6 +47,30 @@ mod tests {
     use std::io::Write;
 
     #[test]
+    fn bundled_catalog_marks_models_shut_down_on_2026_10_23_as_deprecated() {
+        let config = embedded_models_catalog();
+        let openai = config
+            .providers
+            .iter()
+            .find(|p| p.name == "openai")
+            .expect("openai provider");
+        for (name, replacement) in [
+            ("gpt-3.5-turbo", "gpt-5.6-terra"),
+            ("gpt-4-turbo", "gpt-5.6-sol"),
+            ("o4-mini", "gpt-5.6-terra"),
+            ("gpt-4.1-nano", "gpt-5.6-luna"),
+        ] {
+            let card = openai
+                .models
+                .iter()
+                .find(|m| m.name == name)
+                .unwrap_or_else(|| panic!("{name} missing from bundled models.toml"));
+            assert!(card.deprecated, "{name} is shut down on 2026-10-23");
+            assert_eq!(card.replacement.as_deref(), Some(replacement), "{name}");
+        }
+    }
+
+    #[test]
     fn bundled_embedded_catalog_has_core_providers() {
         let config = embedded_models_catalog();
         let names: Vec<_> = config.providers.iter().map(|p| p.name.as_str()).collect();
