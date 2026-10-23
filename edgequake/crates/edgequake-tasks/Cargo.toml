@@ -40,7 +40,7 @@ async-trait = "0.1"
 num_cpus = "1.16"
 
 # Redis (optional)
-redis = { version = "0.27", features = [
+redis = { version = "1.5", features = [
     "tokio-comp",
     "tokio-rustls-comp",
 ], optional = true }
