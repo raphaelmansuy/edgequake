@@ -148,9 +148,13 @@ class EntityExistsResponse(BaseModel):
 class MergeEntitiesRequest(BaseModel):
     """Request to merge entities."""
 
-    source: str
-    target: str
-    strategy: str | None = None
+    # WHY: the API requires `source_entity` / `target_entity` (and
+    # `merge_strategy`); we keep the short SDK names and alias on the wire.
+    source: str = Field(serialization_alias="source_entity")
+    target: str = Field(serialization_alias="target_entity")
+    strategy: str | None = Field(default=None, serialization_alias="merge_strategy")
+
+    model_config = {"populate_by_name": True}
 
 
 class MergeEntitiesResponse(BaseModel):
