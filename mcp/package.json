@@ -57,21 +57,25 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "edgequake-sdk": "file:../sdks/typescript",
-    "postcss": "^8.5.12",
+    "postcss": "^8.5.26",
     "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "tsup": "^8.5.0",
     "typescript": "^5.7.0",
-    "vitest": "^4.1.0"
+    "vitest": "4.1.11"
   },
   "overrides": {
     "hono": ">=4.12.27",
     "@hono/node-server": ">=2.0.5",
-    "fast-uri": ">=3.1.4",
+    "fast-uri": ">=4.2.2",
     "body-parser": ">=2.3.0",
-    "ip-address": ">=10.1.1",
+    "ip-address": ">=10.7.2",
+    "qs": ">=6.16.0",
+    "proxy-addr": ">=2.0.8",
+    "source-map-js": ">=1.2.2",
+    "postcss": "^8.5.26",
     "rollup": ">=4.59.0",
     "esbuild": ">=0.28.1"
   }

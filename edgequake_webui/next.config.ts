@@ -25,7 +25,7 @@ const nextConfig: NextConfig = {
 
   // SPEC-144 Phase C (Instant Navigations) — FLAGS OFF until React exposes
   // postpone APIs needed by Cache Components on this pin.
-  // Observed on next@16.3.3 + react@19.2.3 (webpack): prerender fails with
+  // Observed on next@16.3.3 (pin is now 16.3.8) + react@19.2.3 (webpack): prerender fails with
   // "React.unstable_postpone is not defined" on /_not-found.
   // Free 16.3 wins (memory/SSR/prefetch inlining) still apply via the bump.
   // Shells + `export const instant` markers remain so re-enable is mechanical:
