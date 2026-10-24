@@ -330,6 +330,88 @@ pub async fn release_rls_connection(conn: &mut sqlx::PgConnection) -> Result<()>
     clear_tenant_context_on_conn(conn).await
 }
 
+/// True when `current_user` bypasses FORCE ROW LEVEL SECURITY.
+///
+/// Docker and CI connect as a superuser, so their writes never see
+/// `tenant_access_guard`. A Lakebase service principal is neither superuser
+/// nor BYPASSRLS: the same autocommit INSERT fails because
+/// `current_tenant_id()` is null outside an explicit transaction.
+pub async fn session_bypasses_rls(conn: &mut sqlx::PgConnection) -> Result<bool> {
+    let bypass: bool = sqlx::query_scalar(
+        "SELECT COALESCE(bool_or(rolsuper OR rolbypassrls), false) \
+         FROM pg_roles WHERE rolname = current_user",
+    )
+    .fetch_one(&mut *conn)
+    .await
+    .map_err(StorageError::from)?;
+    Ok(bypass)
+}
+
+/// [`session_bypasses_rls`] on a pooled connection.
+pub async fn pool_bypasses_rls(pool: &PgPool) -> Result<bool> {
+    let mut conn = pool.acquire().await.map_err(|e| {
+        StorageError::Database(format!("Failed to acquire connection for RLS check: {e}"))
+    })?;
+    session_bypasses_rls(&mut conn).await
+}
+
+/// Run `operation` in a plain transaction, or inside [`with_rls_transaction`]
+/// when a tenant is known and this session does not bypass row security.
+///
+/// Callers that pass `tenant_id = None`, and every superuser/BYPASSRLS
+/// session, keep a single committed statement with no `SET ROLE`. That is the
+/// historical autocommit path. Lakebase writes pass the tenant so
+/// `tenant_access_guard` can see `current_tenant_id()`.
+pub async fn with_tenant_if_forced<F, T>(
+    pool: &PgPool,
+    tenant_id: Option<Uuid>,
+    workspace_id: Option<Uuid>,
+    operation: F,
+) -> Result<T>
+where
+    for<'c> F: FnOnce(&'c mut sqlx::PgConnection) -> RlsTxFuture<'c, T> + Send,
+    T: Send,
+{
+    let Some(tenant_id) = tenant_id else {
+        return plain_write_transaction(pool, operation).await;
+    };
+    if pool_bypasses_rls(pool).await? {
+        return plain_write_transaction(pool, operation).await;
+    }
+    with_rls_transaction(pool, tenant_id, workspace_id, None, operation).await
+}
+
+async fn plain_write_transaction<F, T>(pool: &PgPool, operation: F) -> Result<T>
+where
+    for<'c> F: FnOnce(&'c mut sqlx::PgConnection) -> RlsTxFuture<'c, T> + Send,
+    T: Send,
+{
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| StorageError::Database(format!("Failed to begin write transaction: {e}")))?;
+    #[allow(clippy::explicit_auto_deref)]
+    let op_result = operation(&mut *tx).await;
+    match op_result {
+        Ok(value) => {
+            tx.commit().await.map_err(|e| {
+                StorageError::Database(format!("Failed to commit write transaction: {e}"))
+            })?;
+            Ok(value)
+        }
+        Err(err) => {
+            if let Err(rollback_err) = tx.rollback().await {
+                tracing::warn!(
+                    error.source = "postgres_rls",
+                    error.message = %rollback_err,
+                    "Failed to rollback write transaction after operation error"
+                );
+            }
+            Err(err)
+        }
+    }
+}
+
 /// Run an operation inside an explicit transaction with RLS GUC set (SPEC-083 S-03).
 ///
 /// # Why this exists

@@ -26,6 +26,78 @@ pub struct PostgresEntitySink {
     fail_closed: bool,
 }
 
+async fn execute_in_tenant_scope<'q>(
+    pool: &PgPool,
+    tenant: Option<uuid::Uuid>,
+    workspace: Option<uuid::Uuid>,
+    query: sqlx::query::Query<'q, sqlx::Postgres, sqlx::postgres::PgArguments>,
+) -> Result<sqlx::postgres::PgQueryResult, sqlx::Error> {
+    let bypass = edgequake_storage::adapters::postgres::pool_bypasses_rls(pool)
+        .await
+        .unwrap_or(true);
+    let Some(tenant) = tenant.filter(|_| !bypass) else {
+        return query.execute(pool).await;
+    };
+    let mut tx = pool.begin().await?;
+    if let Some(workspace) = workspace {
+        let owned: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM public.workspaces \
+             WHERE workspace_id = $1 AND tenant_id = $2 AND is_active)",
+        )
+        .bind(workspace)
+        .bind(tenant)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !owned {
+            return Err(sqlx::Error::Protocol(
+                "Tenant does not own an active workspace".into(),
+            ));
+        }
+    }
+    sqlx::query("SET LOCAL ROLE edgequake_tenant_access")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("SELECT public.set_tenant_context($1, $2, $3)")
+        .bind(tenant)
+        .bind(workspace)
+        .bind(None::<uuid::Uuid>)
+        .execute(&mut *tx)
+        .await?;
+    let result = query.execute(&mut *tx).await?;
+    tx.commit().await?;
+    Ok(result)
+}
+
+async fn fetch_all_in_tenant_scope<'q, T>(
+    pool: &PgPool,
+    tenant: Option<uuid::Uuid>,
+    workspace: Option<uuid::Uuid>,
+    query: sqlx::query::QueryAs<'q, sqlx::Postgres, T, sqlx::postgres::PgArguments>,
+) -> Result<Vec<T>, sqlx::Error>
+where
+    T: Send + Unpin + for<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow>,
+{
+    let bypass = edgequake_storage::adapters::postgres::pool_bypasses_rls(pool)
+        .await
+        .unwrap_or(true);
+    let Some(tenant) = tenant.filter(|_| !bypass) else {
+        return query.fetch_all(pool).await;
+    };
+    let mut tx = pool.begin().await?;
+    sqlx::query("SET LOCAL ROLE edgequake_tenant_access")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("SELECT public.set_tenant_context($1, $2, $3)")
+        .bind(tenant)
+        .bind(workspace)
+        .bind(None::<uuid::Uuid>)
+        .execute(&mut *tx)
+        .await?;
+    let rows = query.fetch_all(&mut *tx).await?;
+    tx.commit().await?;
+    Ok(rows)
+}
+
 fn scope_uuid(value: Option<&str>, field: &str) -> edgequake_pipeline::Result<Option<uuid::Uuid>> {
     value.map(str::parse).transpose().map_err(|_| {
         edgequake_pipeline::PipelineError::StorageError(
@@ -105,13 +177,46 @@ impl PostgresEntitySink {
         workspace_id: Option<uuid::Uuid>,
     ) -> edgequake_pipeline::Result<Option<uuid::Uuid>> {
         let sql = queries::entity_lookup_sql(workspace_id.is_some(), tenant_id.is_some());
-        sqlx::query_scalar(&sql)
+        let lookup = sqlx::query_scalar(&sql)
             .bind(name)
             .bind(workspace_id)
-            .bind(tenant_id)
-            .fetch_optional(self.pool.as_ref())
+            .bind(tenant_id);
+        let bypass = edgequake_storage::adapters::postgres::pool_bypasses_rls(self.pool.as_ref())
             .await
-            .map_err(|e| edgequake_pipeline::PipelineError::StorageError(e.into()))
+            .unwrap_or(true);
+        let found = if bypass || tenant_id.is_none() {
+            lookup
+                .fetch_optional(self.pool.as_ref())
+                .await
+                .map_err(|e| edgequake_pipeline::PipelineError::StorageError(e.into()))?
+        } else {
+            let tenant = tenant_id.expect("tenant checked");
+            let mut tx = self
+                .pool
+                .begin()
+                .await
+                .map_err(|e| edgequake_pipeline::PipelineError::StorageError(e.into()))?;
+            sqlx::query("SET LOCAL ROLE edgequake_tenant_access")
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| edgequake_pipeline::PipelineError::StorageError(e.into()))?;
+            sqlx::query("SELECT public.set_tenant_context($1, $2, $3)")
+                .bind(tenant)
+                .bind(workspace_id)
+                .bind(None::<uuid::Uuid>)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| edgequake_pipeline::PipelineError::StorageError(e.into()))?;
+            let row = lookup
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|e| edgequake_pipeline::PipelineError::StorageError(e.into()))?;
+            tx.commit()
+                .await
+                .map_err(|e| edgequake_pipeline::PipelineError::StorageError(e.into()))?;
+            row
+        };
+        Ok(found)
     }
 
     fn map_sql_result(
@@ -153,11 +258,13 @@ impl RelationalEntitySink for PostgresEntitySink {
         let tenant_uuid = scope_uuid(tenant_id, "tenant_id")?;
         let workspace_uuid = scope_uuid(workspace_id, "workspace_id")?;
 
-        let result = sqlx::query(
+        let query = sqlx::query(
             r#"INSERT INTO entities
                    (name, entity_type, description, tenant_id, workspace_id,
                     source_chunk_ids, sync_status, created_at, updated_at)
-               VALUES ($1, $2, $3, $4, $5, $6, 'synced', NOW(), NOW())
+               SELECT $1, $2, $3, $4, $5, $6, 'synced', NOW(), NOW()
+               FROM (SELECT set_config('app.current_tenant_id', COALESCE($4::text, ''), true),
+                            set_config('app.current_workspace_id', COALESCE($5::text, ''), true)) ctx
                ON CONFLICT (tenant_id, workspace_id, name) DO UPDATE SET
                    entity_type      = EXCLUDED.entity_type,
                    description      = EXCLUDED.description,
@@ -173,9 +280,9 @@ impl RelationalEntitySink for PostgresEntitySink {
         .bind(description)
         .bind(tenant_uuid)
         .bind(workspace_uuid)
-        .bind(source_chunk_ids)
-        .execute(self.pool.as_ref())
-        .await;
+        .bind(source_chunk_ids);
+        let result =
+            execute_in_tenant_scope(self.pool.as_ref(), tenant_uuid, workspace_uuid, query).await;
 
         self.map_sql_result(bare, result)
     }
@@ -240,7 +347,15 @@ impl RelationalEntitySink for PostgresEntitySink {
             sources_json.push(serde_json::json!(row.source_chunk_ids));
         }
 
-        let result = sqlx::query(
+        let batch_tenant = tenants
+            .first()
+            .copied()
+            .flatten()
+            .filter(|tenant| tenants.iter().all(|item| item.as_ref() == Some(tenant)));
+        let batch_workspace = workspaces.first().copied().flatten().filter(|_| {
+            workspaces.windows(2).all(|pair| pair[0] == pair[1]) || workspaces.len() <= 1
+        });
+        let query = sqlx::query(
             r#"
             INSERT INTO entities
                 (name, entity_type, description, tenant_id, workspace_id,
@@ -260,6 +375,10 @@ impl RelationalEntitySink for PostgresEntitySink {
                 $5::uuid[],
                 $6::jsonb[]
             ) AS u(n, t, d, tn, ws, src)
+            CROSS JOIN LATERAL (
+                SELECT set_config('app.current_tenant_id', COALESCE(u.tn::text, ''), true),
+                       set_config('app.current_workspace_id', COALESCE(u.ws::text, ''), true)
+            ) ctx
             ON CONFLICT (tenant_id, workspace_id, name) DO UPDATE SET
                 entity_type      = EXCLUDED.entity_type,
                 description      = EXCLUDED.description,
@@ -276,9 +395,9 @@ impl RelationalEntitySink for PostgresEntitySink {
         .bind(&descs)
         .bind(&tenants)
         .bind(&workspaces)
-        .bind(&sources_json)
-        .execute(self.pool.as_ref())
-        .await;
+        .bind(&sources_json);
+        let result =
+            execute_in_tenant_scope(self.pool.as_ref(), batch_tenant, batch_workspace, query).await;
 
         self.map_sql_result("entities_batch", result)
     }
@@ -324,11 +443,13 @@ impl RelationalEntitySink for PostgresEntitySink {
             return Ok(());
         };
 
-        let result = sqlx::query(
+        let query = sqlx::query(
             r#"INSERT INTO relationships
                    (source_id, target_id, tenant_id, workspace_id, relation_type,
                     description, weight, source_chunk_keys, created_at, updated_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+               SELECT $1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW()
+               FROM (SELECT set_config('app.current_tenant_id', COALESCE($3::text, ''), true),
+                            set_config('app.current_workspace_id', COALESCE($4::text, ''), true)) ctx
                ON CONFLICT (tenant_id, workspace_id, source_id, target_id, relation_type)
                DO UPDATE SET
                    description = EXCLUDED.description,
@@ -347,9 +468,9 @@ impl RelationalEntitySink for PostgresEntitySink {
         .bind(&rel_type)
         .bind(description)
         .bind(weight)
-        .bind(source_chunk_ids)
-        .execute(self.pool.as_ref())
-        .await;
+        .bind(source_chunk_ids);
+        let result =
+            execute_in_tenant_scope(self.pool.as_ref(), tenant_uuid, workspace_uuid, query).await;
 
         self.map_sql_result(&format!("{src}->{tgt}:{rel_type}"), result)
     }
@@ -444,13 +565,14 @@ impl RelationalEntitySink for PostgresEntitySink {
         bare_names.dedup();
 
         let sql = queries::entity_batch_lookup_sql(workspace_uuid.is_some(), tenant_uuid.is_some());
-        let id_rows: Vec<(uuid::Uuid, String)> = sqlx::query_as(&sql)
+        let lookup = sqlx::query_as(&sql)
             .bind(&bare_names)
             .bind(workspace_uuid)
-            .bind(tenant_uuid)
-            .fetch_all(self.pool.as_ref())
-            .await
-            .map_err(|e| edgequake_pipeline::PipelineError::StorageError(e.into()))?;
+            .bind(tenant_uuid);
+        let id_rows: Vec<(uuid::Uuid, String)> =
+            fetch_all_in_tenant_scope(self.pool.as_ref(), tenant_uuid, workspace_uuid, lookup)
+                .await
+                .map_err(|e| edgequake_pipeline::PipelineError::StorageError(e.into()))?;
 
         let mut by_name: HashMap<String, uuid::Uuid> = HashMap::new();
         for (id, name) in id_rows {
@@ -508,9 +630,8 @@ impl RelationalEntitySink for PostgresEntitySink {
             });
         }
 
-        let returned: Result<Vec<(uuid::Uuid, uuid::Uuid, uuid::Uuid, String)>, sqlx::Error> =
-            sqlx::query_as(
-                r#"
+        let insert = sqlx::query_as(
+            r#"
             INSERT INTO relationships
                 (source_id, target_id, tenant_id, workspace_id, relation_type,
                  description, weight, source_chunk_keys, created_at, updated_at)
@@ -526,6 +647,10 @@ impl RelationalEntitySink for PostgresEntitySink {
                 $6::text[],
                 $7::real[]
             ) WITH ORDINALITY AS u(s, t, tn, ws, rt, d, w, ord)
+            CROSS JOIN LATERAL (
+                SELECT set_config('app.current_tenant_id', COALESCE(u.tn::text, ''), true),
+                       set_config('app.current_workspace_id', COALESCE(u.ws::text, ''), true)
+            ) ctx
             ON CONFLICT (tenant_id, workspace_id, source_id, target_id, relation_type)
             DO UPDATE SET
                 description = EXCLUDED.description,
@@ -538,17 +663,18 @@ impl RelationalEntitySink for PostgresEntitySink {
                 updated_at = NOW()
             RETURNING id, source_id, target_id, relation_type
             "#,
-            )
-            .bind(&source_ids)
-            .bind(&target_ids)
-            .bind(&tenants)
-            .bind(&workspaces)
-            .bind(&rel_types)
-            .bind(&descs)
-            .bind(&weights)
-            .bind(serde_json::json!(chunk_keys))
-            .fetch_all(self.pool.as_ref())
-            .await;
+        )
+        .bind(&source_ids)
+        .bind(&target_ids)
+        .bind(&tenants)
+        .bind(&workspaces)
+        .bind(&rel_types)
+        .bind(&descs)
+        .bind(&weights)
+        .bind(serde_json::json!(chunk_keys));
+        let returned: Result<Vec<(uuid::Uuid, uuid::Uuid, uuid::Uuid, String)>, sqlx::Error> =
+            fetch_all_in_tenant_scope(self.pool.as_ref(), tenant_uuid, workspace_uuid, insert)
+                .await;
 
         let returned = match returned {
             Ok(rows) => {
@@ -612,27 +738,37 @@ impl RelationalEntitySink for PostgresEntitySink {
         let bare = EntityId::bare_name_from_graph_node_id(name);
         let workspace_uuid = scope_uuid(workspace_id, "workspace_id")?;
 
+        let tenant_uuid = if let Some(workspace) = workspace_uuid {
+            sqlx::query_scalar(
+                "SELECT tenant_id FROM public.workspaces WHERE workspace_id = $1 AND is_active",
+            )
+            .bind(workspace)
+            .fetch_optional(self.pool.as_ref())
+            .await
+            .ok()
+            .flatten()
+        } else {
+            None
+        };
         let result = if remaining_sources.is_empty() {
-            sqlx::query(
+            let query = sqlx::query(
                 "DELETE FROM entities \
                  WHERE (name = $1 OR name = (COALESCE(($2::uuid)::text, '') || '::' || $1)) \
                    AND (workspace_id = $2 OR ($2 IS NULL AND workspace_id IS NULL))",
             )
             .bind(bare)
-            .bind(workspace_uuid)
-            .execute(self.pool.as_ref())
-            .await
+            .bind(workspace_uuid);
+            execute_in_tenant_scope(self.pool.as_ref(), tenant_uuid, workspace_uuid, query).await
         } else {
-            sqlx::query(
+            let query = sqlx::query(
                 "UPDATE entities SET source_chunk_ids = $1, sync_status = 'synced', updated_at = NOW() \
                  WHERE (name = $2 OR name = (COALESCE(($3::uuid)::text, '') || '::' || $2)) \
                    AND (workspace_id = $3 OR ($3 IS NULL AND workspace_id IS NULL))",
             )
             .bind(remaining_sources)
             .bind(bare)
-            .bind(workspace_uuid)
-            .execute(self.pool.as_ref())
-            .await
+            .bind(workspace_uuid);
+            execute_in_tenant_scope(self.pool.as_ref(), tenant_uuid, workspace_uuid, query).await
         };
 
         self.map_sql_result(bare, result)

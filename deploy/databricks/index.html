@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EdgeQuake</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: "Segoe UI", sans-serif; margin: 0; background: #0f1419; color: #e7ecf1; }
+    main { max-width: 40rem; margin: 0 auto; padding: 3rem 1.25rem; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.25rem; }
+    p { line-height: 1.5; }
+    a { color: #8eb6ff; }
+    form, .card { background: #1a222c; border-radius: 12px; padding: 1rem 1.1rem; margin-top: 1rem; }
+    label { display: block; margin: 0.7rem 0 0.2rem; font-size: 0.9rem; }
+    input { width: 100%; box-sizing: border-box; padding: 0.55rem 0.65rem; border-radius: 8px; border: 1px solid #31404f; background: #0f1419; color: inherit; }
+    button { margin-top: 1rem; background: #3b6cff; color: white; border: 0; border-radius: 8px; padding: 0.6rem 1rem; font: inherit; cursor: pointer; }
+    .ok { color: #7dcea0; }
+    .bad { color: #f0a0a0; }
+    code { font-size: 0.92em; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>EdgeQuake</h1>
+  <p id="status">Checking the API…</p>
+  <p><a href="/swagger-ui/">API reference</a> · <a href="/health">Health</a></p>
+  <form id="setup" hidden>
+    <h2>Create the first workspace</h2>
+    <label for="username">Admin username</label>
+    <input id="username" name="username" value="admin" autocomplete="username" required minlength="3">
+    <label for="email">Admin email</label>
+    <input id="email" name="email" type="email" autocomplete="email" required>
+    <label for="password">Admin password</label>
+    <input id="password" name="password" type="password" autocomplete="new-password" required minlength="8">
+    <label for="tenant">Tenant name</label>
+    <input id="tenant" name="tenant" value="Default" required>
+    <label for="workspace">Workspace name</label>
+    <input id="workspace" name="workspace" value="Default" required>
+    <button type="submit">Create workspace</button>
+    <p id="setup-result"></p>
+  </form>
+  <form id="login" hidden>
+    <h2>Sign in</h2>
+    <label for="login-username">Username</label>
+    <input id="login-username" autocomplete="username" required minlength="3">
+    <label for="login-password">Password</label>
+    <input id="login-password" type="password" autocomplete="current-password" required minlength="8">
+    <button type="submit">Sign in</button>
+    <p id="login-result"></p>
+  </form>
+</main>
+<script>
+const status = document.getElementById("status");
+const form = document.getElementById("setup");
+const result = document.getElementById("setup-result");
+const loginForm = document.getElementById("login");
+const loginResult = document.getElementById("login-result");
+
+function show(text, ok) {
+  status.textContent = text;
+  status.className = ok ? "ok" : "bad";
+}
+
+async function load() {
+  try {
+    const health = await fetch("/health");
+    if (!health.ok) {
+      show("API returned " + health.status, false);
+      return;
+    }
+    const body = await health.json();
+    const provider = body.llm_provider_name || body.llm_provider || "databricks";
+    show("API is " + (body.status || "up") + " · " + provider, true);
+  } catch (error) {
+    show("API is still starting", false);
+    setTimeout(load, 2000);
+    return;
+  }
+  try {
+    const setup = await fetch("/api/v1/setup/status");
+    if (!setup.ok) return;
+    const info = await setup.json();
+    if (info.needs_setup) form.hidden = false;
+    else loginForm.hidden = false;
+  } catch (error) {
+    loginForm.hidden = false;
+  }
+}
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  result.textContent = "Creating…";
+  const payload = {
+    admin_username: document.getElementById("username").value,
+    admin_email: document.getElementById("email").value,
+    admin_password: document.getElementById("password").value,
+    tenant_name: document.getElementById("tenant").value,
+    workspace_name: document.getElementById("workspace").value,
+    default_llm_provider: "databricks",
+    default_llm_model: "system.ai.llama-4-maverick",
+    default_embedding_provider: "databricks",
+    default_embedding_model: "system.ai.gte-large-en"
+  };
+  const response = await fetch("/api/v1/setup/initialize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const text = await response.text();
+  if (response.ok) {
+    form.hidden = true;
+    result.textContent = "";
+    loginForm.hidden = false;
+    show("Workspace created. Sign in with the admin user you just set.", true);
+  } else {
+    result.textContent = text.slice(0, 500);
+  }
+});
+
+loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  loginResult.textContent = "Signing in…";
+  const response = await fetch("/api/v1/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      username: document.getElementById("login-username").value,
+      password: document.getElementById("login-password").value
+    })
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    loginResult.textContent = text.slice(0, 400);
+    return;
+  }
+  loginForm.hidden = true;
+  show("Signed in. Open the API reference to use this workspace.", true);
+  window.location.href = "/";
+});
+
+load();
+</script>
+</body>
+</html>

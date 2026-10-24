@@ -157,9 +157,10 @@ pub use pool_bundle::{
 pub use quarantine_sink::PgQuarantineSink;
 #[allow(deprecated)]
 pub use rls::{
-    acquire_rls_connection, clear_tenant_context, clear_tenant_context_on_conn,
-    release_rls_connection, set_tenant_context, set_tenant_context_on_conn,
-    with_acquired_tenant_context, with_rls_transaction, RlsQueryBuilder, RlsTxFuture,
+    acquire_rls_connection, clear_tenant_context, clear_tenant_context_on_conn, pool_bypasses_rls,
+    release_rls_connection, session_bypasses_rls, set_tenant_context, set_tenant_context_on_conn,
+    with_acquired_tenant_context, with_rls_transaction, with_tenant_if_forced, RlsQueryBuilder,
+    RlsTxFuture,
 };
 pub use serving_fence_writer::{
     document_batch_deliveries_settled, open_serving_fence_when_deliveries_settled,

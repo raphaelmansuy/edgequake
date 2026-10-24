@@ -85,11 +85,22 @@ where
             content, start_offset, end_offset, token_count, metadata,
             page_start, page_end
         )
-        SELECT * FROM unnest(
+        SELECT u.document_id, u.tenant_id, u.workspace_id, u.chunk_index,
+               u.content, u.start_offset, u.end_offset, u.token_count, u.metadata,
+               u.page_start, u.page_end
+        FROM unnest(
             $1::uuid[], $2::uuid[], $3::uuid[], $4::int[],
             $5::text[], $6::int[], $7::int[], $8::int[], $9::jsonb[],
             $10::int[], $11::int[]
+        ) AS u(
+            document_id, tenant_id, workspace_id, chunk_index,
+            content, start_offset, end_offset, token_count, metadata,
+            page_start, page_end
         )
+        CROSS JOIN LATERAL (
+            SELECT set_config('app.current_tenant_id', COALESCE(u.tenant_id::text, ''), true),
+                   set_config('app.current_workspace_id', COALESCE(u.workspace_id::text, ''), true)
+        ) ctx
         ON CONFLICT (document_id, chunk_index) DO NOTHING
         RETURNING id
         "#,
@@ -372,6 +383,30 @@ pub(crate) async fn ensure_document_parent(
     tenant_id: Option<Uuid>,
     workspace_id: Option<Uuid>,
 ) -> Result<(), StorageError> {
+    // FORCE RLS checks the new row in this statement. A GUC set by an earlier
+    // statement is not visible here on the Lakebase proxy, so set_config runs
+    // in the same statement as the INSERT. No tenant keeps the historical
+    // statement used by tests.
+    if let Some(tenant) = tenant_id {
+        sqlx::query(
+            r#"
+            INSERT INTO public.documents (id, tenant_id, workspace_id, content, status)
+            SELECT $1, $2, $3, '', 'processing'
+            FROM (
+                SELECT set_config('app.current_tenant_id', $2::text, true),
+                       set_config('app.current_workspace_id', COALESCE($3::text, ''), true)
+            ) ctx
+            ON CONFLICT (id) DO NOTHING
+            "#,
+        )
+        .bind(document_id)
+        .bind(tenant)
+        .bind(workspace_id)
+        .execute(pool)
+        .await
+        .map_err(|e| StorageError::Database(format!("ensure document parent failed: {e}")))?;
+        return Ok(());
+    }
     sqlx::query(
         r#"
         INSERT INTO public.documents (id, tenant_id, workspace_id, content, status)
@@ -431,6 +466,39 @@ pub async fn ensure_admission_document_row_with_track(
     } else {
         title
     };
+    let title_owned = title.to_string();
+    let track_owned = track_id.map(str::to_string);
+    if let Some(tenant) = tenant_id {
+        sqlx::query(
+            r#"
+            INSERT INTO public.documents (id, tenant_id, workspace_id, title, content, status, track_id)
+            SELECT $1, $2, $3, $4, '', 'processing', $5
+            FROM (
+                SELECT set_config('app.current_tenant_id', $2::text, true),
+                       set_config('app.current_workspace_id', COALESCE($3::text, ''), true)
+            ) ctx
+            ON CONFLICT (id) DO UPDATE SET
+                tenant_id = COALESCE(documents.tenant_id, EXCLUDED.tenant_id),
+                workspace_id = COALESCE(documents.workspace_id, EXCLUDED.workspace_id),
+                title = CASE
+                    WHEN documents.title IN ('', 'Untitled') THEN EXCLUDED.title
+                    ELSE documents.title
+                END,
+                track_id = COALESCE(EXCLUDED.track_id, documents.track_id)
+            "#,
+        )
+        .bind(document_id)
+        .bind(tenant)
+        .bind(workspace_id)
+        .bind(title_owned)
+        .bind(track_owned.as_deref())
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            StorageError::Database(format!("ensure admission document row failed: {e}"))
+        })?;
+        return Ok(());
+    }
     sqlx::query(
         r#"
         INSERT INTO public.documents (id, tenant_id, workspace_id, title, content, status, track_id)
@@ -448,8 +516,8 @@ pub async fn ensure_admission_document_row_with_track(
     .bind(document_id)
     .bind(tenant_id)
     .bind(workspace_id)
-    .bind(title)
-    .bind(track_id)
+    .bind(title_owned)
+    .bind(track_owned.as_deref())
     .execute(pool)
     .await
     .map_err(|e| StorageError::Database(format!("ensure admission document row failed: {e}")))?;
@@ -473,8 +541,12 @@ async fn ensure_document_parents(pool: &PgPool, chunks: &[Chunk]) -> Result<(), 
     sqlx::query(
         r#"
         INSERT INTO public.documents (id, tenant_id, workspace_id, content, status)
-        SELECT id, tenant_id, workspace_id, '', 'processing'
+        SELECT t.id, t.tenant_id, t.workspace_id, '', 'processing'
         FROM unnest($1::uuid[], $2::uuid[], $3::uuid[]) AS t(id, tenant_id, workspace_id)
+        CROSS JOIN LATERAL (
+            SELECT set_config('app.current_tenant_id', COALESCE(t.tenant_id::text, ''), true),
+                   set_config('app.current_workspace_id', COALESCE(t.workspace_id::text, ''), true)
+        ) ctx
         ON CONFLICT (id) DO NOTHING
         "#,
     )
@@ -482,6 +554,42 @@ async fn ensure_document_parents(pool: &PgPool, chunks: &[Chunk]) -> Result<(), 
     .bind(&tenants)
     .bind(&workspaces)
     .execute(pool)
+    .await
+    .map_err(|e| StorageError::Database(format!("ensure document parents failed: {e}")))?;
+    Ok(())
+}
+
+async fn ensure_document_parents_on(
+    conn: &mut sqlx::PgConnection,
+    rows: &[ChunkInsertRow],
+) -> Result<(), StorageError> {
+    let mut seen = std::collections::HashSet::new();
+    let mut ids: Vec<Uuid> = Vec::new();
+    let mut tenants: Vec<Option<Uuid>> = Vec::new();
+    let mut workspaces: Vec<Option<Uuid>> = Vec::new();
+    for row in rows {
+        if seen.insert(row.document_id) {
+            ids.push(row.document_id);
+            tenants.push(row.tenant_id);
+            workspaces.push(row.workspace_id);
+        }
+    }
+    sqlx::query(
+        r#"
+        INSERT INTO public.documents (id, tenant_id, workspace_id, content, status)
+        SELECT t.id, t.tenant_id, t.workspace_id, '', 'processing'
+        FROM unnest($1::uuid[], $2::uuid[], $3::uuid[]) AS t(id, tenant_id, workspace_id)
+        CROSS JOIN LATERAL (
+            SELECT set_config('app.current_tenant_id', COALESCE(t.tenant_id::text, ''), true),
+                   set_config('app.current_workspace_id', COALESCE(t.workspace_id::text, ''), true)
+        ) ctx
+        ON CONFLICT (id) DO NOTHING
+        "#,
+    )
+    .bind(&ids)
+    .bind(&tenants)
+    .bind(&workspaces)
+    .execute(&mut *conn)
     .await
     .map_err(|e| StorageError::Database(format!("ensure document parents failed: {e}")))?;
     Ok(())
@@ -505,8 +613,6 @@ impl ChunkRepository for PostgresChunkRepository {
             return Ok(InsertReport::default());
         }
 
-        ensure_document_parents(&self.pool, chunks).await?;
-
         let rows: Vec<ChunkInsertRow> = chunks
             .iter()
             .map(|c| ChunkInsertRow {
@@ -524,7 +630,53 @@ impl ChunkRepository for PostgresChunkRepository {
             })
             .collect();
 
-        let inserted = insert_chunks_batch(&self.pool, &rows).await?.len() as u64;
+        // Superuser and tenant-less batches stay on the pool. A forced-RLS
+        // login (Lakebase) inserts each tenant scope inside one transaction
+        // so documents and chunks share current_tenant_id().
+        let forced = rows.iter().any(|row| row.tenant_id.is_some())
+            && !super::rls::pool_bypasses_rls(&self.pool).await?;
+        if !forced {
+            ensure_document_parents(&self.pool, chunks).await?;
+            let inserted = insert_chunks_batch(&self.pool, &rows).await?.len() as u64;
+            return Ok(InsertReport {
+                inserted,
+                skipped: chunks.len() as u64 - inserted,
+            });
+        }
+
+        let mut groups: std::collections::HashMap<(Uuid, Option<Uuid>), Vec<ChunkInsertRow>> =
+            std::collections::HashMap::new();
+        let mut unscoped = Vec::new();
+        for row in rows {
+            if let Some(tenant) = row.tenant_id {
+                groups
+                    .entry((tenant, row.workspace_id))
+                    .or_default()
+                    .push(row);
+            } else {
+                unscoped.push(row);
+            }
+        }
+        let mut inserted = 0u64;
+        for ((tenant, workspace), group) in groups {
+            inserted += super::rls::with_rls_transaction(
+                &self.pool,
+                tenant,
+                workspace,
+                None,
+                move |conn| {
+                    Box::pin(async move {
+                        ensure_document_parents_on(conn, &group).await?;
+                        let ids = insert_chunks_batch(&mut *conn, &group).await?;
+                        Ok(ids.len() as u64)
+                    })
+                },
+            )
+            .await?;
+        }
+        if !unscoped.is_empty() {
+            inserted += insert_chunks_batch(&self.pool, &unscoped).await?.len() as u64;
+        }
 
         Ok(InsertReport {
             inserted,

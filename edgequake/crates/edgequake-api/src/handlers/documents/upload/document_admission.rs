@@ -439,7 +439,11 @@ pub async fn admit_document_for_processing(
         .kv_storage
         .upsert(&[(
             kv_keys::staging_doc_content(&document_id),
-            json!({ "content": input.text_content }),
+            json!({
+                "content": input.text_content,
+                "tenant_id": tenant_id,
+                "workspace_id": workspace_id,
+            }),
         )])
         .await?;
 

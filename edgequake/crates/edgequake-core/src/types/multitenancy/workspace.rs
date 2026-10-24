@@ -507,6 +507,9 @@ impl Workspace {
             "mistral" => "mistral-small-latest".to_string(),
             "xai" => "grok-3-mini".to_string(),
             "lmstudio" | "openai-compatible" => "local-model".to_string(),
+            "databricks" | "mlflow" | "databricks-mlflow" => {
+                "system.ai.llama-4-maverick".to_string()
+            }
             // ollama and everything else: use the compiled-in Ollama default.
             _ => OLLAMA_DEFAULT_LLM_MODEL.to_string(),
         }
@@ -521,6 +524,7 @@ impl Workspace {
             "lmstudio" => "nomic-embed-text".to_string(),
             // Mistral native embedding — 1024 dimensions, optimised for retrieval.
             "mistral" => "mistral-embed".to_string(),
+            "databricks" | "mlflow" | "databricks-mlflow" => "system.ai.gte-large-en".to_string(),
             // ollama and everything else: use the compiled-in Ollama default.
             _ => OLLAMA_DEFAULT_EMBEDDING_MODEL.to_string(),
         }
@@ -568,7 +572,9 @@ impl Workspace {
             "mistral-embed" | "mistral-embed-2312" | "codestral-embed" | "codestral-embed-2505" => {
                 Some(1024)
             }
-            "mxbai-embed-large" | "mxbai-embed-large:latest" => Some(1024),
+            "system.ai.gte-large-en" | "mxbai-embed-large" | "mxbai-embed-large:latest" => {
+                Some(1024)
+            }
             _ if model.contains("768") => Some(768),
             _ if model.contains("1024") => Some(1024),
             _ if model.contains("3072") => Some(3072),

@@ -917,6 +917,10 @@ async fn async_main_postgres() -> Result<()> {
     }
     let _obs_guard = init_observability(ObservabilityConfig::from_env());
 
+    edgequake_api::databricks::prepare_process_env()
+        .await
+        .map_err(|error| anyhow::anyhow!(error))?;
+
     // SPEC-090 F-090-20b: `edgequake migrate` — admin-pool migrate + reconcile ledger.
     // SPEC-091 P4: `edgequake migrate status` — read-only progress ledger surface.
     let mut args = std::env::args().skip(1);

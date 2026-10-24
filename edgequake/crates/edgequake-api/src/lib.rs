@@ -95,6 +95,7 @@
 pub mod attribution;
 pub mod cache_manager;
 pub mod config_resolution;
+pub mod databricks;
 pub mod doctor;
 pub mod document_metadata;
 pub mod document_read_model;

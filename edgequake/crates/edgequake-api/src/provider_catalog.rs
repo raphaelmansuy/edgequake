@@ -136,6 +136,7 @@ mod tests {
             .map(|p| p.id.as_str())
             .collect();
         assert!(ids.contains(&"vertexai"));
+        assert!(ids.contains(&"databricks"));
     }
 
     #[test]

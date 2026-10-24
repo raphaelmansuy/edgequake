@@ -241,6 +241,7 @@ pub async fn dual_write_shell_upserts(
 }
 
 /// A parsed shell row ready for one `unnest` batch (DRY across kinds).
+#[derive(Clone, Copy)]
 struct ShellBatchRow<'a> {
     doc: Uuid,
     value: &'a Value,
@@ -271,12 +272,95 @@ fn partition_shell_pairs<'a>(
     buckets
 }
 
+fn json_uuid(value: &Value, key: &str) -> Option<Uuid> {
+    value
+        .get(key)
+        .and_then(|v| v.as_str())
+        .and_then(|s| Uuid::parse_str(s).ok())
+}
+
+/// Superuser sessions, and rows with no tenant, keep the historical statement.
+async fn shell_needs_tenant_scope(pool: &PgPool, rows: &[ShellBatchRow<'_>]) -> bool {
+    if !rows
+        .iter()
+        .any(|row| json_uuid(row.value, "tenant_id").is_some())
+    {
+        return false;
+    }
+    !super::rls::pool_bypasses_rls(pool).await.unwrap_or(true)
+}
+
+async fn owned_workspace(
+    pool: &PgPool,
+    tenant: Uuid,
+    workspace: Option<Uuid>,
+) -> Result<Option<Uuid>, sqlx::Error> {
+    let Some(workspace) = workspace else {
+        return Ok(None);
+    };
+    let owned: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM public.workspaces \
+         WHERE workspace_id = $1 AND tenant_id = $2 AND is_active)",
+    )
+    .bind(workspace)
+    .bind(tenant)
+    .fetch_one(pool)
+    .await?;
+    Ok(owned.then_some(workspace))
+}
+
 /// One round trip for `Metadata` shells: FK-guarded workspace/tenant column
 /// population via LEFT JOIN (mirrors the pre-batch per-row statement).
 async fn batch_shell_metadata(
     pool: &PgPool,
     rows: &[ShellBatchRow<'_>],
 ) -> Result<(), sqlx::Error> {
+    if rows.is_empty() || !shell_needs_tenant_scope(pool, rows).await {
+        return batch_shell_metadata_sql(pool, rows).await;
+    }
+    let mut groups: std::collections::HashMap<(Uuid, Option<Uuid>), Vec<ShellBatchRow<'_>>> =
+        std::collections::HashMap::new();
+    let mut plain = Vec::new();
+    for row in rows {
+        let Some(tenant) = json_uuid(row.value, "tenant_id") else {
+            plain.push(*row);
+            continue;
+        };
+        let workspace = owned_workspace(pool, tenant, json_uuid(row.value, "workspace_id")).await?;
+        groups.entry((tenant, workspace)).or_default().push(*row);
+    }
+    if !plain.is_empty() {
+        batch_shell_metadata_sql(pool, &plain).await?;
+    }
+    for ((tenant, workspace), group) in groups {
+        let owned: Vec<(Uuid, Value)> = group
+            .iter()
+            .map(|row| (row.doc, row.value.clone()))
+            .collect();
+        super::rls::with_rls_transaction(pool, tenant, workspace, None, move |conn| {
+            Box::pin(async move {
+                let rows: Vec<ShellBatchRow<'_>> = owned
+                    .iter()
+                    .map(|(doc, value)| ShellBatchRow { doc: *doc, value })
+                    .collect();
+                batch_shell_metadata_sql(&mut *conn, &rows)
+                    .await
+                    .map_err(|e| StorageError::Database(e.to_string()))
+            })
+        })
+        .await
+        .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+    }
+    Ok(())
+}
+
+async fn batch_shell_metadata_sql<'e, E>(
+    executor: E,
+    rows: &[ShellBatchRow<'_>],
+) -> Result<(), sqlx::Error>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+{
     let ids: Vec<Uuid> = rows.iter().map(|r| r.doc).collect();
     let metas: Vec<Value> = rows.iter().map(|r| r.value.clone()).collect();
     let titles: Vec<String> = rows
@@ -315,6 +399,8 @@ async fn batch_shell_metadata(
          SELECT u.id, u.title, '', u.status, u.metadata, w.workspace_id, t.tenant_id \
          FROM unnest($1::uuid[], $2::jsonb[], $3::text[], $4::uuid[], $5::uuid[], $6::text[]) \
              AS u(id, metadata, title, ws, tn, status) \
+         CROSS JOIN LATERAL (SELECT set_config('app.current_tenant_id', COALESCE(u.tn::text, ''), true), \
+                                    set_config('app.current_workspace_id', COALESCE(u.ws::text, ''), true)) ctx \
          LEFT JOIN workspaces w ON w.workspace_id = u.ws \
          LEFT JOIN tenants t ON t.tenant_id = u.tn \
          ON CONFLICT (id) DO UPDATE SET metadata = EXCLUDED.metadata, \
@@ -331,13 +417,59 @@ async fn batch_shell_metadata(
     .bind(&workspaces)
     .bind(&tenants)
     .bind(&statuses)
-    .execute(pool)
+    .execute(executor)
     .await?;
     Ok(())
 }
 
 /// One round trip for `Content`/`StagingContent` shells (identical shape).
 async fn batch_shell_content(pool: &PgPool, rows: &[ShellBatchRow<'_>]) -> Result<(), sqlx::Error> {
+    if rows.is_empty() || !shell_needs_tenant_scope(pool, rows).await {
+        return batch_shell_content_sql(pool, rows).await;
+    }
+    let mut groups: std::collections::HashMap<(Uuid, Option<Uuid>), Vec<ShellBatchRow<'_>>> =
+        std::collections::HashMap::new();
+    let mut plain = Vec::new();
+    for row in rows {
+        let Some(tenant) = json_uuid(row.value, "tenant_id") else {
+            plain.push(*row);
+            continue;
+        };
+        let workspace = owned_workspace(pool, tenant, json_uuid(row.value, "workspace_id")).await?;
+        groups.entry((tenant, workspace)).or_default().push(*row);
+    }
+    if !plain.is_empty() {
+        batch_shell_content_sql(pool, &plain).await?;
+    }
+    for ((tenant, workspace), group) in groups {
+        let owned: Vec<(Uuid, Value)> = group
+            .iter()
+            .map(|row| (row.doc, row.value.clone()))
+            .collect();
+        super::rls::with_rls_transaction(pool, tenant, workspace, None, move |conn| {
+            Box::pin(async move {
+                let rows: Vec<ShellBatchRow<'_>> = owned
+                    .iter()
+                    .map(|(doc, value)| ShellBatchRow { doc: *doc, value })
+                    .collect();
+                batch_shell_content_scoped(&mut *conn, &rows)
+                    .await
+                    .map_err(|e| StorageError::Database(e.to_string()))
+            })
+        })
+        .await
+        .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+    }
+    Ok(())
+}
+
+async fn batch_shell_content_sql<'e, E>(
+    executor: E,
+    rows: &[ShellBatchRow<'_>],
+) -> Result<(), sqlx::Error>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+{
     let ids: Vec<Uuid> = rows.iter().map(|r| r.doc).collect();
     let texts: Vec<String> = rows
         .iter()
@@ -358,7 +490,52 @@ async fn batch_shell_content(pool: &PgPool, rows: &[ShellBatchRow<'_>]) -> Resul
     )
     .bind(&ids)
     .bind(&texts)
-    .execute(pool)
+    .execute(executor)
+    .await?;
+    Ok(())
+}
+
+/// Same content upsert, but the new row carries the tenant so FORCE RLS
+/// `WITH CHECK` accepts a first insert. Conflict updates still touch content only.
+async fn batch_shell_content_scoped(
+    conn: &mut sqlx::PgConnection,
+    rows: &[ShellBatchRow<'_>],
+) -> Result<(), sqlx::Error> {
+    let ids: Vec<Uuid> = rows.iter().map(|r| r.doc).collect();
+    let texts: Vec<String> = rows
+        .iter()
+        .map(|r| {
+            r.value
+                .get("content")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string()
+        })
+        .collect();
+    let tenants: Vec<Option<Uuid>> = rows
+        .iter()
+        .map(|r| json_uuid(r.value, "tenant_id"))
+        .collect();
+    let workspaces: Vec<Option<Uuid>> = rows
+        .iter()
+        .map(|r| json_uuid(r.value, "workspace_id"))
+        .collect();
+    sqlx::query(
+        "INSERT INTO public.documents (id, content, status, tenant_id, workspace_id) \
+         SELECT u.id, u.content, 'processing', t.tenant_id, w.workspace_id \
+         FROM unnest($1::uuid[], $2::text[], $3::uuid[], $4::uuid[]) \
+             AS u(id, content, tenant_id, workspace_id) \
+         CROSS JOIN LATERAL (SELECT set_config('app.current_tenant_id', COALESCE(u.tenant_id::text, ''), true), \
+                                    set_config('app.current_workspace_id', COALESCE(u.workspace_id::text, ''), true)) ctx \
+         LEFT JOIN public.tenants t ON t.tenant_id = u.tenant_id \
+         LEFT JOIN public.workspaces w ON w.workspace_id = u.workspace_id AND w.tenant_id = t.tenant_id \
+         ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content, updated_at = now()",
+    )
+    .bind(&ids)
+    .bind(&texts)
+    .bind(&tenants)
+    .bind(&workspaces)
+    .execute(&mut *conn)
     .await?;
     Ok(())
 }
@@ -370,6 +547,52 @@ async fn batch_shell_staging_metadata(
     pool: &PgPool,
     rows: &[ShellBatchRow<'_>],
 ) -> Result<(), sqlx::Error> {
+    if rows.is_empty() || !shell_needs_tenant_scope(pool, rows).await {
+        return batch_shell_staging_metadata_sql(pool, rows).await;
+    }
+    let mut groups: std::collections::HashMap<(Uuid, Option<Uuid>), Vec<ShellBatchRow<'_>>> =
+        std::collections::HashMap::new();
+    let mut plain = Vec::new();
+    for row in rows {
+        let Some(tenant) = json_uuid(row.value, "tenant_id") else {
+            plain.push(*row);
+            continue;
+        };
+        let workspace = owned_workspace(pool, tenant, json_uuid(row.value, "workspace_id")).await?;
+        groups.entry((tenant, workspace)).or_default().push(*row);
+    }
+    if !plain.is_empty() {
+        batch_shell_staging_metadata_sql(pool, &plain).await?;
+    }
+    for ((tenant, workspace), group) in groups {
+        let owned: Vec<(Uuid, Value)> = group
+            .iter()
+            .map(|row| (row.doc, row.value.clone()))
+            .collect();
+        super::rls::with_rls_transaction(pool, tenant, workspace, None, move |conn| {
+            Box::pin(async move {
+                let rows: Vec<ShellBatchRow<'_>> = owned
+                    .iter()
+                    .map(|(doc, value)| ShellBatchRow { doc: *doc, value })
+                    .collect();
+                batch_shell_staging_metadata_sql(&mut *conn, &rows)
+                    .await
+                    .map_err(|e| StorageError::Database(e.to_string()))
+            })
+        })
+        .await
+        .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+    }
+    Ok(())
+}
+
+async fn batch_shell_staging_metadata_sql<'e, E>(
+    executor: E,
+    rows: &[ShellBatchRow<'_>],
+) -> Result<(), sqlx::Error>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+{
     let ids: Vec<Uuid> = rows.iter().map(|r| r.doc).collect();
     let shells: Vec<Value> = rows
         .iter()
@@ -395,6 +618,8 @@ async fn batch_shell_staging_metadata(
          SELECT u.id, u.title, '', u.status, u.metadata \
          FROM unnest($1::uuid[], $2::jsonb[], $3::text[], $4::text[]) \
              AS u(id, metadata, title, status) \
+         CROSS JOIN LATERAL (SELECT set_config('app.current_tenant_id', COALESCE(u.metadata->>'tenant_id', ''), true), \
+                                    set_config('app.current_workspace_id', COALESCE(u.metadata->>'workspace_id', ''), true)) ctx \
          ON CONFLICT (id) DO UPDATE SET metadata = EXCLUDED.metadata, \
              title = CASE WHEN EXCLUDED.title = '' THEN documents.title \
                           ELSE EXCLUDED.title END, \
@@ -404,7 +629,7 @@ async fn batch_shell_staging_metadata(
     .bind(&shells)
     .bind(&titles)
     .bind(&statuses)
-    .execute(pool)
+    .execute(executor)
     .await?;
     Ok(())
 }

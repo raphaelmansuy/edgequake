@@ -113,6 +113,9 @@ fn task_from_row(row: &PgRow) -> TaskResult<Task> {
 #[derive(Debug, Clone)]
 pub struct PostgresTaskStorage {
     pool: Arc<PgPool>,
+    /// Cached `rolsuper OR rolbypassrls`. Superuser sessions keep every
+    /// statement on the historical pool path.
+    bypasses_rls: Arc<std::sync::OnceLock<bool>>,
 }
 
 #[cfg(feature = "postgres")]
@@ -121,12 +124,114 @@ impl PostgresTaskStorage {
     pub fn new(pool: PgPool) -> Self {
         Self {
             pool: Arc::new(pool),
+            bypasses_rls: Arc::new(std::sync::OnceLock::new()),
         }
     }
 
     /// Create from an Arc pool
     pub fn from_arc(pool: Arc<PgPool>) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            bypasses_rls: Arc::new(std::sync::OnceLock::new()),
+        }
+    }
+
+    async fn rls_bypassed(&self) -> TaskResult<bool> {
+        if let Some(bypass) = self.bypasses_rls.get() {
+            return Ok(*bypass);
+        }
+        let bypass = crate::task_rls::pool_bypasses_rls(&self.pool).await?;
+        let _ = self.bypasses_rls.set(bypass);
+        Ok(self.bypasses_rls.get().copied().unwrap_or(bypass))
+    }
+
+    async fn touch_task_scoped(&self, track_id: &str) -> TaskResult<()> {
+        let mut tx = self.pool.begin().await.map_err(|e| {
+            TaskError::StorageError(format!("Failed to begin touch_task transaction: {e}"))
+        })?;
+        let tenants = crate::task_rls::active_tenants(&mut tx).await?;
+        for tenant in tenants {
+            crate::task_rls::install_tenant_scope(&mut tx, tenant, None).await?;
+            let affected = sqlx::query("UPDATE tasks SET updated_at = NOW() WHERE track_id = $1")
+                .bind(track_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| TaskError::StorageError(format!("Failed to touch task: {e}")))?
+                .rows_affected();
+            if affected > 0 {
+                tx.commit().await.map_err(|e| {
+                    TaskError::StorageError(format!("Failed to commit touch_task: {e}"))
+                })?;
+                return Ok(());
+            }
+        }
+        let _ = tx.rollback().await;
+        Ok(())
+    }
+
+    async fn fetch_task_in_workspace(
+        &self,
+        sql: &str,
+        workspace_id: Uuid,
+        pdf_id: &str,
+    ) -> TaskResult<Option<Task>> {
+        let tenant: Option<Uuid> = sqlx::query_scalar(
+            "SELECT tenant_id FROM public.workspaces WHERE workspace_id = $1 AND is_active",
+        )
+        .bind(workspace_id)
+        .fetch_optional(&*self.pool)
+        .await
+        .map_err(|e| TaskError::StorageError(format!("Failed to resolve workspace tenant: {e}")))?;
+        let Some(tenant) = tenant else {
+            return Ok(None);
+        };
+        let mut tx = self.pool.begin().await.map_err(|e| {
+            TaskError::StorageError(format!("Failed to begin workspace task lookup: {e}"))
+        })?;
+        crate::task_rls::install_tenant_scope(&mut tx, tenant, Some(workspace_id)).await?;
+        let row = sqlx::query(sql)
+            .bind(workspace_id)
+            .bind(pdf_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|e| TaskError::StorageError(format!("Failed to fetch workspace task: {e}")))?;
+        tx.commit().await.map_err(|e| {
+            TaskError::StorageError(format!("Failed to commit workspace task lookup: {e}"))
+        })?;
+        match row {
+            Some(row) => Ok(Some(task_from_row(&row)?)),
+            None => Ok(None),
+        }
+    }
+
+    async fn update_progress_scoped(
+        &self,
+        track_id: &str,
+        progress_json: &serde_json::Value,
+    ) -> TaskResult<()> {
+        let mut tx = self.pool.begin().await.map_err(|e| {
+            TaskError::StorageError(format!("Failed to begin progress transaction: {e}"))
+        })?;
+        let tenants = crate::task_rls::active_tenants(&mut tx).await?;
+        for tenant in tenants {
+            crate::task_rls::install_tenant_scope(&mut tx, tenant, None).await?;
+            let affected = sqlx::query(
+                "UPDATE tasks SET progress = $2, updated_at = NOW() WHERE track_id = $1",
+            )
+            .bind(track_id)
+            .bind(progress_json)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| TaskError::StorageError(format!("Failed to update task progress: {e}")))?
+            .rows_affected();
+            if affected > 0 {
+                break;
+            }
+        }
+        tx.commit().await.map_err(|e| {
+            TaskError::StorageError(format!("Failed to commit progress transaction: {e}"))
+        })?;
+        Ok(())
     }
 }
 
@@ -254,7 +359,17 @@ impl TaskStorage for PostgresTaskStorage {
         let pdf_id = pdf_id_column_value(task);
         let document_id = task.document_id();
 
-        sqlx::query(
+        let mut scoped = None;
+        if !self.rls_bypassed().await? {
+            let mut tx = self.pool.begin().await.map_err(|e| {
+                TaskError::StorageError(format!("Failed to begin create_task transaction: {e}"))
+            })?;
+            crate::task_rls::install_tenant_scope(&mut tx, task.tenant_id, Some(task.workspace_id))
+                .await?;
+            scoped = Some(tx);
+        }
+
+        let query = sqlx::query(
             r#"
             INSERT INTO tasks (
                 track_id, tenant_id, workspace_id, task_type, status, created_at, updated_at,
@@ -262,7 +377,12 @@ impl TaskStorage for PostgresTaskStorage {
                 max_retries, consecutive_timeout_failures, circuit_breaker_tripped,
                 payload, progress, result, lease_owner, lease_token, lease_expires_at, pdf_id,
                 document_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+            )
+            SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
+            FROM (
+                SELECT set_config('app.current_tenant_id', $2::text, true),
+                       set_config('app.current_workspace_id', $3::text, true)
+            ) ctx
             "#,
         )
         .bind(&task.track_id)
@@ -287,15 +407,46 @@ impl TaskStorage for PostgresTaskStorage {
         .bind(task.lease_token)
         .bind(task.lease_expires_at)
         .bind(&pdf_id)
-        .bind(&document_id)
-        .execute(&*self.pool)
-        .await
-        .map_err(|e| TaskError::StorageError(format!("Failed to create task: {}", e)))?;
+        .bind(&document_id);
+        let result = if let Some(tx) = scoped.as_mut() {
+            query.execute(&mut **tx).await
+        } else {
+            query.execute(&*self.pool).await
+        };
+        result.map_err(|e| TaskError::StorageError(format!("Failed to create task: {}", e)))?;
+        if let Some(tx) = scoped {
+            tx.commit().await.map_err(|e| {
+                TaskError::StorageError(format!("Failed to commit create_task transaction: {e}"))
+            })?;
+        }
 
         Ok(())
     }
 
     async fn get_task(&self, track_id: &str) -> TaskResult<Option<Task>> {
+        if !self.rls_bypassed().await? {
+            let mut tx = self.pool.begin().await.map_err(|e| {
+                TaskError::StorageError(format!("Failed to begin get_task transaction: {e}"))
+            })?;
+            let tenants = crate::task_rls::active_tenants(&mut tx).await?;
+            let sql = format!("SELECT {TASK_SELECT_COLUMNS} FROM tasks WHERE track_id = $1");
+            for tenant in tenants {
+                crate::task_rls::install_tenant_scope(&mut tx, tenant, None).await?;
+                if let Some(row) = sqlx::query(&sql)
+                    .bind(track_id)
+                    .fetch_optional(&mut *tx)
+                    .await
+                    .map_err(|e| TaskError::StorageError(format!("Failed to fetch task: {e}")))?
+                {
+                    tx.commit().await.map_err(|e| {
+                        TaskError::StorageError(format!("Failed to commit get_task: {e}"))
+                    })?;
+                    return Ok(Some(task_from_row(&row)?));
+                }
+            }
+            let _ = tx.rollback().await;
+            return Ok(None);
+        }
         let sql = format!("SELECT {TASK_SELECT_COLUMNS} FROM tasks WHERE track_id = $1");
         let row = sqlx::query(&sql)
             .bind(track_id)
@@ -336,6 +487,9 @@ impl TaskStorage for PostgresTaskStorage {
     /// serialize/deserialize the JSONB payload column. Workers call this every
     /// 60 seconds during long-running LLM extraction to signal liveness.
     async fn touch_task(&self, track_id: &str) -> TaskResult<()> {
+        if !self.rls_bypassed().await? {
+            return self.touch_task_scoped(track_id).await;
+        }
         sqlx::query("UPDATE tasks SET updated_at = NOW() WHERE track_id = $1")
             .bind(track_id)
             .execute(&*self.pool)
@@ -351,6 +505,9 @@ impl TaskStorage for PostgresTaskStorage {
     ) -> TaskResult<()> {
         let progress_json = serde_json::to_value(progress)
             .map_err(|e| TaskError::StorageError(format!("Failed to serialize progress: {e}")))?;
+        if !self.rls_bypassed().await? {
+            return self.update_progress_scoped(track_id, &progress_json).await;
+        }
         let result = sqlx::query(
             r#"
             UPDATE tasks SET progress = $2, updated_at = NOW()
@@ -380,7 +537,17 @@ impl TaskStorage for PostgresTaskStorage {
             .transpose()
             .map_err(|e| TaskError::StorageError(format!("Failed to serialize progress: {e}")))?;
 
-        let result = sqlx::query(
+        let mut scoped = None;
+        if !self.rls_bypassed().await? {
+            let mut tx = self.pool.begin().await.map_err(|e| {
+                TaskError::StorageError(format!("Failed to begin update_task transaction: {e}"))
+            })?;
+            crate::task_rls::install_tenant_scope(&mut tx, task.tenant_id, Some(task.workspace_id))
+                .await?;
+            scoped = Some(tx);
+        }
+
+        let query = sqlx::query(
             r#"
             UPDATE tasks SET
                 status = $2,
@@ -416,10 +583,19 @@ impl TaskStorage for PostgresTaskStorage {
         .bind(&task.result)
         .bind(&task.lease_owner)
         .bind(task.lease_token)
-        .bind(task.lease_expires_at)
-        .execute(&*self.pool)
-        .await
-        .map_err(|e| TaskError::StorageError(format!("Failed to update task: {}", e)))?;
+        .bind(task.lease_expires_at);
+        let result = if let Some(tx) = scoped.as_mut() {
+            query.execute(&mut **tx).await
+        } else {
+            query.execute(&*self.pool).await
+        };
+        let result =
+            result.map_err(|e| TaskError::StorageError(format!("Failed to update task: {}", e)))?;
+        if let Some(tx) = scoped {
+            tx.commit().await.map_err(|e| {
+                TaskError::StorageError(format!("Failed to commit update_task transaction: {e}"))
+            })?;
+        }
 
         if result.rows_affected() == 0 {
             return Err(TaskError::TaskNotFound(task.track_id.clone()));
@@ -525,6 +701,11 @@ impl TaskStorage for PostgresTaskStorage {
             .begin()
             .await
             .map_err(|e| TaskError::StorageError(format!("Failed to begin list_tasks txn: {e}")))?;
+        if !crate::task_rls::session_bypasses_rls(&mut tx).await? {
+            if let Some(tenant) = filter.tenant_id {
+                crate::task_rls::install_tenant_scope(&mut tx, tenant, filter.workspace_id).await?;
+            }
+        }
         sqlx::query(&format!(
             "SET LOCAL statement_timeout = '{LIST_STATEMENT_TIMEOUT_MS}ms'"
         ))
@@ -645,6 +826,11 @@ impl TaskStorage for PostgresTaskStorage {
             .begin()
             .await
             .map_err(|e| TaskError::StorageError(format!("Failed to begin statistics txn: {e}")))?;
+        if !crate::task_rls::session_bypasses_rls(&mut tx).await? {
+            if let Some(tenant) = filter.tenant_id {
+                crate::task_rls::install_tenant_scope(&mut tx, tenant, filter.workspace_id).await?;
+            }
+        }
         sqlx::query(&format!(
             "SET LOCAL statement_timeout = '{STATS_STATEMENT_TIMEOUT_MS}ms'"
         ))
@@ -716,6 +902,11 @@ impl TaskStorage for PostgresTaskStorage {
             LIMIT 1
             "#
         );
+        if !self.rls_bypassed().await? {
+            return self
+                .fetch_task_in_workspace(&sql, workspace_id, &pdf_id_str)
+                .await;
+        }
         let row = sqlx::query(&sql)
             .bind(workspace_id)
             .bind(&pdf_id_str)
@@ -749,6 +940,11 @@ impl TaskStorage for PostgresTaskStorage {
             LIMIT 1
             "#
         );
+        if !self.rls_bypassed().await? {
+            return self
+                .fetch_task_in_workspace(&sql, workspace_id, &pdf_id_str)
+                .await;
+        }
         let row = sqlx::query(&sql)
             .bind(workspace_id)
             .bind(&pdf_id_str)
@@ -793,6 +989,23 @@ impl TaskStorage for PostgresTaskStorage {
             .begin()
             .await
             .map_err(|e| TaskError::StorageError(format!("Failed to begin claim_next txn: {e}")))?;
+
+        // Superuser claim is one pass over every visible row. A forced-RLS
+        // login sees one tenant per pass; rotate the start so a busy tenant
+        // does not hide the others.
+        let subject_to_rls = !crate::task_rls::session_bypasses_rls(&mut tx).await?;
+        let scope_tenants: Vec<Option<Uuid>> = if subject_to_rls {
+            let mut ids = crate::task_rls::active_tenants(&mut tx).await?;
+            if ids.is_empty() {
+                let _ = tx.rollback().await;
+                return Ok(None);
+            }
+            let start = (Utc::now().timestamp().rem_euclid(ids.len() as i64)) as usize;
+            ids.rotate_left(start);
+            ids.into_iter().map(Some).collect()
+        } else {
+            vec![None]
+        };
 
         // SPEC-057 INV-06: exclude active holds; prefer under-cap tenants; then
         // SPEC-084 workspace-fair (least loaded, oldest). FP-2: held Pending and
@@ -910,29 +1123,35 @@ impl TaskStorage for PostgresTaskStorage {
             stale_sample = FAIR_STALE_SAMPLE_SQL,
         );
 
-        let fair_ws: Option<Uuid> = sqlx::query_scalar(&fair_pick_sql)
-            .bind(CLAIM_SAMPLE_LIMIT)
-            .bind(max_ingest)
-            .bind(max_lifecycle)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|e| TaskError::StorageError(format!("Failed to pick fair workspace: {e}")))?;
+        for scope in scope_tenants {
+            if let Some(tenant) = scope {
+                crate::task_rls::install_tenant_scope(&mut tx, tenant, None).await?;
+            }
 
-        let Some(fair_ws) = fair_ws else {
-            let _ = tx.rollback().await;
-            return Ok(None);
-        };
+            let fair_ws: Option<Uuid> = sqlx::query_scalar(&fair_pick_sql)
+                .bind(CLAIM_SAMPLE_LIMIT)
+                .bind(max_ingest)
+                .bind(max_lifecycle)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|e| {
+                    TaskError::StorageError(format!("Failed to pick fair workspace: {e}"))
+                })?;
 
-        // SPEC-091 QW0 (LAW-Q2): guard fragments come from the state machine SSOT
-        // (`CLAIM_PENDING_GUARD_SQL`, `CLAIM_STALE_GUARD_SQL`). Each arm requires
-        // one predicate so a generic plan can start at that index and stop at
-        // one row. A single `IS NULL OR` walks every older held task.
-        let claim_arm_sql = |arms: &[&str]| {
-            let union = arms
-                .iter()
-                .map(|arm| {
-                    format!(
-                        r#"
+            let Some(fair_ws) = fair_ws else {
+                continue;
+            };
+
+            // SPEC-091 QW0 (LAW-Q2): guard fragments come from the state machine SSOT
+            // (`CLAIM_PENDING_GUARD_SQL`, `CLAIM_STALE_GUARD_SQL`). Each arm requires
+            // one predicate so a generic plan can start at that index and stop at
+            // one row. A single `IS NULL OR` walks every older held task.
+            let claim_arm_sql = |arms: &[&str]| {
+                let union = arms
+                    .iter()
+                    .map(|arm| {
+                        format!(
+                            r#"
                         (SELECT picked.track_id, picked.at_cap, picked.created_at
                          FROM (SELECT 1) AS seed
                          JOIN LATERAL (
@@ -947,14 +1166,14 @@ impl TaskStorage for PostgresTaskStorage {
                              FOR UPDATE OF t2 SKIP LOCKED
                              LIMIT 1
                          ) picked ON true)"#,
-                        at_cap = at_cap_expr,
-                        tenant_inflight = tenant_inflight_sql,
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join(" UNION ALL ");
-            format!(
-                r#"
+                            at_cap = at_cap_expr,
+                            tenant_inflight = tenant_inflight_sql,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" UNION ALL ");
+                format!(
+                    r#"
                 UPDATE tasks t
                 SET status = 'processing',
                     lease_owner = $1,
@@ -974,43 +1193,15 @@ impl TaskStorage for PostgresTaskStorage {
                 WHERE t.track_id = candidate.track_id
                 RETURNING {TASK_RETURNING_COLUMNS_ALIASED}
                 "#
-            )
-        };
+                )
+            };
 
-        let pending_guard = crate::state_machine::CLAIM_PENDING_GUARD_SQL;
-        let pending_sql = claim_arm_sql(&[
-            &format!("{pending_guard} AND fairness_hold_until IS NULL"),
-            &format!("{pending_guard} AND fairness_hold_until <= NOW()"),
-        ]);
-        let row = match sqlx::query(&pending_sql)
-            .bind(worker_id)
-            .bind(lease_token)
-            .bind(lease_expires_at)
-            .bind(fair_ws)
-            .fetch_optional(&mut *tx)
-            .await
-        {
-            Ok(row) => row,
-            Err(e) => {
-                let _ = tx.rollback().await;
-                return Err(TaskError::StorageError(format!(
-                    "Failed to claim pending task: {e}"
-                )));
-            }
-        };
-
-        let row = if row.is_some() {
-            row
-        } else {
-            // Arms split `CLAIM_STALE_GUARD_SQL`: a null lease and an expired
-            // lease each require the hold, so neither predicate is an OR.
-            let stale_sql = claim_arm_sql(&[
-                "status = 'processing' AND lease_expires_at IS NULL AND fairness_hold_until IS NULL",
-                "status = 'processing' AND lease_expires_at IS NULL AND fairness_hold_until <= NOW()",
-                "status = 'processing' AND lease_expires_at < NOW() AND fairness_hold_until IS NULL",
-                "status = 'processing' AND lease_expires_at < NOW() AND fairness_hold_until <= NOW()",
+            let pending_guard = crate::state_machine::CLAIM_PENDING_GUARD_SQL;
+            let pending_sql = claim_arm_sql(&[
+                &format!("{pending_guard} AND fairness_hold_until IS NULL"),
+                &format!("{pending_guard} AND fairness_hold_until <= NOW()"),
             ]);
-            match sqlx::query(&stale_sql)
+            let row = match sqlx::query(&pending_sql)
                 .bind(worker_id)
                 .bind(lease_token)
                 .bind(lease_expires_at)
@@ -1022,20 +1213,49 @@ impl TaskStorage for PostgresTaskStorage {
                 Err(e) => {
                     let _ = tx.rollback().await;
                     return Err(TaskError::StorageError(format!(
-                        "Failed to claim stale processing task: {e}"
+                        "Failed to claim pending task: {e}"
                     )));
                 }
+            };
+
+            let row = if row.is_some() {
+                row
+            } else {
+                // Arms split `CLAIM_STALE_GUARD_SQL`: a null lease and an expired
+                // lease each require the hold, so neither predicate is an OR.
+                let stale_sql = claim_arm_sql(&[
+                "status = 'processing' AND lease_expires_at IS NULL AND fairness_hold_until IS NULL",
+                "status = 'processing' AND lease_expires_at IS NULL AND fairness_hold_until <= NOW()",
+                "status = 'processing' AND lease_expires_at < NOW() AND fairness_hold_until IS NULL",
+                "status = 'processing' AND lease_expires_at < NOW() AND fairness_hold_until <= NOW()",
+            ]);
+                match sqlx::query(&stale_sql)
+                    .bind(worker_id)
+                    .bind(lease_token)
+                    .bind(lease_expires_at)
+                    .bind(fair_ws)
+                    .fetch_optional(&mut *tx)
+                    .await
+                {
+                    Ok(row) => row,
+                    Err(e) => {
+                        let _ = tx.rollback().await;
+                        return Err(TaskError::StorageError(format!(
+                            "Failed to claim stale processing task: {e}"
+                        )));
+                    }
+                }
+            };
+
+            if let Some(row) = row {
+                tx.commit().await.map_err(|e| {
+                    TaskError::StorageError(format!("Failed to commit claim_next txn: {e}"))
+                })?;
+                return Ok(Some(task_from_row(&row)?));
             }
-        };
-
-        tx.commit().await.map_err(|e| {
-            TaskError::StorageError(format!("Failed to commit claim_next txn: {e}"))
-        })?;
-
-        match row {
-            Some(row) => Ok(Some(task_from_row(&row)?)),
-            None => Ok(None),
         }
+        let _ = tx.rollback().await;
+        Ok(None)
     }
 
     async fn mark_fairness_hold(&self, track_id: &str, hold_ttl: Duration) -> TaskResult<()> {
