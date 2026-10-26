@@ -8,6 +8,8 @@
  */
 "use client";
 
+import type { UploadAccess } from "@/lib/clearance/access-draft";
+import { createUploadScopeGuard } from "@/lib/upload/upload-scope-guard";
 import type {
   DuplicateResolutions,
   PendingDuplicate,
@@ -93,6 +95,7 @@ export interface UseFileUploadReturn {
   handleFilesUpload: (
     files: File[],
     uploadOptions?: {
+      accessByFile?: Map<File, UploadAccess>;
       pdfParserBackend?: "vision" | "edgeparse" | "edgeparse-ocr" | "auto";
       visionReasoningEffort?: string;
     },
@@ -183,11 +186,13 @@ export function useFileUpload(
     async (
       files: File[],
       uploadOptions?: {
+      accessByFile?: Map<File, UploadAccess>;
         pdfParserBackend?: "vision" | "edgeparse" | "edgeparse-ocr" | "auto";
         visionReasoningEffort?: string;
       },
     ) => {
       if (files.length === 0) return;
+      const assertScope = createUploadScopeGuard();
 
       // Suppress only exact files already in flight. A global isUploading guard
       // contradicted "Add more files anytime" and silently discarded later batches.
@@ -320,6 +325,8 @@ export function useFileUpload(
               };
 
               const uploadResult = await performFileUpload(file, {
+                assertScope,
+                access: uploadOptions?.accessByFile?.get(file),
                 expectedBatchCount: acceptedFiles.length,
                 batchTrackId,
                 pdfParserBackend:

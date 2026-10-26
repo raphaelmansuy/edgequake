@@ -24,6 +24,7 @@ export interface MultipartUploadProgress {
 }
 
 export interface MultipartUploadOptions {
+  assertScope?: () => void;
   fileSizeBytes?: number;
   timeoutMs?: number;
   onProgress?: (progress: MultipartUploadProgress) => void;
@@ -48,8 +49,10 @@ function xhrPostMultipart<T>(
   onProgress: MultipartUploadOptions["onProgress"],
   silent: boolean,
   isRetry: boolean,
+  assertScope?: () => void,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
+    assertScope?.();
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url);
     xhr.timeout = timeoutMs;
@@ -89,6 +92,7 @@ function xhrPostMultipart<T>(
               onProgress,
               silent,
               true,
+              assertScope,
             );
             resolve(retried);
           } catch (err) {
@@ -154,5 +158,6 @@ export async function postMultipart<T>(
     options.onProgress,
     options.silent ?? false,
     false,
+    options.assertScope,
   );
 }

@@ -146,6 +146,7 @@ describe("performFileUpload", () => {
         source_type: "markdown",
         track_id: "batch-1",
       }),
+      { assertScope: undefined },
     );
     expect(uploadFile).not.toHaveBeenCalled();
     expect(result.source_type).toBe("markdown");
@@ -215,6 +216,7 @@ describe("performFileUpload", () => {
     );
     expect(uploadDocument).toHaveBeenCalledWith(
       expect.objectContaining({ extraction_mode: "decision" }),
+      { assertScope: undefined },
     );
   });
 });

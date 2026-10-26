@@ -1,3 +1,4 @@
+import { appendUploadAccess, type UploadAccess } from "@/lib/clearance/access-draft";
 import {
   postMultipart,
   type MultipartUploadProgress,
@@ -24,6 +25,9 @@ export interface DocumentsListResult extends PaginatedResponse<Document> {
 
 export async function getDocuments(
   params?: PaginationParams & {
+    classification?: string;
+    security_tag_ids?: string;
+    review_state?: string;
     status?: string;
     date_from?: string;
     date_to?: string;
@@ -36,6 +40,9 @@ export async function getDocuments(
     sort_by: params?.sort_by,
     sort_order: params?.sort_order,
     status: params?.status,
+    classification: params?.classification,
+    security_tag_ids: params?.security_tag_ids,
+    review_state: params?.review_state,
     date_from: params?.date_from,
     date_to: params?.date_to,
     document_pattern: params?.document_pattern,
@@ -71,17 +78,20 @@ export async function getDocument(documentId: string): Promise<Document> {
 
 export async function uploadDocument(
   data: UploadDocumentRequest,
+  options?: { assertScope?: () => void },
 ): Promise<UploadDocumentResponse> {
-  return api.post<UploadDocumentResponse>("/documents", data);
+  return api.post<UploadDocumentResponse>("/documents", data, options);
 }
 
 export async function uploadFile(
   file: File,
-  options?: { onUploadProgress?: (progress: MultipartUploadProgress) => void },
+  options?: { assertScope?: () => void; access?: UploadAccess; onUploadProgress?: (progress: MultipartUploadProgress) => void },
 ): Promise<UploadDocumentResponse> {
   const formData = new FormData();
   formData.append("file", file);
+  appendUploadAccess(formData, options?.access);
   return postMultipart<UploadDocumentResponse>("/documents/upload", formData, {
+    assertScope: options?.assertScope,
     fileSizeBytes: file.size,
     onProgress: options?.onUploadProgress,
   });
@@ -97,6 +107,7 @@ export async function uploadPdfDocument(
 ): Promise<PdfUploadResponse> {
   const formData = buildPdfUploadFormData(file, options);
   return postMultipart<PdfUploadResponse>("/documents/pdf", formData, {
+    assertScope: options?.assertScope,
     fileSizeBytes: file.size,
     onProgress: options?.onUploadProgress,
   });

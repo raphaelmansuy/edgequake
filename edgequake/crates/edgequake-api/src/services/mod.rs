@@ -23,6 +23,9 @@ pub mod context_bundle_mapper;
 pub mod converting_subprogress;
 pub mod cost_aggregation;
 pub mod decision_cleanup;
+#[cfg(feature = "postgres")]
+pub mod document_access;
+pub mod document_access_types;
 pub mod document_assets;
 pub mod document_body_loader;
 pub mod document_delete_admit;

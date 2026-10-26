@@ -137,6 +137,7 @@ pub async fn retry_pdf_processing(
             .await
             .map_err(|e| ApiError::Internal(e.to_string()))?;
         let mut options = PdfUploadOptions {
+            access: None,
             enable_vision: true,
             vision_provider: None,
             vision_model: None,

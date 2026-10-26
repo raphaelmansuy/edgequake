@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { prepareMembersPage } from "./spec169/helpers/members-mock";
 import { applyTheme, setViewport, shot } from "./spec174/helpers/shots";
+import { mockSettingsAccess } from "./spec175/helpers/access-mock";
 
 const HIDDEN = "Restricted atlas payroll";
 const WS = "spec155-ws-001";
@@ -42,6 +43,11 @@ function rule(match_kind: string, effect: string, rank: number | null, tag_ids: 
 const json = (route: Route, data: unknown) => route.fulfill({ json: data });
 
 async function accessRoutes(page: Page, state: ReturnType<typeof accessState>) {
+  const sessionUser={id:'spec155-user-001',user_id:'spec155-user-001',tenant_id:'spec155-tenant-001',username:'demo',email:'demo@example.test',role:'admin',is_active:true};
+  await page.route('**/api/v1/auth/refresh',route=>json(route,{access_token:'spec174-ui-fixture',token_type:'Bearer',expires_in:3600,user:sessionUser}));
+  await page.route('**/api/v1/auth/me',route=>json(route,sessionUser));
+  await mockSettingsAccess(page,'platform_admin');
+
   await page.route(BASE, async (route) => {
     if (route.request().method() === "GET") {
       await json(route, {
@@ -115,6 +121,10 @@ async function documentRoutes(page: Page, state: ReturnType<typeof accessState>)
   await page.route("**/api/v1/documents/doc-public", (route) =>
     route.request().method() === "GET" ? json(route, LIBRARY_DOCUMENT) : route.fallback(),
   );
+  const capabilities={can_edit:true,can_downgrade:true,can_manage_vocabulary:true,can_check_member:false};
+  await page.route(`${BASE}/assignment-options?*`,route=>json(route,{enforcement:true,policy_epoch:1,break_glass:false,can_upload:true,capabilities,classifications:['public','internal','confidential','restricted'],tags:state.tags,next_cursor:null}));
+  await page.route("**/api/v1/documents/doc-public/access",route=>json(route,{document_id:'doc-public',access:{classification:'internal',compartment_ids:['tag-hr'],expected_policy_epoch:1},label_version:1,policy_epoch:1,enforcement:true,capabilities,tags:state.tags.filter(tag=>tag.id==='tag-hr')}));
+  await page.route(`${BASE}/preview`,route=>json(route,{allowed:true,policy_epoch:1,items:[{allowed:true,requires_reason:false,change_kind:'strengthen',reason:null}]}));
   await page.route("**/api/v1/documents/doc-public/labels", async (route) => {
     state.labelWrites.push({ documentId: "doc-public", body: route.request().postDataJSON() });
     await route.fulfill({ status: 204, body: "" });
@@ -129,8 +139,7 @@ test.describe("SPEC-174 document clearance", () => {
     await prepareMembersPage(page);
     await accessRoutes(page, state);
     await setViewport(page, 1440);
-    await page.goto("/settings", { waitUntil: "domcontentloaded" });
-    await page.getByRole("link", { name: "Access" }).click();
+    await page.goto("/settings/workspace/access", { waitUntil: "domcontentloaded" });
     const card = page.getByTestId("document-labels-card");
     await expect(card).toBeVisible({ timeout: 30_000 });
     await card.scrollIntoViewIfNeeded();
@@ -227,12 +236,13 @@ test.describe("SPEC-174 document clearance", () => {
     const editor = page.getByTestId("document-access-editor");
     await expect(editor).toBeVisible();
     await shot(page, "document-access-editor");
-    await editor.getByRole("combobox", { name: "Classification" }).click();
+    await editor.getByRole("combobox", { name: "Sensitivity" }).click();
     await page.getByRole("option", { name: "Confidential" }).click();
-    await page.keyboard.press("Escape");
+    expect(state.labelWrites).toHaveLength(0);
+    await editor.getByRole('button',{name:'Save access',exact:true}).click();
     await expect(editor).toHaveCount(0);
     await expect.poll(() => state.labelWrites.length).toBe(1);
-    expect(state.labelWrites[0].body).toEqual({ classification: "confidential", compartment_ids: ["tag-hr"] });
+    expect(state.labelWrites[0].body).toEqual({ classification: "confidential", compartment_ids: ["tag-hr"],expected_policy_epoch:1 });
   });
 
   test("hidden title is absent from the library", async ({ page }) => {

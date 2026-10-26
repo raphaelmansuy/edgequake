@@ -3324,6 +3324,33 @@
             }
           },
           {
+            "name": "classification",
+            "in": "query",
+            "description": "Document sensitivity",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "security_tag_ids",
+            "in": "query",
+            "description": "Comma-separated required security tag UUIDs, all must match",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "review_state",
+            "in": "query",
+            "description": "any, reviewed, or needs_review",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "date_from",
             "in": "query",
             "description": "Inclusive start date (ISO 8601)",
@@ -3536,6 +3563,46 @@
           },
           "409": {
             "description": "Workspace wipe already in flight"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/documents/labels/batch": {
+      "post": {
+        "tags": [
+          "Clearance"
+        ],
+        "operationId": "batch_document_access",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessMutationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Access changes committed atomically",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           }
         },
         "security": [
@@ -4683,6 +4750,53 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DeleteDocumentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/documents/{document_id}/access": {
+      "get": {
+        "tags": [
+          "Clearance"
+        ],
+        "operationId": "get_document_access",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "description": "Document",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Saved access and capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentAccessView"
                 }
               }
             }
@@ -11347,6 +11461,198 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/clearance/assignment-options": {
+      "get": {
+        "tags": [
+          "Clearance"
+        ],
+        "operationId": "get_access_assignment_options",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assignable access options",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentOptions"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/clearance/members": {
+      "get": {
+        "tags": [
+          "Clearance"
+        ],
+        "operationId": "search_access_members",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded steward-only member lookup",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/clearance/operations/{operation_id}": {
+      "get": {
+        "tags": [
+          "Clearance"
+        ],
+        "operationId": "get_access_operation",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "operation_id",
+            "in": "path",
+            "description": "Operation",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation outcome",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/clearance/preview": {
+      "post": {
+        "tags": [
+          "Clearance"
+        ],
+        "operationId": "preview_document_access",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Exact access preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessPreviewResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/clearance/roles": {
       "get": {
         "tags": [
@@ -12510,8 +12816,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "rebuild_embeddings",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "rebuild_embeddings"
       }
     },
     "/api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph": {
@@ -12658,8 +12964,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "reprocess_all",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "reprocess_all"
       }
     },
     "/api/v1/workspaces/{workspace_id}/stats": {
@@ -13259,8 +13565,8 @@
             "description": "WebSocket upgrade failed"
           }
         },
-        "x-edgequake-transport": "websocket",
-        "x-edgequake-upgrade": "RFC6455"
+        "x-edgequake-upgrade": "RFC6455",
+        "x-edgequake-transport": "websocket"
       }
     },
     "/ws/progress/{track_id}": {
@@ -13291,8 +13597,8 @@
             "description": "Track not found for this workspace"
           }
         },
-        "x-edgequake-upgrade": "RFC6455",
-        "x-edgequake-transport": "websocket"
+        "x-edgequake-transport": "websocket",
+        "x-edgequake-upgrade": "RFC6455"
       }
     }
   },
@@ -13358,6 +13664,35 @@
           "tenant_id": {},
           "tenant_name": {},
           "username": {}
+        }
+      },
+      "AccessCapabilities": {
+        "type": "object",
+        "required": [
+          "can_edit",
+          "can_downgrade",
+          "can_manage_vocabulary",
+          "can_check_member"
+        ],
+        "properties": {
+          "can_check_member": {
+            "type": "boolean"
+          },
+          "can_downgrade": {
+            "type": "boolean"
+          },
+          "can_edit": {
+            "type": "boolean"
+          },
+          "can_manage_vocabulary": {
+            "type": "boolean"
+          }
+        },
+        "example": {
+          "can_check_member": {},
+          "can_downgrade": {},
+          "can_edit": {},
+          "can_manage_vocabulary": {}
         }
       },
       "AccessLinkIssued": {
@@ -13442,6 +13777,136 @@
           "purpose": {},
           "tenant_name": {},
           "username": {}
+        }
+      },
+      "AccessMutation": {
+        "type": "object",
+        "required": [
+          "items",
+          "operation_id"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessMutationItem"
+            }
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "example": {
+          "items": [],
+          "operation_id": {},
+          "reason": {}
+        }
+      },
+      "AccessMutationItem": {
+        "type": "object",
+        "required": [
+          "document_id",
+          "label_version",
+          "access"
+        ],
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/DocumentAccess"
+          },
+          "document_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label_version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "example": {
+          "access": {},
+          "document_id": {},
+          "label_version": {}
+        }
+      },
+      "AccessMutationRequest": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/BulkAccessIntent"
+          },
+          {
+            "$ref": "#/components/schemas/AccessMutation"
+          }
+        ]
+      },
+      "AccessPreviewRequest": {
+        "type": "object",
+        "required": [
+          "mode",
+          "items",
+          "expected_policy_epoch"
+        ],
+        "properties": {
+          "check_member_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "expected_policy_epoch": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewItem"
+            }
+          },
+          "mode": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "check_member_id": {},
+          "expected_policy_epoch": {},
+          "items": [],
+          "mode": {}
+        }
+      },
+      "AccessPreviewResponse": {
+        "type": "object",
+        "required": [
+          "allowed",
+          "policy_epoch",
+          "items"
+        ],
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewResult"
+            }
+          },
+          "policy_epoch": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "example": {
+          "allowed": {},
+          "items": [],
+          "policy_epoch": {}
         }
       },
       "AgentHints": {
@@ -13790,6 +14255,64 @@
         },
         "example": {
           "role_ids": []
+        }
+      },
+      "AssignmentOptions": {
+        "type": "object",
+        "required": [
+          "enforcement",
+          "policy_epoch",
+          "break_glass",
+          "can_upload",
+          "capabilities",
+          "classifications",
+          "tags"
+        ],
+        "properties": {
+          "break_glass": {
+            "type": "boolean"
+          },
+          "can_upload": {
+            "type": "boolean"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/AccessCapabilities"
+          },
+          "classifications": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "enforcement": {
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "policy_epoch": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SecurityTag"
+            }
+          }
+        },
+        "example": {
+          "break_glass": {},
+          "can_upload": {},
+          "capabilities": {},
+          "classifications": [],
+          "enforcement": {},
+          "next_cursor": {},
+          "policy_epoch": {},
+          "tags": []
         }
       },
       "AttributionSettingsResponse": {
@@ -14217,6 +14740,86 @@
           "build_timestamp": {},
           "git_branch": {},
           "git_hash": {}
+        }
+      },
+      "BulkAccessIntent": {
+        "type": "object",
+        "required": [
+          "operation",
+          "items",
+          "expected_policy_epoch",
+          "operation_id"
+        ],
+        "properties": {
+          "classification": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "compartment_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "expected_policy_epoch": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BulkAccessTarget"
+            }
+          },
+          "operation": {
+            "type": "string"
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "example": {
+          "classification": {},
+          "compartment_ids": [],
+          "expected_policy_epoch": {},
+          "items": [],
+          "operation": {},
+          "operation_id": {},
+          "reason": {}
+        }
+      },
+      "BulkAccessTarget": {
+        "type": "object",
+        "required": [
+          "document_id",
+          "label_version"
+        ],
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label_version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "example": {
+          "document_id": {},
+          "label_version": {}
         }
       },
       "BulkArchiveRequest": {
@@ -18485,6 +19088,89 @@
           "description": {},
           "source_chunk_id": {},
           "version": {}
+        }
+      },
+      "DocumentAccess": {
+        "type": "object",
+        "required": [
+          "classification",
+          "compartment_ids",
+          "expected_policy_epoch"
+        ],
+        "properties": {
+          "classification": {
+            "type": "string"
+          },
+          "compartment_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "expected_policy_epoch": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "example": {
+          "classification": {},
+          "compartment_ids": [],
+          "expected_policy_epoch": {}
+        }
+      },
+      "DocumentAccessView": {
+        "type": "object",
+        "required": [
+          "document_id",
+          "access",
+          "label_version",
+          "policy_epoch",
+          "enforcement",
+          "capabilities",
+          "tags",
+          "explanation"
+        ],
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/DocumentAccess"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/AccessCapabilities"
+          },
+          "document_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "enforcement": {
+            "type": "boolean"
+          },
+          "explanation": {},
+          "label_version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "policy_epoch": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SecurityTag"
+            }
+          }
+        },
+        "example": {
+          "access": {},
+          "capabilities": {},
+          "document_id": {},
+          "enforcement": {},
+          "explanation": {},
+          "label_version": {},
+          "policy_epoch": {},
+          "tags": []
         }
       },
       "DocumentCostInfo": {
@@ -27661,7 +28347,8 @@
         "type": "object",
         "required": [
           "classification",
-          "compartment_ids"
+          "compartment_ids",
+          "expected_policy_epoch"
         ],
         "properties": {
           "classification": {
@@ -27673,11 +28360,23 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "expected_policy_epoch": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "example": {
           "classification": {},
-          "compartment_ids": []
+          "compartment_ids": [],
+          "expected_policy_epoch": {},
+          "reason": {}
         }
       },
       "PdfBatchFileResult": {
@@ -28881,6 +29580,90 @@
           "pgvector_version": {},
           "postgres_major": {},
           "uuidv7_available": {}
+        }
+      },
+      "PreviewItem": {
+        "type": "object",
+        "required": [
+          "access"
+        ],
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/DocumentAccess"
+          },
+          "document_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "label_version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        },
+        "example": {
+          "access": {},
+          "document_id": {},
+          "label_version": {}
+        }
+      },
+      "PreviewResult": {
+        "type": "object",
+        "required": [
+          "allowed",
+          "requires_reason",
+          "change_kind",
+          "caller_can_read"
+        ],
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "caller_can_read": {
+            "type": "boolean"
+          },
+          "change_kind": {
+            "type": "string"
+          },
+          "member_can_read": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "normalized_access": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DocumentAccess"
+              }
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requires_reason": {
+            "type": "boolean"
+          }
+        },
+        "example": {
+          "allowed": {},
+          "caller_can_read": {},
+          "change_kind": {},
+          "member_can_read": {},
+          "normalized_access": {},
+          "reason": {},
+          "requires_reason": {}
         }
       },
       "ProbeErrorKind": {
@@ -33267,6 +34050,31 @@
           "steward": {}
         }
       },
+      "SecurityTag": {
+        "type": "object",
+        "required": [
+          "id",
+          "key",
+          "value"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "id": {},
+          "key": {},
+          "value": {}
+        }
+      },
       "ServerDefaultsResponse": {
         "type": "object",
         "description": "Response for server-wide defaults.",
@@ -36503,6 +37311,16 @@
           "content"
         ],
         "properties": {
+          "access": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DocumentAccess"
+              }
+            ]
+          },
           "async_processing": {
             "type": "boolean",
             "description": "Whether to process asynchronously (default: false for backwards compatibility)"

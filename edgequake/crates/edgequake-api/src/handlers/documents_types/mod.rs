@@ -28,6 +28,7 @@ mod tests {
     #[test]
     fn test_upload_request_validation() {
         let request = UploadDocumentRequest {
+            access: None,
             content: "Test content".to_string(),
             title: Some("Test".to_string()),
             metadata: None,

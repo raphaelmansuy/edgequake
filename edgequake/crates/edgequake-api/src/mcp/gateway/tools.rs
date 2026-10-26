@@ -339,6 +339,7 @@ fn eq_ingest_tool() -> Value {
             "additionalProperties": false,
             "properties": {
                 "content": { "type": "string" },
+                "access": document_access_schema(),
                 "title": { "type": "string" },
                 "upload_ref": { "type": "string" },
                 "workspace_id": { "type": "string", "x-mcp-header": "Workspace-Id" }
@@ -490,6 +491,7 @@ fn eq_upload_begin_tool() -> Value {
             "required": ["filename", "byte_length", "sha256"],
             "properties": {
                 "filename": { "type": "string" },
+                "access": document_access_schema(),
                 "media_type": { "type": "string" },
                 "byte_length": { "type": "integer", "minimum": 1 },
                 "sha256": { "type": "string" },
@@ -505,6 +507,14 @@ fn eq_upload_begin_tool() -> Value {
             "openWorldHint": true
         }
     })
+}
+
+fn document_access_schema() -> Value {
+    json!({"type":"object","additionalProperties":false,"required":["classification","compartment_ids","expected_policy_epoch"],"properties":{
+        "classification":{"type":"string","enum":["public","internal","confidential","restricted","unverified"]},
+        "compartment_ids":{"type":"array","maxItems":32,"items":{"type":"string","format":"uuid"}},
+        "expected_policy_epoch":{"type":"integer"}
+    }})
 }
 
 fn eq_upload_write_tool() -> Value {

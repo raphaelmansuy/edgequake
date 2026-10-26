@@ -54,7 +54,11 @@ export function useClearanceRoles(workspaceId: string | null | undefined, enable
  * up in the list at once.
  */
 export async function invalidateClearanceViews(queryClient: QueryClient, workspaceId: string) {
+  const sensitive = ['document', 'graph', 'query-context', 'retrieval-context', 'query', 'chat', 'access-member-search', 'access-member-check'];
+  await Promise.all(sensitive.map(key => queryClient.cancelQueries({ queryKey: [key] })));
+  for (const key of sensitive) queryClient.removeQueries({ queryKey: [key] });
   await Promise.all([
+    ...['document-access', 'document-access-options', 'document-access-tags', 'bulk-document-access', 'document-access-preview', 'bulk-access-preview', 'upload-access-preview'].map(key => queryClient.invalidateQueries({ queryKey: [key] })),
     queryClient.invalidateQueries({ queryKey: clearanceQueryKey(workspaceId) }),
     queryClient.invalidateQueries({ queryKey: clearanceTagsKey(workspaceId) }),
     queryClient.invalidateQueries({ queryKey: clearanceRolesKey(workspaceId) }),

@@ -14,6 +14,7 @@
  * @implements FEAT0602 - Real-time progress indicators
  */
 'use client';
+import { documentLabelSummary } from "@/lib/clearance/summary";
 
 import { Checkbox } from '@/components/ui/checkbox';
 import { TableCell, TableRow } from '@/components/ui/table';
@@ -127,13 +128,9 @@ function highlightMatches(text: string, query: string): React.ReactNode {
 }
 
 function accessToken(doc: { classification?: string | null; compartments?: Array<{ value: string }> | null }) {
-  const word = doc.classification
-    ? doc.classification.charAt(0).toUpperCase() + doc.classification.slice(1)
-    : "";
-  const names = (doc.compartments ?? []).map((item) => item.value);
-  const shown = names.slice(0, 2).join(", ");
-  const extra = names.length > 2 ? ` +${names.length - 2}` : "";
-  return [word, shown].filter(Boolean).join(" ") + extra;
+  const names = (doc.compartments ?? []).map(item => item.value);
+  const summary = documentLabelSummary(doc.classification ?? '', names.slice(0, 2), true);
+  return summary + (names.length > 2 ? ` +${names.length - 2}` : '');
 }
 
 /**

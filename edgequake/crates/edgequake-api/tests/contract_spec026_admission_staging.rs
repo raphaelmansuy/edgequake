@@ -29,6 +29,7 @@ fn tenant_ctx() -> TenantContext {
 
 fn sample_input(content: &str, hash: &str) -> DocumentAdmissionInput {
     DocumentAdmissionInput {
+        access: None,
         text_content: content.to_string(),
         title: "spec026-staging.txt".to_string(),
         source_type: "text",

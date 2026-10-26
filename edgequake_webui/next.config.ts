@@ -6,6 +6,8 @@ import { resolveDevProxyBackend } from "./src/lib/server/dev-proxy-backend";
 const DEV_PROXY_TIMEOUT_MS = 600_000;
 
 const nextConfig: NextConfig = {
+  // Independent dev/E2E servers must not share Next build locks.
+  distDir: process.env.EDGEQUAKE_NEXT_DIST_DIR || ".next",
   // ============================================================================
   // Build Performance Optimization
   // Prevents CPU overload during compilation

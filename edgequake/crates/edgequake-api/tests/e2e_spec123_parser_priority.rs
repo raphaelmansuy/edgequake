@@ -417,6 +417,7 @@ async fn e2e_pdf_upload_options_honor_tenant_vision() {
     assert_eq!(vision.model, "mistral-small-latest");
 
     let upload_wins = PdfUploadOptions {
+        access: None,
         vision_provider: Some("openai".into()),
         vision_model: Some("gpt-4.1-nano".into()),
         ..Default::default()

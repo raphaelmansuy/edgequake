@@ -53,7 +53,7 @@ pub fn release_for_schema(max_version: i64) -> &'static str {
         207 => "v0.35.1",
         208..=214 => "v0.36.0",
         215..=218 => "v0.37.0",
-        219..=224 => "v0.38.0",
+        219..=225 => "v0.38.0",
         _ => "newer-than-matrix",
     }
 }

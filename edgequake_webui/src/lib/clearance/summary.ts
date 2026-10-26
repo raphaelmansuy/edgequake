@@ -46,7 +46,7 @@ export function profileSummary(draft: ProfileDraft, names: Map<string, string>):
 
 /** Words for a document's classification. Stewards see "Not reviewed"; others see "Only you". */
 export function classificationWord(word: ClassificationWord | string, steward: boolean): string {
-  if (word === "unverified") return steward ? "Not reviewed" : "Only you, until reviewed";
+  if (word === "unverified") return steward ? "Needs review" : "You and authorized security stewards, until reviewed";
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 

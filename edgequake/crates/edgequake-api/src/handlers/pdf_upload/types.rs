@@ -11,6 +11,7 @@ pub use edgequake_tasks::{
 /// PDF upload options.
 #[derive(Debug, Clone, Default)]
 pub struct PdfUploadOptions {
+    pub access: Option<crate::services::document_access_types::DocumentAccess>,
     /// Enable vision LLM processing (default: true).
     pub enable_vision: bool,
     /// Vision provider to use. None = use workspace config then server default.
@@ -151,6 +152,7 @@ mod tests {
     #[test]
     fn resolved_process_options_defaults_i_for_vision_upload() {
         let opts = PdfUploadOptions {
+            access: None,
             enable_vision: true,
             ..Default::default()
         };
@@ -163,6 +165,7 @@ mod tests {
     #[test]
     fn resolved_process_options_respects_explicit_override() {
         let opts = PdfUploadOptions {
+            access: None,
             enable_vision: true,
             process_options: Some("te".into()),
             ..Default::default()
@@ -176,6 +179,7 @@ mod tests {
     #[test]
     fn resolved_process_options_skipped_when_vision_disabled() {
         let opts = PdfUploadOptions {
+            access: None,
             enable_vision: false,
             ..Default::default()
         };
@@ -222,6 +226,7 @@ mod tests {
         ws.pdf_parser_backend = Some(PdfParserBackend::Vision);
 
         let mut opts = PdfUploadOptions {
+            access: None,
             vision_provider: Some("openai".into()),
             vision_model: Some("gpt-4o".into()),
             pdf_parser_backend: Some(PdfParserBackend::EdgeParse),

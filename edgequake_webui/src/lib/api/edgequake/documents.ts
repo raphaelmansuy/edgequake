@@ -1,3 +1,4 @@
+import { appendUploadAccess, type UploadAccess } from "@/lib/clearance/access-draft";
 /**
  * Domain API module — split from edgequake.ts (SPEC-017 UI-DRY-001).
  */
@@ -29,6 +30,9 @@ export interface DocumentsListResult extends PaginatedResponse<Document> {
 
 export async function getDocuments(
   params?: PaginationParams & {
+    classification?: string;
+    security_tag_ids?: string;
+    review_state?: string;
     status?: string;
     /** @implements SPEC-005 */
     date_from?: string;
@@ -44,6 +48,9 @@ export async function getDocuments(
     sort_by: params?.sort_by,
     sort_order: params?.sort_order,
     status: params?.status,
+    classification: params?.classification,
+    security_tag_ids: params?.security_tag_ids,
+    review_state: params?.review_state,
     date_from: params?.date_from,
     date_to: params?.date_to,
     document_pattern: params?.document_pattern,
@@ -83,13 +90,14 @@ export async function getDocument(documentId: string): Promise<Document> {
 
 export async function uploadDocument(
   data: UploadDocumentRequest,
+  options?: { assertScope?: () => void },
 ): Promise<UploadDocumentResponse> {
-  return api.post<UploadDocumentResponse>("/documents", data);
+  return api.post<UploadDocumentResponse>("/documents", data, options);
 }
 
 export async function uploadFile(
   file: File,
-  options?: {
+  options?: { assertScope?: () => void; access?: UploadAccess;
     onUploadProgress?: (progress: MultipartUploadProgress) => void;
     /** SPEC-160: omit to inherit the workspace default. */
     extraction_mode?: ExtractionModeWord;
@@ -97,9 +105,11 @@ export async function uploadFile(
 ): Promise<UploadDocumentResponse> {
   const formData = new FormData();
   formData.append("file", file);
+  appendUploadAccess(formData, options?.access);
   appendExtractionMode(formData, options?.extraction_mode);
 
   return postMultipart<UploadDocumentResponse>("/documents/upload", formData, {
+    assertScope: options?.assertScope,
     fileSizeBytes: file.size,
     onProgress: options?.onUploadProgress,
   });
@@ -122,6 +132,7 @@ export async function uploadPdfDocument(
   const formData = buildPdfUploadFormData(file, options);
 
   return postMultipart<PdfUploadResponse>("/documents/pdf", formData, {
+    assertScope: options?.assertScope,
     fileSizeBytes: file.size,
     onProgress: options?.onUploadProgress,
   });

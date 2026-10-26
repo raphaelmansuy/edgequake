@@ -1,7 +1,6 @@
 import { api } from "@/lib/api/client";
 import type { ClearanceRuleBody } from "./rules";
 import type {
-  ClassificationWord,
   ClearanceSettings,
   ClearanceTag,
   MemberRolesResponse,
@@ -35,10 +34,5 @@ export const clearanceApi = {
   simulate: (workspaceId: string, roleIds: string[]) =>
     api.post<{ titles: string[]; count?: number | null }>(`${base(workspaceId)}/simulate`, {
       role_ids: roleIds,
-    }),
-  relabel: (documentId: string, classification: ClassificationWord, compartmentIds: string[]) =>
-    api.patch<void>(`/documents/${documentId}/labels`, {
-      classification,
-      compartment_ids: compartmentIds,
     }),
 };

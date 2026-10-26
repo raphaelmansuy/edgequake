@@ -34,6 +34,9 @@ use crate::handlers::documents_types::*;
     params(
         ("page" = Option<usize>, Query, description = "Page number (default 1)"),
         ("page_size" = Option<usize>, Query, description = "Page size (default 20, max 100)"),
+        ("classification" = Option<String>, Query, description = "Document sensitivity"),
+        ("security_tag_ids" = Option<String>, Query, description = "Comma-separated required security tag UUIDs, all must match"),
+        ("review_state" = Option<String>, Query, description = "any, reviewed, or needs_review"),
         ("date_from" = Option<String>, Query, description = "Inclusive start date (ISO 8601)"),
         ("date_to" = Option<String>, Query, description = "Inclusive end date (ISO 8601)"),
         ("document_pattern" = Option<String>, Query, description = "Case-insensitive title substring (comma = OR)"),
@@ -95,6 +98,18 @@ pub(crate) async fn list_documents_inner(
     params: ListDocumentsRequest,
     deadline: Instant,
 ) -> ApiResult<Json<ListDocumentsResponse>> {
+    #[cfg(feature = "postgres")]
+    if params.classification.is_some()
+        || params.security_tag_ids.is_some()
+        || params.review_state.is_some()
+    {
+        if let Some(pool) = _pg_runtime.optional_pg_pool() {
+            return Ok(Json(
+                crate::services::document_access::list_access_filtered(pool, &tenant_ctx, &params)
+                    .await?,
+            ));
+        }
+    }
     debug!(
         tenant_id = ?tenant_ctx.tenant_id,
         workspace_id = ?tenant_ctx.workspace_id,

@@ -200,21 +200,44 @@ pub(crate) async fn list_tasks_response(
         after_track_id,
     };
 
-    let task_list = state
-        .tasks
-        .storage
-        .list_tasks(filter.clone(), pagination)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to list tasks: {}", e)))?;
+    #[cfg(feature = "postgres")]
+    let scoped = if edgequake_storage::clearance_session::ClearanceSession::current()
+        .is_some_and(|session| session.enforced)
+    {
+        let pool = state
+            .optional_pg_pool()
+            .ok_or_else(|| ApiError::Internal("PostgreSQL is required".into()))?;
+        let actor = crate::services::document_access::AccessActor::from_context(tenant_ctx)?;
+        Some(
+            crate::services::document_access::list_scoped_tasks(pool, &actor, &filter, &pagination)
+                .await?,
+        )
+    } else {
+        None
+    };
+    #[cfg(not(feature = "postgres"))]
+    let scoped: Option<(edgequake_tasks::TaskList, edgequake_tasks::TaskStatistics)> = None;
+    let (task_list, stats) = if let Some(scoped) = scoped {
+        scoped
+    } else {
+        let task_list = state
+            .tasks
+            .storage
+            .list_tasks(filter.clone(), pagination)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to list tasks: {}", e)))?;
 
-    // Get statistics with the same filter to ensure tenant isolation
-    // WHY: Statistics must respect the same tenant/workspace filters as the task list
-    let stats = state
-        .tasks
-        .storage
-        .get_statistics(filter)
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to get statistics: {}", e)))?;
+        // Get statistics with the same filter to ensure tenant isolation
+        // WHY: Statistics must respect the same tenant/workspace filters as the task list
+        let stats = state
+            .tasks
+            .storage
+            .get_statistics(filter)
+            .await
+            .map_err(|e| ApiError::Internal(format!("Failed to get statistics: {}", e)))?;
+
+        (task_list, stats)
+    };
 
     Ok(TaskListResponse {
         tasks: task_list

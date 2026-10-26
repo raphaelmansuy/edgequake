@@ -61,6 +61,7 @@ impl GleaningAdmissionOptions {
 /// Input for admitting a document into the async worker queue.
 #[derive(Debug, Clone)]
 pub struct DocumentAdmissionInput {
+    pub access: Option<crate::services::document_access_types::DocumentAccess>,
     pub text_content: String,
     pub title: String,
     pub source_type: &'static str,
@@ -134,6 +135,14 @@ pub async fn admit_document_for_processing(
     input: DocumentAdmissionInput,
     track_prefix: &str,
 ) -> ApiResult<DocumentAdmissionOutcome> {
+    crate::services::document_access_types::validate_security_metadata(
+        input.custom_metadata.as_ref(),
+    )?;
+    #[cfg(feature = "postgres")]
+    if let Some(pool) = state.optional_pg_pool() {
+        crate::services::document_access::validate_upload(pool, tenant_ctx, input.access.as_ref())
+            .await?;
+    }
     let workspace_id = tenant_ctx.workspace_id_or_default();
     let tenant_id = tenant_ctx.tenant_id_or_default();
 
@@ -172,6 +181,16 @@ pub async fn admit_document_for_processing(
         DuplicateReingestAction::StillProcessing {
             existing_document_id,
         } => {
+            #[cfg(feature = "postgres")]
+            if let Some(pool) = state.optional_pg_pool() {
+                crate::services::document_access::check_duplicate_access(
+                    pool,
+                    tenant_ctx,
+                    &existing_document_id,
+                    input.access.as_ref(),
+                )
+                .await?;
+            }
             return Ok(DocumentAdmissionOutcome::DuplicateProcessing(
                 DocumentAdmissionDuplicateProcessing {
                     document_id: existing_document_id,
@@ -188,6 +207,21 @@ pub async fn admit_document_for_processing(
     )
     .await?
     {
+        if crate::services::clearance::must_hide(&staging_doc).await? {
+            return Err(ApiError::Conflict(
+                "This content cannot be admitted in the current scope".into(),
+            ));
+        }
+        #[cfg(feature = "postgres")]
+        if let Some(pool) = state.optional_pg_pool() {
+            crate::services::document_access::check_duplicate_access(
+                pool,
+                tenant_ctx,
+                &staging_doc,
+                input.access.as_ref(),
+            )
+            .await?;
+        }
         return Ok(DocumentAdmissionOutcome::DuplicateProcessing(
             DocumentAdmissionDuplicateProcessing {
                 document_id: staging_doc,
@@ -206,17 +240,6 @@ pub async fn admit_document_for_processing(
     let client_track_id = input.build_track_id(track_prefix);
     let content_summary = crate::validation::generate_content_summary(&input.text_content);
     let content_length = input.text_content.len();
-
-    // P-11: staging reservation only until worker promotes on success
-    // (SPEC-091 W2: KV + typed ingestion_dedup dual write).
-    crate::services::ingestion_dedup_store::reserve_staging(
-        state,
-        &workspace_id,
-        &input.content_hash,
-        &document_id,
-        Some(&tenant_id),
-    )
-    .await?;
 
     let chunk_options_json = input
         .chunk_options
@@ -267,6 +290,31 @@ pub async fn admit_document_for_processing(
     let task_id = task.track_id.clone();
     // 068: metadata.track_id == task_id (insert-*) — sole progress / cancel / WS key.
     let track_id = task_id.clone();
+
+    #[cfg(feature = "postgres")]
+    if let Some(pool) = state.optional_pg_pool() {
+        crate::services::document_access::admit_initial_access(
+            pool,
+            tenant_ctx,
+            Uuid::parse_str(&document_id)
+                .map_err(|_| ApiError::Internal("Invalid document identity".into()))?,
+            &input.title,
+            &track_id,
+            input.access.as_ref(),
+        )
+        .await?;
+    }
+
+    // P-11: staging reservation only until worker promotes on success
+    // (SPEC-091 W2: KV + typed ingestion_dedup dual write).
+    crate::services::ingestion_dedup_store::reserve_staging(
+        state,
+        &workspace_id,
+        &input.content_hash,
+        &document_id,
+        Some(&tenant_id),
+    )
+    .await?;
 
     // SPEC-091 Wave B3 + Doc 23 LAW-KVH4: admission-time `documents` row with
     // typed `track_id` so list/cancel/wsdoc read relationally from admission.
@@ -454,7 +502,6 @@ pub async fn admit_document_for_processing(
         content_hash: Some(input.content_hash.clone()),
         content_type: input.mime_type.clone(),
     };
-    state.enqueue_task(task).await?;
     if let Err(error) =
         crate::services::provision_relational_document_shell(state, &document_id, &relational_shell)
             .await
@@ -468,6 +515,8 @@ pub async fn admit_document_for_processing(
             "Document admitted but relational queue shell could not be projected"
         );
     }
+
+    state.enqueue_task(task).await?;
 
     // SPEC-091 QW2 (LAW-Q4): project queue position + ETA at admission.
     // Best-effort: projection failure never blocks admission.
@@ -584,6 +633,7 @@ pub fn parse_document_extract_caps(
 #[derive(Debug, Default, Clone)]
 pub struct MultipartUploadFields {
     pub metadata: Option<Value>,
+    access_form: crate::services::document_access_types::AccessForm,
     chunk_strategy_raw: Option<String>,
     chunk_options_raw: Option<Value>,
     extract_max_entities: Option<u32>,
@@ -593,8 +643,15 @@ pub struct MultipartUploadFields {
 }
 
 impl MultipartUploadFields {
+    pub fn access(
+        &self,
+    ) -> ApiResult<Option<crate::services::document_access_types::DocumentAccess>> {
+        self.access_form.finish()
+    }
+
     pub fn ingest_text_field(&mut self, name: &str, text: &str) {
         match name {
+            "access" => self.access_form.ingest(text),
             "metadata" if !text.is_empty() => {
                 self.metadata = serde_json::from_str(text).ok();
             }
@@ -789,6 +846,7 @@ mod tests {
     #[test]
     fn admission_markdown_source_selects_markdown_chunker() {
         let input = DocumentAdmissionInput {
+            access: None,
             text_content: "# Title\n\nBody".into(),
             title: "bench001-smoke".into(),
             source_type: "markdown",
@@ -817,6 +875,7 @@ mod tests {
     #[test]
     fn admission_explicit_recursive_is_preserved() {
         let input = DocumentAdmissionInput {
+            access: None,
             text_content: "plain".into(),
             title: "bench001-smoke".into(),
             source_type: "markdown",

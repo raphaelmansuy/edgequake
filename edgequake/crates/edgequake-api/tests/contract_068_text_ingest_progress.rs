@@ -42,6 +42,7 @@ fn sample_md_input(
     client_track: Option<&str>,
 ) -> DocumentAdmissionInput {
     DocumentAdmissionInput {
+        access: None,
         text_content: content.to_string(),
         title: "long_2607.14952v2.md".to_string(),
         source_type: "markdown",

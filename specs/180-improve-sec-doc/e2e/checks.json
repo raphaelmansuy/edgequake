@@ -1,0 +1,79 @@
+{
+  "validated_at_utc": "2026-10-26T16:59:53.523635+00:00",
+  "source_baseline": "8d46d2ab4af5424c99c873404cad1c80948787b4",
+  "working_tree_implementation": true,
+  "environment": {
+    "database": "disposable PostgreSQL 18",
+    "authentication_enabled": true,
+    "development_mode": false,
+    "extraction_provider": "intentionally offline Ollama; no cloud calls"
+  },
+  "tests": [
+    {
+      "suite": "live_api_browser",
+      "passed": 42
+    },
+    {
+      "suite": "legacy_ui_smoke",
+      "passed": 4
+    },
+    {
+      "suite": "frontend_unit",
+      "passed": 15
+    },
+    {
+      "suite": "core_clearance_unit",
+      "passed": 17
+    },
+    {
+      "suite": "access_envelope_unit",
+      "passed": 2
+    },
+    {
+      "suite": "mcp_upload_unit",
+      "passed": 7
+    },
+    {
+      "suite": "stream_fence_and_route_guard",
+      "passed": 3
+    },
+    {
+      "suite": "legacy_admission_live",
+      "passed": 1
+    }
+  ],
+  "total_focused_tests_passed": 91,
+  "static_checks": {
+    "rust_build": "passed",
+    "rustfmt": "passed",
+    "clippy_api_storage_tasks_all_targets_D_warnings": "passed",
+    "typescript_release": "passed",
+    "new_shared_ui_eslint": "passed",
+    "changed_frontend_files_compared_to_baseline": 27,
+    "new_frontend_lint_diagnostics": 0,
+    "existing_frontend_lint_debt": "Retained and recorded separately in frontend-lint-baseline.json; whole-repository ESLint is not claimed clean.",
+    "documentation_validation": "passed",
+    "git_diff_check": "passed"
+  },
+  "migration": {
+    "latest": 225,
+    "fresh_migrations_applied": 222,
+    "sha384": "87f29c03ee51fec9a18626ec1a341dfc43a830fd432c4c2d03578bf0a97d02935ed0c2b64c9f6354ca19892141720caa"
+  },
+  "screenshots": {
+    "count": 21,
+    "manifest": "screenshot-manifest.json",
+    "review": "all final captures visually inspected"
+  },
+  "limits": [
+    "No successful LLM extraction-quality validation.",
+    "No production load, live object-store outage/recovery, or penetration test.",
+    "No universal market-leadership or exhaustive-security claim."
+  ],
+  "cleanup": {
+    "isolated_api": "stopped",
+    "isolated_frontend": "stopped",
+    "isolated_database_container": "stopped; retained for reproduction",
+    "unrelated_development_services": "untouched"
+  }
+}

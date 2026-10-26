@@ -59,6 +59,11 @@ pub async fn eq_document_list(
         .map(|s| s.to_string());
 
     let params = ListDocumentsRequest {
+        classification: None,
+
+        security_tag_ids: None,
+
+        review_state: None,
         page,
         page_size: limit,
         date_from: args
@@ -80,12 +85,29 @@ pub async fn eq_document_list(
     let read_path = state.read_path_db.clone();
     let tenant = tenant_ctx.clone();
 
-    let resp = run_with_read_path_guard(&read_path, |deadline| {
-        crate::handlers::documents::list_documents_for_mcp(
-            storage, pg, budget_cfg, tasks, tenant, params, deadline,
-        )
-    })
-    .await?;
+    let resp = if edgequake_storage::clearance_session::ClearanceSession::current()
+        .is_some_and(|session| session.enforced)
+    {
+        #[cfg(feature = "postgres")]
+        {
+            let pool = state
+                .optional_pg_pool()
+                .ok_or_else(|| ApiError::Internal("PostgreSQL is required".into()))?;
+            crate::services::document_access::list_access_filtered(pool, tenant_ctx, &params)
+                .await?
+        }
+        #[cfg(not(feature = "postgres"))]
+        {
+            return Err(ApiError::Internal("PostgreSQL is required".into()));
+        }
+    } else {
+        run_with_read_path_guard(&read_path, |deadline| {
+            crate::handlers::documents::list_documents_for_mcp(
+                storage, pg, budget_cfg, tasks, tenant, params, deadline,
+            )
+        })
+        .await?
+    };
 
     let documents: Vec<Value> = resp.documents.iter().map(project_document).collect();
     let next_cursor = if resp.has_more {
@@ -331,6 +353,33 @@ pub async fn eq_workspace_stats(
         .ok_or_else(|| ApiError::BadRequest("workspace_id required".into()))?;
     let ws_uuid = Uuid::parse_str(workspace_id)
         .map_err(|_| ApiError::BadRequest("invalid workspace_id".into()))?;
+
+    #[cfg(feature = "postgres")]
+    if edgequake_storage::clearance_session::ClearanceSession::current()
+        .is_some_and(|session| session.enforced)
+    {
+        let pool = state
+            .optional_pg_pool()
+            .ok_or_else(|| ApiError::Internal("PostgreSQL is required".into()))?;
+        let actor = crate::services::document_access::AccessActor::from_context(tenant_ctx)?;
+        let (mut tx, _) =
+            crate::services::document_access::scoped_transaction(pool, &actor, false).await?;
+        let (documents,chunks):(i64,i64)=sqlx::query_as("SELECT count(*),COALESCE(sum(chunk_count),0)::bigint FROM public.documents WHERE workspace_id=$1")
+            .bind(ws_uuid).fetch_one(&mut *tx).await.map_err(crate::services::document_access::database)?;
+        tx.commit()
+            .await
+            .map_err(crate::services::document_access::database)?;
+        return Ok(EnvelopeBuilder::new("workspace_stats", budget)
+            .insert(
+                "stats",
+                json!({
+                    "document_count":documents,"chunk_count":chunks,
+                    "entity_count":null,"relationship_count":null,"count_scope":"visible_documents",
+                    "graph_counts_available":false
+                }),
+            )
+            .build());
+    }
 
     let stats = state
         .workspace_service

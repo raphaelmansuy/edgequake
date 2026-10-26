@@ -21,6 +21,17 @@ pub async fn eq_ingest(
     tenant_ctx: &TenantContext,
     args: &Value,
 ) -> ApiResult<Value> {
+    let access = args
+        .get("access")
+        .map(|value| {
+            serde_json::from_value::<crate::services::document_access_types::DocumentAccess>(
+                value.clone(),
+            )
+            .map_err(|_| {
+                ApiError::bad_request_coded("INVALID_ACCESS_PAYLOAD", "Invalid access envelope")
+            })
+        })
+        .transpose()?;
     let content = args.get("content").and_then(|v| v.as_str());
     let content_b64 = args.get("content_base64").and_then(|v| v.as_str());
     let upload_ref = args.get("upload_ref").and_then(|v| v.as_str());
@@ -65,17 +76,24 @@ pub async fn eq_ingest(
             .and_then(|v| v.as_str())
             .filter(|s| !s.is_empty())
             .unwrap_or("upload.bin");
-        return super::upload_session::admit_bytes(
+        return super::upload_session::admit_bytes_with_access(
             state,
             tenant_ctx,
             title,
             "application/octet-stream",
             bytes,
+            access,
         )
         .await;
     }
 
     if let Some(upload_id) = upload_ref.filter(|s| !s.is_empty()) {
+        if access.is_some() {
+            return Err(ApiError::bad_request_coded(
+                "INVALID_ACCESS_PAYLOAD",
+                "Upload session access is immutable",
+            ));
+        }
         return super::upload_session::commit_upload_id(state, tenant_ctx, upload_id).await;
     }
 
@@ -113,6 +131,7 @@ pub async fn eq_ingest(
         state,
         tenant_ctx,
         DocumentAdmissionInput {
+            access,
             text_content: text.to_string(),
             title,
             source_type: "markdown",

@@ -66,6 +66,15 @@ pub async fn get_task_for_context(
         return Err(not_found());
     }
 
+    if let Some(document_id) = task.document_id() {
+        if crate::services::clearance::must_hide(&document_id).await? {
+            return Err(not_found());
+        }
+    } else if let Some(pdf_id) = task.pdf_id() {
+        if crate::services::clearance::must_hide_pdf(pdf_id, Some(ctx_workspace_id)).await? {
+            return Err(not_found());
+        }
+    }
     Ok(task)
 }
 

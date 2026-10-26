@@ -35,6 +35,7 @@ fn tenant_ctx() -> TenantContext {
 
 fn sample_md_input(content: &str, hash: &str) -> DocumentAdmissionInput {
     DocumentAdmissionInput {
+        access: None,
         text_content: content.to_string(),
         title: "auto_disco_086.md".to_string(),
         source_type: "markdown",

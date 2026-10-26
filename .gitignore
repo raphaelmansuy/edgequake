@@ -187,3 +187,7 @@ specs/93-migration-assessment/reports/*/pre-upgrade.dump
 
 # Local cargo target override (SPEC-150 builds)
 .cargo-target/
+
+# Isolated SPEC-180 browser-test build output
+/edgequake_webui/.next-spec180*/
+!/specs/180-improve-sec-doc/e2e/screenshots/*.png

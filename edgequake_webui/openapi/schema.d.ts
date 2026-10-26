@@ -1269,6 +1269,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/labels/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["batch_document_access"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents/pdf": {
         parameters: {
             query?: never;
@@ -1784,6 +1800,22 @@ export interface paths {
         post?: never;
         /** Delete a document by ID (async job — 202 Accepted). */
         delete: operations["delete_document"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_document_access"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3880,6 +3912,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/clearance/assignment-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_access_assignment_options"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/clearance/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["search_access_members"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/clearance/operations/{operation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_access_operation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/clearance/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["preview_document_access"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/clearance/roles": {
         parameters: {
             query?: never;
@@ -4588,6 +4684,20 @@ export interface components {
         };
         /**
          * @example {
+         *       "can_check_member": {},
+         *       "can_downgrade": {},
+         *       "can_edit": {},
+         *       "can_manage_vocabulary": {}
+         *     }
+         */
+        AccessCapabilities: {
+            can_check_member: boolean;
+            can_downgrade: boolean;
+            can_edit: boolean;
+            can_manage_vocabulary: boolean;
+        };
+        /**
+         * @example {
          *       "email": {},
          *       "expires_at": {},
          *       "expires_in_minutes": {},
@@ -4623,6 +4733,63 @@ export interface components {
             purpose: string;
             tenant_name?: string | null;
             username: string;
+        };
+        /**
+         * @example {
+         *       "items": [],
+         *       "operation_id": {},
+         *       "reason": {}
+         *     }
+         */
+        AccessMutation: {
+            items: components["schemas"]["AccessMutationItem"][];
+            /** Format: uuid */
+            operation_id: string;
+            reason?: string | null;
+        };
+        /**
+         * @example {
+         *       "access": {},
+         *       "document_id": {},
+         *       "label_version": {}
+         *     }
+         */
+        AccessMutationItem: {
+            access: components["schemas"]["DocumentAccess"];
+            /** Format: uuid */
+            document_id: string;
+            /** Format: int64 */
+            label_version: number;
+        };
+        AccessMutationRequest: components["schemas"]["BulkAccessIntent"] | components["schemas"]["AccessMutation"];
+        /**
+         * @example {
+         *       "check_member_id": {},
+         *       "expected_policy_epoch": {},
+         *       "items": [],
+         *       "mode": {}
+         *     }
+         */
+        AccessPreviewRequest: {
+            /** Format: uuid */
+            check_member_id?: string | null;
+            /** Format: int64 */
+            expected_policy_epoch: number;
+            items: components["schemas"]["PreviewItem"][];
+            mode: string;
+        };
+        /**
+         * @example {
+         *       "allowed": {},
+         *       "items": [],
+         *       "policy_epoch": {}
+         *     }
+         */
+        AccessPreviewResponse: {
+            allowed: boolean;
+            items: components["schemas"]["PreviewResult"][];
+            /** Format: int64 */
+            policy_epoch: number;
         };
         /**
          * @example {
@@ -4775,6 +4942,29 @@ export interface components {
          */
         AssignRolesRequest: {
             role_ids: string[];
+        };
+        /**
+         * @example {
+         *       "break_glass": {},
+         *       "can_upload": {},
+         *       "capabilities": {},
+         *       "classifications": [],
+         *       "enforcement": {},
+         *       "next_cursor": {},
+         *       "policy_epoch": {},
+         *       "tags": []
+         *     }
+         */
+        AssignmentOptions: {
+            break_glass: boolean;
+            can_upload: boolean;
+            capabilities: components["schemas"]["AccessCapabilities"];
+            classifications: string[];
+            enforcement: boolean;
+            next_cursor?: string | null;
+            /** Format: int64 */
+            policy_epoch: number;
+            tags: components["schemas"]["SecurityTag"][];
         };
         /**
          * @example {
@@ -5023,6 +5213,40 @@ export interface components {
             git_branch: string;
             /** @description Git short hash (e.g., "a1b2c3d"). */
             git_hash: string;
+        };
+        /**
+         * @example {
+         *       "classification": {},
+         *       "compartment_ids": [],
+         *       "expected_policy_epoch": {},
+         *       "items": [],
+         *       "operation": {},
+         *       "operation_id": {},
+         *       "reason": {}
+         *     }
+         */
+        BulkAccessIntent: {
+            classification?: string | null;
+            compartment_ids?: string[] | null;
+            /** Format: int64 */
+            expected_policy_epoch: number;
+            items: components["schemas"]["BulkAccessTarget"][];
+            operation: string;
+            /** Format: uuid */
+            operation_id: string;
+            reason?: string | null;
+        };
+        /**
+         * @example {
+         *       "document_id": {},
+         *       "label_version": {}
+         *     }
+         */
+        BulkAccessTarget: {
+            /** Format: uuid */
+            document_id: string;
+            /** Format: int64 */
+            label_version: number;
         };
         /**
          * @description Bulk archive request.
@@ -7145,6 +7369,44 @@ export interface components {
             source_chunk_id?: string | null;
             /** @description Version number. */
             version: number;
+        };
+        /**
+         * @example {
+         *       "classification": {},
+         *       "compartment_ids": [],
+         *       "expected_policy_epoch": {}
+         *     }
+         */
+        DocumentAccess: {
+            classification: string;
+            compartment_ids: string[];
+            /** Format: int64 */
+            expected_policy_epoch: number;
+        };
+        /**
+         * @example {
+         *       "access": {},
+         *       "capabilities": {},
+         *       "document_id": {},
+         *       "enforcement": {},
+         *       "explanation": {},
+         *       "label_version": {},
+         *       "policy_epoch": {},
+         *       "tags": []
+         *     }
+         */
+        DocumentAccessView: {
+            access: components["schemas"]["DocumentAccess"];
+            capabilities: components["schemas"]["AccessCapabilities"];
+            /** Format: uuid */
+            document_id: string;
+            enforcement: boolean;
+            explanation: unknown;
+            /** Format: int64 */
+            label_version: number;
+            /** Format: int64 */
+            policy_epoch: number;
+            tags: components["schemas"]["SecurityTag"][];
         };
         /**
          * @description Cost information for a processed document.
@@ -11673,12 +11935,17 @@ export interface components {
         /**
          * @example {
          *       "classification": {},
-         *       "compartment_ids": []
+         *       "compartment_ids": [],
+         *       "expected_policy_epoch": {},
+         *       "reason": {}
          *     }
          */
         PatchLabelsRequest: {
             classification: string;
             compartment_ids: string[];
+            /** Format: int64 */
+            expected_policy_epoch: number;
+            reason?: string | null;
         };
         /**
          * @description Result for a single file in batch PDF upload.
@@ -12357,6 +12624,40 @@ export interface components {
             postgres_major: number;
             /** @description Native `uuidv7()` available (PG18+ with function present). */
             uuidv7_available: boolean;
+        };
+        /**
+         * @example {
+         *       "access": {},
+         *       "document_id": {},
+         *       "label_version": {}
+         *     }
+         */
+        PreviewItem: {
+            access: components["schemas"]["DocumentAccess"];
+            /** Format: uuid */
+            document_id?: string | null;
+            /** Format: int64 */
+            label_version?: number | null;
+        };
+        /**
+         * @example {
+         *       "allowed": {},
+         *       "caller_can_read": {},
+         *       "change_kind": {},
+         *       "member_can_read": {},
+         *       "normalized_access": {},
+         *       "reason": {},
+         *       "requires_reason": {}
+         *     }
+         */
+        PreviewResult: {
+            allowed: boolean;
+            caller_can_read: boolean;
+            change_kind: string;
+            member_can_read?: boolean | null;
+            normalized_access?: null | components["schemas"]["DocumentAccess"];
+            reason?: string | null;
+            requires_reason: boolean;
         };
         /**
          * @example {}
@@ -14576,6 +14877,19 @@ export interface components {
             steward: boolean;
         };
         /**
+         * @example {
+         *       "id": {},
+         *       "key": {},
+         *       "value": {}
+         *     }
+         */
+        SecurityTag: {
+            /** Format: uuid */
+            id: string;
+            key: string;
+            value: string;
+        };
+        /**
          * @description Response for server-wide defaults.
          * @example {
          *       "default_max_workspaces": {},
@@ -16138,6 +16452,7 @@ export interface components {
          *     }
          */
         UploadDocumentRequest: {
+            access?: null | components["schemas"]["DocumentAccess"];
             /** @description Whether to process asynchronously (default: false for backwards compatibility) */
             async_processing?: boolean;
             /** @description Optional chunk size/overlap/separator overrides. */
@@ -18832,6 +19147,12 @@ export interface operations {
                 page?: number;
                 /** @description Page size (default 20, max 100) */
                 page_size?: number;
+                /** @description Document sensitivity */
+                classification?: string;
+                /** @description Comma-separated required security tag UUIDs, all must match */
+                security_tag_ids?: string;
+                /** @description any, reviewed, or needs_review */
+                review_state?: string;
                 /** @description Inclusive start date (ISO 8601) */
                 date_from?: string;
                 /** @description Inclusive end date (ISO 8601) */
@@ -18984,6 +19305,30 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    batch_document_access: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccessMutationRequest"];
+            };
+        };
+        responses: {
+            /** @description Access changes committed atomically */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
             };
         };
     };
@@ -19775,6 +20120,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeleteDocumentResponse"];
+                };
+            };
+            /** @description Document not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_document_access: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Document */
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Saved access and capabilities */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentAccessView"];
                 };
             };
             /** @description Document not found */
@@ -23816,6 +24191,104 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    get_access_assignment_options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Assignable access options */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignmentOptions"];
+                };
+            };
+        };
+    };
+    search_access_members: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bounded steward-only member lookup */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_access_operation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace */
+                workspace_id: string;
+                /** @description Operation */
+                operation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Operation outcome */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    preview_document_access: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccessPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Exact access preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessPreviewResponse"];
+                };
             };
         };
     };

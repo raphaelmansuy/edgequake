@@ -1,3 +1,4 @@
+import { appendUploadAccess } from "@/lib/clearance/access-draft";
 /**
  * Build PDF upload FormData — DRY SSOT for field names.
  */
@@ -12,6 +13,7 @@ export function buildPdfUploadFormData(
 ): FormData {
   const formData = new FormData();
   formData.append("file", file);
+  appendUploadAccess(formData, options?.access);
 
   if (options?.enable_vision !== undefined) {
     formData.append("enable_vision", String(options.enable_vision));

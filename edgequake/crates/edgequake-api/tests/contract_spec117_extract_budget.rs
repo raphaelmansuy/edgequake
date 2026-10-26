@@ -188,6 +188,7 @@ async fn spec117_admission_stores_doc_caps_and_resolve_beats_workspace() {
             user_id: Some(common::TEST_USER_ID.to_string()),
         },
         DocumentAdmissionInput {
+            access: None,
             text_content: content.to_string(),
             title: "spec117-caps.md".into(),
             source_type: "markdown",

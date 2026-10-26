@@ -67,7 +67,8 @@ pub async fn upload_file(
                 );
                 streamed = Some(stream_field_to_tempfile(field, filename).await?);
             }
-            "metadata"
+            "access"
+            | "metadata"
             | "chunk_strategy"
             | "chunk_options"
             | "extract_max_entities"
@@ -92,6 +93,15 @@ pub async fn upload_file(
         return Err(ApiError::BadRequest("No file provided".to_string()));
     }
 
+    #[cfg(feature = "postgres")]
+    if let Some(pool) = state.optional_pg_pool() {
+        crate::services::document_access::validate_upload(
+            pool,
+            &tenant_ctx,
+            multipart_fields.access()?.as_ref(),
+        )
+        .await?;
+    }
     let resolved =
         resolve_upload_content(&state, tenant_ctx.workspace_id_uuid(), &filename, &content).await?;
     let text_content = resolved.text_content;
@@ -108,6 +118,7 @@ pub async fn upload_file(
         &state,
         &tenant_ctx,
         DocumentAdmissionInput {
+            access: multipart_fields.access()?,
             text_content,
             title: filename.clone(),
             source_type: upload_meta.source_type,

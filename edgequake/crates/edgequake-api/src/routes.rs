@@ -448,6 +448,30 @@ fn api_v1_routes(state: AppState) -> Router<AppState> {
             get(handlers::get_clearance_settings).post(handlers::enable_clearance),
         )
         .route(
+            "/workspaces/{workspace_id}/clearance/assignment-options",
+            get(handlers::get_access_assignment_options),
+        )
+        .route(
+            "/workspaces/{workspace_id}/clearance/members",
+            get(handlers::search_access_members),
+        )
+        .route(
+            "/workspaces/{workspace_id}/clearance/preview",
+            post(handlers::preview_document_access),
+        )
+        .route(
+            "/documents/{document_id}/access",
+            get(handlers::get_document_access),
+        )
+        .route(
+            "/documents/labels/batch",
+            post(handlers::batch_document_access),
+        )
+        .route(
+            "/workspaces/{workspace_id}/clearance/operations/{operation_id}",
+            get(handlers::get_access_operation),
+        )
+        .route(
             "/workspaces/{workspace_id}/model-policy",
             get(handlers::get_workspace_model_policy).put(handlers::put_workspace_model_policy),
         )

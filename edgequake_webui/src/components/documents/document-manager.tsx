@@ -21,11 +21,15 @@
  */
 'use client';
 
+import { SecurityTagFilter } from "@/components/clearance/security-tag-filter";
+import { BulkDocumentAccessControl } from "@/components/clearance/bulk-document-access-control";
+import { UploadAccessReview } from "./upload-access-review";
+import type { UploadAccess } from "@/lib/clearance/access-draft";
 import { useSelectedWorkspace, useTenantStore } from '@/stores/use-tenant-store';
 import type { Document } from '@/types';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
@@ -216,6 +220,7 @@ export function DocumentManager() {
     showCostColumn, setShowCostColumn,
   } = useDocumentPreferences();
   const [classificationFilter, setClassificationFilter] = useState("all");
+  const [securityTagFilter, setSecurityTagFilter] = useState<string[]>([]);
   const clearance = useClearanceSettings(selectedWorkspaceId);
 
   const handleColumnSort = useCallback(
@@ -258,6 +263,19 @@ export function DocumentManager() {
     visionFigureSystemPrompt: visionExtract.figureSystemPrompt || undefined,
   });
 
+  const accessReviewScope = `${selectedTenantId}:${selectedWorkspaceId}`;
+  const [accessReview, setAccessReview] = useState<{ scope: string; files: File[] }>(
+    { scope: accessReviewScope, files: [] },
+  );
+  // Reset before committing children when the selected scope changes. A stale
+  // dialog must never render its files under the next workspace's authority.
+  if (accessReview.scope !== accessReviewScope) {
+    setAccessReview({ scope: accessReviewScope, files: [] });
+  }
+  const accessReviewFiles = accessReview.scope === accessReviewScope ? accessReview.files : [];
+  const setAccessReviewFiles = (files: File[]) => setAccessReview({ scope: accessReviewScope, files });
+  const uploadAccessByFile = useRef(new Map<File, UploadAccess>());
+
   const handleFilesAccepted = useCallback(
     async (files: File[]) => {
       const largePreviews = await filterLargePdfFiles(files, pdfParserResolutionContext);
@@ -267,7 +285,7 @@ export function DocumentManager() {
         setLargePdfAdmissionOpen(true);
         return;
       }
-      await handleFilesUpload(files);
+      await handleFilesUpload(files, { accessByFile: uploadAccessByFile.current });
     },
     [handleFilesUpload, pdfParserResolutionContext],
   );
@@ -292,10 +310,11 @@ export function DocumentManager() {
       }
 
       if (otherFiles.length > 0) {
-        await handleFilesUpload(otherFiles);
+        await handleFilesUpload(otherFiles, { accessByFile: uploadAccessByFile.current });
       }
       if (largeFiles.length > 0) {
         await handleFilesUpload(largeFiles, {
+          accessByFile: uploadAccessByFile.current,
           pdfParserBackend: parserOverride,
         });
       }
@@ -386,6 +405,8 @@ export function DocumentManager() {
     workspaceId: selectedWorkspaceId,
     searchQuery,
     statusFilter,
+    classification: classificationFilter,
+    securityTagIds: securityTagFilter,
     sortField,
     sortDirection,
   });
@@ -445,7 +466,14 @@ export function DocumentManager() {
 
   // OODA-21: Document dropzone with file validation
   const { getRootProps, getInputProps, isDragActive, openFileDialog } = useDocumentDropzone({
-    onFilesAccepted: handleFilesAccepted,
+    onFilesAccepted: async (files) => {
+      if (clearance.data?.enforcement === false) {
+        uploadAccessByFile.current = new Map();
+        await handleFilesAccepted(files);
+        return;
+      }
+      setAccessReviewFiles(files);
+    },
     t,
   });
 
@@ -1023,12 +1051,10 @@ export function DocumentManager() {
           onClearSelection={handleClearSelection}
         />
       </div>
+      <div className="flex flex-wrap items-center gap-2 px-4 py-1"><SecurityTagFilter value={securityTagFilter} onChange={setSecurityTagFilter} /></div>
+      {selectedIds.size > 0 && <div className="px-4 py-2"><BulkDocumentAccessControl documentIds={[...selectedIds]} /></div>}
       <DocumentTableSection
-        documents={
-          classificationFilter === "all"
-            ? documents
-            : documents.filter((doc) => doc.classification === classificationFilter)
-        }
+        documents={documents}
         totalCount={totalCount}
         isLoading={isInitialLoading}
         isBusyUpdating={isBusyUpdating}
@@ -1139,10 +1165,14 @@ export function DocumentManager() {
           contents={{
             intake: (
               <div
-                className="relative min-h-0 min-w-0 flex-1"
+                className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-auto"
                 data-testid="documents-intake-dropzone-slot"
               >
-                {intakeDropzone}
+                <div className="shrink-0 border-b bg-muted/15 px-4 py-2.5 text-xs leading-relaxed" data-testid="upload-access-summary">
+                  <span className="font-medium">{t('access.uploadSummary', 'Access for this upload')}</span>
+                  <span className="ml-2 text-muted-foreground">{clearance.isError ? t('access.checkFailed', 'Access rules could not be checked.') : !clearance.data ? t('access.loading', 'Checking access…') : clearance.data.enforcement ? t('access.uploadDefault', 'Needs review · You and authorized security stewards. Change access after choosing files.') : t('access.rulesOff', 'Document access rules are off for this workspace.')}</span>
+                </div>
+                <div className="relative min-h-24 min-w-0 flex-1">{intakeDropzone}</div>
               </div>
             ),
             runs: (
@@ -1203,6 +1233,8 @@ export function DocumentManager() {
         onViewerDialogChange={setViewerDialogOpen}
         viewerPdfId={viewerPdfId}
       />
+
+      {accessReviewFiles.length > 0 && selectedWorkspaceId && <UploadAccessReview key={`${selectedTenantId}:${selectedWorkspaceId}`} workspace={selectedWorkspaceId} files={accessReviewFiles} onClose={() => setAccessReviewFiles([])} onUpload={async (files, access) => { uploadAccessByFile.current = access; await handleFilesAccepted(files); }} />}
 
       {/* Duplicate upload dialog — shown when backend returns duplicate_of */}
       <DuplicateUploadDialog

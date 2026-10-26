@@ -9,6 +9,7 @@
 // type-checking, so this lint is allowed for the module.
 
 use axum::extract::{Path, State};
+use axum::http::HeaderMap;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -17,7 +18,7 @@ use uuid::Uuid;
 use crate::error::{ApiError, ApiResult};
 use crate::handlers::auth::{ApiAuthenticated, RequestAuthContext};
 use crate::middleware::TenantContext;
-use crate::services::clearance::{self, scope_on};
+use crate::services::clearance;
 use crate::state::AppState;
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -113,6 +114,8 @@ pub struct SimulateResponse {
 pub struct PatchLabelsRequest {
     pub classification: String,
     pub compartment_ids: Vec<Uuid>,
+    pub expected_policy_epoch: i64,
+    pub reason: Option<String>,
 }
 
 fn workspace_of(ctx: &TenantContext, path_id: Uuid) -> Result<Uuid, ApiError> {
@@ -820,42 +823,82 @@ pub async fn patch_document_labels(
     State(state): State<AppState>,
     ApiAuthenticated(auth): ApiAuthenticated,
     Path(document_id): Path<Uuid>,
-    tenant_ctx: TenantContext,
+    mut tenant_ctx: TenantContext,
+    headers: HeaderMap,
     Json(body): Json<PatchLabelsRequest>,
-) -> ApiResult<axum::http::StatusCode> {
-    let workspace_id = tenant_ctx
-        .workspace_id
-        .as_deref()
-        .and_then(|value| Uuid::parse_str(value).ok())
-        .ok_or_else(|| ApiError::BadRequest("Workspace is required".into()))?;
+) -> ApiResult<(HeaderMap, axum::http::StatusCode)> {
+    tenant_ctx.user_id = Some(auth.user_id);
     #[cfg(feature = "postgres")]
     {
+        use crate::services::{document_access as access, document_access_types::DocumentAccess};
         let pool = state
             .optional_pg_pool()
             .ok_or_else(|| ApiError::Internal("PostgreSQL is required".into()))?;
-        let user_id = Uuid::parse_str(&auth.user_id).ok();
-        let (scope, _) = clearance::load_scope(pool, workspace_id, user_id).await?;
-        let _ = scope_on;
-        let label = clearance::RelabelRequest {
-            workspace_id,
-            document_id,
-            classification: &body.classification,
-            compartment_ids: &body.compartment_ids,
-        };
-        clearance::relabel(
+        let version = headers
+            .get("if-match")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("\"label-"))
+            .and_then(|v| v.strip_suffix('"'))
+            .and_then(|v| v.parse::<i64>().ok())
+            .ok_or_else(|| {
+                access::coded(
+                    axum::http::StatusCode::PRECONDITION_REQUIRED,
+                    "LABEL_PRECONDITION_REQUIRED",
+                    "Refresh access and send its current version",
+                )
+            })?;
+        let operation_id = headers
+            .get("idempotency-key")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| Uuid::parse_str(v).ok())
+            .ok_or_else(|| {
+                ApiError::bad_request_coded(
+                    "INVALID_ACCESS_PAYLOAD",
+                    "An operation key is required",
+                )
+            })?;
+        let outcome = access::mutate(
             pool,
-            label,
-            &scope,
-            tenant_ctx.tenant_id.as_deref().unwrap_or(""),
-            &auth.user_id,
+            &access::AccessActor::from_context(&tenant_ctx)?,
+            access::AccessMutation {
+                items: vec![access::AccessMutationItem {
+                    document_id,
+                    label_version: version,
+                    access: DocumentAccess {
+                        classification: body.classification,
+                        compartment_ids: body.compartment_ids,
+                        expected_policy_epoch: body.expected_policy_epoch,
+                    },
+                }],
+                reason: body.reason,
+                operation_id,
+            },
         )
         .await?;
-        return Ok(axum::http::StatusCode::NO_CONTENT);
+        let mut response_headers = HeaderMap::new();
+        response_headers.insert(
+            "etag",
+            format!(
+                "\"label-{}\"",
+                outcome["items"][0]["label_version"]
+                    .as_i64()
+                    .unwrap_or(version)
+            )
+            .parse()
+            .map_err(|_| ApiError::Internal("Invalid access version".into()))?,
+        );
+        response_headers.insert(
+            "x-policy-epoch",
+            outcome["policy_epoch"]
+                .to_string()
+                .parse()
+                .map_err(|_| ApiError::Internal("Invalid policy epoch".into()))?,
+        );
+        return Ok((response_headers, axum::http::StatusCode::NO_CONTENT));
     }
-
     #[cfg(not(feature = "postgres"))]
     {
-        let _ = (state, auth, document_id, body, scope_on);
+        let _ = (state, tenant_ctx, headers, body, document_id);
         Err(ApiError::Internal("PostgreSQL is required".into()))
     }
 }

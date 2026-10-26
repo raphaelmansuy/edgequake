@@ -133,7 +133,9 @@ pub async fn upload_pdf_document(
     // 1. Parse multipart fields (SPEC-083 D-51: stream file to temp, not field.bytes())
     let mut streamed_file: Option<StreamedUploadFile> = None;
     let mut extraction_form = ExtractionForm::default();
+    let mut access_form = crate::services::document_access_types::AccessForm::default();
     let mut options = PdfUploadOptions {
+        access: None,
         enable_vision: true,
         vision_provider: None, // None = apply workspace config then server default
         vision_model: None,
@@ -187,6 +189,13 @@ pub async fn upload_pdf_document(
                 if let Ok(text) = field.text().await {
                     options.title = Some(text);
                 }
+            }
+            Some("access") => {
+                let raw = field
+                    .text()
+                    .await
+                    .map_err(|_| ApiError::BadRequest("Invalid access field".into()))?;
+                access_form.ingest(&raw);
             }
             Some("metadata") => {
                 if let Ok(text) = field.text().await {
@@ -271,6 +280,7 @@ pub async fn upload_pdf_document(
         }
     }
     // SPEC-160: a repeated or bad extraction word is a 422 before any file is stored.
+    options.access = access_form.finish()?;
     let extraction =
         AdmittedPdfExtraction::admit(&state, &context, &extraction_form.finish()?).await?;
 
@@ -307,7 +317,9 @@ pub async fn upload_pdf_batch_document(
     context: TenantContext,
     mut multipart: Multipart,
 ) -> ApiResult<Json<PdfBatchUploadResponse>> {
+    let mut access_form = crate::services::document_access_types::AccessForm::default();
     let mut options = PdfUploadOptions {
+        access: None,
         enable_vision: true,
         vision_provider: None,
         vision_model: None,
@@ -364,6 +376,13 @@ pub async fn upload_pdf_batch_document(
                 if let Ok(text) = field.text().await {
                     options.title = Some(text);
                 }
+            }
+            Some("access") => {
+                let raw = field
+                    .text()
+                    .await
+                    .map_err(|_| ApiError::BadRequest("Invalid access field".into()))?;
+                access_form.ingest(&raw);
             }
             Some("metadata") => {
                 if let Ok(text) = field.text().await {
@@ -453,6 +472,7 @@ pub async fn upload_pdf_batch_document(
     }
 
     // SPEC-160: one admission for the whole batch — a bad word fails all files up front.
+    options.access = access_form.finish()?;
     let extraction =
         AdmittedPdfExtraction::admit(&state, &context, &extraction_form.finish()?).await?;
 
@@ -522,10 +542,21 @@ pub async fn admit_pdf_bytes(
     filename: String,
     file_data: Vec<u8>,
 ) -> ApiResult<PdfUploadResponse> {
+    admit_pdf_bytes_with_access(state, context, filename, file_data, None).await
+}
+
+pub async fn admit_pdf_bytes_with_access(
+    state: &AppState,
+    context: &TenantContext,
+    filename: String,
+    file_data: Vec<u8>,
+    access: Option<crate::services::document_access_types::DocumentAccess>,
+) -> ApiResult<PdfUploadResponse> {
     let extraction_form = ExtractionForm::default();
     let extraction =
         AdmittedPdfExtraction::admit(state, context, &extraction_form.finish()?).await?;
     let options = PdfUploadOptions {
+        access,
         enable_vision: true,
         vision_provider: None,
         vision_model: None,
@@ -549,6 +580,12 @@ async fn process_pdf_upload_parts(
     mut options: PdfUploadOptions,
     extraction: &AdmittedPdfExtraction,
 ) -> ApiResult<PdfUploadResponse> {
+    crate::services::document_access_types::validate_security_metadata(options.metadata.as_ref())?;
+    #[cfg(feature = "postgres")]
+    if let Some(pool) = state.optional_pg_pool() {
+        crate::services::document_access::validate_upload(pool, context, options.access.as_ref())
+            .await?;
+    }
     // SPEC-083 S-12: magic-byte MIME must match .pdf (rejects exe-as-pdf, etc.).
     crate::file_validation::validate_magic_matches_extension("pdf", &file_data)?;
     validate_pdf_data(&file_data)
@@ -613,8 +650,22 @@ async fn process_pdf_upload_parts(
         .map_err(|e| ApiError::Internal(format!("Failed to check for duplicates: {}", e)))?;
 
     if let Some(ref existing) = existing_pdf {
+        let enforced = edgequake_storage::clearance_session::ClearanceSession::current()
+            .is_some_and(|session| session.enforced);
+        if enforced {
+            let Some(document_id) = existing.document_id else {
+                return Err(ApiError::Conflict(
+                    "This content cannot be admitted in the current scope".into(),
+                ));
+            };
+            if crate::services::clearance::must_hide(&document_id.to_string()).await? {
+                return Err(ApiError::Conflict(
+                    "This content cannot be admitted in the current scope".into(),
+                ));
+            }
+        }
         let is_visible_duplicate =
-            workspace_has_visible_document_for_pdf(state, context, existing).await?;
+            enforced || workspace_has_visible_document_for_pdf(state, context, existing).await?;
         if !is_visible_duplicate {
             info!(
                 pdf_id = %existing.pdf_id,
@@ -627,6 +678,16 @@ async fn process_pdf_upload_parts(
     }
 
     if let Some(existing) = existing_pdf {
+        #[cfg(feature = "postgres")]
+        if let (Some(pool), Some(document_id)) = (state.optional_pg_pool(), existing.document_id) {
+            crate::services::document_access::check_duplicate_access(
+                pool,
+                context,
+                &document_id.to_string(),
+                options.access.as_ref(),
+            )
+            .await?;
+        }
         if options.force_reindex {
             info!(
                 "OODA-08: Force re-indexing requested for existing PDF: id={}, document_id={:?}",
@@ -890,6 +951,11 @@ async fn process_pdf_upload_parts(
                     .find_pdf_by_checksum(&workspace_id, &checksum)
                     .await
                 {
+                    if edgequake_storage::clearance_session::ClearanceSession::current()
+                        .is_some_and(|session| session.enforced)
+                    {
+                        return Err(ApiError::Conflict("This content cannot be admitted in the current scope. Retry to review the existing document".into()));
+                    }
                     let existing_pdf_id = existing.pdf_id.to_string();
                     return Ok(PdfUploadResponse {
                         pdf_id: existing_pdf_id.clone(),

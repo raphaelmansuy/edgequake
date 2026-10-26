@@ -11,9 +11,8 @@ use axum::extract::Request;
 use axum::response::IntoResponse;
 use edgequake_audit::{AuditEventType, AuditResult};
 use edgequake_core::clearance::{
-    allows, allows_relabel, compile_subject, guc_compartment_ids, rank_from_name, rank_name,
-    ClearanceAction, ClearanceRule, Effect, MatchKind, ObjectLabel, RoleGrant, VisibilityScope,
-    RANK_INTERNAL, RANK_UNVERIFIED,
+    compile_subject, guc_compartment_ids, rank_name, ClearanceRule, Effect, MatchKind, RoleGrant,
+    VisibilityScope, RANK_INTERNAL, RANK_UNVERIFIED,
 };
 use edgequake_storage::clearance_session::ClearanceSession;
 use uuid::Uuid;
@@ -99,6 +98,14 @@ pub async fn run_scoped(
         .cloned()
         .unwrap_or_else(ClearanceSession::off);
     let path = request.uri().path().to_string();
+    let fence_response = request.method() == axum::http::Method::GET
+        || path.contains("/query")
+        || path.contains("/chat");
+    let response_session = session.clone();
+    let workspace = request
+        .extensions()
+        .get::<TenantContext>()
+        .and_then(|ctx| ctx.workspace_id_uuid());
     edgequake_storage::clearance_session::scope(session, async move {
         if let Some(document_id) = document_id_in_path(&path) {
             match must_hide(document_id).await {
@@ -109,9 +116,98 @@ pub async fn run_scoped(
                 Err(error) => return error.into_response(),
             }
         }
-        next.run(request).await
+        if let Some(pdf_id) = pdf_id_in_path(&path) {
+            match must_hide_pdf(pdf_id, workspace).await {
+                Ok(true) => return ApiError::NotFound("PDF not found".into()).into_response(),
+                Ok(false) => {}
+                Err(error) => return error.into_response(),
+            }
+        }
+        let mut response = next.run(request).await;
+        if path.contains("/clearance/")
+            || path.ends_with("/access")
+            || path.ends_with("/labels")
+            || path.ends_with("/labels/batch")
+        {
+            response.headers_mut().insert(
+                axum::http::header::CACHE_CONTROL,
+                axum::http::HeaderValue::from_static("private, no-store"),
+            );
+        }
+        #[cfg(feature = "postgres")]
+        if fence_response && response_session.enforced && !response_session.system {
+            if let (Some(workspace), Some(pool)) = (
+                workspace,
+                crate::services::relational_sidecar_store::sidecar_pool(),
+            ) {
+                return fence_clearance_response(response, pool, workspace, response_session);
+            }
+        }
+        response
     })
     .await
+}
+
+/// Revalidate immediately before each body chunk leaves the process. An epoch
+/// or subject change aborts delivery, including an already-open SSE stream.
+#[cfg(feature = "postgres")]
+fn fence_clearance_response(
+    response: axum::response::Response,
+    pool: std::sync::Arc<sqlx::PgPool>,
+    workspace: Uuid,
+    session: ClearanceSession,
+) -> axum::response::Response {
+    use futures::StreamExt;
+    let (mut parts, body) = response.into_parts();
+    parts.headers.insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("private, no-store"),
+    );
+    let stream = futures::stream::unfold(
+        (body.into_data_stream(), false),
+        move |(mut body, stopped)| {
+            let pool = pool.clone();
+            let session = session.clone();
+            async move {
+                if stopped {
+                    return None;
+                }
+                let chunk = body.next().await?;
+                if let Err(error) = &chunk {
+                    tracing::warn!(%error,"Response body failed before access fence");
+                }
+                let valid = match load_scope(&pool, workspace, session.user_id).await {
+                    Ok((_, current)) => {
+                        let valid = current.policy_epoch == session.policy_epoch
+                            && current.fingerprint == session.fingerprint;
+                        if !valid {
+                            tracing::debug!(
+                                expected_epoch = session.policy_epoch,
+                                current_epoch = current.policy_epoch,
+                                "Response access snapshot changed"
+                            );
+                        }
+                        valid
+                    }
+                    Err(error) => {
+                        tracing::warn!(%error,"Response access check failed");
+                        false
+                    }
+                };
+                let result = if valid {
+                    chunk.map_err(std::io::Error::other)
+                } else {
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        "Access changed; reload before continuing",
+                    ))
+                };
+                Some((result, (body, !valid)))
+            }
+        },
+    );
+    // HTTP compression may poll again after end-of-stream; Unfold alone panics.
+    axum::response::Response::from_parts(parts, axum::body::Body::from_stream(stream.fuse()))
 }
 
 /// `/api/v1/documents/{uuid}` and its children. List and upload have no id.
@@ -124,6 +220,12 @@ fn document_id_in_path(path: &str) -> Option<&str> {
         }
     }
     None
+}
+
+/// Axum nested routers may strip `/api/v1` before middleware runs.
+fn pdf_id_in_path(path: &str) -> Option<Uuid> {
+    let (_, tail) = path.split_once("/documents/pdf/")?;
+    Uuid::parse_str(tail.split('/').next()?).ok()
 }
 
 /// `true` when an enforced caller must not see this id. Missing and hidden
@@ -153,6 +255,41 @@ pub async fn must_hide(document_id: &str) -> Result<bool, ApiError> {
 }
 
 /// Same not-found error a missing id already produces.
+/// PDF UUIDs are identifiers, not capabilities. Guard every PDF-ID route
+/// before the handler looks up metadata or streams bytes from either store.
+pub async fn must_hide_pdf(pdf_id: Uuid, workspace: Option<Uuid>) -> Result<bool, ApiError> {
+    let Some(session) =
+        ClearanceSession::current().filter(|session| session.enforced && !session.system)
+    else {
+        return Ok(false);
+    };
+    let Some(workspace) = workspace else {
+        return Ok(true);
+    };
+    #[cfg(feature = "postgres")]
+    {
+        let pool = crate::services::relational_sidecar_store::sidecar_pool()
+            .ok_or_else(|| ApiError::Internal("PostgreSQL is required".into()))?;
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|_| ApiError::Internal("Could not check PDF access".into()))?;
+        edgequake_storage::adapters::postgres::rls::apply_clearance_session(&mut tx, &session)
+            .await?;
+        let visible:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM public.pdf_documents WHERE pdf_id=$1 AND workspace_id=$2 AND (public.clearance_covers(classification_rank,compartment_ids) OR (classification_rank=5 AND uploaded_by=public.current_user_id())))")
+            .bind(pdf_id).bind(workspace).fetch_one(&mut *tx).await.map_err(|_|ApiError::Internal("Could not check PDF access".into()))?;
+        tx.commit()
+            .await
+            .map_err(|_| ApiError::Internal("Could not check PDF access".into()))?;
+        Ok(!visible)
+    }
+    #[cfg(not(feature = "postgres"))]
+    {
+        let _ = (session, pdf_id, workspace);
+        Ok(true)
+    }
+}
+
 pub fn not_found(document_id: &str) -> ApiError {
     ApiError::NotFound(format!("Document {document_id} not found"))
 }
@@ -189,23 +326,36 @@ pub async fn load_scope(
     workspace_id: Uuid,
     user_id: Option<Uuid>,
 ) -> Result<(VisibilityScope, ClearanceSession), ApiError> {
+    let mut conn = pool
+        .acquire()
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    load_scope_conn(&mut conn, workspace_id, user_id).await
+}
+
+#[cfg(feature = "postgres")]
+pub async fn load_scope_conn(
+    conn: &mut sqlx::PgConnection,
+    workspace_id: Uuid,
+    user_id: Option<Uuid>,
+) -> Result<(VisibilityScope, ClearanceSession), ApiError> {
     let settings: Option<(bool, i64)> = sqlx::query_as(
         "SELECT enforcement, policy_epoch FROM public.workspace_clearance_settings WHERE workspace_id = $1",
     )
     .bind(workspace_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await
     .map_err(|error| ApiError::Internal(error.to_string()))?;
     let (enforcement, epoch) = settings.unwrap_or((false, 0));
     let grants = if let Some(user_id) = user_id {
-        load_grants(pool, workspace_id, user_id).await?
+        load_grants(conn, workspace_id, user_id).await?
     } else {
         Vec::new()
     };
     let mut subject = compile_subject(&grants, user_id);
     subject.enforcement = enforcement;
     subject.break_glass = break_glass_enabled();
-    let vocabulary = load_vocabulary(pool, workspace_id).await?;
+    let vocabulary = load_vocabulary(conn, workspace_id).await?;
     let scope = VisibilityScope::new(subject, epoch);
     let session = session_from(&scope, &vocabulary);
     Ok((scope, session))
@@ -230,12 +380,15 @@ fn session_from(scope: &VisibilityScope, vocabulary: &[Uuid]) -> ClearanceSessio
 }
 
 #[cfg(feature = "postgres")]
-async fn load_vocabulary(pool: &sqlx::PgPool, workspace_id: Uuid) -> Result<Vec<Uuid>, ApiError> {
+async fn load_vocabulary(
+    conn: &mut sqlx::PgConnection,
+    workspace_id: Uuid,
+) -> Result<Vec<Uuid>, ApiError> {
     let rows: Vec<(Uuid,)> = sqlx::query_as(
         "SELECT tag_id FROM public.clearance_tags WHERE workspace_id = $1 AND kind = 'compartment'",
     )
     .bind(workspace_id)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await
     .map_err(|error| ApiError::Internal(error.to_string()))?;
     Ok(rows.into_iter().map(|(id,)| id).collect())
@@ -254,7 +407,7 @@ struct RuleRow {
 
 #[cfg(feature = "postgres")]
 async fn load_grants(
-    pool: &sqlx::PgPool,
+    conn: &mut sqlx::PgConnection,
     workspace_id: Uuid,
     user_id: Uuid,
 ) -> Result<Vec<RoleGrant>, ApiError> {
@@ -269,7 +422,7 @@ async fn load_grants(
     )
     .bind(user_id)
     .bind(workspace_id)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await
     .map_err(|error| ApiError::Internal(error.to_string()))?;
     let mut grouped: BTreeMap<Uuid, RoleGrant> = BTreeMap::new();
@@ -334,6 +487,18 @@ pub async fn labels_for(
     pool: &sqlx::PgPool,
     ids: &[Uuid],
 ) -> Result<BTreeMap<String, (Option<String>, Vec<CompartmentView>)>, ApiError> {
+    let mut conn = pool
+        .acquire()
+        .await
+        .map_err(|error| ApiError::Internal(error.to_string()))?;
+    labels_for_conn(&mut conn, ids).await
+}
+
+#[cfg(feature = "postgres")]
+pub async fn labels_for_conn(
+    conn: &mut sqlx::PgConnection,
+    ids: &[Uuid],
+) -> Result<BTreeMap<String, (Option<String>, Vec<CompartmentView>)>, ApiError> {
     if ids.is_empty() {
         return Ok(BTreeMap::new());
     }
@@ -345,7 +510,7 @@ pub async fn labels_for(
          WHERE d.id = ANY($1)",
     )
     .bind(ids)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await
     .map_err(|error| ApiError::Internal(error.to_string()))?;
     let mut out: BTreeMap<String, (Option<String>, Vec<CompartmentView>)> = BTreeMap::new();
@@ -549,197 +714,6 @@ pub async fn stamp_unverified(
     Ok(())
 }
 
-/// What a relabel asks for: the document and its new classification and departments.
-#[cfg(feature = "postgres")]
-pub struct RelabelRequest<'a> {
-    pub workspace_id: Uuid,
-    pub document_id: Uuid,
-    pub classification: &'a str,
-    pub compartment_ids: &'a [Uuid],
-}
-
-#[cfg(feature = "postgres")]
-pub async fn relabel(
-    pool: &sqlx::PgPool,
-    request: RelabelRequest<'_>,
-    scope: &VisibilityScope,
-    tenant_id: &str,
-    actor: &str,
-) -> Result<(), ApiError> {
-    let RelabelRequest {
-        workspace_id,
-        document_id,
-        classification,
-        compartment_ids,
-    } = request;
-    let rank = rank_from_name(classification)
-        .ok_or_else(|| ApiError::BadRequest("Unknown classification".into()))?;
-    let current: Option<(Option<i16>, Vec<Uuid>, Option<Uuid>)> = sqlx::query_as(
-        "SELECT classification_rank, COALESCE(compartment_ids, '{}'), uploaded_by
-         FROM public.documents WHERE id = $1 AND workspace_id = $2",
-    )
-    .bind(document_id)
-    .bind(workspace_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(|error| ApiError::Internal(error.to_string()))?;
-    let Some((old_rank, old_tags, uploaded_by)) = current else {
-        return Err(not_found(&document_id.to_string()));
-    };
-    let before = ObjectLabel {
-        rank: old_rank.and_then(|rank| u8::try_from(rank).ok()),
-        compartments: old_tags.iter().copied().collect(),
-        uploaded_by,
-    };
-    if !allows(&scope.subject, &before, ClearanceAction::Read).is_allow() {
-        return Err(not_found(&document_id.to_string()));
-    }
-    let mut after = ObjectLabel::new(rank, compartment_ids.iter().copied());
-    after.uploaded_by = uploaded_by;
-    if !allows_relabel(&scope.subject, &before, &after).is_allow() {
-        return Err(ApiError::forbidden_reason(
-            "That label is outside this access profile",
-        ));
-    }
-    let owned: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM public.clearance_tags
-         WHERE workspace_id = $1 AND kind = 'compartment' AND tag_id = ANY($2)",
-    )
-    .bind(workspace_id)
-    .bind(compartment_ids)
-    .fetch_one(pool)
-    .await
-    .map_err(|error| ApiError::Internal(error.to_string()))?;
-    if owned != compartment_ids.len() as i64 {
-        return Err(ApiError::BadRequest("Unknown department".into()));
-    }
-    let downgrade = before.rank.is_some_and(|old| rank < old)
-        || !before.compartments.is_subset(&after.compartments);
-    let mut tx = pool
-        .begin()
-        .await
-        .map_err(|error| ApiError::Internal(error.to_string()))?;
-    sqlx::query("DELETE FROM public.document_labels WHERE document_id = $1")
-        .bind(document_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|error| ApiError::Internal(error.to_string()))?;
-    if !compartment_ids.is_empty() {
-        sqlx::query(
-            "INSERT INTO public.document_labels (document_id, tag_id)
-             SELECT $1, tag_id FROM unnest($2::uuid[]) AS tag_id",
-        )
-        .bind(document_id)
-        .bind(compartment_ids)
-        .execute(&mut *tx)
-        .await
-        .map_err(|error| ApiError::Internal(error.to_string()))?;
-    }
-    let tags = compartment_ids.to_vec();
-    sqlx::query(
-        "UPDATE public.documents
-         SET classification_rank = $2, compartment_ids = $3
-         WHERE id = $1",
-    )
-    .bind(document_id)
-    .bind(i16::from(rank))
-    .bind(&tags)
-    .execute(&mut *tx)
-    .await
-    .map_err(|error| ApiError::Internal(error.to_string()))?;
-    copy_one(&mut tx, document_id, i16::from(rank), &tags, uploaded_by).await?;
-    sqlx::query(
-        "UPDATE public.workspace_clearance_settings
-         SET policy_epoch = policy_epoch + 1
-         WHERE workspace_id = $1",
-    )
-    .bind(workspace_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|error| ApiError::Internal(error.to_string()))?;
-    if downgrade {
-        sqlx::query(
-            "INSERT INTO public.audit_logs
-               (tenant_id, workspace_id, user_id, event_type, event_category, event_action,
-                resource_type, resource_id, result, severity)
-             VALUES ($1, $2, $3, 'Authorization', 'document_clearance', 'clearance.downgrade',
-                     'document', $4, 'Success', 'Medium')",
-        )
-        .bind(tenant_id)
-        .bind(workspace_id.to_string())
-        .bind(actor)
-        .bind(document_id.to_string())
-        .execute(&mut *tx)
-        .await
-        .map_err(|error| ApiError::Internal(error.to_string()))?;
-    }
-    tx.commit()
-        .await
-        .map_err(|error| ApiError::Internal(error.to_string()))?;
-    Ok(())
-}
-
-#[cfg(feature = "postgres")]
-async fn copy_one(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    document_id: Uuid,
-    rank: i16,
-    tags: &[Uuid],
-    uploaded_by: Option<Uuid>,
-) -> Result<(), ApiError> {
-    for (sql, text_id) in [
-        (
-            "UPDATE public.chunks SET classification_rank = $2, compartment_ids = $3, uploaded_by = $4 WHERE document_id = $1",
-            false,
-        ),
-        (
-            "UPDATE public.document_originals SET classification_rank = $2, compartment_ids = $3, uploaded_by = $4 WHERE document_id = $1",
-            false,
-        ),
-        (
-            "UPDATE public.pdf_documents SET classification_rank = $2, compartment_ids = $3, uploaded_by = $4 WHERE document_id = $1",
-            false,
-        ),
-        (
-            "UPDATE public.document_mm_assets SET classification_rank = $2, compartment_ids = $3, uploaded_by = $4 WHERE document_id = $1",
-            false,
-        ),
-        (
-            "UPDATE public.document_pages SET classification_rank = $2, compartment_ids = $3, uploaded_by = $4 WHERE document_id = $1",
-            false,
-        ),
-        (
-            "UPDATE public.graph_contributions SET classification_rank = $2, compartment_ids = $3, uploaded_by = $4 WHERE source_document_id = $1",
-            false,
-        ),
-        (
-            "UPDATE public.tasks SET classification_rank = $2, compartment_ids = $3, uploaded_by = $4 WHERE document_id = $1",
-            true,
-        ),
-    ] {
-        let query = sqlx::query(sql).bind(if text_id {
-            // rebound below
-            document_id
-        } else {
-            document_id
-        });
-        let result = if text_id {
-            sqlx::query(sql)
-                .bind(document_id.to_string())
-                .bind(rank)
-                .bind(tags)
-                .bind(uploaded_by)
-                .execute(&mut **tx)
-                .await
-        } else {
-            query
-                .bind(rank)
-                .bind(tags)
-                .bind(uploaded_by)
-                .execute(&mut **tx)
-                .await
-        };
-        result.map_err(|error| ApiError::Internal(error.to_string()))?;
-    }
-    Ok(())
-}
+#[cfg(all(test, feature = "postgres"))]
+#[path = "clearance_fence_tests.rs"]
+mod fence_tests;

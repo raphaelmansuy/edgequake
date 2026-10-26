@@ -54,12 +54,14 @@ const CORS_FAIL_CLOSED_METHODS: [Method; 7] = [
 ];
 
 /// Explicit request headers for fail-closed CORS (SPEC-083 S-10).
-fn cors_fail_closed_headers() -> [HeaderName; 8] {
+fn cors_fail_closed_headers() -> [HeaderName; 10] {
     [
         header::AUTHORIZATION,
         header::RANGE,
         header::CONTENT_TYPE,
         header::ACCEPT,
+        header::IF_MATCH,
+        HeaderName::from_static("idempotency-key"),
         HeaderName::from_static("x-api-key"),
         HeaderName::from_static("x-tenant-id"),
         HeaderName::from_static("x-workspace-id"),
@@ -68,12 +70,14 @@ fn cors_fail_closed_headers() -> [HeaderName; 8] {
 }
 
 /// Response headers a cross-origin PDF viewer must read to use byte-range loading.
-fn cors_exposed_headers() -> [HeaderName; 4] {
+fn cors_exposed_headers() -> [HeaderName; 6] {
     [
         header::CONTENT_RANGE,
         header::ACCEPT_RANGES,
         header::CONTENT_LENGTH,
         header::CONTENT_ENCODING,
+        header::ETAG,
+        HeaderName::from_static("x-policy-epoch"),
     ]
 }
 
