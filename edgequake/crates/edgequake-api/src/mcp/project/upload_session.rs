@@ -67,6 +67,26 @@ pub async fn eq_upload_begin(
     tenant_ctx: &TenantContext,
     args: &Value,
 ) -> ApiResult<Value> {
+    let access = args
+        .get("access")
+        .map(|value| {
+            serde_json::from_value::<crate::services::document_access_types::DocumentAccess>(
+                value.clone(),
+            )
+            .map_err(|_| {
+                ApiError::bad_request_coded("INVALID_ACCESS_PAYLOAD", "Invalid access envelope")
+            })
+        })
+        .transpose()?;
+    #[cfg(feature = "postgres")]
+    if let Some(pool) = state.optional_pg_pool() {
+        crate::services::document_access::validate_upload(pool, tenant_ctx, access.as_ref())
+            .await?;
+    }
+    let access = access
+        .map(serde_json::to_value)
+        .transpose()
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
     let raw_name = args
         .get("filename")
         .and_then(|v| v.as_str())
@@ -130,6 +150,7 @@ pub async fn eq_upload_begin(
                 return finish_begin(
                     state,
                     BeginFinish {
+                        access: access.clone(),
                         scope,
                         upload_id,
                         filename,
@@ -152,6 +173,7 @@ pub async fn eq_upload_begin(
     finish_begin(
         state,
         BeginFinish {
+            access,
             scope,
             upload_id,
             filename,
@@ -170,6 +192,7 @@ pub async fn eq_upload_begin(
 }
 
 struct BeginFinish {
+    access: Option<Value>,
     scope: UploadScope,
     upload_id: String,
     filename: String,
@@ -331,6 +354,7 @@ async fn try_presign(
 
 async fn finish_begin(state: &AppState, begun: BeginFinish) -> ApiResult<Value> {
     let BeginFinish {
+        access,
         scope,
         upload_id,
         filename,
@@ -345,6 +369,7 @@ async fn finish_begin(state: &AppState, begun: BeginFinish) -> ApiResult<Value> 
         bind_bearer,
     } = begun;
     let meta = UploadMeta {
+        access,
         upload_id: upload_id.clone(),
         scope: scope.clone(),
         filename,
@@ -635,7 +660,23 @@ pub async fn commit_upload_id(
     if admit_ctx.workspace_id_uuid().is_none() {
         admit_ctx.workspace_id = Some(crate::middleware::default_workspace_uuid().to_string());
     }
-    let envelope = admit_bytes(state, &admit_ctx, &meta.filename, &meta.media_type, bytes).await?;
+    let access = meta
+        .access
+        .clone()
+        .map(serde_json::from_value)
+        .transpose()
+        .map_err(|_| {
+            ApiError::bad_request_coded("INVALID_ACCESS_PAYLOAD", "Invalid upload access")
+        })?;
+    let envelope = admit_bytes_with_access(
+        state,
+        &admit_ctx,
+        &meta.filename,
+        &meta.media_type,
+        bytes,
+        access,
+    )
+    .await?;
     if envelope.get("ok").and_then(|v| v.as_bool()) == Some(false) {
         release_claim(state, &meta).await?;
         return Ok(envelope);
@@ -949,14 +990,26 @@ pub async fn admit_bytes(
     media_type: &str,
     bytes: Vec<u8>,
 ) -> ApiResult<Value> {
+    admit_bytes_with_access(state, tenant_ctx, filename, media_type, bytes, None).await
+}
+
+pub async fn admit_bytes_with_access(
+    state: &AppState,
+    tenant_ctx: &TenantContext,
+    filename: &str,
+    media_type: &str,
+    bytes: Vec<u8>,
+    access: Option<crate::services::document_access_types::DocumentAccess>,
+) -> ApiResult<Value> {
     let is_pdf = filename.to_ascii_lowercase().ends_with(".pdf")
         || media_type.eq_ignore_ascii_case("application/pdf");
     if is_pdf {
-        let resp = crate::handlers::pdf_upload::admit_pdf_bytes(
+        let resp = crate::handlers::pdf_upload::admit_pdf_bytes_with_access(
             state,
             tenant_ctx,
             filename.to_string(),
             bytes,
+            access.clone(),
         )
         .await?;
         let status = if resp.status == "duplicate_processing" {
@@ -994,6 +1047,7 @@ pub async fn admit_bytes(
         state,
         tenant_ctx,
         DocumentAdmissionInput {
+            access,
             text_content: resolved.text_content,
             title: filename.to_string(),
             source_type: resolved.meta.source_type,

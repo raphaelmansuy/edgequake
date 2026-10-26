@@ -77,6 +77,7 @@ pub async fn upload_document(
         &state,
         &tenant_ctx,
         DocumentAdmissionInput {
+            access: request.access,
             text_content: request.content,
             title: title.clone(),
             source_type: "markdown",

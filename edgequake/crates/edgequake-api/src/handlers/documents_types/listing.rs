@@ -10,6 +10,12 @@ use super::defaults::{default_page, default_page_size};
 /// @implements SPEC-005: Document date and pattern filters
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct ListDocumentsRequest {
+    #[serde(default)]
+    pub classification: Option<String>,
+    #[serde(default)]
+    pub security_tag_ids: Option<String>,
+    #[serde(default)]
+    pub review_state: Option<String>,
     /// Page number.
     #[serde(default = "default_page")]
     pub page: usize,

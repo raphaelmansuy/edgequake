@@ -4,10 +4,10 @@ use crate::{
     pdf_storage::{ListPdfFilter, PdfDocument},
     StorageError,
 };
-use sqlx::{PgPool, Row};
+use sqlx::{Executor, Postgres, Row};
 
-pub async fn list_pdfs_dynamic(
-    pool: &PgPool,
+pub async fn list_pdfs_dynamic<'c>(
+    conn: impl Executor<'c, Database = Postgres>,
     filter: &ListPdfFilter,
     limit: i64,
     offset: i64,
@@ -94,7 +94,7 @@ pub async fn list_pdfs_dynamic(
         query = query.bind(offset);
     }
 
-    let rows = query.fetch_all(pool).await?;
+    let rows = query.fetch_all(conn).await?;
 
     let items = rows
         .into_iter()

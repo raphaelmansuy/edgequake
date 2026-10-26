@@ -1,3 +1,4 @@
+import type { UploadAccess } from "@/lib/clearance/access-draft";
 /**
  * Single-file upload router — DRY SSOT for PDF / image / text paths.
  */
@@ -15,6 +16,8 @@ import { classifyUploadFile, isMarkdownUploadFile } from "./file-kind";
 import { resolveProgressTrackId } from "./progress-track-id";
 
 export interface PerformFileUploadOptions {
+  assertScope?: () => void;
+  access?: UploadAccess;
   /** Client batch correlation id (multipart); not the progress-store key. */
   batchTrackId: string;
   /** SPEC-084 / GH-318: total files in this client batch (track completeness). */
@@ -73,6 +76,8 @@ export async function performFileUpload(
 
   if (kind === "pdf") {
     const pdfResponse = await uploadPdfDocument(file, {
+      assertScope: options.assertScope,
+      access: options.access,
       title: file.name,
       enable_vision: true,
       track_id: options.batchTrackId,
@@ -109,6 +114,8 @@ export async function performFileUpload(
 
   if (kind === "image") {
     const fileResponse = await uploadFile(file, {
+      assertScope: options.assertScope,
+      access: options.access,
       extraction_mode: options.extractionMode,
       onUploadProgress: options.onUploadProgress,
     });
@@ -135,6 +142,7 @@ export async function performFileUpload(
   // SPEC-086: pin .md as markdown (not generic text) for stage skip + chunk strategy.
   const sourceType = isMarkdownUploadFile(file) ? "markdown" : "text";
   const textResponse = await uploadDocument({
+    access: options.access,
     content: text,
     source_type: sourceType,
     title: file.name,
@@ -144,7 +152,7 @@ export async function performFileUpload(
     metadata: options.expectedBatchCount
       ? { expected_batch_count: options.expectedBatchCount }
       : undefined,
-  });
+  }, { assertScope: options.assertScope });
 
   return {
     document_id: textResponse.document_id,

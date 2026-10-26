@@ -50,7 +50,8 @@ fn pdf_id_column_value(task: &Task) -> Option<String> {
 }
 
 #[cfg(feature = "postgres")]
-fn task_from_row(row: &PgRow) -> TaskResult<Task> {
+/// Decode the canonical task projection for worker and scoped API readers.
+pub fn task_from_row(row: &PgRow) -> TaskResult<Task> {
     let payload: serde_json::Value = row.get("payload");
     let task_data = payload
         .get("task_data")

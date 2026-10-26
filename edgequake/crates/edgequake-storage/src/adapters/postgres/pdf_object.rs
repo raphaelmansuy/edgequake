@@ -56,6 +56,9 @@ pub(super) async fn create_object_pdf(
     let mut tx = pool.begin().await.map_err(|e| {
         StorageError::Database(format!("Failed to begin PDF create transaction: {e}"))
     })?;
+    if let Some(session) = crate::clearance_session::ClearanceSession::current() {
+        super::rls::apply_clearance_session(&mut tx, &session).await?;
+    }
     let inserted = sqlx::query(
         r#"
         INSERT INTO pdf_documents (

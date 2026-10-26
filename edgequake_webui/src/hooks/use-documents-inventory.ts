@@ -23,6 +23,8 @@ export interface UseDocumentsInventoryOptions {
   sortField: SortField;
   sortDirection: SortDirection;
   pageSize?: number;
+  classification?: string;
+  securityTagIds?: string[];
 }
 
 export function useDocumentsInventory(options: UseDocumentsInventoryOptions) {
@@ -30,6 +32,7 @@ export function useDocumentsInventory(options: UseDocumentsInventoryOptions) {
     options.pageSize ?? VIRTUAL_PAGE_SIZE,
   );
   const [currentPage, setCurrentPage] = useState(1);
+  const securityTagsKey = options.securityTagIds?.join(",");
 
   useEffect(() => {
     setCurrentPage(1);
@@ -38,6 +41,8 @@ export function useDocumentsInventory(options: UseDocumentsInventoryOptions) {
     options.workspaceId,
     options.searchQuery,
     options.statusFilter,
+    options.classification,
+    securityTagsKey,
     pageSize,
   ]);
 
@@ -49,6 +54,8 @@ export function useDocumentsInventory(options: UseDocumentsInventoryOptions) {
     pageSize,
     statusFilter: options.statusFilter,
     documentPattern,
+    classification: options.classification,
+    securityTagIds: options.securityTagIds,
   });
 
   const filtering = useDocumentFiltering({

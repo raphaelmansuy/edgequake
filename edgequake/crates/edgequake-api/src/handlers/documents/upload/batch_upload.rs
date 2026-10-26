@@ -62,7 +62,8 @@ pub async fn upload_files_batch(
                 );
                 files.push(stream_field_to_tempfile(field, filename).await?);
             }
-            "metadata"
+            "access"
+            | "metadata"
             | "chunk_strategy"
             | "chunk_options"
             | "extract_max_entities"
@@ -94,6 +95,7 @@ pub async fn upload_files_batch(
         .effective_extract_caps()
         .map_err(ApiError::ValidationError)?;
     let batch_opts = BatchEnqueueOptions {
+        access: multipart_fields.access()?,
         chunk_strategy: batch_chunk_strategy,
         chunk_options: batch_chunk_options,
         custom_metadata: batch_metadata,
@@ -165,6 +167,7 @@ pub async fn upload_files_batch(
 /// Shared batch-level admission knobs (chunking + SPEC-117 extract caps).
 #[derive(Clone)]
 struct BatchEnqueueOptions {
+    access: Option<crate::services::document_access_types::DocumentAccess>,
     chunk_strategy: Option<edgequake_pipeline::ChunkStrategy>,
     chunk_options: Option<edgequake_pipeline::ChunkOptions>,
     custom_metadata: Option<serde_json::Value>,
@@ -189,6 +192,7 @@ async fn enqueue_single_file(
         state,
         tenant_ctx,
         DocumentAdmissionInput {
+            access: opts.access.clone(),
             text_content: resolved.text_content,
             title: filename.to_string(),
             source_type: resolved.meta.source_type,

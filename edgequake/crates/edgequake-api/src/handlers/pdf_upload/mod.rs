@@ -74,6 +74,7 @@ mod tests {
         }
 
         let mut opts = PdfUploadOptions {
+            access: None,
             vision_provider: Some("openai".to_string()),
             ..Default::default()
         };

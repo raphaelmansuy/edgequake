@@ -34,6 +34,18 @@ pub async fn resolve_workspace_duplicate_for_reingestion(
         return Ok(DuplicateReingestAction::NoDuplicate);
     };
 
+    if edgequake_storage::clearance_session::ClearanceSession::current().is_some_and(|s| s.enforced)
+    {
+        if crate::services::clearance::must_hide(&doc_id_str).await? {
+            return Err(ApiError::Conflict(
+                "This content cannot be admitted in the current scope".into(),
+            ));
+        }
+        return Ok(DuplicateReingestAction::StillProcessing {
+            existing_document_id: doc_id_str,
+        });
+    }
+
     if !workspace_has_visible_document_for_hash(state, &doc_id_str, tenant_ctx).await? {
         recycle_orphan_workspace_hash(state, &hash_key, workspace_id, &doc_id_str).await?;
         return Ok(DuplicateReingestAction::NoDuplicate);

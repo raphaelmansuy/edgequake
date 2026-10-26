@@ -1,0 +1,1639 @@
+{
+  "config": {
+    "configFile": "/Users/raphaelmansuy/Github/03-working/edgequake/edgequake_webui/e2e/spec180/playwright.config.ts",
+    "rootDir": "/Users/raphaelmansuy/Github/03-working/edgequake/edgequake_webui/e2e/spec180",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": "/Users/raphaelmansuy/Github/03-working/edgequake/edgequake_webui/e2e/spec180/global-setup.ts",
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/raphaelmansuy/Github/03-working/edgequake/edgequake_webui/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "/Users/raphaelmansuy/Github/03-working/edgequake/edgequake_webui/e2e/spec180",
+        "testIgnore": [],
+        "testMatch": [
+          "/.*\\.spec\\.ts/"
+        ],
+        "timeout": 120000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "../../../specs/180-improve-sec-doc/e2e/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.2",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "access-api.spec.ts",
+      "file": "access-api.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "@spec180live SPEC-180 live authorization and transactions",
+          "file": "access-api.spec.ts",
+          "line": 5,
+          "column": 6,
+          "specs": [
+            {
+              "title": "assignment options intersect RBAC and ABAC; readonly steward cannot write",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7170,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:49:57.429Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "aadb785f601b03a38d78-74773467bc76dbf8739a",
+              "file": "access-api.spec.ts",
+              "line": 7,
+              "column": 7
+            },
+            {
+              "title": "hidden and missing access are indistinguishable; counts contain only visible documents",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3503,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:50:04.622Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "aadb785f601b03a38d78-0bd522b0be5806351937",
+              "file": "access-api.spec.ts",
+              "line": 18,
+              "column": 7
+            },
+            {
+              "title": "conditional save, replay and descendant inheritance are atomic",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3475,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:50:08.134Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "aadb785f601b03a38d78-b8a5bccb70019e72d2d1",
+              "file": "access-api.spec.ts",
+              "line": 25,
+              "column": 7
+            },
+            {
+              "title": "missing preconditions, stale versions and stale epochs cannot mutate",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3664,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:50:11.615Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "aadb785f601b03a38d78-7763065ae3554ed769cf",
+              "file": "access-api.spec.ts",
+              "line": 38,
+              "column": 7
+            },
+            {
+              "title": "mixed strengthening and tag removal still requires a steward and reason",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5838,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:50:15.288Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "aadb785f601b03a38d78-ec492322c2819be17579",
+              "file": "access-api.spec.ts",
+              "line": 45,
+              "column": 7
+            },
+            {
+              "title": "one stale bulk item rolls back the complete selection and its audit",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1503,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:50:21.136Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "aadb785f601b03a38d78-7775b01c06686d24790a",
+              "file": "access-api.spec.ts",
+              "line": 53,
+              "column": 7
+            },
+            {
+              "title": "concurrent edits have one winner and one policy conflict",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1419,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:50:22.643Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "aadb785f601b03a38d78-684cd83a8d40a9cbac1f",
+              "file": "access-api.spec.ts",
+              "line": 59,
+              "column": 7
+            },
+            {
+              "title": "typed upload labels are present before processing; metadata cannot impersonate access",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1456,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:50:24.066Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "aadb785f601b03a38d78-a3dea53486a9978b9cd5",
+              "file": "access-api.spec.ts",
+              "line": 64,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "access-security.spec.ts",
+      "file": "access-security.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "@spec180live SPEC-180 live failure and transport boundaries",
+          "file": "access-security.spec.ts",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "PDF admission protects the staged original and derives its final label",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2900,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:50:25.532Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-c3e488f35f5bf048edd8",
+              "file": "access-security.spec.ts",
+              "line": 6,
+              "column": 7
+            },
+            {
+              "title": "PDF duplicate intent cannot silently relabel the existing document",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1487,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:50:28.436Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-ff03f2f92d35b8f197e8",
+              "file": "access-security.spec.ts",
+              "line": 20,
+              "column": 7
+            },
+            {
+              "title": "MCP upload intent survives begin, write, commit and replay; revoked policy blocks commit",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 19472,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:50:29.927Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-d526f2e1640c7ffbd05c",
+              "file": "access-security.spec.ts",
+              "line": 26,
+              "column": 7
+            },
+            {
+              "title": "the actual application database role cannot bypass clearance",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 156,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:50:49.403Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-e9073567f5a2abf8cbda",
+              "file": "access-security.spec.ts",
+              "line": 49,
+              "column": 7
+            },
+            {
+              "title": "hidden documents are absent across content, original, chunks and status routes",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1423,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:50:49.565Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-7489258a45a89b80b1cf",
+              "file": "access-security.spec.ts",
+              "line": 53,
+              "column": 7
+            },
+            {
+              "title": "revoked membership and readonly roles cannot admit or mutate documents",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2881,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:50:50.992Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-c1c4767337e0c4b22157",
+              "file": "access-security.spec.ts",
+              "line": 59,
+              "column": 7
+            },
+            {
+              "title": "late worker updates derive current parent labels and profile tags cannot be deleted",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 284,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [
+                        {
+                          "text": "ERROR:  Security tag is used by an access profile\nCONTEXT:  PL/pgSQL function clearance_tag_reference_guard() line 4 at RAISE\n"
+                        }
+                      ],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:50:53.878Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-6ff5b6cc2cd4b507e046",
+              "file": "access-security.spec.ts",
+              "line": 69,
+              "column": 7
+            },
+            {
+              "title": "operation receipts remain private to the actor and duplicate selections do not write",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2733,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:50:54.166Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-21b29adc65d67ca4be8f",
+              "file": "access-security.spec.ts",
+              "line": 75,
+              "column": 7
+            },
+            {
+              "title": "audit failure rolls back label, descendants, epoch and receipt",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1632,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:50:56.903Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-d51973a2a6c12ca5d4ff",
+              "file": "access-security.spec.ts",
+              "line": 82,
+              "column": 7
+            },
+            {
+              "title": "server bulk add preserves sensitivity and remove requires an audited reason",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1547,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:50:58.538Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-cf83fb5f25aa7755afe4",
+              "file": "access-security.spec.ts",
+              "line": 91,
+              "column": 7
+            },
+            {
+              "title": "member lookup and exact draft check are steward-only",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2688,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:51:00.089Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-a53efee04eb58a193da9",
+              "file": "access-security.spec.ts",
+              "line": 99,
+              "column": 7
+            },
+            {
+              "title": "opaque tag cursors are invalidated by a policy change",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1578,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:51:02.780Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-ba08a2afbe7398011ad7",
+              "file": "access-security.spec.ts",
+              "line": 106,
+              "column": 7
+            },
+            {
+              "title": "malformed JSON access is rejected: null",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1422,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:51:04.362Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-ba6a2bc796adb33ad926",
+              "file": "access-security.spec.ts",
+              "line": 114,
+              "column": 143
+            },
+            {
+              "title": "malformed JSON access is rejected: {}",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1488,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:51:05.787Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-c60aa63caacee29d2ced",
+              "file": "access-security.spec.ts",
+              "line": 114,
+              "column": 143
+            },
+            {
+              "title": "malformed JSON access is rejected: {\"classification\":\"public\"}",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2622,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:51:07.279Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-33f9e87447115da391a1",
+              "file": "access-security.spec.ts",
+              "line": 114,
+              "column": 143
+            },
+            {
+              "title": "malformed JSON access is rejected: {\"classification\":\"unrecognized\",\"compartment_ids\":[],\"expected_policy_epoch\":0}",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2230,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:51:09.910Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-0353dcf0a2de931bcf72",
+              "file": "access-security.spec.ts",
+              "line": 114,
+              "column": 143
+            },
+            {
+              "title": "multipart field order has the same initial access as JSON",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6637,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:51:12.146Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-2f23d4cd9f41bd577e23",
+              "file": "access-security.spec.ts",
+              "line": 117,
+              "column": 7
+            },
+            {
+              "title": "omitted access remains private review and a different dedup intent conflicts",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7328,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:51:18.793Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-a9b91aecb0e06da4acfc",
+              "file": "access-security.spec.ts",
+              "line": 125,
+              "column": 7
+            },
+            {
+              "title": "invalid and out-of-scope tag IDs fail without disclosing vocabulary",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3124,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:51:26.127Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2af5ced1d972b9731301-555e6b25540c5d59276a",
+              "file": "access-security.spec.ts",
+              "line": 131,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "access-ui.spec.ts",
+      "file": "access-ui.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "@spec180live SPEC-180 live document security UX",
+          "file": "access-ui.spec.ts",
+          "line": 5,
+          "column": 6,
+          "specs": [
+            {
+              "title": "explicit property save, cancel, keyboard discard and saved state survive reload",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 12890,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:51:29.292Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "87541ed8f0cb8fab4e6e-ea0c63899992fa8c0e5d",
+              "file": "access-ui.spec.ts",
+              "line": 7,
+              "column": 7
+            },
+            {
+              "title": "upload review keeps files local, permits governed tags and per-file overrides",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7801,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:51:43.489Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "87541ed8f0cb8fab4e6e-8f509655b22784f60b8e",
+              "file": "access-ui.spec.ts",
+              "line": 20,
+              "column": 7
+            },
+            {
+              "title": "responsive access editor 768px and dark mode",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3326,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:51:51.297Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "87541ed8f0cb8fab4e6e-2fce0bf4c451cfa91655",
+              "file": "access-ui.spec.ts",
+              "line": 31,
+              "column": 36
+            },
+            {
+              "title": "responsive access editor 375px and dark mode",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3104,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:51:54.628Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "87541ed8f0cb8fab4e6e-6f8faae500446643a22a",
+              "file": "access-ui.spec.ts",
+              "line": 31,
+              "column": 36
+            },
+            {
+              "title": "responsive upload review 768px stays local and fits in both themes",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3982,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:51:57.736Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "87541ed8f0cb8fab4e6e-1632c608d2c4a59ab625",
+              "file": "access-ui.spec.ts",
+              "line": 38,
+              "column": 36
+            },
+            {
+              "title": "responsive upload review 375px stays local and fits in both themes",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3938,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:52:01.722Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "87541ed8f0cb8fab4e6e-a18672c230a9de15d3bc",
+              "file": "access-ui.spec.ts",
+              "line": 38,
+              "column": 36
+            },
+            {
+              "title": "readonly steward sees a truthful disabled editor and hidden document is absent for writer",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2982,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:52:05.663Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "87541ed8f0cb8fab4e6e-13e05e38e66bb13b6815",
+              "file": "access-ui.spec.ts",
+              "line": 50,
+              "column": 7
+            },
+            {
+              "title": "upload button admits a file with the reviewed label and no relabel PATCH",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5650,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:52:08.649Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "87541ed8f0cb8fab4e6e-8922d33d78223981c806",
+              "file": "access-ui.spec.ts",
+              "line": 53,
+              "column": 7
+            },
+            {
+              "title": "default review upload is usable and remains hidden to another ordinary member",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5864,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:52:14.303Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "87541ed8f0cb8fab4e6e-4ddc9bdc9fde2bc968ab",
+              "file": "access-ui.spec.ts",
+              "line": 61,
+              "column": 7
+            },
+            {
+              "title": "rules-off uploads retain the legacy direct-admission contract",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3402,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:52:20.171Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "87541ed8f0cb8fab4e6e-e4dd51aac722d9163b64",
+              "file": "access-ui.spec.ts",
+              "line": 70,
+              "column": 7
+            },
+            {
+              "title": "bulk add preserves each sensitivity and changes only affected documents",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5245,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:52:23.577Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "87541ed8f0cb8fab4e6e-a84dfd494669489cfd35",
+              "file": "access-ui.spec.ts",
+              "line": 80,
+              "column": 7
+            },
+            {
+              "title": "stale policy retains a draft and requires reviewed retry",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6430,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:52:28.826Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "87541ed8f0cb8fab4e6e-b29ef822ef4b0f3b414c",
+              "file": "access-ui.spec.ts",
+              "line": 86,
+              "column": 7
+            },
+            {
+              "title": "lost save response reconciles a committed operation without duplicate audit",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5684,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:52:35.261Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "87541ed8f0cb8fab4e6e-f0e9709f32df61e823f1",
+              "file": "access-ui.spec.ts",
+              "line": 91,
+              "column": 7
+            },
+            {
+              "title": "member check evaluates the draft and keyboard picker keeps its parent open",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3938,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:52:40.949Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "87541ed8f0cb8fab4e6e-914e5a5768ea92704567",
+              "file": "access-ui.spec.ts",
+              "line": 95,
+              "column": 7
+            },
+            {
+              "title": "access dialog passes focused WCAG checks",
+              "ok": true,
+              "tags": [
+                "spec180live"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "",
+                  "projectName": "",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3513,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-26T16:52:44.891Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "87541ed8f0cb8fab4e6e-01cbab3b9da904a31927",
+              "file": "access-ui.spec.ts",
+              "line": 99,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-26T16:49:55.880Z",
+    "duration": 172557.627,
+    "expected": 42,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

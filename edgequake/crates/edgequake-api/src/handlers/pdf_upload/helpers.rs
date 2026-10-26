@@ -244,6 +244,28 @@ pub(super) async fn create_pdf_processing_task(
         fairness_hold_until: None,
     };
 
+    #[cfg(feature = "postgres")]
+    if let Some(pool) = state.optional_pg_pool() {
+        crate::services::document_access::admit_initial_access(
+            pool,
+            context,
+            Uuid::parse_str(&document_id)
+                .map_err(|_| ApiError::Internal("Invalid document identity".into()))?,
+            options.title.as_deref().unwrap_or("PDF document"),
+            &track_id,
+            options.access.as_ref(),
+        )
+        .await?;
+        get_pdf_storage(state)?
+            .link_pdf_to_document(
+                &pdf_id,
+                &Uuid::parse_str(&document_id)
+                    .map_err(|_| ApiError::Internal("Invalid document identity".into()))?,
+            )
+            .await
+            .map_err(|_| ApiError::Internal("Failed to protect PDF original".into()))?;
+    }
+
     if let Err(e) = state.enqueue_task(task).await {
         state.tasks.pdf_admission.release(workspace_id, pdf_id);
         return Err(e);

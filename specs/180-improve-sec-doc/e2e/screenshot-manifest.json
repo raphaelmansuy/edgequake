@@ -1,0 +1,131 @@
+{
+  "review": "All final captures visually inspected through the contact sheet and individual critical views.",
+  "screenshots": [
+    {
+      "file": "screenshots/375-property-dark.png",
+      "width": 375,
+      "height": 900,
+      "sha256": "479407969b354cc25032322398a27066194f3b25867c9a4792fc32fe0313e08a"
+    },
+    {
+      "file": "screenshots/375-property-light.png",
+      "width": 375,
+      "height": 900,
+      "sha256": "eaf5030bdd0c0c6d7c727c8811e4fe67c6a22b6386e740be3fb5d012693e806e"
+    },
+    {
+      "file": "screenshots/375-tag-picker-dark.png",
+      "width": 375,
+      "height": 900,
+      "sha256": "6efdc0df19ea6340933c064df514ffdf715cf9d574670c0e9a19961440540693"
+    },
+    {
+      "file": "screenshots/375-upload-dark.png",
+      "width": 375,
+      "height": 900,
+      "sha256": "ec5ea95908df44096d95f2a30391326b5f17ad6e98fb488cb251e3e4e730cb11"
+    },
+    {
+      "file": "screenshots/375-upload-light.png",
+      "width": 375,
+      "height": 900,
+      "sha256": "c348ebace4e7afaff89016c5070e9ac2231e04748fb177af378b4e97a66bd4cd"
+    },
+    {
+      "file": "screenshots/768-property-dark.png",
+      "width": 768,
+      "height": 900,
+      "sha256": "82c7a7b99f8a8f3638c871d058c3b0a382ee0bef3914929604e96d166c87bfb1"
+    },
+    {
+      "file": "screenshots/768-property-light.png",
+      "width": 768,
+      "height": 900,
+      "sha256": "a76307c1518b3896794cf29d54599df0d1afeee6577ca48cb8f748022f5553aa"
+    },
+    {
+      "file": "screenshots/768-tag-picker-dark.png",
+      "width": 768,
+      "height": 900,
+      "sha256": "677e8809936ba4e60d7d1ce1df481cc497b4428b651c7dc2dd70275696853f72"
+    },
+    {
+      "file": "screenshots/768-upload-dark.png",
+      "width": 768,
+      "height": 900,
+      "sha256": "fde3a63fdefa0d4c5eb90b32a1d409240f9629f7c83255a45d135211562bab04"
+    },
+    {
+      "file": "screenshots/768-upload-light.png",
+      "width": 768,
+      "height": 900,
+      "sha256": "f8cf2252a3e28fc7599f504446c71241ea2ca084327693c9429021ac4d6ee7c7"
+    },
+    {
+      "file": "screenshots/desktop-bulk-add.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "4ffc58e78d04f559e2d1cda035fb127b59b5533c3c72ff3d664bcd3d9542c889"
+    },
+    {
+      "file": "screenshots/desktop-member-draft-check.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "6649c33751e650f1d3486031787e33bdbeb29d5b5fdce591d4b75c79c65059a6"
+    },
+    {
+      "file": "screenshots/desktop-property-conflict.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "168851f732888e1936df7ac0493b1f029b5f9993a1f96d655f04e4e8ca7def54"
+    },
+    {
+      "file": "screenshots/desktop-property-draft.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "fd8dcb763722ccfcd4c646c4533fea05eac9c2ea97aa8edafd9de5ab4138e86d"
+    },
+    {
+      "file": "screenshots/desktop-property-light.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "11eece00fe762d7dff72954f6cb26e69da5b6ca949d2cb95430bd893ff50b6ff"
+    },
+    {
+      "file": "screenshots/desktop-property-readonly.png",
+      "width": 1280,
+      "height": 720,
+      "sha256": "f50913b4502637fd5abda75573ed26e2fd69366f4ee28592fea752b5cbae5b78"
+    },
+    {
+      "file": "screenshots/desktop-property-unknown-outcome.png",
+      "width": 1280,
+      "height": 720,
+      "sha256": "240570b77074595bd9ef879a3289b4b064ed3b7cf7b9d901af0485b4f41d8198"
+    },
+    {
+      "file": "screenshots/desktop-upload-needs-review.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "df674e52f1e2b66c7661e1497c2387d35c8394c1661d923466c893d12bd0da65"
+    },
+    {
+      "file": "screenshots/desktop-upload-override.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "6355956af2159e098eb51492b1e9b8bafe4c20e9bb66bc0272d63d6682b3b059"
+    },
+    {
+      "file": "screenshots/desktop-upload-ready.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "26403a54257d05df1103300fc669e9572dba9df3ae9ad55cb237c1ea0bc01234"
+    },
+    {
+      "file": "screenshots/desktop-upload-tag-picker.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "bf65f5a7c9e0ae2e6292613851c75b87db5bc4c76ae1dee99598a85a0b9bd1f4"
+    }
+  ]
+}

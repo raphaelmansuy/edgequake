@@ -290,12 +290,12 @@ export function DocumentPreviewPanel({
             </div>
           </div>
 
-          {document.classification ? (
+          {(
             <div className="flex items-center justify-between gap-3" data-testid="detail-access-label">
               <span className="shrink-0 text-xs text-muted-foreground">Access</span>
               <DocumentAccessControl document={document} />
             </div>
-          ) : null}
+          )}
 
           {/* Size */}
           {(document.file_size || document.content_length) && (

@@ -198,16 +198,53 @@ pub async fn execute_tool_call(
     }
 
     let propagation = propagation_from_meta(&ctx.meta);
-    match execute_tool(
+    // Tool tasks may be spawned by the transport. Task locals are not
+    // inherited by tokio::spawn, so each execution owns a fresh binding.
+    let session = tool_clearance_session(&ctx.state, &ctx.tenant_ctx)
+        .await
+        .map_err(GatewayError::Api)?;
+    let operation = execute_tool(
         &ctx.state,
         &ctx.tenant_ctx,
         name,
         arguments,
         &propagation,
         ctx.auth_role.as_ref(),
-    )
-    .await
-    {
+    );
+    let result = if let Some(session) = session.clone() {
+        edgequake_storage::clearance_session::scope(session, operation).await
+    } else {
+        operation.await
+    };
+    if let Some(before) = session.filter(|session| session.enforced) {
+        if let Some(after) = tool_clearance_session(&ctx.state, &ctx.tenant_ctx)
+            .await
+            .map_err(GatewayError::Api)?
+        {
+            if before.policy_epoch != after.policy_epoch || before.fingerprint != after.fingerprint
+            {
+                // A label write intentionally changes epoch. Only successful
+                // mutation acknowledgements may cross that transition.
+                if !matches!(
+                    name,
+                    "eq_ingest"
+                        | "eq_upload_begin"
+                        | "eq_upload_write"
+                        | "eq_upload_commit"
+                        | "eq_upload_abort"
+                        | "eq_document_delete"
+                        | "eq_workspace_delete"
+                ) {
+                    return Ok(call_tool_error_structured(eq_error(
+                        ErrorCode::Forbidden,
+                        "Access changed; retry under the current rules",
+                        None,
+                    )));
+                }
+            }
+        }
+    }
+    match result {
         Ok(structured) => {
             if structured.get("ok").and_then(|v| v.as_bool()) == Some(false) {
                 Ok(call_tool_error_structured(structured))
@@ -223,6 +260,24 @@ pub async fn execute_tool_call(
     }
 }
 
+async fn tool_clearance_session(
+    state: &AppState,
+    tenant: &TenantContext,
+) -> ApiResult<Option<edgequake_storage::clearance_session::ClearanceSession>> {
+    #[cfg(feature = "postgres")]
+    if let (Some(pool), Some(workspace)) = (state.optional_pg_pool(), tenant.workspace_id_uuid()) {
+        let user = tenant
+            .user_id
+            .as_deref()
+            .and_then(|id| uuid::Uuid::parse_str(id).ok());
+        return crate::services::clearance::load_scope(pool, workspace, user)
+            .await
+            .map(|(_, session)| Some(session));
+    }
+    let _ = (state, tenant);
+    Ok(None)
+}
+
 async fn execute_tool(
     state: &AppState,
     tenant_ctx: &TenantContext,
@@ -236,8 +291,16 @@ async fn execute_tool(
             .await?;
 
     let propagation = propagation.clone();
-    let llm_override: Option<Arc<dyn LLMProvider>> =
-        resolve_query_llm_override(state, workspace.as_ref(), &propagation, None, None).await?;
+    // Catalog, upload and lifecycle tools do not consume a query model. Keep
+    // model eligibility authoritative for the search tools that actually use it.
+    let llm_override: Option<Arc<dyn LLMProvider>> = if matches!(
+        name,
+        "eq_search" | "eq_retrieve" | "edgequake_search" | "edgequake_retrieve"
+    ) {
+        resolve_query_llm_override(state, workspace.as_ref(), &propagation, None, None).await?
+    } else {
+        None
+    };
     let ws_id = tenant_ctx.workspace_id.as_deref().unwrap_or("default");
 
     let canonical = match name {

@@ -71,6 +71,7 @@ pub struct UploadScope {
 
 #[derive(Clone, Debug)]
 pub struct UploadMeta {
+    pub access: Option<serde_json::Value>,
     pub upload_id: String,
     pub scope: UploadScope,
     pub filename: String,
@@ -359,9 +360,9 @@ mod pg {
                 "INSERT INTO mcp_upload_sessions (
                     upload_id, tenant_id, workspace_id, user_id, filename, media_type,
                     byte_length, sha256, staging_key, transfer, bind, status, received,
-                    expires_at
+                    expires_at, access
                  ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, to_timestamp($14)
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, to_timestamp($14), $15
                  )",
             )
             .bind(&meta.upload_id)
@@ -382,6 +383,7 @@ mod pg {
             .bind(meta.status.as_str())
             .bind(meta.received as i64)
             .bind(meta.expires_at_unix as f64)
+            .bind(&meta.access)
             .execute(&mut *tx)
             .await
             .map_err(|e| UploadFault(format!("upload insert: {e}")))?;
@@ -401,7 +403,7 @@ mod pg {
                 "SELECT upload_id, tenant_id, workspace_id, user_id, filename, media_type,
                         byte_length, sha256, staging_key, transfer, bind, status, received,
                         extract(epoch FROM expires_at)::bigint AS expires_at_unix,
-                        document_id, task_id, commit_status
+                        document_id, task_id, commit_status, access
                  FROM mcp_upload_sessions WHERE upload_id = $1",
             )
             .bind(id)
@@ -609,6 +611,7 @@ mod pg {
 
     #[derive(sqlx::FromRow)]
     struct PgRow {
+        access: Option<serde_json::Value>,
         upload_id: String,
         tenant_id: Uuid,
         workspace_id: Uuid,
@@ -631,6 +634,7 @@ mod pg {
     impl PgRow {
         fn into_meta(self) -> UploadMeta {
             UploadMeta {
+                access: self.access,
                 upload_id: self.upload_id,
                 scope: UploadScope {
                     tenant_id: Some(self.tenant_id.to_string()),

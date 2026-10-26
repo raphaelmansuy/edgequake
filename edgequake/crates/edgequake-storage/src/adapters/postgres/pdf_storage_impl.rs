@@ -533,6 +533,9 @@ impl PdfDocumentStorage for PostgresPdfStorage {
             StorageError::Database(format!("Failed to begin PDF create transaction: {e}"))
         })?;
 
+        if let Some(session) = crate::clearance_session::ClearanceSession::current() {
+            super::rls::apply_clearance_session(&mut tx, &session).await?;
+        }
         sqlx::query(
             r#"
             INSERT INTO pdf_documents (
@@ -1002,59 +1005,21 @@ impl PdfDocumentStorage for PostgresPdfStorage {
 
         let status_filter = filter.processing_status.map(|s| s.as_str().to_string());
 
-        // Get total count
-        let total_count: i64 = if let Some(workspace_id) = filter.workspace_id {
-            if let Some(status) = &status_filter {
-                sqlx::query_scalar!(
-                    r#"
-                    SELECT COUNT(*) as "count!"
-                    FROM pdf_documents
-                    WHERE workspace_id = $1 AND processing_status = $2
-                    "#,
-                    workspace_id,
-                    status
-                )
-                .fetch_one(&self.pool)
-                .await?
-            } else {
-                sqlx::query_scalar!(
-                    r#"
-                    SELECT COUNT(*) as "count!"
-                    FROM pdf_documents
-                    WHERE workspace_id = $1
-                    "#,
-                    workspace_id
-                )
-                .fetch_one(&self.pool)
-                .await?
-            }
-        } else if let Some(status) = &status_filter {
-            sqlx::query_scalar!(
-                r#"
-                SELECT COUNT(*) as "count!"
-                FROM pdf_documents
-                WHERE processing_status = $1
-                "#,
-                status
-            )
-            .fetch_one(&self.pool)
-            .await?
-        } else {
-            sqlx::query_scalar!(
-                r#"
-                SELECT COUNT(*) as "count!"
-                FROM pdf_documents
-                "#
-            )
-            .fetch_one(&self.pool)
-            .await?
-        };
-
-        // Get paginated items using helper. One extra row tells `has_more`
-        // without a second scan of the skipped keys.
+        // One RLS-scoped snapshot owns both the count and the page.
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+            .execute(&mut *tx)
+            .await?;
+        if crate::clearance_session::ClearanceSession::current().is_some_and(|s| s.enforced) {
+            super::rls::enforce_workspace_context(&mut tx, None, filter.workspace_id).await?;
+        }
+        let total_count:i64=sqlx::query_scalar(
+            "SELECT count(*) FROM public.pdf_documents WHERE ($1::uuid IS NULL OR workspace_id=$1) AND ($2::text IS NULL OR processing_status=$2)"
+        ).bind(filter.workspace_id).bind(&status_filter).fetch_one(&mut *tx).await?;
         let mut items =
-            super::pdf_list_query::list_pdfs_dynamic(&self.pool, &filter, fetch_limit, offset)
+            super::pdf_list_query::list_pdfs_dynamic(&mut *tx, &filter, fetch_limit, offset)
                 .await?;
+        tx.commit().await?;
         let has_more = items.len() > page_size;
         items.truncate(page_size);
 

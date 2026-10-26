@@ -72,6 +72,9 @@ export function useDocumentKeyboard(options: UseDocumentKeyboardOptions): void {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // A nested editor owns Escape and selection shortcuts until it closes.
+      // Global library shortcuts must never unmount its unsaved draft.
+      if (e.defaultPrevented || document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [data-slot="popover-content"][data-state="open"]')) return;
       // Skip if in input field or textarea
       const target = e.target as HTMLElement;
       const tagName = target.tagName.toUpperCase();

@@ -1,0 +1,61 @@
+{
+  "files_checked": 27,
+  "results": [
+    {
+      "file": "edgequake_webui/src/components/documents/document-manager.tsx",
+      "baseline": {
+        "('@typescript-eslint/no-unused-vars', 1)": 1,
+        "('react-hooks/set-state-in-effect', 2)": 5,
+        "('react-hooks/exhaustive-deps', 1)": 2
+      },
+      "current": {
+        "('@typescript-eslint/no-unused-vars', 1)": 1,
+        "('react-hooks/set-state-in-effect', 2)": 5,
+        "('react-hooks/exhaustive-deps', 1)": 2
+      },
+      "increases": {}
+    },
+    {
+      "file": "edgequake_webui/src/hooks/use-documents-inventory.ts",
+      "baseline": {
+        "('react-hooks/set-state-in-effect', 2)": 1
+      },
+      "current": {
+        "('react-hooks/set-state-in-effect', 2)": 1
+      },
+      "increases": {}
+    },
+    {
+      "file": "edgequake_webui/src/hooks/use-file-upload.ts",
+      "baseline": {
+        "('prefer-const', 2)": 1,
+        "('react-hooks/exhaustive-deps', 1)": 2
+      },
+      "current": {
+        "('prefer-const', 2)": 1,
+        "('react-hooks/exhaustive-deps', 1)": 2
+      },
+      "increases": {}
+    },
+    {
+      "file": "edgequake_webui/src/lib/api/edgequake/document-core.ts",
+      "baseline": {
+        "('@typescript-eslint/no-unused-vars', 1)": 1
+      },
+      "current": {
+        "('@typescript-eslint/no-unused-vars', 1)": 1
+      },
+      "increases": {}
+    },
+    {
+      "file": "edgequake_webui/src/lib/api/edgequake/documents.ts",
+      "baseline": {
+        "('@typescript-eslint/no-unused-vars', 1)": 1
+      },
+      "current": {
+        "('@typescript-eslint/no-unused-vars', 1)": 1
+      },
+      "increases": {}
+    }
+  ]
+}

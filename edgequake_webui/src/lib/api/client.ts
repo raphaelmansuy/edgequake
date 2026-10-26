@@ -115,6 +115,8 @@ export const DEFAULT_API_TIMEOUT_MS = 30_000;
 export const DOCUMENTS_API_TIMEOUT_MS = 10_000;
 
 export interface ApiClientOptions extends RequestInit {
+  /** Client-only guard for an operation whose account/workspace intent is frozen. */
+  assertScope?: () => void;
   /**
    * Suppress console.error on transport failures (default: false).
    *
@@ -384,8 +386,9 @@ export async function apiClient<T>(
   endpoint: string,
   options: ApiClientOptions = {},
 ): Promise<T> {
-  const { silent = false, timeoutMs, signal: userSignal, omitTenant = false, ...fetchOptions } =
+  const { silent = false, timeoutMs, signal: userSignal, omitTenant = false, assertScope, ...fetchOptions } =
     options;
+  assertScope?.();
   const url = endpoint.startsWith("http")
     ? endpoint
     : `${getRuntimeApiBaseUrl()}${endpoint}`;
@@ -407,6 +410,7 @@ export async function apiClient<T>(
     if (response.status === 401) {
       const refreshed = await tryRefreshToken();
       if (refreshed) {
+        assertScope?.();
         config.headers = buildHeaders(callerHeaders, fetchOptions.body);
         // Fresh deadline for the retry attempt.
         config.signal = resolveFetchSignal(timeoutMs, userSignal);

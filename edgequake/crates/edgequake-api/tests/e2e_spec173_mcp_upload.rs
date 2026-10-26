@@ -584,6 +584,7 @@ async fn postgres_session_is_tenant_scoped_and_claim_is_once() {
     let upload_id = format!("upl_{}", uuid::Uuid::new_v4());
     sessions
         .insert(edgequake_storage::mcp_upload::UploadMeta {
+            access: None,
             upload_id: upload_id.clone(),
             scope: scope_a.clone(),
             filename: "a.txt".into(),

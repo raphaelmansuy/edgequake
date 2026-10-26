@@ -10,6 +10,11 @@ use super::defaults::{
 /// Document upload request.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct UploadDocumentRequest {
+    #[serde(
+        default,
+        deserialize_with = "crate::services::document_access_types::deserialize_optional_access"
+    )]
+    pub access: Option<crate::services::document_access_types::DocumentAccess>,
     /// Document content.
     pub content: String,
 

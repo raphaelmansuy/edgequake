@@ -1,3 +1,4 @@
+import type { UploadAccess } from "@/lib/clearance/access-draft";
 /** Document ingestion, upload, and pipeline status types. */
 
 import type {
@@ -355,6 +356,7 @@ export interface DocumentChunk {
 }
 
 export interface UploadDocumentRequest {
+  access?: UploadAccess;
   content: string;
   title?: string;
   /** SPEC-086: include markdown (and file kinds) for text-path admission. */
@@ -387,6 +389,8 @@ export interface UploadDocumentResponse {
 
 // PDF Upload types
 export interface PdfUploadOptions {
+  assertScope?: () => void;
+  access?: UploadAccess;
   /** Enable vision LLM processing (default: true) */
   enable_vision?: boolean;
   /** Vision provider to use (default: "openai") */
