@@ -939,7 +939,7 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 	@echo ""
 	@echo "$(YELLOW)→ Ensuring PostgreSQL availability (profile: $(EQ_POSTGRES_PROFILE))...$(RESET)"
 	@$(MAKE) db-start --no-print-directory
-	@$(MAKE) minio-up --no-print-directory
+	@$(MAKE) minio-up WITH_MINIO="$(WITH_MINIO)" --no-print-directory
 	@if [ "$(WITH_LANGFUSE)" = "1" ]; then \
 		echo "$(YELLOW)→ Starting local Langfuse v4 (WITH_LANGFUSE=1)...$(RESET)"; \
 		$(MAKE) langfuse-up --no-print-directory; \
@@ -1167,11 +1167,7 @@ dev-bg-database: ## SPEC-172: background stack with originals in Postgres and no
 	@$(MAKE) dev-bg WITH_MINIO=0 --no-print-directory
 
 minio-up: ## SPEC-172: Chainguard MinIO plus a one-shot bucket create
-	@if [ "$(WITH_MINIO)" != "1" ]; then \
-		echo "$(YELLOW)MinIO skipped (WITH_MINIO=0); originals stay in Postgres$(RESET)"; \
-		rm -f /tmp/edgequake-minio.env; \
-		exit 0; \
-	fi
+ifeq ($(WITH_MINIO),1)
 	@echo "$(YELLOW)→ Starting Chainguard MinIO (dev store, single-node parity 0)...$(RESET)"
 	@api_port=$(MINIO_API_PORT); console_port=$(MINIO_CONSOLE_PORT); \
 	if lsof -nP -iTCP:$$api_port -sTCP:LISTEN >/dev/null 2>&1; then \
@@ -1223,6 +1219,10 @@ minio-up: ## SPEC-172: Chainguard MinIO plus a one-shot bucket create
 		fi; \
 	fi; \
 	echo "$(GREEN)✓ MinIO http://127.0.0.1:$$api_port  console http://127.0.0.1:$$console_port  bucket $(MINIO_BUCKET)  user $(MINIO_APP_USER)$(RESET)"
+else
+	@echo "$(YELLOW)MinIO skipped (WITH_MINIO=$(WITH_MINIO)); originals stay in Postgres$(RESET)"
+	@rm -f /tmp/edgequake-minio.env
+endif
 
 dev-frontend: ## Start only frontend dev server
 	@$(MAKE) frontend-dev --no-print-directory
@@ -1255,7 +1255,7 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND wit
 	fi
 	@echo "$(YELLOW)→ Ensuring PostgreSQL availability (profile: $(EQ_POSTGRES_PROFILE))...$(RESET)"
 	@$(MAKE) db-wait --no-print-directory
-	@$(MAKE) minio-up --no-print-directory
+	@$(MAKE) minio-up WITH_MINIO="$(WITH_MINIO)" --no-print-directory
 	@if [ "$(WITH_LANGFUSE)" = "1" ]; then \
 		echo "$(YELLOW)→ Starting local Langfuse v4 (WITH_LANGFUSE=1)...$(RESET)"; \
 		$(MAKE) langfuse-up --no-print-directory; \
@@ -1265,7 +1265,7 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND wit
 		echo "$(GREEN)✓ Backend already healthy on port $(BACKEND_PORT)$(RESET)"; \
 	else \
 		echo "$(YELLOW)→ Starting backend in background...$(RESET)"; \
-		$(MAKE) backend-bg --no-print-directory DEV_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" WITH_LANGFUSE="$(WITH_LANGFUSE)"; \
+		$(MAKE) backend-bg --no-print-directory DEV_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" WITH_LANGFUSE="$(WITH_LANGFUSE)" WITH_MINIO="$(WITH_MINIO)"; \
 	fi
 	@echo ""
 	@echo "$(YELLOW)→ Waiting for backend to start...$(RESET)"
