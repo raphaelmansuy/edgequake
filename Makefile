@@ -919,7 +919,7 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 	@echo ""
 	@echo "$(YELLOW)→ Ensuring PostgreSQL availability (profile: $(EQ_POSTGRES_PROFILE))...$(RESET)"
 	@$(MAKE) db-start --no-print-directory
-	@$(MAKE) minio-up --no-print-directory
+	@$(MAKE) minio-up WITH_MINIO="$(WITH_MINIO)" --no-print-directory
 	@if [ "$(WITH_LANGFUSE)" = "1" ]; then \
 		echo "$(YELLOW)→ Starting local Langfuse v4 (WITH_LANGFUSE=1)...$(RESET)"; \
 		$(MAKE) langfuse-up --no-print-directory; \
@@ -1116,11 +1116,7 @@ dev-bg-database: ## SPEC-172: background stack with originals in Postgres and no
 	@$(MAKE) dev-bg WITH_MINIO=0 --no-print-directory
 
 minio-up: ## SPEC-172: Chainguard MinIO plus a one-shot bucket create
-	@if [ "$(WITH_MINIO)" != "1" ]; then \
-		echo "$(YELLOW)MinIO skipped (WITH_MINIO=0); originals stay in Postgres$(RESET)"; \
-		rm -f /tmp/edgequake-minio.env; \
-		exit 0; \
-	fi
+ifeq ($(WITH_MINIO),1)
 	@echo "$(YELLOW)→ Starting Chainguard MinIO (dev store, single-node parity 0)...$(RESET)"
 	@api_port=$(MINIO_API_PORT); console_port=$(MINIO_CONSOLE_PORT); \
 	if lsof -nP -iTCP:$$api_port -sTCP:LISTEN >/dev/null 2>&1; then \
@@ -1172,6 +1168,10 @@ minio-up: ## SPEC-172: Chainguard MinIO plus a one-shot bucket create
 		fi; \
 	fi; \
 	echo "$(GREEN)✓ MinIO http://127.0.0.1:$$api_port  console http://127.0.0.1:$$console_port  bucket $(MINIO_BUCKET)  user $(MINIO_APP_USER)$(RESET)"
+else
+	@echo "$(YELLOW)MinIO skipped (WITH_MINIO=$(WITH_MINIO)); originals stay in Postgres$(RESET)"
+	@rm -f /tmp/edgequake-minio.env
+endif
 
 dev-frontend: ## Start only frontend dev server
 	@$(MAKE) frontend-dev --no-print-directory
@@ -1208,7 +1208,7 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND wit
 	fi
 	@echo "$(YELLOW)→ Ensuring PostgreSQL availability (profile: $(EQ_POSTGRES_PROFILE))...$(RESET)"
 	@$(MAKE) db-wait --no-print-directory
-	@$(MAKE) minio-up --no-print-directory
+	@$(MAKE) minio-up WITH_MINIO="$(WITH_MINIO)" --no-print-directory
 	@if [ "$(WITH_LANGFUSE)" = "1" ]; then \
 		echo "$(YELLOW)→ Starting local Langfuse v4 (WITH_LANGFUSE=1)...$(RESET)"; \
 		$(MAKE) langfuse-up --no-print-directory; \
@@ -1218,7 +1218,7 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND wit
 		echo "$(GREEN)✓ Backend already healthy on port $(BACKEND_PORT)$(RESET)"; \
 	else \
 		echo "$(YELLOW)→ Starting backend in background...$(RESET)"; \
-		$(MAKE) backend-bg --no-print-directory DEV_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" WITH_LANGFUSE="$(WITH_LANGFUSE)"; \
+		$(MAKE) backend-bg --no-print-directory DEV_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" WITH_LANGFUSE="$(WITH_LANGFUSE)" WITH_MINIO="$(WITH_MINIO)"; \
 	fi
 	@echo ""
 	@echo "$(YELLOW)→ Waiting for backend to start...$(RESET)"
@@ -1771,6 +1771,13 @@ frontend-bg: sync-dev-ports ## Start frontend development server in background
 	@printf '%s\n' "set -a && . \"$(DEV_PORTS_ENV)\" && set +a" >> /tmp/edgequake-frontend-start.sh
 	@printf '%s\n' "cd $(FRONTEND_DIR)" >> /tmp/edgequake-frontend-start.sh
 	@printf '%s\n' "if [ -f .env.local.ports ]; then set -a && . ./.env.local.ports && set +a; fi" >> /tmp/edgequake-frontend-start.sh
+	@# Prefer a runnable Node. Login shells often put /usr/local/bin first; an
+	@# Intel Node there fails on Apple Silicon with "Bad CPU type in executable".
+	@printf '%s\n' "_node_ok() { command -v \"\$$1\" >/dev/null 2>&1 && \"\$$1\" -v >/dev/null 2>&1; }" >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' "for _dir in \"\$${NVM_BIN:-}\" \"\$$HOME/.nvm/versions/node/\"*/bin /opt/homebrew/bin \"\$$HOME/Library/pnpm\" \"\$$HOME/.local/share/pnpm\"; do" >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' "  [ -n \"\$$_dir\" ] || continue" >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' "  if _node_ok \"\$$_dir/node\"; then export PATH=\"\$$_dir:\$$PATH\"; break; fi" >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' "done" >> /tmp/edgequake-frontend-start.sh
 	@# Never inherit backend PORT from a shared env — Next binds to PORT.
 	@printf '%s\n' "export PORT=\"$${FRONTEND_PORT:-3010}\"" >> /tmp/edgequake-frontend-start.sh
 	@printf '%s\n' "export EDGEQUAKE_API_URL=\"$${EDGEQUAKE_API_URL:-http://127.0.0.1:8090}\"" >> /tmp/edgequake-frontend-start.sh
@@ -1782,7 +1789,9 @@ frontend-bg: sync-dev-ports ## Start frontend development server in background
 	@printf '%s\n' "fi" >> /tmp/edgequake-frontend-start.sh
 	@printf '%s\n' "exec bun run dev" >> /tmp/edgequake-frontend-start.sh
 	@chmod +x /tmp/edgequake-frontend-start.sh
-	@/bin/bash -lc 'nohup /tmp/edgequake-frontend-start.sh > /tmp/edgequake-frontend.log 2>&1 < /dev/null & frontend_pid=$$!; disown "$$frontend_pid"; printf "%s\n" "$$frontend_pid" > /tmp/edgequake-frontend.pid'
+	@# Non-login shell: keep the caller's PATH (nvm/homebrew) instead of macOS
+	@# default /usr/local/bin-first login PATH that may pick a broken Node.
+	@/bin/bash -c 'nohup /tmp/edgequake-frontend-start.sh > /tmp/edgequake-frontend.log 2>&1 < /dev/null & frontend_pid=$$!; disown "$$frontend_pid"; printf "%s\n" "$$frontend_pid" > /tmp/edgequake-frontend.pid'
 	@echo "$(GREEN)✓ Frontend starting in background. Log: /tmp/edgequake-frontend.log$(RESET)"
 
 frontend-build: ## Build frontend for production
