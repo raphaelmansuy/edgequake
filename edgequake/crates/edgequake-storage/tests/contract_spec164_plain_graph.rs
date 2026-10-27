@@ -62,6 +62,14 @@ fn ready_ledger_ignores_graph_read_age() {
         conn.contains("installed && !cutover_status_ready"),
         "AGE IO stays available only while the ledger is not ready"
     );
+    assert!(
+        ledger.contains("if reads_ready(pool).await?"),
+        "a ready ledger must not install AGE mirror triggers"
+    );
+    assert!(
+        ledger.contains("fn sql_graph_writes"),
+        "a ready ledger must not fall through to Cypher"
+    );
 }
 
 #[test]

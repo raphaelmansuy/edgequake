@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - **Ready cutover ignores `EDGEQUAKE_GRAPH_READ=age`:** once `eq_graph_cutover.status` is `ready`, the variable does not create Apache AGE label tables and does not route graph reads or writes to AGE. `eq_graph_nodes` and `eq_graph_edges` stay the only graph IO. Before the ledger is `ready`, the in-progress upgrade path is unchanged.
+- **No AGE serving after cutover:** a ready ledger does not install mirror triggers, does not run AGE label reconciles (038, 043, 046, 078, 081, 092), and does not let Cypher or `EDGEQUAKE_GRAPH_READ` query AGE label tables. The one-time copy from an existing AGE graph still runs while the ledger is not `ready`, then marks it `ready`. `EDGEQUAKE_GRAPH_READ` is not read.
 
 ## [0.35.1] — 2026-10-14
 

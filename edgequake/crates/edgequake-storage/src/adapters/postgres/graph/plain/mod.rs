@@ -14,6 +14,7 @@ pub(in crate::adapters::postgres::graph) mod search;
 pub(in crate::adapters::postgres::graph) mod write;
 
 pub use cutover::{finish_plain_graph_cutover, CutoverReport};
+pub use ledger::graph_cutover_is_ready;
 pub(in crate::adapters::postgres::graph) use ledger::{
     refuse_cypher_opt_out, register_graph, tables_present,
 };

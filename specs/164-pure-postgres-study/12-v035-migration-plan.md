@@ -133,7 +133,7 @@ Each row is a behavior the current code has. The migration must preserve it or n
 | Id | Edge case | Where the code does it | v0.35 rule |
 |----|-----------|------------------------|------------|
 | EC-01 | Rolling deploy: v0.34 pods write AGE only | Boot + `create_graph` | Triggers from 170 mirror those writes. Re-backfill is safe and idempotent. Do not confirm-drop until v0.34 pods are gone |
-| EC-02 | Rollback to AGE reads | Ledger + flag | Before 171: set ledger back to `age` (and `EDGEQUAKE_GRAPH_READ=age`). After 171: restore the pre-confirm-drop backup. No down-migration |
+| EC-02 | Rollback to AGE reads | Backup | `EDGEQUAKE_GRAPH_READ` is not read. A `ready` ledger stays on `eq_graph_*`. Restore the pre-cutover backup. No down-migration |
 | EC-03 | `EDGEQUAKE_NATIVE_GRAPH_WRITES=0` | [`mod.rs` L456–464](../../edgequake/crates/edgequake-storage/src/adapters/postgres/graph/mod.rs) | Boot error if plain dual-write is enabled. Cypher MERGE would not fill plain tables |
 | EC-04 | `EDGEQUAKE_ALLOW_NO_GRAPH=1` | [`connection.rs` L299–309](../../edgequake/crates/edgequake-storage/src/adapters/postgres/connection.rs) | Greenfield: skip AGE, create plain tables, reads=plain. Upgrade: do not set this until backfill finished |
 | EC-05 | Many namespaces | `age_graph_name_for_namespace` | Backfill loops `ag_graph`, not only `default` |

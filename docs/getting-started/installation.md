@@ -50,7 +50,7 @@ Hardware: plan for enough disk for the container images and the database, and mo
 
 ### PostgreSQL
 
-EdgeQuake stores everything in PostgreSQL 16, 17 or 18 with the **pgvector** and **Apache AGE** extensions. There is no in-memory mode, and the server refuses to start without `DATABASE_URL`.
+EdgeQuake stores everything in PostgreSQL 16, 17 or 18 with **pgvector**. The knowledge graph is plain tables (`eq_graph_nodes`, `eq_graph_edges`). Apache AGE is optional and is used only to copy an existing graph during migrate. There is no in-memory mode, and the server refuses to start without `DATABASE_URL`.
 
 | Profile | AGE | pgvector | How to select |
 |---------|-----|----------|---------------|

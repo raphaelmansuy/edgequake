@@ -54,7 +54,7 @@ For a real deployment, set `EDGEQUAKE_DEV_MODE: "false"`, `JWT_SECRET`, `EDGEQUA
 
 ## Option A: API only (your own PostgreSQL)
 
-Your database needs the `vector` (pgvector 0.8.5 or newer) and `age` (Apache AGE) extensions. Run `migrate` once, then start the API.
+Your database needs the `vector` extension (pgvector 0.8.5 or newer). Apache AGE is not required to serve the graph. It is required only when migrate must copy an existing AGE graph. Run `migrate` once, then start the API.
 
 ```bash
 IMAGE=ghcr.io/raphaelmansuy/edgequake:0.32.2

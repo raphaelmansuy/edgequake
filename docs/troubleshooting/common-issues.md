@@ -153,7 +153,7 @@ The full list of startup checks is in the [security guide](../security/best-prac
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `extension "vector" is not available` (PostgreSQL) | pgvector is not installed on this server | Use the project's PostgreSQL image, or install pgvector. Then run `CREATE EXTENSION IF NOT EXISTS vector;` as a superuser |
-| Graph queries fail with `ag_catalog` or AGE errors | Apache AGE is not loaded in the session | Use the project's PostgreSQL image. In a session, run `LOAD 'age'; SET search_path = ag_catalog, "$user", public;` |
+| Graph queries fail with `ag_catalog` or AGE errors | A session is still aimed at Apache AGE after cutover | Confirm `eq_graph_cutover.status` is `ready`. Serving uses `eq_graph_nodes` and `eq_graph_edges`. Do not `LOAD 'age'` for graph IO. |
 
 ### Docker is down
 

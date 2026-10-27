@@ -16,6 +16,22 @@ use super::execute_bootstrap_apply_sql;
 /// Returns a readiness report: `graphs_ready` / `graphs_degraded` after apply.
 /// SPEC-083: no longer silent `Ok(true)` when columns are still missing.
 pub async fn reconcile_migration_092(pool: &PgPool) -> Result<Migration092Report, sqlx::Error> {
+    if edgequake_storage::graph_cutover_is_ready(pool).await {
+        info!(
+            target: "edgequake.migration",
+            step = "migration_092_skip",
+            reason = "cutover_ready",
+            "Skipping eq_* denorm on AGE graphs — plain graph ledger is ready"
+        );
+        return Ok(Migration092Report {
+            age_available: false,
+            apply_executed: false,
+            graphs_checked: 0,
+            graphs_ready: 0,
+            graphs_degraded: Vec::new(),
+            fallback_env_enabled: eq_id_fallback_env(),
+        });
+    }
     let age_available: bool =
         sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')")
             .fetch_one(pool)

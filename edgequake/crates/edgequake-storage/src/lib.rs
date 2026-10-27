@@ -345,7 +345,7 @@ pub use adapters::postgres::{
     diskann_optin_recipe_statements, diskann_query_tuning_statements, diskann_rescore_for_list,
     document_batch_deliveries_settled, enforce_pool_budget, ensure_admission_document_row,
     ensure_admission_document_row_with_track, evaluate_pool_budget, finish_plain_graph_cutover,
-    hnsw_ef_construction_from_env, hnsw_partial_by_workspace_enabled,
+    graph_cutover_is_ready, hnsw_ef_construction_from_env, hnsw_partial_by_workspace_enabled,
     interactive_statement_timeout_ms, node_counts_by_source_prefixes_sql,
     open_serving_fence_when_deliveries_settled, open_settled_serving_fences_bounded,
     parse_hnsw_iterative_scan_mode, partition_allowed, pool_instance_count_from_env,

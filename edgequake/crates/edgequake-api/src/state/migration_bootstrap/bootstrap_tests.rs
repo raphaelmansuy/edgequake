@@ -853,6 +853,40 @@ fn m092_apply_sql_is_boot_owned_eq_id_ssot() {
 }
 
 #[test]
+fn ready_cutover_skips_age_label_reconcile() {
+    for (name, src) in [
+        ("m038", include_str!("reconcile/m038.rs")),
+        ("m043", include_str!("reconcile/m043.rs")),
+        ("m046", include_str!("reconcile/m046.rs")),
+        ("m078", include_str!("reconcile/m078.rs")),
+        ("m081", include_str!("reconcile/m081.rs")),
+        ("m092", include_str!("reconcile/m092.rs")),
+    ] {
+        let ready = src
+            .find("graph_cutover_is_ready")
+            .unwrap_or_else(|| panic!("{name} must skip when the plain ledger is ready"));
+        let age = src
+            .find("extname = 'age'")
+            .or_else(|| src.find("ag_catalog"))
+            .unwrap_or_else(|| {
+                panic!("{name} should still reach AGE while the ledger is not ready")
+            });
+        assert!(
+            ready < age,
+            "{name} must check the cutover ledger before it touches Apache AGE"
+        );
+    }
+    let inspector = include_str!("../../storage_inspector.rs");
+    let ready = inspector
+        .find("graph_cutover_is_ready")
+        .expect("inspector skips AGE graphs on a ready ledger");
+    let catalog = inspector
+        .find("FROM ag_catalog.ag_graph")
+        .expect("inspector still lists AGE graphs before the ledger is ready");
+    assert!(ready < catalog);
+}
+
+#[test]
 fn m092_readiness_skips_incomplete_age_graphs_without_node_edge() {
     // Incomplete AGE stubs (Node XOR EDGE) must not block /ready — same gate as apply.sql.
     let src = include_str!("reconcile/m092.rs");
