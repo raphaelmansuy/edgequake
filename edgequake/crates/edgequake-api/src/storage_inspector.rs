@@ -482,7 +482,12 @@ impl StorageInspector {
     }
 
     /// SPEC-104 harden EC-05 (partial): GIN presence on all AGE graphs, not only default.
+    /// A ready cutover checks `eq_graph_nodes` and does not query AGE label tables.
     async fn check_all_graphs_node_source_ids_gin(&self, report: &mut InspectorReport) {
+        if edgequake_storage::graph_cutover_is_ready(self.pool.as_ref()).await {
+            self.check_plain_graph_lineage(report).await;
+            return;
+        }
         let graphs: Vec<String> = match sqlx::query_scalar(
             r#"
             SELECT name::text

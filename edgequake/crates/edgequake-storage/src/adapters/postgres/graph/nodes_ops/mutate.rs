@@ -27,7 +27,7 @@ impl PostgresAGEGraphStorage {
     ) -> Result<()> {
         // SPEC-059: single-node path must use native ON CONFLICT + eq_merge when
         // enabled — Cypher MERGE races UNIQUE under concurrent upserts.
-        if super::super::native_graph_writes_enabled() {
+        if self.sql_graph_writes().await? {
             return self
                 .pg_upsert_nodes_batch(&[(node_id.to_string(), properties)])
                 .await;
@@ -142,7 +142,7 @@ impl PostgresAGEGraphStorage {
         // First Principles: arbiter key is node_id — collapse duplicates first.
         let nodes = crate::graph_batch_dedupe::dedupe_nodes_by_id(nodes);
         let nodes = nodes.as_slice();
-        if super::super::native_graph_writes_enabled() {
+        if self.sql_graph_writes().await? {
             return self.pg_upsert_nodes_batch_native(nodes, mode).await;
         }
         // IMP-046-01: Cypher MERGE is debug-only — O(G) GIN path, higher locks.
@@ -256,7 +256,7 @@ impl PostgresAGEGraphStorage {
         &self,
         node_id: &str,
     ) -> Result<()> {
-        if super::super::native_graph_writes_enabled() {
+        if self.sql_graph_writes().await? {
             return self.pg_delete_nodes_batch(&[node_id.to_string()]).await;
         }
         let cypher = "MATCH (n:Node {node_id: $node_id}) DETACH DELETE n";
@@ -273,7 +273,7 @@ impl PostgresAGEGraphStorage {
         if node_ids.is_empty() {
             return Ok(());
         }
-        if !super::super::native_graph_writes_enabled() {
+        if !self.sql_graph_writes().await? {
             for id in node_ids {
                 let cypher = "MATCH (n:Node {node_id: $node_id}) DETACH DELETE n";
                 let params = serde_json::json!({ "node_id": id });
@@ -379,7 +379,7 @@ impl PostgresAGEGraphStorage {
         tenant_id: &str,
         workspace_id: &str,
     ) -> Result<bool> {
-        if !super::super::native_graph_writes_enabled() {
+        if !self.sql_graph_writes().await? {
             let escaped_id = Self::escape_cypher_string(node_id);
             let escaped_tid = Self::escape_cypher_string(tenant_id);
             let escaped_wid = Self::escape_cypher_string(workspace_id);
@@ -428,7 +428,7 @@ impl PostgresAGEGraphStorage {
         unique.sort();
         unique.dedup();
 
-        if !super::super::native_graph_writes_enabled() {
+        if !self.sql_graph_writes().await? {
             let mut deleted = 0usize;
             for id in &unique {
                 if self

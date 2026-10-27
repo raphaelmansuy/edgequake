@@ -5,7 +5,7 @@ description: "How EdgeQuake stores documents, vectors, and the knowledge graph i
 
 # Data layer overview
 
-EdgeQuake keeps all of its data in one PostgreSQL database. Plain tables hold documents, chunks, tasks, and users. The pgvector extension holds embeddings. The Apache AGE extension holds the knowledge graph. This page is the map; the other pages go deep.
+EdgeQuake keeps all of its data in one PostgreSQL database. Plain tables hold documents, chunks, tasks, users, and the knowledge graph (`eq_graph_nodes`, `eq_graph_edges`). The pgvector extension holds embeddings. Apache AGE is only the one-time source copied into those tables. This page is the map; the other pages go deep.
 
 ## Stack
 
@@ -13,7 +13,7 @@ EdgeQuake keeps all of its data in one PostgreSQL database. Plain tables hold do
 |---|---|---|
 | PostgreSQL | 16, 17, or 18 (image default: 18) | `edgequake/docker/extension-pins.sh` |
 | pgvector (vector search) | 0.8.5 on all three majors. Readiness warns below 0.8.2 (CVE floor). | `extension-pins.sh`; probed at runtime by `edgequake/crates/edgequake-storage/src/adapters/postgres/capabilities.rs` |
-| Apache AGE (graph) | 1.6.0 on PG16, 1.7.0 on PG17, 1.8.0 on PG18 | `extension-pins.sh` |
+| Apache AGE (upgrade source only) | 1.6.0 on PG16, 1.7.0 on PG17, 1.8.0 on PG18. Not used after the cutover ledger is `ready`. | `extension-pins.sh` |
 | Other extensions | `pg_trgm`, `btree_gin`, `uuid-ossp` | `edgequake/docker/init-extensions.sql` |
 | Driver | `sqlx` 0.8, raw SQL, no ORM | `edgequake/Cargo.toml` |
 | Schema changes | Applied by `edgequake migrate`. The server does not change the schema by default; `EDGEQUAKE_SERVE_RECONCILE=1` is a one-release escape hatch. | [Upgrading](../operations/upgrading.md) |
@@ -28,7 +28,7 @@ EdgeQuake keeps all of its data in one PostgreSQL database. Plain tables hold do
 | Documents and their chunk text | `documents`, `chunks` | [postgres.md](./postgres.md) |
 | Embeddings | `chunk_embeddings`, `entity_embeddings`, `relationship_embeddings`, `report_embeddings` | [pgvector.md](./pgvector.md) |
 | Keyword search over chunks | `chunks.content_tsv` with a GIN index | [pgvector.md](./pgvector.md) |
-| Knowledge graph | One AGE graph, labels `Node` and `EDGE` | [age.md](./age.md) |
+| Knowledge graph | `eq_graph_nodes`, `eq_graph_edges` after cutover | [age.md](./age.md) |
 | Background jobs | `tasks` (partitioned by month) | [postgres.md](./postgres.md) |
 | LLM response cache | `llm_cache` | [llm-cache-scope.md](./llm-cache-scope.md) |
 | Encrypted provider connections (SPEC-163) | `provider_connections` (ciphertext columns) | [postgres.md](./postgres.md) |

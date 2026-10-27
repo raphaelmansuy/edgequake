@@ -1,11 +1,13 @@
 ---
-title: "Apache AGE: the knowledge graph"
-description: "How EdgeQuake stores its knowledge graph in Apache AGE: graph model, node and edge properties, native SQL versus Cypher, indexes, session setup, limits, tenant isolation, and the DATA-AGE operation catalog."
+title: "Knowledge graph tables"
+description: "After cutover the knowledge graph is eq_graph_nodes and eq_graph_edges. Apache AGE label tables are only the one-time upgrade source."
 ---
 
-# Apache AGE: the knowledge graph
+# Knowledge graph tables
 
-Apache AGE is a PostgreSQL extension that adds a graph database inside PostgreSQL. You query it with Cypher, a graph query language, wrapped in a SQL call. EdgeQuake stores entities (people, places, concepts) as nodes and the links between them as edges. This page explains the graph model and how the code reads and writes it. The overview is in [README.md](./README.md).
+After `eq_graph_cutover.status` is `ready`, EdgeQuake reads and writes the knowledge graph only in `eq_graph_nodes` and `eq_graph_edges`. It does not create or query Apache AGE label tables. `EDGEQUAKE_GRAPH_READ` is not read.
+
+Apache AGE remains the one-time upgrade source. `edgequake migrate` copies an existing AGE graph into those plain tables, then sets the ledger to `ready`. Published releases that still have AGE installed can migrate. The rest of this page describes that AGE label model so the copy stays understandable. It is not a supported way to serve the graph after cutover. The overview is in [README.md](./README.md).
 
 ## Graph model
 
@@ -107,9 +109,11 @@ AGE keeps each label in its own table, inside a schema named after the graph (`N
 
 The same entities and relationships also exist as plain rows in `entities` and `relationships`. See [postgres.md](./postgres.md). The graph is used for traversal; the tables are used for search and counts.
 
-## How the code talks to AGE
+## How the upgrade path talks to AGE
 
-Each connection that touches the graph first runs `LOAD 'age'` and sets `search_path = ag_catalog, "$user", public` (`edgequake/crates/edgequake-storage/src/adapters/postgres/graph/helpers/session.rs`). It also sets a `statement_timeout`. DDL sessions set `statement_timeout = 0` and use a short `lock_timeout` instead.
+This section is the in-progress copy, while `eq_graph_cutover.status` is not `ready`. After the ledger is `ready`, requests use `eq_graph_nodes` and `eq_graph_edges` and do not run `LOAD 'age'`.
+
+Each connection that still touches an AGE graph runs `LOAD 'age'` and sets `search_path = ag_catalog, "$user", public` (`edgequake/crates/edgequake-storage/src/adapters/postgres/graph/helpers/session.rs`). It also sets a `statement_timeout`. DDL sessions set `statement_timeout = 0` and use a short `lock_timeout` instead.
 
 There are two ways to write and read:
 
@@ -118,7 +122,7 @@ There are two ways to write and read:
 | Native SQL | Batch node and edge upserts, deletes, BFS expansion, neighbor lists | Default. Plain `INSERT ... ON CONFLICT (eq_node_id)` with `unnest` batches. Fast and predictable. |
 | Cypher | Fallback writes, a few scoped deletes (`DETACH DELETE`), ad-hoc queries | Sent as `SELECT ... FROM cypher('graph', $tag$ ... $tag$, $1) AS (...)`. |
 
-Native writes are on by default. Set `EDGEQUAKE_NATIVE_GRAPH_WRITES` to `0`, `false`, `off`, or `no` to force the Cypher `MERGE` path. Leave it unset in normal use.
+While the ledger is not `ready`, native SQL writes are on by default. `EDGEQUAKE_NATIVE_GRAPH_WRITES=0` forces Cypher on that AGE graph only. A `ready` ledger ignores that and writes the plain tables. `EDGEQUAKE_GRAPH_READ` is not read.
 
 The diagram shows the read path for a graph query.
 

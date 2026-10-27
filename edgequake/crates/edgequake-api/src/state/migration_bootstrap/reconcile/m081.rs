@@ -15,6 +15,15 @@ pub async fn reconcile_migration_081(
     applied_after: &HashSet<i64>,
     applied_this_run: &[i64],
 ) -> Result<bool, sqlx::Error> {
+    if edgequake_storage::graph_cutover_is_ready(pool).await {
+        info!(
+            target: "edgequake.migration",
+            step = "migration_081_skip",
+            reason = "cutover_ready",
+            "Skipping AGE graph RLS — plain graph ledger is ready"
+        );
+        return Ok(false);
+    }
     if !age_rls_requested() {
         return Ok(false);
     }

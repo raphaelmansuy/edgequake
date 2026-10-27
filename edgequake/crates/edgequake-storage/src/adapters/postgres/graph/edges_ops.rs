@@ -68,7 +68,7 @@ impl PostgresAGEGraphStorage {
         properties: HashMap<String, serde_json::Value>,
     ) -> Result<()> {
         // IMP-046 / IMP-031: single-edge write uses native batch-of-1 when enabled.
-        if super::native_graph_writes_enabled() {
+        if self.sql_graph_writes().await? {
             return self
                 .pg_upsert_edges_batch(&[(source.to_string(), target.to_string(), properties)])
                 .await;
@@ -160,7 +160,7 @@ impl PostgresAGEGraphStorage {
         let edges = edges.as_slice();
 
         // SPEC-034 IMP-01: Use native SQL path when feature flag is enabled.
-        if super::native_graph_writes_enabled() {
+        if self.sql_graph_writes().await? {
             return self.pg_upsert_edges_batch_native(edges, mode).await;
         }
 
@@ -257,7 +257,7 @@ impl PostgresAGEGraphStorage {
      */
     pub(super) async fn pg_delete_edge(&self, source: &str, target: &str) -> Result<()> {
         // Public single-edge API: remove ALL rel_types between endpoints.
-        if super::native_graph_writes_enabled() {
+        if self.sql_graph_writes().await? {
             let pool = self.pool.get().await?;
             if self.plain_writes().await? {
                 let mut tx = pool.begin().await.map_err(|e| {
@@ -349,7 +349,7 @@ impl PostgresAGEGraphStorage {
         unique.sort();
         unique.dedup();
 
-        if !super::native_graph_writes_enabled() {
+        if !self.sql_graph_writes().await? {
             // Debug path only — native SQL (below) is the production SSOT.
             for (source, target, rel) in &unique {
                 let rel_n = crate::graph_batch_dedupe::normalize_relation_type_str(rel);
@@ -429,7 +429,7 @@ impl PostgresAGEGraphStorage {
         tenant_id: &str,
         workspace_id: &str,
     ) -> Result<bool> {
-        if !super::native_graph_writes_enabled() {
+        if !self.sql_graph_writes().await? {
             let src = Self::escape_cypher_string(source);
             let tgt = Self::escape_cypher_string(target);
             let tid = Self::escape_cypher_string(tenant_id);
@@ -495,7 +495,7 @@ impl PostgresAGEGraphStorage {
         unique.sort();
         unique.dedup();
 
-        if !super::native_graph_writes_enabled() {
+        if !self.sql_graph_writes().await? {
             let mut deleted = 0usize;
             for (source, target) in &unique {
                 if self

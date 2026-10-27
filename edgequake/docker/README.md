@@ -100,7 +100,7 @@ Canonical `EDGEQUAKE_*` variables take precedence when both are set.
 | --- | --- | --- |
 | `edgequake` | `8080` | EdgeQuake API server |
 | `frontend` | `3000` | Next.js web UI |
-| `postgres` | `5432` | PostgreSQL (PG18 default) with `pgvector` 0.8.5, Apache AGE 1.8.0 |
+| `postgres` | `5432` | PostgreSQL (PG18 default) with `pgvector` 0.8.5. Apache AGE 1.8.0 is on the image so migrate can copy an existing graph. Serving uses `eq_graph_nodes` / `eq_graph_edges`. |
 
 ## API image — OCR / ML runtime deps
 
@@ -124,7 +124,7 @@ Built from `Dockerfile.postgres.pg18` (default), `.pg17`, or `Dockerfile.postgre
 | Extension | Version (PG18) | Purpose |
 | --- | --- | --- |
 | `vector` (pgvector) | 0.8.5 | embedding ANN + iterative scan |
-| `age` (Apache AGE) | 1.8.0 | property graph / Cypher |
+| `age` (Apache AGE) | 1.8.0 | one-time copy of an existing graph into `eq_graph_*`. Not used after the ledger is `ready`. |
 | `pg_trgm` | contrib | trigram fuzzy search |
 | `btree_gin` | contrib | GIN btree operator classes |
 | `uuid-ossp` | contrib | legacy UUID helpers |

@@ -103,7 +103,8 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
             .as_ref()
             .map(|r| r.migration_092.age_available)
             .unwrap_or(false);
-        Some(age || plain_graph_ready(&state).await)
+        let plain = plain_graph_ready(&state).await;
+        Some(plain || age)
     };
     #[cfg(not(feature = "postgres"))]
     let graph_available = None;
@@ -449,8 +450,8 @@ fn build_migration_health_snapshot(_state: &AppState) -> Option<MigrationHealthS
     None
 }
 
-/// Plain graph after migration 171. `age_available` stays false once the
-/// extension is gone; this is the ledger the serving path actually uses.
+/// Plain graph once the cutover ledger is `ready`.
+/// AGE may still be installed; serving does not use it.
 #[cfg(feature = "postgres")]
 async fn plain_graph_ready(state: &AppState) -> bool {
     let Some(pool) = state.optional_pg_pool() else {
@@ -458,7 +459,7 @@ async fn plain_graph_ready(state: &AppState) -> bool {
     };
     sqlx::query_scalar::<_, bool>(
         "SELECT COALESCE((
-            SELECT status = 'ready' AND age_absent IS TRUE
+            SELECT status = 'ready'
             FROM public.eq_graph_cutover
             WHERE id = 1
          ), false)

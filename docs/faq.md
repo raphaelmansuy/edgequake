@@ -30,7 +30,7 @@ EdgeQuake is a Rust implementation inspired by [LightRAG](https://github.com/HKU
 
 - **Language:** Rust instead of Python. This page makes no speed multiplier claim; benchmark your own workload.
 - **Production features:** multi-tenant isolation, auth, observability and deployment tooling.
-- **Storage:** PostgreSQL with pgvector and Apache AGE.
+- **Storage:** PostgreSQL with pgvector. The graph is `eq_graph_nodes` and `eq_graph_edges`. Apache AGE is only the one-time upgrade source.
 - **API:** REST with asynchronous ingestion, streaming and WebSocket progress.
 - **Modes:** EdgeQuake `hybrid` also includes the naive chunk arm, and `mix` blends arms by weight. See [Hybrid retrieval](concepts/hybrid-retrieval.md).
 
@@ -42,7 +42,7 @@ EdgeQuake is a Rust implementation inspired by [LightRAG](https://github.com/HKU
 
 - 4 GB RAM and 2 CPU cores
 - Rust 1.95 (pinned by the repository)
-- PostgreSQL 16, 17 or 18 with pgvector and Apache AGE. The image is `ghcr.io/raphaelmansuy/edgequake-postgres:0.32.2`.
+- PostgreSQL 16, 17 or 18 with pgvector. The graph is plain tables. The `edgequake-postgres` image also includes Apache AGE so an old graph can be copied during migrate.
 
 **Production (the minimum to boot):**
 

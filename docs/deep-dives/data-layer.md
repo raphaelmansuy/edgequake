@@ -203,7 +203,7 @@ The typed tables use HNSW with `m = 16` and `ef_construction = 128`. Migration 1
 | `entities` | Analytics and FTS read model: generated `tsv` and a GIN index on `source_chunk_ids` |
 | `relationships` | Same for edges, plus `sync_status` for the AGE dual-write |
 
-`server_config.entity_sync_mode` defaults to `"disabled"`. AGE stays the graph source of truth until you enable sync.
+`server_config.entity_sync_mode` defaults to `"disabled"`. After the cutover ledger is `ready`, `eq_graph_nodes` and `eq_graph_edges` are the graph. Apache AGE is only the source copied once during migrate.
 
 ### PDF and multimodal
 
@@ -252,11 +252,13 @@ All reads and writes must build keys through [`kv_key_schema.rs`](../../edgequak
 
 ---
 
-## 5. Apache AGE (property graph)
+## 5. Apache AGE (upgrade source)
 
-AGE stores a labeled property graph inside PostgreSQL. The graph for namespace `default` is `eq_eq_default_graph`. It has two labels: `Node` (vertices) and `EDGE` (edges). AGE keeps parent tables (`_ag_label_vertex`, `_ag_label_edge`) and one child table per label. Queries hit the child tables.
+After the cutover ledger is `ready`, graph queries use `eq_graph_nodes` and `eq_graph_edges`. They do not create or read AGE label tables. The paragraphs below describe the AGE graph that migrate copies once, while the ledger is not yet `ready`.
 
-The labels are created at boot by `create_graph`, `create_vlabel` and `create_elabel` in [`graph_lifecycle.rs`](../../edgequake/crates/edgequake-storage/src/adapters/postgres/graph/helpers/graph_lifecycle.rs).
+AGE stores a labeled property graph inside PostgreSQL. The graph for namespace `default` is `eq_eq_default_graph`. It has two labels: `Node` (vertices) and `EDGE` (edges). AGE keeps parent tables (`_ag_label_vertex`, `_ag_label_edge`) and one child table per label.
+
+Those labels are created only while the ledger is not `ready`, by `create_graph`, `create_vlabel` and `create_elabel` in [`graph_lifecycle.rs`](../../edgequake/crates/edgequake-storage/src/adapters/postgres/graph/helpers/graph_lifecycle.rs).
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#E0E7FF","primaryBorderColor":"#6366F1","primaryTextColor":"#1E1B4B","secondaryColor":"#D1FAE5","secondaryBorderColor":"#10B981","secondaryTextColor":"#064E3B","tertiaryColor":"#FEF3C7","tertiaryBorderColor":"#F59E0B","tertiaryTextColor":"#6B7A90","lineColor":"#7A889C","clusterBkg":"rgba(99,102,241,0.07)","clusterBorder":"#A5B4FC","noteBkgColor":"#FEF9C3","noteTextColor":"#422006","textColor":"#6B7A90","titleColor":"#6B7A90","signalColor":"#7A889C","signalTextColor":"#6B7A90","loopTextColor":"#6B7A90","edgeLabelBackground":"#F1F5F9","actorLineColor":"#94A3B8"}}}%%

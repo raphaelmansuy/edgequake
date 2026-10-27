@@ -80,7 +80,7 @@ Tables and multi-column layouts are handled best by the vision backend. See [PDF
 - **REST API.** OpenAPI 3.1, streaming responses, batch upload, health and readiness probes.
 - **Multi-tenant.** Tenant and workspace isolation, enforced in PostgreSQL with row-level security.
 - **Auth and audit.** Built-in login, API keys, enterprise SSO (v0.30.0) and audit logging.
-- **PostgreSQL 16, 17 and 18.** With pgvector and Apache AGE.
+- **PostgreSQL 16, 17 and 18.** With pgvector. The graph is plain tables. Apache AGE is not required after cutover.
 - **Explicit schema.** Schema changes run through `edgequake migrate`. By default the server does not start while the schema is pending (`EDGEQUAKE_SCHEMA_GATE=fail`).
 - **Multi-arch images.** `linux/amd64` and `linux/arm64`, published to GHCR on each release.
 - **MCP.** Expose EdgeQuake to AI agents through the [Model Context Protocol server](../../mcp/README.md).

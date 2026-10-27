@@ -24,6 +24,20 @@ pub async fn reconcile_migration_046(
     applied_after: &HashSet<i64>,
     applied_this_run: &[i64],
 ) -> Result<Migration046Report, sqlx::Error> {
+    if edgequake_storage::graph_cutover_is_ready(pool).await {
+        info!(
+            target: "edgequake.migration",
+            step = "migration_046_skip",
+            reason = "cutover_ready",
+            "Skipping migration 046 AGE indexes — plain graph ledger is ready"
+        );
+        return Ok(Migration046Report {
+            marker_present: applied_after.contains(&MIGRATION_046_VERSION),
+            apply_executed: false,
+            graphs_checked: 0,
+            missing_indexes: Vec::new(),
+        });
+    }
     let age_available = sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'age')",
     )

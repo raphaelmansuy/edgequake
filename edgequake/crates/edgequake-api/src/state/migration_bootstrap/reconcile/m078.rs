@@ -86,6 +86,15 @@ pub async fn reconcile_migration_078(
     pool: &PgPool,
     applied_after: &HashSet<i64>,
 ) -> Result<bool, sqlx::Error> {
+    if edgequake_storage::graph_cutover_is_ready(pool).await {
+        info!(
+            target: "edgequake.migration",
+            step = "migration_078_skip",
+            reason = "cutover_ready",
+            "Skipping migration 078 AGE child indexes — plain graph ledger is ready"
+        );
+        return Ok(false);
+    }
     if !applied_after.contains(&MIGRATION_078_VERSION)
         && !applied_after.contains(&MIGRATION_079_VERSION)
     {

@@ -164,7 +164,7 @@ services:
       retries: 3
       start_period: 10s
 
-  # PostgreSQL with pgvector and Apache AGE extensions (SPEC-042 triple-track)
+  # PostgreSQL with pgvector. Apache AGE stays on the image for the one-time graph copy.
   # Default profile: PG18 (EQ_POSTGRES_PROFILE=pg18). Legacy: EQ_POSTGRES_PROFILE=pg16|pg17
   postgres:
     build:

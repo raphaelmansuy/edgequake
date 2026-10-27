@@ -15,6 +15,21 @@ pub async fn reconcile_migration_043(
     applied_after: &HashSet<i64>,
     applied_this_run: &[i64],
 ) -> Result<Migration043Report, sqlx::Error> {
+    if edgequake_storage::graph_cutover_is_ready(pool).await {
+        info!(
+            target: "edgequake.migration",
+            step = "migration_043_skip",
+            reason = "cutover_ready",
+            "Skipping Apache AGE extension upgrade — plain graph ledger is ready"
+        );
+        return Ok(Migration043Report {
+            age_available: false,
+            extversion_before: None,
+            extversion_after: None,
+            shipped_extversion: None,
+            extension_updated: false,
+        });
+    }
     let age_available: bool =
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'age')")
             .fetch_one(pool)

@@ -242,7 +242,7 @@ Run `edgequake migrate` as a Kubernetes Job before you roll out the API Deployme
 
 ## Option 4: GCP (SPEC-148)
 
-The reference setup runs Docker Compose on a self-managed GCE VM. EdgeQuake needs Apache AGE, so this guide does not use Cloud SQL or AlloyDB. HTTP always redirects to HTTPS. Read [deploy/gcp/README.md](../../deploy/gcp/README.md) and [specs/148-gcloud-hosting](../../specs/148-gcloud-hosting/README.md).
+The reference setup runs Docker Compose on a self-managed GCE VM. Serving the graph needs pgvector and the plain `eq_graph_*` tables, so a Postgres that does not ship Apache AGE (Cloud SQL, AlloyDB) can host a fresh database. The published `edgequake-postgres` image still includes AGE so an existing graph can be copied. HTTP always redirects to HTTPS. Read [deploy/gcp/README.md](../../deploy/gcp/README.md) and [specs/148-gcloud-hosting](../../specs/148-gcloud-hosting/README.md).
 
 ```bash
 make spec148-gcp-plan     # terraform plan only; apply is gated
