@@ -136,7 +136,7 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
 	cd edgequake && cargo release $$VERSION --workspace --no-publish --execute
 
 
-.PHONY: help install dev migrate dev-auth dev-bg dev-auth-bg dev-langfuse dev-bg-langfuse dev-mistral dev-bg-mistral dev-memory kill-app stop clean build test lint format sync-dev-ports \
+.PHONY: help install dev migrate dev-auth dev-bg dev-auth-bg dev-langfuse dev-bg-langfuse dev-mistral dev-bg-mistral e2e-test-mistral dev-memory kill-app stop clean build test lint format sync-dev-ports \
         ops17-smoke spec046-acc data-access-perf-matrix data-access-perf-matrix-release data-access-perf-matrix-prod data-access-perf-capacity-ladder ann-scale-battle ceiling-proof recall-pareto dedicated-midscale diskann-battle diskann-recall-pareto diskann-rescore-smoke filtered-recall-gate precision-layers-gate binary-quantize-bakeoff filtered-diskann-labels-bakeoff midscale-quantize-labels tiny-slice-exact-gate serving-view-check push-scale-ladder wave2-greenfield-env product-limits-check compare-eq-perf \
         postgres-image-build-pg18-vectorscale \
         dev-pg16 dev-pg17 dev-pg18 dev-bg-pg16 dev-bg-pg17 dev-bg-pg18 \
@@ -682,6 +682,7 @@ help: ## Show this help message
 	@echo "  $(GREEN)make dev-bg$(RESET)       Start full stack in BACKGROUND without authentication"
 	@echo "  $(GREEN)make dev-mistral$(RESET)  Full stack forced to Mistral (LLM+vision=mistral-small-latest, embed=mistral-embed)"
 	@echo "  $(GREEN)make dev-bg-mistral$(RESET) Background stack forced to Mistral (same pins as make dev-mistral)"
+	@echo "  $(GREEN)make e2e-test-mistral$(RESET) Live Mistral journeys: text + PDF upload, then document query"
 	@echo "  $(GREEN)make dev-bg-langfuse$(RESET) Background stack + local Langfuse v4 (UI :3310)"
 	@echo "  $(GREEN)make dev-bg-pg16$(RESET)  Background dev with PostgreSQL 16"
 	@echo "  $(GREEN)make dev-bg-pg17$(RESET)  Background dev with PostgreSQL 17"
@@ -1107,6 +1108,11 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 		fi; \
 		sleep 2; \
 	done; \
+	if [ "$(FORCE_MISTRAL)" = "1" ] || [ "$(EDGEQUAKE_LLM_PROVIDER)" = "mistral" ]; then \
+		if [ "$$_api_ready" = "1" ]; then \
+			$(MISTRAL_LLM_DEFAULTS_SYNC); \
+		fi; \
+	fi; \
 	if [ "$$_api_ready" = "1" ] && [ "$$_web_ready" = "1" ]; then \
 		echo "$(BOLD)$(GREEN)✓ Open this in your browser: $$FRONTEND_URL$(RESET)"; \
 	else \
@@ -1197,19 +1203,28 @@ define MISTRAL_API_KEY_PROBE
 		echo "$(RED)✗ Chat probe for $$_MISTRAL_CHAT_MODEL failed (HTTP $$_chat_code)$(RESET)"; \
 		head -c 240 /tmp/edgequake-mistral-chat.body 2>/dev/null; echo; \
 		exit 1; \
-	fi
+	fi; \
+	_MISTRAL_EMBED_MODEL="$${MISTRAL_EMBEDDING_MODEL:-mistral-embed}"; \
+	_embed_code=$$(curl -sS -o /tmp/edgequake-mistral-embed.body -w '%{http_code}' \
+		-H "Authorization: Bearer $$_MISTRAL_KEY" \
+		-H "Content-Type: application/json" \
+		-d "{\"model\":\"$$_MISTRAL_EMBED_MODEL\",\"input\":[\"ping\"]}" \
+		https://api.mistral.ai/v1/embeddings 2>/dev/null || echo 000); \
+	if [ "$$_embed_code" != "200" ]; then \
+		echo "$(RED)✗ Embedding model $$_MISTRAL_EMBED_MODEL rejected by api.mistral.ai (HTTP $$_embed_code)$(RESET)"; \
+		head -c 240 /tmp/edgequake-mistral-embed.body 2>/dev/null; echo; \
+		exit 1; \
+	fi; \
+	_embed_dim=$$(python3 -c 'import json; d=json.load(open("/tmp/edgequake-mistral-embed.body")); print(len((d.get("data") or [{}])[0].get("embedding") or []))' 2>/dev/null || echo 0); \
+	if [ "$$_embed_dim" != "1024" ]; then \
+		echo "$(RED)✗ Embedding model $$_MISTRAL_EMBED_MODEL returned dimension $$_embed_dim (want 1024)$(RESET)"; \
+		exit 1; \
+	fi; \
+	echo "$(GREEN)✓ Embedding model $$_MISTRAL_EMBED_MODEL reachable (1024d)$(RESET)"
 endef
 
 define MISTRAL_LLM_DEFAULTS_SYNC
-	echo "$(YELLOW)→ Syncing server llm-defaults to Mistral pins...$(RESET)"; \
-	curl -fsS -X PATCH "$(BACKEND_URL)/api/v1/settings/llm-defaults" \
-		-H "Content-Type: application/json" \
-		-H "X-Tenant-ID: $${EDGEQUAKE_DEV_TENANT_ID:-00000000-0000-0000-0000-000000000002}" \
-		-H "X-Workspace-ID: $${EDGEQUAKE_DEV_WORKSPACE_ID:-00000000-0000-0000-0000-000000000003}" \
-		-d '{"llm_provider":"mistral","llm_model":"mistral-small-latest","embedding_provider":"mistral","embedding_model":"mistral-embed","vision_provider":"mistral","vision_model":"mistral-small-latest"}' \
-		>/tmp/edgequake-mistral-llm-defaults.json \
-	&& echo "$(GREEN)✓ llm-defaults → mistral-small-latest / mistral-embed$(RESET)" \
-	|| echo "$(YELLOW)⚠ Could not PATCH llm-defaults (upload/query may still inherit prior server_config)$(RESET)"
+	python3 $(ROOT_DIR)/scripts/mistral_sync_defaults.py --base-url "$(BACKEND_URL)"
 endef
 
 dev-mistral: ## Full stack forced to Mistral (LLM+vision=mistral-small-latest, embed=mistral-embed)
@@ -1251,6 +1266,47 @@ dev-bg-mistral: ## Background stack forced to Mistral (same pins as make dev-mis
 		MISTRAL_EMBEDDING_MODEL=mistral-embed \
 		EDGEQUAKE_VISION_PROVIDER=mistral \
 		EDGEQUAKE_VISION_MODEL=mistral-small-latest
+
+# Same process pins as make dev-mistral. Restarts when /health is down or not small-latest/embed.
+define MISTRAL_ENSURE_BACKEND
+	_pins_ok=$$(curl -fsS "$(BACKEND_URL)/health" 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); p=d.get("providers") or {}; llm=p.get("llm") or {}; emb=p.get("embedding") or {}; ok=llm.get("name")=="mistral" and llm.get("model")=="mistral-small-latest" and emb.get("name")=="mistral" and emb.get("model")=="mistral-embed" and emb.get("dimension")==1024; print("yes" if ok else "no")' 2>/dev/null || echo no); \
+	if [ "$$_pins_ok" != "yes" ]; then \
+		echo "$(YELLOW)→ Backend is not pinned to mistral-small-latest / mistral-embed — starting backend-bg$(RESET)"; \
+		if [ -f /tmp/edgequake-backend.pid ]; then kill -9 $$(cat /tmp/edgequake-backend.pid) 2>/dev/null || true; fi; \
+		pkill -9 -f "target/debug/edgequake" 2>/dev/null || true; \
+		pkill -9 -f "target/release/edgequake" 2>/dev/null || true; \
+		rm -f /tmp/edgequake-backend.pid; \
+		sleep 1; \
+		$(MAKE) backend-bg --no-print-directory \
+			FORCE_MISTRAL=1 \
+			EDGEQUAKE_LLM_PROVIDER=mistral \
+			EDGEQUAKE_LLM_MODEL=mistral-small-latest \
+			EDGEQUAKE_EMBEDDING_PROVIDER=mistral \
+			MISTRAL_MODEL=mistral-small-latest \
+			MISTRAL_EMBEDDING_MODEL=mistral-embed \
+			EDGEQUAKE_VISION_PROVIDER=mistral \
+			EDGEQUAKE_VISION_MODEL=mistral-small-latest; \
+		_ready=""; \
+		for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do \
+			if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1; then _ready=1; break; fi; \
+			sleep 2; \
+		done; \
+		if [ -z "$$_ready" ]; then \
+			echo "$(RED)✗ Backend did not become healthy at $(BACKEND_URL)$(RESET)"; \
+			tail -n 40 /tmp/edgequake-backend.log 2>/dev/null || true; \
+			exit 1; \
+		fi; \
+	else \
+		echo "$(GREEN)✓ Backend already pinned to mistral-small-latest / mistral-embed$(RESET)"; \
+	fi
+endef
+
+e2e-test-mistral: ## Live Mistral journeys: text + PDF upload, then document query
+	@$(MISTRAL_API_KEY_PROBE)
+	@$(MAKE) db-wait --no-print-directory
+	@$(MISTRAL_ENSURE_BACKEND)
+	@$(MISTRAL_LLM_DEFAULTS_SYNC)
+	@BACKEND_URL="$(BACKEND_URL)" python3 $(ROOT_DIR)/scripts/e2e_test_mistral.py
 
 minio-up: ## SPEC-172: Chainguard MinIO plus a one-shot bucket create
 ifeq ($(WITH_MINIO),1)
