@@ -703,6 +703,8 @@ help: ## Show this help message
 	@echo "  $(GREEN)make dev-auth$(RESET)     Start full development stack with authentication enabled"
 	@echo "  $(GREEN)make dev-secrets-key$(RESET)  Generate a stable local EDGEQUAKE_SECRETS_KEY (dev mode)"
 	@echo "  $(GREEN)make dev-bg$(RESET)       Start full stack in BACKGROUND without authentication"
+	@echo "  $(GREEN)make dev-mistral$(RESET)  Full stack forced to Mistral (LLM+vision=mistral-small-latest, embed=mistral-embed)"
+	@echo "  $(GREEN)make dev-bg-mistral$(RESET) Background stack forced to Mistral (same pins as make dev-mistral)"
 	@echo "  $(GREEN)make dev-bg-langfuse$(RESET) Background stack + local Langfuse v4 (UI :3310)"
 	@echo "  $(GREEN)make dev-bg-pg16$(RESET)  Background dev with PostgreSQL 16"
 	@echo "  $(GREEN)make dev-bg-pg17$(RESET)  Background dev with PostgreSQL 17"
@@ -1166,6 +1168,54 @@ dev-database: ## SPEC-172: full stack with originals in Postgres and no MinIO
 dev-bg-database: ## SPEC-172: background stack with originals in Postgres and no MinIO
 	@$(MAKE) dev-bg WITH_MINIO=0 --no-print-directory
 
+dev-mistral: ## Full stack forced to Mistral (LLM+vision=mistral-small-latest, embed=mistral-embed)
+	@if [ -z "$$MISTRAL_API_KEY" ] && [ -z "$(MISTRAL_API_KEY)" ]; then \
+		echo "$(RED)✗ MISTRAL_API_KEY required for make dev-mistral$(RESET)"; \
+		echo "  export MISTRAL_API_KEY=... then rerun"; \
+		exit 1; \
+	fi
+	@echo "$(BOLD)$(BLUE)Starting EdgeQuake with Mistral$(RESET)"
+	@echo "  LLM/vision: mistral-small-latest"
+	@echo "  Embedding:  mistral-embed (1024d)"
+	@$(MAKE) dev --no-print-directory \
+		FORCE_MISTRAL=1 \
+		EDGEQUAKE_LLM_PROVIDER=mistral \
+		EDGEQUAKE_LLM_MODEL=mistral-small-latest \
+		EDGEQUAKE_DEFAULT_LLM_PROVIDER=mistral \
+		EDGEQUAKE_DEFAULT_LLM_MODEL=mistral-small-latest \
+		EDGEQUAKE_EMBEDDING_PROVIDER=mistral \
+		EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER=mistral \
+		EDGEQUAKE_DEFAULT_EMBEDDING_MODEL=mistral-embed \
+		EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION=1024 \
+		MISTRAL_MODEL=mistral-small-latest \
+		MISTRAL_EMBEDDING_MODEL=mistral-embed \
+		EDGEQUAKE_VISION_PROVIDER=mistral \
+		EDGEQUAKE_VISION_MODEL=mistral-small-latest
+
+dev-bg-mistral: ## Background stack forced to Mistral (same pins as make dev-mistral)
+	@if [ -z "$$MISTRAL_API_KEY" ] && [ -z "$(MISTRAL_API_KEY)" ]; then \
+		echo "$(RED)✗ MISTRAL_API_KEY required for make dev-bg-mistral$(RESET)"; \
+		echo "  export MISTRAL_API_KEY=... then rerun"; \
+		exit 1; \
+	fi
+	@echo "$(BOLD)$(BLUE)Starting EdgeQuake (bg) with Mistral$(RESET)"
+	@echo "  LLM/vision: mistral-small-latest"
+	@echo "  Embedding:  mistral-embed (1024d)"
+	@$(MAKE) dev-bg --no-print-directory \
+		FORCE_MISTRAL=1 \
+		EDGEQUAKE_LLM_PROVIDER=mistral \
+		EDGEQUAKE_LLM_MODEL=mistral-small-latest \
+		EDGEQUAKE_DEFAULT_LLM_PROVIDER=mistral \
+		EDGEQUAKE_DEFAULT_LLM_MODEL=mistral-small-latest \
+		EDGEQUAKE_EMBEDDING_PROVIDER=mistral \
+		EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER=mistral \
+		EDGEQUAKE_DEFAULT_EMBEDDING_MODEL=mistral-embed \
+		EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION=1024 \
+		MISTRAL_MODEL=mistral-small-latest \
+		MISTRAL_EMBEDDING_MODEL=mistral-embed \
+		EDGEQUAKE_VISION_PROVIDER=mistral \
+		EDGEQUAKE_VISION_MODEL=mistral-small-latest
+
 minio-up: ## SPEC-172: Chainguard MinIO plus a one-shot bucket create
 ifeq ($(WITH_MINIO),1)
 	@echo "$(YELLOW)→ Starting Chainguard MinIO (dev store, single-node parity 0)...$(RESET)"
@@ -1261,7 +1311,10 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND wit
 		$(MAKE) langfuse-up --no-print-directory; \
 	fi
 	@echo ""
-	@if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1 && [ "$(WITH_LANGFUSE)" != "1" ]; then \
+	@if [ "$(FORCE_MISTRAL)" = "1" ] || [ "$(EDGEQUAKE_LLM_PROVIDER)" = "mistral" ]; then \
+		echo "$(YELLOW)→ FORCE_MISTRAL: ensuring backend runs with Mistral pins...$(RESET)"; \
+		$(MAKE) backend-bg --no-print-directory DEV_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" WITH_LANGFUSE="$(WITH_LANGFUSE)" WITH_MINIO="$(WITH_MINIO)" FORCE_MISTRAL=1 EDGEQUAKE_LLM_PROVIDER=mistral; \
+	elif curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1 && [ "$(WITH_LANGFUSE)" != "1" ]; then \
 		echo "$(GREEN)✓ Backend already healthy on port $(BACKEND_PORT)$(RESET)"; \
 	else \
 		echo "$(YELLOW)→ Starting backend in background...$(RESET)"; \
@@ -1662,6 +1715,8 @@ backend-bg: sync-dev-ports db-wait ## Run backend in background with PostgreSQL 
 		$(MAKE) langfuse-up --no-print-directory; \
 	fi
 	@if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1; then \
+		_force_mistral=0; \
+		if [ "$(FORCE_MISTRAL)" = "1" ] || [ "$(EDGEQUAKE_LLM_PROVIDER)" = "mistral" ]; then _force_mistral=1; fi; \
 		_llm_code=$$(curl -s -o /dev/null -w '%{http_code}' "$(BACKEND_URL)/api/v1/settings/llm-defaults" 2>/dev/null || echo 000); \
 		_VX_PINNED=""; [ -f "$(VERTEX_PROJECT_FILE)" ] && _VX_PINNED="$$(tr -d '[:space:]' < "$(VERTEX_PROJECT_FILE)")"; \
 		_running_vx=$$(ps eww -ax 2>/dev/null | grep -o 'GOOGLE_CLOUD_PROJECT=[^ ]*' | head -1 | cut -d= -f2); \
@@ -1681,7 +1736,9 @@ backend-bg: sync-dev-ports db-wait ## Run backend in background with PostgreSQL 
 				echo "$(GREEN)✓ Backend already healthy on port $(BACKEND_PORT)$(RESET)"; \
 				exit 0; \
 			fi; \
-			echo "$(YELLOW)⚠ Backend healthy but not wired to local Langfuse ($(LANGFUSE_UI_URL)) — restarting...$(RESET)"; \
+			if [ "$$_langfuse_ok" != "1" ]; then \
+				echo "$(YELLOW)⚠ Backend healthy but not wired to local Langfuse ($(LANGFUSE_UI_URL)) — restarting...$(RESET)"; \
+			fi; \
 		else \
 			echo "$(YELLOW)⚠ Backend on port $(BACKEND_PORT) is stale (llm-defaults HTTP $$_llm_code) — restarting...$(RESET)"; \
 		fi; \
@@ -1734,9 +1791,18 @@ backend-bg: sync-dev-ports db-wait ## Run backend in background with PostgreSQL 
 		printf '%s\n' "export EDGEQUAKE_EMBEDDING_PROVIDER=\"mistral\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export MISTRAL_EMBEDDING_MODEL=\"mistral-embed\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_VISION_PROVIDER=\"mistral\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export EDGEQUAKE_VISION_MODEL=\"$${EDGEQUAKE_VISION_MODEL:-mistral-small-latest}\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export EDGEQUAKE_LLM_MODEL=\"$${EDGEQUAKE_LLM_MODEL:-mistral-small-latest}\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export MISTRAL_MODEL=\"$${MISTRAL_MODEL:-$${EDGEQUAKE_LLM_MODEL:-mistral-small-latest}}\"" >> /tmp/edgequake-start.sh; \
+		if [ "$(FORCE_MISTRAL)" = "1" ]; then \
+			_VISION_MODEL=mistral-small-latest; \
+			_LLM_MODEL=mistral-small-latest; \
+		else \
+			_VISION_MODEL="$${EDGEQUAKE_VISION_MODEL:-mistral-small-latest}"; \
+			case "$$_VISION_MODEL" in gpt-*|o1-*|o3-*|o4-*) _VISION_MODEL=mistral-small-latest ;; esac; \
+			_LLM_MODEL="$${EDGEQUAKE_LLM_MODEL:-$${MISTRAL_MODEL:-mistral-small-latest}}"; \
+			case "$$_LLM_MODEL" in gpt-*|o1-*|o3-*|o4-*) _LLM_MODEL=mistral-small-latest ;; esac; \
+		fi; \
+		printf '%s\n' "export EDGEQUAKE_VISION_MODEL=\"$$_VISION_MODEL\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export EDGEQUAKE_LLM_MODEL=\"$$_LLM_MODEL\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export MISTRAL_MODEL=\"$$_LLM_MODEL\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_EMBEDDING_BATCH_SIZE=\"16\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_ALLOWED_PROVIDERS=\"*\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "$$_RUN" >> /tmp/edgequake-start.sh; \
