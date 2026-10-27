@@ -1158,9 +1158,11 @@ dev-database: ## SPEC-172: full stack with originals in Postgres and no MinIO
 dev-bg-database: ## SPEC-172: background stack with originals in Postgres and no MinIO
 	@$(MAKE) dev-bg WITH_MINIO=0 --no-print-directory
 
-# Probe api.mistral.ai so make_dev-mistral fails fast on an invalid key.
+# Probe api.mistral.ai so make_dev-mistral fails fast on an invalid key
+# or a plan that caps mistral-small-latest at 0 req/min (x-ratelimit-limit-req-minute: 0).
 define MISTRAL_API_KEY_PROBE
 	_MISTRAL_KEY="$${MISTRAL_API_KEY:-$(MISTRAL_API_KEY)}"; \
+	_MISTRAL_CHAT_MODEL="$${MISTRAL_MODEL:-mistral-small-latest}"; \
 	if [ -z "$$_MISTRAL_KEY" ]; then \
 		echo "$(RED)✗ MISTRAL_API_KEY required$(RESET)"; \
 		echo "  export MISTRAL_API_KEY=... then rerun"; \
@@ -1175,7 +1177,27 @@ define MISTRAL_API_KEY_PROBE
 		echo "  Set a valid MISTRAL_API_KEY, then rerun"; \
 		exit 1; \
 	fi; \
-	echo "$(GREEN)✓ MISTRAL_API_KEY accepted by api.mistral.ai$(RESET)"
+	echo "$(GREEN)✓ MISTRAL_API_KEY accepted by api.mistral.ai$(RESET)"; \
+	_chat_code=$$(curl -sS -D /tmp/edgequake-mistral-chat.hdr -o /tmp/edgequake-mistral-chat.body -w '%{http_code}' \
+		-H "Authorization: Bearer $$_MISTRAL_KEY" \
+		-H "Content-Type: application/json" \
+		-d "{\"model\":\"$$_MISTRAL_CHAT_MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"max_tokens\":1}" \
+		https://api.mistral.ai/v1/chat/completions 2>/dev/null || echo 000); \
+	_rpm=$$(awk 'BEGIN{IGNORECASE=1} /^x-ratelimit-limit-req-minute:/{print $$2}' /tmp/edgequake-mistral-chat.hdr 2>/dev/null | tr -d '\r'); \
+	if [ "$$_chat_code" = "200" ]; then \
+		echo "$(GREEN)✓ Chat model $$_MISTRAL_CHAT_MODEL reachable (limit-req-minute=$${_rpm:-unknown})$(RESET)"; \
+	elif [ "$$_rpm" = "0" ]; then \
+		echo "$(RED)✗ Chat model $$_MISTRAL_CHAT_MODEL is capped at 0 req/min on this Mistral org$(RESET)"; \
+		echo "  Header: x-ratelimit-limit-req-minute: 0 (retry will not help)"; \
+		echo "  Raise the model limit in Mistral Admin → API → Limits, or enable pay-as-you-go:"; \
+		echo "  https://console.mistral.ai/ → Limits / Subscription"; \
+		echo "  make_dev-mistral requires mistral-small-latest for LLM+vision"; \
+		exit 1; \
+	else \
+		echo "$(RED)✗ Chat probe for $$_MISTRAL_CHAT_MODEL failed (HTTP $$_chat_code)$(RESET)"; \
+		head -c 240 /tmp/edgequake-mistral-chat.body 2>/dev/null; echo; \
+		exit 1; \
+	fi
 endef
 
 define MISTRAL_LLM_DEFAULTS_SYNC
