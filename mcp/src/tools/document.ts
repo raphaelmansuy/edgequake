@@ -231,7 +231,9 @@ export function registerDocumentTools(server: McpServer): void {
       search: z
         .string()
         .optional()
-        .describe("Full-text search in title/content"),
+        .describe(
+          "Case-insensitive title substring filter (comma-separated terms match any)",
+        ),
     },
     async (params) => {
       try {
@@ -240,7 +242,8 @@ export function registerDocumentTools(server: McpServer): void {
           page: params.page,
           page_size: params.page_size,
           status: params.status,
-          search: params.search,
+          // The REST API filters titles via `document_pattern`; it has no `search`.
+          document_pattern: params.search,
         });
 
         return {
