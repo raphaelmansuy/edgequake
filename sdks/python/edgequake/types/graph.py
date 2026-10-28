@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class GraphNode(BaseModel):
@@ -174,15 +174,25 @@ class NeighborhoodResponse(BaseModel):
 
 
 class RelationshipCreate(BaseModel):
-    """Request to create a relationship."""
+    """Request to create a relationship.
 
-    source: str
-    target: str
-    relationship_type: str
+    WHY: the API's CreateRelationshipRequest uses ``src_id``, ``tgt_id``,
+    ``keywords``, ``description`` and ``source_id`` (all required) and
+    ``metadata``. We keep the SDK-friendly names and alias on the wire
+    (``model_dump(by_alias=True)``).
+    """
+
+    source: str = Field(serialization_alias="src_id")
+    target: str = Field(serialization_alias="tgt_id")
+    relationship_type: str = Field(serialization_alias="keywords")
     weight: float | None = None
-    description: str | None = None
-    properties: dict[str, Any] | None = None
-    source_id: str | None = None
+    description: str = ""
+    properties: dict[str, Any] | None = Field(
+        default=None, serialization_alias="metadata"
+    )
+    source_id: str = "manual_entry"
+
+    model_config = {"populate_by_name": True}
 
 
 class RelationshipUpdate(BaseModel):
@@ -195,17 +205,26 @@ class RelationshipUpdate(BaseModel):
 
 
 class Relationship(BaseModel):
-    """A relationship between entities."""
+    """A relationship between entities.
+
+    WHY: the API returns ``src_id`` / ``tgt_id`` / ``relation_type``; the
+    short SDK names are accepted too.
+    """
 
     id: str | None = None
-    source: str
-    target: str
-    relationship_type: str | None = None
+    source: str = Field(validation_alias=AliasChoices("source", "src_id"))
+    target: str = Field(validation_alias=AliasChoices("target", "tgt_id"))
+    relationship_type: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("relationship_type", "relation_type"),
+    )
     weight: float | None = None
     description: str | None = None
     properties: dict[str, Any] | None = None
     created_at: str | None = None
     updated_at: str | None = None
+
+    model_config = {"populate_by_name": True}
 
 
 class RelationshipDetail(Relationship):
