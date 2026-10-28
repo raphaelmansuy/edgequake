@@ -685,6 +685,15 @@ describe("GraphResource", () => {
     expect(res.nodes).toBeDefined();
   });
 
+  it("get sends limit as the server's max_nodes parameter", async () => {
+    await graph.get({ limit: 10, start_node: "ALICE", depth: 3 });
+    const url = new URL(mock.lastRequest!.path, "http://x");
+    expect(url.searchParams.get("max_nodes")).toBe("10");
+    expect(url.searchParams.get("start_node")).toBe("ALICE");
+    expect(url.searchParams.get("depth")).toBe("3");
+    expect(url.searchParams.has("limit")).toBe(false);
+  });
+
   it("stream → SSE /api/v1/graph/stream", async () => {
     const events: unknown[] = [];
     for await (const e of graph.stream()) {
