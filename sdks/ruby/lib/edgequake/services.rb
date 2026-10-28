@@ -68,13 +68,17 @@ module EdgeQuake
 
     def list(page: 1, page_size: 20) = @http.get("#{BASE}?#{query(page: page, page_size: page_size)}")
 
-    def create(src_id:, tgt_id:, keywords:, description:)
+    # WHY: the server's CreateRelationshipRequest requires `source_id`
+    # (no serde default), so omitting it makes every create fail with 422.
+    def create(src_id:, tgt_id:, keywords:, description:, source_id: "manual_entry", weight: nil)
       @http.post(BASE, {
         src_id: src_id,
         tgt_id: tgt_id,
         keywords: keywords,
-        description: description
-      })
+        description: description,
+        source_id: source_id,
+        weight: weight
+      }.compact)
     end
 
     def get(id:) = @http.get("#{BASE}/#{encode(id)}")
