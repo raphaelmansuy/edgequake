@@ -945,3 +945,21 @@ cd edgequake_webui && npx playwright test e2e/<spec>.spec.ts
 See: [playwright-ux-ui-capture SKILL](.github/skills/playwright-ux-ui-capture/SKILL.md)
 
 Use SRP and DRY principles when developing new features or fixing bugs. For example, if you find yourself copying and pasting code, consider refactoring it into a reusable function or module. This not only reduces code duplication but also makes maintenance easier in the long run. Always aim for clean, modular code that adheres to the project's coding standards and conventions.
+
+## Cursor Cloud specific instructions
+
+Cloud Agents boot with Rust 1.95.0, pnpm 10.13.1, and Docker Engine already installed. systemd is not running in this VM, so the environment start script launches `dockerd` itself. Do not use `systemctl` for Docker.
+
+The start script brings up PostgreSQL 18 + pgvector, applies migrations, then serves the API and the Next.js UI:
+
+| Check | URL |
+| --- | --- |
+| API health | `http://127.0.0.1:8090/health` |
+| Web UI | `http://127.0.0.1:3010` |
+| Postgres | `127.0.0.1:5432`, database `edgequake` |
+
+`make postgres-start` writes the effective URL to `/tmp/edgequake-db-url`. The default is `postgresql://edgequake:edgequake_secret@localhost:5432/edgequake?options=-c%20search_path%3Dpublic`. Logs are `/tmp/edgequake-backend.log`, `/tmp/edgequake-frontend.log`, and `/tmp/dockerd.log`.
+
+Ollama is not installed. The API still boots with `EDGEQUAKE_LLM_PROVIDER=ollama` and `OLLAMA_HOST=http://localhost:11434`, so `/health` is `degraded` and `components.llm_provider` is false until a model server is reachable. The UI banner "No LLM provider is reachable" is that same gap. Ingestion and query need Ollama (`gemma4:latest` and `embeddinggemma:latest`) or `OPENAI_API_KEY`, then a restart of `edgequake/target/debug/edgequake`. Do not set `EDGEQUAKE_ALLOW_MOCK_PROVIDER` on the server process.
+
+Original uploads stay in Postgres (`EDGEQUAKE_ORIGINAL_STORE=database`). Start MinIO only when you need the object-store path: `WITH_MINIO=1 make minio-up`. Local auth is off (`EDGEQUAKE_DEV_MODE=true`). `SQLX_OFFLINE=true` is already set in `edgequake/.cargo/config.toml`.
