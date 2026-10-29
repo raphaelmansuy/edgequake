@@ -720,10 +720,7 @@ impl AgeGraphProjectionApplier {
         }
 
         if !edge_upserts.is_empty() {
-            let endpoint_ids: Vec<String> = edge_upserts
-                .keys()
-                .flat_map(|(s, t, _)| [s.clone(), t.clone()])
-                .collect();
+            let endpoint_ids = edge_upsert_endpoint_ids(&edge_upserts);
             let existing_edges = self
                 .graph
                 .get_edges_for_nodes_batch(&endpoint_ids)
@@ -1547,6 +1544,50 @@ async fn mark_cleanups_applied(pool: &PgPool, marks: &[(Uuid, Uuid)]) -> AccessR
 
 fn database_error(error: sqlx::Error) -> AccessError {
     AccessError::from(crate::StorageError::from(error))
+}
+
+/// Distinct endpoint ids of the edges about to be upserted, sorted.
+///
+/// A node that appears `k` times in the list comes back `k` times from the AGE
+/// `get_edges_for_nodes_batch` join, so an edge between two such nodes is
+/// returned `k_src * k_tgt` times.
+fn edge_upsert_endpoint_ids(
+    edge_upserts: &HashMap<(String, String, String), HashMap<String, Value>>,
+) -> Vec<String> {
+    let mut endpoint_ids: Vec<String> = edge_upserts
+        .keys()
+        .flat_map(|(s, t, _)| [s.clone(), t.clone()])
+        .collect();
+    endpoint_ids.sort();
+    endpoint_ids.dedup();
+    endpoint_ids
+}
+
+#[cfg(test)]
+mod edge_upsert_endpoint_tests {
+    use super::edge_upsert_endpoint_ids;
+    use serde_json::Value;
+    use std::collections::HashMap;
+
+    fn key(s: &str, t: &str, rel: &str) -> (String, String, String) {
+        (s.to_string(), t.to_string(), rel.to_string())
+    }
+
+    #[test]
+    fn endpoint_ids_are_deduplicated_across_edges() {
+        let mut edges: HashMap<(String, String, String), HashMap<String, Value>> = HashMap::new();
+        edges.insert(key("A", "B", "related_to"), HashMap::new());
+        edges.insert(key("B", "A", "related_to"), HashMap::new());
+        edges.insert(key("A", "C", "related_to"), HashMap::new());
+        edges.insert(key("A", "B", "part_of"), HashMap::new());
+
+        assert_eq!(edge_upsert_endpoint_ids(&edges), vec!["A", "B", "C"]);
+    }
+
+    #[test]
+    fn endpoint_ids_of_no_edges_are_empty() {
+        assert!(edge_upsert_endpoint_ids(&HashMap::new()).is_empty());
+    }
 }
 
 #[cfg(test)]
