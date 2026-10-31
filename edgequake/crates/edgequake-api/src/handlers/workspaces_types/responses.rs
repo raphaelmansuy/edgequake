@@ -226,6 +226,10 @@ pub struct WorkspaceResponse {
     #[serde(flatten)]
     pub extraction: super::ExtractionModeView,
 
+    /// SPEC-180: retrieval profile, modalities, text-search config and capabilities.
+    #[serde(flatten)]
+    pub profile: super::RagProfileView,
+
     /// Custom entity-type → hex color map for graph visualization (SPEC-102).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entity_type_colors: Option<std::collections::HashMap<String, String>>,

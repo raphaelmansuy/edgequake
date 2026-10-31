@@ -33,6 +33,11 @@ export interface WizardFixtureOptions {
   };
   /** Create answers this refusal instead of succeeding. */
   refuseCreate?: { status: number; code: string; message: string };
+  /**
+   * SPEC-180 08 — the deployment's answer to the image embedding probe. `auth` reproduces a
+   * project the identity cannot use, which used to surface only at the last wizard step.
+   */
+  imageProbe?: "ok" | "auth";
 }
 
 const CHAT: OfferedModel[] = [
@@ -124,6 +129,31 @@ export async function installWizardFixture(page: Page, options: WizardFixtureOpt
     const models = modelsFor(usage, forWorkspace);
     return route.fulfill({
       json: { usage, scope: forWorkspace ? "workspace" : "tenant", policy_mode: "constrained", models },
+    });
+  });
+
+  // SPEC-180 08: the probe the model step asks before Review. Hermetic: no vendor call.
+  await page.route("**/api/v1/models/embedding-support**", (route) => {
+    const url = new URL(route.request().url());
+    const provider = url.searchParams.get("provider") ?? "";
+    const model = url.searchParams.get("model") ?? "";
+    const card = offered.embedding.find((m) => m.provider === provider && m.model === model);
+    const imageCapable = card?.supports_vision === true;
+    const refused = imageCapable && options.imageProbe === "auth";
+    return route.fulfill({
+      json: {
+        provider,
+        model,
+        eligible: Boolean(card),
+        multimodal: imageCapable,
+        embeds_images: imageCapable && !refused,
+        code: refused ? "embedding_auth" : imageCapable ? null : "embedding_model_not_multimodal",
+        message: refused
+          ? "Vertex refused the image embedding call for project demo-project: embedContent returned 403 Forbidden. Grant this identity aiplatform.endpoints.predict, or set GOOGLE_CLOUD_PROJECT to the project that grants it."
+          : imageCapable
+            ? null
+            : "this model reads text only; pick an image-capable embedding model or use Text only",
+      },
     });
   });
 

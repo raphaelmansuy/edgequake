@@ -5,11 +5,13 @@
  * Fixed-position overlay: never moves page content (CLS-safe).
  */
 import { Kbd } from '@/components/shared/kbd';
-import { DESTINATIONS } from '@/lib/keyboard/destinations';
+import { destinationsFor } from '@/lib/keyboard/destinations';
+import { useWorkspaceCapabilities } from '@/hooks/use-workspace-capabilities';
 import { useTranslation } from 'react-i18next';
 
 export function ChordHint({ armed }: { armed: boolean }) {
   const { t } = useTranslation();
+  const caps = useWorkspaceCapabilities();
   if (!armed) return null;
 
   return (
@@ -24,7 +26,7 @@ export function ChordHint({ armed }: { armed: boolean }) {
           {t('keyboard.chordPrompt', 'Go to…')}
         </p>
         <ul className="grid grid-cols-2 gap-x-6 gap-y-1.5 sm:grid-cols-5">
-          {DESTINATIONS.map((d) => (
+          {destinationsFor(caps).map((d) => (
             <li key={d.href} className="flex items-center gap-2 text-sm">
               <Kbd>{d.chord.toUpperCase()}</Kbd>
               <span className="truncate">{t(d.labelKey, d.fallback)}</span>

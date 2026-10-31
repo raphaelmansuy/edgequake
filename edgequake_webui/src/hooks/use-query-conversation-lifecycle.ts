@@ -2,12 +2,15 @@
 
 import { useConversation, useConversations } from "@/hooks/use-conversations";
 import { useScopedEligibleModels } from "@/hooks/use-model-policy";
+import { useWorkspaceCapabilities } from "@/hooks/use-workspace-capabilities";
 import { isConversationNotFoundError } from "@/lib/query/conversation-errors";
 import {
   isQueryHandoffNewConversation,
   pickResumedConversationId,
 } from "@/lib/query/query-handoff";
+import { applyProfile } from "@/lib/query/query-profile";
 import { sanitizeQueryModelSelection } from "@/lib/query-model-selection";
+import { selectKinds, useQueryKindsStore } from "@/stores/use-query-kinds-store";
 import { useActiveConversationId, useQueryUIStore } from "@/stores/use-query-ui-store";
 import { useSettingsStore } from "@/stores/use-settings-store";
 import { useTenantStore } from "@/stores/use-tenant-store";
@@ -29,7 +32,8 @@ export function useQueryConversationLifecycle({
   const prevTenantRef = useRef<string | null>(null);
   const prevWorkspaceRef = useRef<string | null>(null);
 
-  const querySettings = useSettingsStore((s) => s.querySettings);
+  const savedSettings = useSettingsStore((s) => s.querySettings);
+  const caps = useWorkspaceCapabilities();
   const setQuerySettings = useSettingsStore((s) => s.setQuerySettings);
   const setWorkspaceQueryModel = useSettingsStore((s) => s.setWorkspaceQueryModel);
   const selectedTenantId = useTenantStore((s) => s.selectedTenantId);
@@ -38,6 +42,12 @@ export function useQueryConversationLifecycle({
     selectedWorkspaceId ? s.queryModelsByWorkspace[selectedWorkspaceId] : undefined,
   );
   const workspaceId = useTenantStore((s) => s.selectedWorkspaceId);
+  const docKinds = useQueryKindsStore(selectKinds(workspaceId));
+  // SPEC-180: the mode and kind chips this workspace can run. The saved choice is untouched.
+  const querySettings = useMemo(
+    () => applyProfile(savedSettings, caps, docKinds),
+    [savedSettings, caps, docKinds],
+  );
   const eligible = useScopedEligibleModels({
     scope: "workspace",
     id: workspaceId,

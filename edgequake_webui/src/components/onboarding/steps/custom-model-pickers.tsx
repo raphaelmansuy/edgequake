@@ -41,6 +41,13 @@ export interface CustomModelPickersProps {
   /** Set by "Choose another" so that role's provider menu opens, even if custom mode is already on. */
   focusRole?: WizardRole;
   focusNonce?: number;
+  /** SPEC-180: the workspace embeds images, so the embedding list shows image-capable models. */
+  imageEmbeddingOnly?: boolean;
+  /**
+   * SPEC-180 08: the image embedding probe, rendered under the embedding picker so the
+   * reason appears where the choice is made — not only in the footer.
+   */
+  embeddingNotice?: React.ReactNode;
 }
 
 /** Two-step provider → model pickers for LLM, embedding and vision, plus reasoning effort. */
@@ -58,6 +65,8 @@ export function CustomModelPickers({
   onReasoningEffortChange,
   focusRole,
   focusNonce = 0,
+  imageEmbeddingOnly = false,
+  embeddingNotice,
 }: CustomModelPickersProps) {
   const { t } = useTranslation();
   const llmModels = useLlmCapabilityModels();
@@ -123,7 +132,10 @@ export function CustomModelPickers({
             inheritLabel={inheritLabels.embedding}
             inheritPair={inheritPairs?.embedding}
             choiceScope={pickerScope}
+            imageOnly={imageEmbeddingOnly}
           />
+          {/* SPEC-180 08: the deployment's answer sits with the pick it judges. */}
+          {embeddingNotice}
         </div>
         <div className="grid min-w-0 gap-1.5" data-wizard-model-role="vision">
           <Label>{t('workspace.visionLLM', 'Vision LLM')}</Label>

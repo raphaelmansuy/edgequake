@@ -18,6 +18,7 @@ import {
   Terminal,
   type LucideIcon,
 } from "lucide-react";
+import type { RagProfileCapabilities } from "@/constants/rag-profile";
 
 export interface Destination {
   href: string;
@@ -28,6 +29,8 @@ export interface Destination {
   fallback: string;
   /** Second key of the `g` chord (`g` then this key). */
   chord: string;
+  /** SPEC-180: shown only when the workspace has a knowledge graph. Absent, not disabled. */
+  needsGraph?: boolean;
 }
 
 export interface DestinationGroup {
@@ -46,7 +49,7 @@ export const DESTINATION_GROUPS: readonly DestinationGroup[] = [
       { href: "/", icon: Home, labelKey: "nav.dashboard", fallback: "Dashboard", chord: "h" },
       { href: "/documents", icon: FileText, labelKey: "nav.documents", fallback: "Documents", chord: "d" },
       { href: "/query", icon: MessageSquare, labelKey: "nav.query", fallback: "Query", chord: "q" },
-      { href: "/graph", icon: Network, labelKey: "nav.graph", fallback: "Knowledge Graph", chord: "g" },
+      { href: "/graph", icon: Network, labelKey: "nav.graph", fallback: "Knowledge Graph", chord: "g", needsGraph: true },
     ],
   },
   {
@@ -54,7 +57,7 @@ export const DESTINATION_GROUPS: readonly DestinationGroup[] = [
     labelKey: "nav.groupKnowledge",
     label: "Knowledge",
     items: [
-      { href: "/knowledge", icon: BookOpen, labelKey: "nav.knowledge", fallback: "Knowledge", chord: "k" },
+      { href: "/knowledge", icon: BookOpen, labelKey: "nav.knowledge", fallback: "Knowledge", chord: "k", needsGraph: true },
       { href: "/workspace", icon: FolderKanban, labelKey: "nav.workspace", fallback: "Workspace", chord: "w" },
     ],
   },
@@ -76,10 +79,30 @@ export const DESTINATIONS: readonly Destination[] = DESTINATION_GROUPS.flatMap(
   (g) => g.items,
 );
 
+type GraphView = Pick<RagProfileCapabilities, "shows_graph_ui">;
+
+/** One rule for "is this destination offered here": graph pages need a graph. */
+export function isOffered(destination: Destination, caps?: GraphView): boolean {
+  return !destination.needsGraph || caps?.shows_graph_ui !== false;
+}
+
+/** The destinations a workspace offers (sidebar, palette, chord hint). */
+export function destinationsFor(caps?: GraphView): readonly Destination[] {
+  return DESTINATIONS.filter((d) => isOffered(d, caps));
+}
+
+/** The sidebar groups a workspace offers; a group left empty is dropped. */
+export function destinationGroupsFor(caps?: GraphView): readonly DestinationGroup[] {
+  return DESTINATION_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter((d) => isOffered(d, caps)),
+  })).filter((g) => g.items.length > 0);
+}
+
 /** Resolve the destination bound to the second key of a `g` chord. */
-export function destinationForChord(key: string): Destination | undefined {
+export function destinationForChord(key: string, caps?: GraphView): Destination | undefined {
   const k = key.toLowerCase();
-  return DESTINATIONS.find((d) => d.chord === k);
+  return destinationsFor(caps).find((d) => d.chord === k);
 }
 
 /** Active-route rule shared by the sidebar and breadcrumbs. */

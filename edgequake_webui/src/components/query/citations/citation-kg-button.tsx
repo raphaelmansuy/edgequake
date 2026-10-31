@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { useWorkspaceCapabilities } from "@/hooks/use-workspace-capabilities";
 import { cn } from "@/lib/utils";
 import { Network } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -18,8 +19,10 @@ export function CitationKgButton({
 }: CitationKgButtonProps) {
   const { t } = useTranslation();
   const router = useRouter();
+  const showsGraph = useWorkspaceCapabilities().shows_graph_ui;
   const id = documentId.trim();
-  if (!id) return null;
+  // SPEC-180: a workspace without a graph has no Graph Studio to open.
+  if (!id || !showsGraph) return null;
 
   return (
     <Button

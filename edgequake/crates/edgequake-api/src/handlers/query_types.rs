@@ -66,9 +66,27 @@ pub struct DocumentFilter {
     /// @implements SPEC-031: Explicit document scope selection
     #[serde(default)]
     pub document_ids: Option<Vec<String>>,
+
+    /// SPEC-180: keep chunks of these document kinds (`pdf`, `image`, `markdown`,
+    /// `text`, `office`, `other`). Normal workspaces only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub doc_kinds: Option<Vec<String>>,
+
+    /// SPEC-180: keep chunks of documents with these MIME types (exact, case-insensitive).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_types: Option<Vec<String>>,
+
+    /// SPEC-180: keep chunks of this source modality (`text` or `image`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_modalities: Option<Vec<String>>,
 }
 
 impl DocumentFilter {
+    /// SPEC-180: true when any chunk-kind predicate is set.
+    pub fn has_kind_filters(&self) -> bool {
+        self.doc_kinds.is_some() || self.mime_types.is_some() || self.source_modalities.is_some()
+    }
+
     /// Returns true when no filter criteria are active (all-pass, no KV scan needed).
     pub fn is_empty(&self) -> bool {
         self.date_from.is_none()

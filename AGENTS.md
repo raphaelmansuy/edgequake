@@ -697,6 +697,12 @@ make backend-bg
 | `EDGEQUAKE_DECISION_CACHE_MAX_ROWS` | Optional | Decision cache rows per workspace (SPEC-160; default **200000**) | `200000` |
 | `EDGEQUAKE_MAX_EXTRACTION_ENTITIES` | Optional | Per-response entity cap (SPEC-117; default **40**) | `40` |
 | `EDGEQUAKE_MAX_EXTRACTION_RECORDS` | Optional | Per-response total rows cap (SPEC-117; default **100**) | `100` |
+| `EDGEQUAKE_NORMAL_DENSE_WEIGHT` | Optional | RRF weight of the dense list on Normal RAG workspaces (SPEC-180; default **1.0**) | `1.0` |
+| `EDGEQUAKE_NORMAL_BM25_WEIGHT` | Optional | RRF weight of the BM25 list on Normal RAG workspaces (SPEC-180; default **1.25**) | `1.25` |
+| `EDGEQUAKE_NORMAL_QUERY_REWRITE` | Optional | Rewrite a Normal question before retrieval (default **on**). `0` uses the original text | `0` |
+| `EDGEQUAKE_NORMAL_REWRITE_TIMEOUT_MS` | Optional | Rewrite call timeout (default **2000**). Timeout keeps the original question | `2000` |
+| `EDGEQUAKE_NORMAL_MMR` | Optional | Drop near-duplicate Normal chunks after rerank (default **on**) | `0` |
+| `EDGEQUAKE_NORMAL_MMR_LAMBDA` | Optional | MMR blend, 0..1 (default **0.7**). `1` is relevance, `0` is diversity | `0.7` |
 | `EDGEQUAKE_EXTRACT_CAPS_SELECTION` | Optional | Hard truncate under K: product default **relation_aware**; Acc pins **`fifo`** | `fifo`, `relation_aware` |
 | `EDGEQUAKE_PDF_PACK` | Optional | PDF converted markdown packs to token budget (SPEC-135; default **on**) | `0` restores pre-135 Recursive inner |
 | `EDGEQUAKE_PDF_CROSS_PAGE_PACK` | Optional | Undersize remainder may span pages (SPEC-135; default **on**) | `0` keeps `page_start == page_end` |

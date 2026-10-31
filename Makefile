@@ -548,7 +548,11 @@ endef
 
 # Shared exports appended to /tmp/edgequake-start.sh by backend-bg.
 # SPEC-047: also pin VLM + chart modality so bench restarts do not silently drop MV-32.
+# WHY EDGEQUAKE_MODELS_CONFIG: the binary reads ./models.toml, then ~/.edgequake/models.toml. Started from
+# the repo root it silently used a stale home copy and offered no Vertex/Gemini embedding. Pin the repo catalog.
 define BACKEND_STABILITY_EXPORTS
+printf '%s\n' "export EDGEQUAKE_MODELS_CONFIG=\"$${EDGEQUAKE_MODELS_CONFIG:-$(BACKEND_DIR)/models.toml}\"" >> /tmp/edgequake-start.sh; \
+printf '%s\n' "export GOOGLE_CLOUD_PROJECT=\"$${_VX_PROJECT:-$${GOOGLE_CLOUD_PROJECT:-}}\"" >> /tmp/edgequake-start.sh; \
 printf '%s\n' "export WORKER_THREADS=\"$(WORKER_THREADS)\"" >> /tmp/edgequake-start.sh; \
 printf '%s\n' "export MAX_TASKS_PER_TENANT=\"$(MAX_TASKS_PER_TENANT)\"" >> /tmp/edgequake-start.sh; \
 printf '%s\n' "export EDGEQUAKE_PDF_CONCURRENCY=\"$(EDGEQUAKE_PDF_CONCURRENCY)\"" >> /tmp/edgequake-start.sh; \
@@ -961,6 +965,7 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 	BACKEND_PID=""; \
 	FRONTEND_PID=""; \
 	$(LOAD_EFF_DB_URL); \
+	$(APPLY_VERTEX_ENV); \
 	$(APPLY_LANGFUSE_ENV_EFFECTIVE); \
 	$(VISIBLE_MIGRATE_STEP); \
 	_EQ_BIN=""; \
@@ -980,6 +985,7 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 			DATABASE_URL="$$_EFF_DB_URL" \
 			OPENAI_API_KEY="$$OPENAI_API_KEY" \
 			EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
+		GOOGLE_CLOUD_PROJECT="$${GOOGLE_CLOUD_PROJECT:-}" \
 		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 		AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 		EDGEQUAKE_NATIVE_GRAPH_WRITES="$(EDGEQUAKE_NATIVE_GRAPH_WRITES)" \
@@ -1005,6 +1011,7 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 			PORT="$$BACKEND_PORT" \
 			DATABASE_URL="$$_EFF_DB_URL" \
 			EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
+		GOOGLE_CLOUD_PROJECT="$${GOOGLE_CLOUD_PROJECT:-}" \
 		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 		AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
 		EDGEQUAKE_NATIVE_GRAPH_WRITES="$(EDGEQUAKE_NATIVE_GRAPH_WRITES)" \
@@ -1398,6 +1405,39 @@ SAFE_KILL_LISTEN_PORTS = bash $(CURDIR)/scripts/dev_safe_kill_listen_port.sh
 
 LOAD_EFF_DB_URL = _EFF_DB_URL=$$(cat /tmp/edgequake-db-url 2>/dev/null); [ -z "$$_EFF_DB_URL" ] && _EFF_DB_URL="$(DATABASE_URL)"
 
+# SPEC-180: Vertex needs a project, and it is a property of this checkout, not of the
+# caller's shell. Resolution, highest priority first:
+#   1. .gcloud_active_project — pinned by `make gcp-use`, or saved on the first interactive
+#      `make dev` (the script asks once and validates the answer).
+#   2. GOOGLE_CLOUD_PROJECT — explicit for this run.
+#   3. PROJECT_ID — what `gcp-use-mobioos` exports.
+#   4. nothing: image embedding is unavailable; every other provider still works.
+# WHY a script and not inline shell: a first-run question needs a tty, validation and a
+# saved answer; that is logic worth testing, so it lives in scripts/dev_vertex_project.sh.
+VERTEX_PROJECT_SCRIPT := $(ROOT_DIR)/scripts/dev_vertex_project.sh
+define APPLY_VERTEX_ENV
+_VX_PROJECT="$$(bash "$(VERTEX_PROJECT_SCRIPT)" --prompt || true)"; \
+export GOOGLE_CLOUD_PROJECT="$$_VX_PROJECT"
+endef
+
+## Write the intended Vertex project for `make dev`, e.g. `make gcp-use PROJECT=mobioos-506015`
+gcp-use: ## Pin the Vertex project used by make dev (PROJECT=<id>)
+	@if [ -z "$(PROJECT)" ]; then \
+		echo "$(RED)✗ Pass a project: make gcp-use PROJECT=mobioos-506015$(RESET)"; exit 1; \
+	fi
+	@printf '%s\n' "$(PROJECT)" > "$(VERTEX_PROJECT_FILE)"
+	@echo "$(GREEN)✓ Vertex project pinned: $(PROJECT)$(RESET)"
+	@echo "  Stored in $(VERTEX_PROJECT_FILE) (gitignored). make dev will export it."
+
+vertex-project-test: ## Test the first-run Vertex project prompt (scripts/dev_vertex_project.sh)
+	@bash $(ROOT_DIR)/scripts/dev_vertex_project_test.sh
+
+vertex-project: ## Show the Vertex project make dev will use
+	@bash $(VERTEX_PROJECT_SCRIPT) --print 2>/dev/null || echo "(not set — run: make gcp-use PROJECT=<id>)"
+
+vertex-project-forget: ## Forget the saved Vertex project (the next make dev asks again)
+	@bash $(VERTEX_PROJECT_SCRIPT) --forget
+
 # SPEC-150: checksum fossils live in edgequake/migrations/manifest.toml (SSOT).
 # VISIBLE_MIGRATE_STEP no longer passes a hard-coded EDGEQUAKE_ALLOW_CHECKSUM_REPAIR
 # list — production fossils auto-accept; known *dev_only* fossils auto-accept when
@@ -1459,6 +1499,7 @@ VISIBLE_MIGRATE_STEP = \
 	if ( cd $(BACKEND_DIR) && \
 		DATABASE_URL="$$_EFF_DB_URL" \
 		EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
+		GOOGLE_CLOUD_PROJECT="$${GOOGLE_CLOUD_PROJECT:-}" \
 		EDGEQUAKE_MIGRATE_DROP_AGE="$${EDGEQUAKE_MIGRATE_DROP_AGE:-}" \
 		cargo run -- migrate ) 2>&1 | tee "$$_mig_log"; then \
 		rm -f "$$_mig_log"; \
@@ -1592,12 +1633,20 @@ backend-bg: sync-dev-ports db-wait ## Run backend in background with PostgreSQL 
 	fi
 	@if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1; then \
 		_llm_code=$$(curl -s -o /dev/null -w '%{http_code}' "$(BACKEND_URL)/api/v1/settings/llm-defaults" 2>/dev/null || echo 000); \
+		_VX_PINNED=""; [ -f "$(VERTEX_PROJECT_FILE)" ] && _VX_PINNED="$$(tr -d '[:space:]' < "$(VERTEX_PROJECT_FILE)")"; \
+		_running_vx=$$(ps eww -ax 2>/dev/null | grep -o 'GOOGLE_CLOUD_PROJECT=[^ ]*' | head -1 | cut -d= -f2); \
 		_langfuse_ok=1; \
 		if [ "$(WITH_LANGFUSE)" = "1" ]; then \
 			_langfuse_ok=0; \
 			if $(LANGFUSE_LOCAL_BACKEND_WIRED); then _langfuse_ok=1; fi; \
 		fi; \
-		if [ "$$_llm_code" = "200" ] || [ "$$_llm_code" = "401" ]; then \
+		if [ -n "$$_VX_PINNED" ] && [ -n "$$_running_vx" ] && [ "$$_running_vx" != "$$_VX_PINNED" ]; then \
+			echo "$(YELLOW)⚠ Backend uses GOOGLE_CLOUD_PROJECT=$$_running_vx but the pinned Vertex project is $$_VX_PINNED — restarting...$(RESET)"; \
+			if [ -f /tmp/edgequake-backend.pid ]; then kill -9 $$(cat /tmp/edgequake-backend.pid) 2>/dev/null || true; fi; \
+			pkill -9 -f "debug/edgequake" 2>/dev/null || true; \
+			rm -f /tmp/edgequake-backend.pid; \
+			sleep 1; \
+		elif [ "$$_llm_code" = "200" ] || [ "$$_llm_code" = "401" ]; then \
 			if [ "$$_langfuse_ok" = "1" ]; then \
 				echo "$(GREEN)✓ Backend already healthy on port $(BACKEND_PORT)$(RESET)"; \
 				exit 0; \
@@ -1616,6 +1665,7 @@ backend-bg: sync-dev-ports db-wait ## Run backend in background with PostgreSQL 
 	@# Read the effective DATABASE_URL resolved by db-start (may differ in port
 	@# when another PostgreSQL occupies the default 5432).
 	@$(LOAD_EFF_DB_URL); \
+	$(APPLY_VERTEX_ENV); \
 	$(APPLY_LANGFUSE_ENV_EFFECTIVE); \
 	$(VISIBLE_MIGRATE_STEP); \
 	set -a && [ -f "$(DEV_PORTS_ENV)" ] && . "$(DEV_PORTS_ENV)" && set +a; \

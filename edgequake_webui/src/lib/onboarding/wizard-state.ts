@@ -5,6 +5,14 @@
 import type { RelationEdge } from '@/constants/kg-schema-presets';
 import { isChunkingDraftValid } from '@/lib/onboarding/draft-chunking';
 import { isExtractBudgetDraftValid } from '@/lib/onboarding/draft-extract-budget';
+import {
+  DEFAULT_EMBEDDING_MODALITIES,
+  DEFAULT_FTS_REGCONFIG,
+  DEFAULT_RAG_PROFILE,
+  type EmbeddingModalities,
+  type FtsRegconfig,
+  type RagProfile,
+} from '@/constants/rag-profile';
 
 export type WizardKind =
   | 'first-run'
@@ -17,6 +25,7 @@ export type WizardStepId =
   | 'tenant-basics'
   | 'models'
   | 'workspace-basics'
+  | 'retrieval'
   | 'document-parsing'
   | 'chunking'
   | 'extract-budget'
@@ -31,6 +40,12 @@ export type PdfParserBackendDraft =
   | 'auto';
 
 export interface WizardDraft {
+  /** SPEC-180 — retrieval type. Fixed once the workspace is created. */
+  ragProfile: RagProfile;
+  /** SPEC-180 — what the embedding model reads (`text,image` needs `normal`). */
+  embeddingModalities: EmbeddingModalities;
+  /** SPEC-180 — keyword-index language. */
+  ftsRegconfig: FtsRegconfig;
   adminUsername: string;
   adminEmail: string;
   adminPassword: string;
@@ -95,9 +110,14 @@ export interface WizardModelPick {
   model: string;
   fullId?: string;
   dimension?: number;
+  /** SPEC-180 — the embedding model accepts images (from the catalog, never guessed). */
+  embedsImages?: boolean;
 }
 
 export const EMPTY_WIZARD_DRAFT: WizardDraft = {
+  ragProfile: DEFAULT_RAG_PROFILE,
+  embeddingModalities: DEFAULT_EMBEDDING_MODALITIES,
+  ftsRegconfig: DEFAULT_FTS_REGCONFIG,
   adminUsername: 'admin',
   adminEmail: '',
   adminPassword: '',
@@ -172,15 +192,29 @@ function withDocumentParsingAfterModels(steps: WizardStepId[]): WizardStepId[] {
   return out;
 }
 
+export interface StepsOptions {
+  includeAdmin: boolean;
+  includeExtraction: boolean;
+  /** SPEC-180 — a normal draft never enters extract-budget or extraction. */
+  ragProfile?: RagProfile;
+}
+
+/** Create-workspace steps for a normal draft: the graph-only steps are not offered. */
+function normalCreateSteps(): WizardStepId[] {
+  return ['workspace-basics', 'retrieval', 'models', 'chunking', 'review'];
+}
+
 export function stepsForWizard(
   kind: WizardKind,
-  opts: { includeAdmin: boolean; includeExtraction: boolean } = {
+  opts: StepsOptions = {
     includeAdmin: false,
     includeExtraction: true,
   },
 ): WizardStepId[] {
   let steps: WizardStepId[];
-  if (kind === 'reconfigure-workspace') {
+  if (kind === 'reconfigure-workspace' && opts.ragProfile === 'normal') {
+    steps = ['models', 'chunking', 'review'];
+  } else if (kind === 'reconfigure-workspace') {
     steps = withIngestTuningBeforeExtraction(
       ['models', 'document-parsing', 'extraction', 'review'],
       true,
@@ -190,8 +224,10 @@ export function stepsForWizard(
       ['tenant-basics', 'models', 'workspace-basics', 'extraction', 'review'],
       true,
     );
+  } else if (kind === 'create-workspace' && opts.ragProfile === 'normal') {
+    steps = normalCreateSteps();
   } else if (kind === 'create-workspace') {
-    const create: WizardStepId[] = ['workspace-basics', 'models'];
+    const create: WizardStepId[] = ['workspace-basics', 'retrieval', 'models'];
     if (opts.includeExtraction) create.push('extraction');
     create.push('review');
     steps = withIngestTuningBeforeExtraction(create, opts.includeExtraction);
@@ -213,6 +249,9 @@ export type WizardBlockerCode =
   | 'tenant_name_required'
   | 'workspace_name_required'
   | 'models_not_eligible'
+  | 'embedding_not_multimodal'
+  | 'embedding_probe_failed'
+  | 'embedding_probe_checking'
   | 'defaults_incomplete'
   | 'models_incomplete'
   | 'chunking_invalid'
@@ -226,6 +265,12 @@ export interface WizardGateOptions {
   hasConfigChanges?: boolean;
   /** SPEC-179: false when the pair to save is not offered or has no vector size. */
   eligibilityOk?: boolean;
+  /** SPEC-180: false when `text,image` is chosen and the embedding pick cannot read images. */
+  imageEmbeddingOk?: boolean;
+  /** SPEC-180 08: the deployment refused the image embedding probe for the chosen pair. */
+  imageProbeFailed?: boolean;
+  /** SPEC-180 08: the probe is in flight; Next waits rather than racing it. */
+  imageProbeChecking?: boolean;
 }
 
 const OPEN_GATE: WizardGateOptions = {
@@ -238,6 +283,11 @@ function modelsBlocker(
   opts: WizardGateOptions,
 ): WizardBlockerCode | null {
   if (opts.eligibilityOk === false) return 'models_not_eligible';
+  if (opts.imageEmbeddingOk === false) return 'embedding_not_multimodal';
+  if (opts.imageProbeFailed === true) return 'embedding_probe_failed';
+  // Waiting beats racing: advancing while the probe is in flight would reach Review with an
+  // answer that had not arrived yet.
+  if (opts.imageProbeChecking === true) return 'embedding_probe_checking';
   if (draft.useServerDefaults) {
     return opts.hasConfiguredDefaults ? null : 'defaults_incomplete';
   }
@@ -277,6 +327,7 @@ export function wizardBlocker(
       return isExtractBudgetDraftValid(draft) ? null : 'extract_budget_invalid';
     case 'review':
       return reviewBlocker(opts);
+    case 'retrieval':
     case 'document-parsing':
     case 'extraction':
       return null;

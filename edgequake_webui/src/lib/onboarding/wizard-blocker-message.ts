@@ -19,6 +19,8 @@ export interface BlockerContext {
   nothingOffered?: boolean;
   /** Whose offer the refusal is about. Workspace names the workspace offer. */
   scope?: 'deployment' | 'tenant' | 'workspace';
+  /** SPEC-180 08: the server's own sentence about why the image embed was refused. */
+  imageProbeMessage?: string;
 }
 
 const roleList = (roles: WizardRole[]) => roles.map((r) => ROLE_LABEL[r]).join(', ');
@@ -72,6 +74,24 @@ export function describeBlocker(
       );
     case 'models_not_eligible':
       return describeNotEligible(t, ctx);
+    case 'embedding_not_multimodal':
+      // The picker already shows an inline notice with this exact advice; do not repeat it
+      // in the footer with different words.
+      return null;
+    case 'embedding_probe_failed':
+      // The server's sentence names the project and the fix; fall back to the generic one.
+      return (
+        ctx.imageProbeMessage ??
+        t(
+          'ragProfile.blocked.embeddingProbeFailed',
+          'This deployment cannot embed images with that model. Choose another image embedding model, or ask a deployment admin to fix its credentials.',
+        )
+      );
+    case 'embedding_probe_checking':
+      return t(
+        'ragProfile.blocked.embeddingProbeChecking',
+        'Checking that this deployment can embed images…',
+      );
     case 'defaults_incomplete':
       return t(
         'onboarding.blocked.defaultsIncomplete',

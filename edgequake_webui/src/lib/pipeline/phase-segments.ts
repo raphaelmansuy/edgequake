@@ -18,6 +18,7 @@ import {
   stripPhaseToLedger,
   type RunProgress,
 } from "@/lib/pipeline/run-progress";
+import type { ProfilePhase, ProfilePhaseId } from "@/lib/pipeline/profile-phases";
 
 export type PhaseSegmentStatus = "done" | "active" | "pending" | "failed";
 
@@ -121,11 +122,97 @@ export function buildPhaseSegments(
   });
 }
 
+/**
+ * A phase segment for one profile's strip (SPEC-180).
+ *
+ * `buildPhaseSegments` above keeps the fixed four-phase shape for older call sites; this one
+ * describes the phases the profile actually has, so classical RAG never shows "Extract".
+ */
+export interface ProfilePhaseSegment {
+  phase: ProfilePhaseId;
+  /** Profile label ("Index" for both, "Extract" only for GraphRAG). */
+  label: string;
+  /** One sentence about what this phase produces for this profile. */
+  hint: string;
+  status: PhaseSegmentStatus;
+  fillPct: number;
+  indeterminate: boolean;
+  summary?: string | null;
+}
+
 export interface CaptionProgress {
   /** Percentage painted next to the headline. */
   pct: number;
   /** True when it is the overall estimate (no determinate stage N/M). */
   estimated: boolean;
+}
+
+/**
+ * Build one segment per phase the profile really has.
+ *
+ * Fill comes from the typed ledger when the phase maps to one; the active phase without a
+ * determinate ledger falls back to the legacy stage percentage, then to an indeterminate
+ * pulse. A done phase is full; a pending one is empty.
+ */
+export function buildProfileSegments(
+  run: Pick<IngestionRunView, "stage" | "stageStatus" | "runProgress">,
+  stagePct: number | undefined,
+  opts: { phases: readonly ProfilePhase[]; activeIndex: number },
+): ProfilePhaseSegment[] {
+  const failed = run.stageStatus === "failed" || run.stage === "failed";
+  const ledger = run.runProgress ?? null;
+
+  return opts.phases.map((phase, index) => {
+    const status: PhaseSegmentStatus =
+      failed && index === opts.activeIndex
+        ? "failed"
+        : index < opts.activeIndex
+          ? "done"
+          : index === opts.activeIndex
+            ? "active"
+            : "pending";
+
+    const base = { phase: phase.id, label: phase.label, hint: phase.hint };
+    // The ledger speaks the fixed four-phase vocabulary. `index` is the profile name for the
+    // same final work (embed + store), so it maps to the ledger's `materialize`.
+    const ledgerPhaseId = stripPhaseToLedger(
+      phase.id === "index" ? "materialize" : phase.id,
+    );
+    const ledgerPhase =
+      ledger && ledgerPhaseId ? findPhase(ledger, ledgerPhaseId) : undefined;
+    const summary = formatPhaseSummary(ledgerPhase);
+
+    if (status === "done" || status === "failed") {
+      return { ...base, status, fillPct: 100, indeterminate: false, summary };
+    }
+    if (status === "pending") {
+      return { ...base, status, fillPct: 0, indeterminate: false, summary: null };
+    }
+
+    if (ledger && ledgerPhaseId) {
+      const fill = phaseFillPct(ledgerPhase);
+      if (ledgerPhase && (ledgerPhase.tasks?.length ?? 0) > 0) {
+        return {
+          ...base,
+          status,
+          fillPct: visibleFillPct(fill),
+          indeterminate: false,
+          summary,
+        };
+      }
+      return { ...base, status, fillPct: 0, indeterminate: true, summary };
+    }
+
+    return typeof stagePct === "number"
+      ? {
+          ...base,
+          status,
+          fillPct: visibleFillPct(stagePct),
+          indeterminate: false,
+          summary: null,
+        }
+      : { ...base, status, fillPct: 0, indeterminate: true, summary: null };
+  });
 }
 
 /** Stage N/M wins; otherwise fall back to the overall estimate (LAW-IS2). */

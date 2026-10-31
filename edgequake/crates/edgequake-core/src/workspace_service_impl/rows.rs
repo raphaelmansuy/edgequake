@@ -10,6 +10,8 @@ use edgequake_pdf::PdfParserBackend;
 use uuid::Uuid;
 
 #[cfg(feature = "postgres")]
+use crate::rag_profile::{EmbeddingModalities, FtsRegconfig, RagProfile};
+#[cfg(feature = "postgres")]
 use crate::types::{Membership, Tenant, Workspace};
 
 #[cfg(feature = "postgres")]
@@ -163,6 +165,10 @@ pub(crate) struct WorkspaceRow {
     metadata: serde_json::Value,
     created_at: chrono::DateTime<chrono::Utc>,
     updated_at: chrono::DateTime<chrono::Utc>,
+    // SPEC-180 (migration 225). Stored words are check-constrained; a bad one falls back.
+    rag_profile: String,
+    embedding_modalities: String,
+    fts_regconfig: String,
 }
 
 #[cfg(feature = "postgres")]
@@ -251,6 +257,10 @@ impl WorkspaceRow {
             vision_llm_provider,
             vision_llm_model,
             pdf_parser_backend,
+            rag_profile: RagProfile::parse(&self.rag_profile).unwrap_or_default(),
+            embedding_modalities: EmbeddingModalities::parse(&self.embedding_modalities)
+                .unwrap_or_default(),
+            fts_regconfig: FtsRegconfig::parse(&self.fts_regconfig).unwrap_or_default(),
         }
     }
 }

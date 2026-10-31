@@ -6,7 +6,7 @@
  */
 
 import { useMemo } from 'react';
-import { useChatFamilyModels, useScopedEligibleModels } from '@/hooks/use-model-policy';
+import { useChatFamilyModels, useEmbeddingSupport, useScopedEligibleModels } from '@/hooks/use-model-policy';
 import {
   isBlocked,
   judgeRole,
@@ -29,6 +29,8 @@ export interface WizardEligibilityInput {
   llm?: ModelPair;
   embedding?: ModelPair;
   vision?: ModelPair;
+  /** SPEC-180 08 — probe the image embedding pair before create can refuse it. */
+  probeImages?: boolean;
 }
 
 export interface WizardEligibility {
@@ -39,6 +41,15 @@ export interface WizardEligibility {
   nothingOffered: boolean;
   isLoading: boolean;
   isError: boolean;
+  /**
+   * SPEC-180 08 — the image embedding probe for the pair this wizard will save.
+   * `failed` carries the server's own sentence, so the model step explains itself.
+   */
+  imageProbe: {
+    status: 'idle' | 'checking' | 'ok' | 'failed';
+    code?: string;
+    message?: string;
+  };
 }
 
 export function useWizardEligibility(input: WizardEligibilityInput): WizardEligibility {
@@ -46,6 +57,14 @@ export function useWizardEligibility(input: WizardEligibilityInput): WizardEligi
   const embeddingQuery = useScopedEligibleModels({ scope: input.scope, id: input.id, usage: 'embedding' });
   const visionQuery = useScopedEligibleModels({ scope: input.scope, id: input.id, usage: 'vlm' });
   const { useDefaults, inherited, llm, embedding, vision } = input;
+  const probe = useEmbeddingSupport({
+    scope: input.scope,
+    id: input.id,
+    provider: embedding?.provider,
+    model: embedding?.model,
+    dimension: embedding?.dimension,
+    enabled: input.probeImages === true && Boolean(embedding?.provider && embedding?.model),
+  });
 
   return useMemo(() => {
     const inheritedPairs: Record<WizardRole, ModelPair> = {
@@ -76,6 +95,24 @@ export function useWizardEligibility(input: WizardEligibilityInput): WizardEligi
       vision: judgeRole('vision', pairs.vision, lists.vision),
     };
     const isError = chat.isError || embeddingQuery.isError || visionQuery.isError;
+    // SPEC-180 08: only an image-embedding draft needs the probe, and only once its pair is
+    // eligible — a refused pair already has a clearer reason.
+    const wantsImages = input.probeImages === true;
+    const imageProbe: WizardEligibility['imageProbe'] = !wantsImages
+      ? { status: 'idle' }
+      : probe.isFetching
+        ? { status: 'checking' }
+        : probe.data
+          ? probe.data.embeds_images === false
+            ? {
+                status: 'failed',
+                code: probe.data.code ?? 'embedding_auth',
+                message: probe.data.message ?? undefined,
+              }
+            : { status: 'ok' }
+          : probe.isError
+            ? { status: 'failed', code: 'embedding_request_failed' }
+            : { status: 'idle' };
     return {
       verdicts,
       pairs,
@@ -83,6 +120,7 @@ export function useWizardEligibility(input: WizardEligibilityInput): WizardEligi
       nothingOffered: !isError && nothingOffered(lists),
       isLoading: Object.values(lists).some((list) => list.loading),
       isError,
+      imageProbe,
     };
   }, [
     useDefaults,
@@ -99,5 +137,9 @@ export function useWizardEligibility(input: WizardEligibilityInput): WizardEligi
     visionQuery.data,
     visionQuery.isLoading,
     visionQuery.isError,
+    input.probeImages,
+    probe.isFetching,
+    probe.data,
+    probe.isError,
   ]);
 }

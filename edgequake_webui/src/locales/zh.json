@@ -232,7 +232,8 @@
       "preview": "预览",
       "openGraph": "打开图谱",
       "retry": "重试",
-      "moreActions": "更多操作"
+      "moreActions": "更多操作",
+      "chunks": "分块"
     },
     "actions": {
       "view": "查看详情",
@@ -325,7 +326,8 @@
       "contentCopied": "内容已复制到剪贴板",
       "actions": "操作",
       "technicalDetails": "技术详情",
-      "retryable": "可重试"
+      "retryable": "可重试",
+      "image": "图片"
     },
     "delete": {
       "failed": "删除失败",
@@ -536,6 +538,20 @@
       "yearsAgo": "{{count}} 年前",
       "unchanged": "自上传后未更改",
       "neverModified": "上传后未修改"
+    },
+    "subtitleNormal": "上传并管理用于检索的文档",
+    "noDocumentsSubtitleNormal": "上传文档、扫描件或图片以便检索",
+    "image": {
+      "label": "图片",
+      "download": "下载原图",
+      "failed": "无法加载图片",
+      "failedHint": "它可能仍在处理中，或原图已不再存储。请重试或重新处理该文档。",
+      "fit": "适应窗口",
+      "loading": "正在加载图片…",
+      "open": "打开原图",
+      "stage": "图片预览。使用加号和减号缩放。",
+      "zoomIn": "放大",
+      "zoomOut": "缩小"
     }
   },
   "graph": {
@@ -796,7 +812,8 @@
       "topicCount": "{{count}} 个主题",
       "openSource": "打开来源",
       "openSourcePage": "打开来源 · {{page}}",
-      "openSourceAria": "打开来源 {{index}}：{{title}}"
+      "openSourceAria": "打开来源 {{index}}：{{title}}",
+      "panelAriaPassages": "来源引用：{{sources}} 个来源，置信度 {{confidence}}"
     },
     "history": {
       "title": "历史",
@@ -870,7 +887,9 @@
     },
     "stats": {
       "entities": "实体",
-      "relationships": "关系"
+      "relationships": "关系",
+      "documents": "文档",
+      "chunks": "段落"
     },
     "stop": "停止",
     "queued": "已排队",
@@ -959,6 +978,37 @@
       "deselect": "清除选择",
       "expanded": "已显示相邻节点",
       "expand": "显示相邻节点"
+    },
+    "kinds": {
+      "groupLabel": "文档类型",
+      "all": "全部",
+      "pdf": "PDF",
+      "image": "图片",
+      "markdown": "Markdown",
+      "text": "文本",
+      "office": "Office"
+    },
+    "searchByImage": {
+      "label": "以图搜索",
+      "remove": "移除搜索图片",
+      "defaultMessage": "查找与这张图片匹配的内容"
+    },
+    "normalEmptyTitle": "向你的文档提问",
+    "normalEmptyDescription": "我会找出能回答问题的段落，引用原文并标明页码。",
+    "normalSuggestions": {
+      "0": "手册中关于退款是怎么规定的？",
+      "1": "找出提到截止日期的段落",
+      "2": "哪些文档涉及新员工入职？",
+      "3": "引用关于安全要求的章节"
+    },
+    "normalSubtitle": "就你的文档提问",
+    "normalEmptyNoDocs": "尚无文档 — 请上传文档，我会根据其中的段落作答。",
+    "imageMatches": {
+      "title": "匹配的图片",
+      "open": "打开图片 {{index}}：{{title}}",
+      "more": "另外 {{count}} 张",
+      "unavailable": "无预览",
+      "relevance": "匹配强度"
     }
   },
   "pipeline": {
@@ -1405,7 +1455,8 @@
       "futureOnlyHint": "Applies to future document ingestions. Use Rebuild Knowledge Graph to re-extract existing documents.",
       "typesRemappedToast": "Entity types updated to match extraction language. Applies to future ingestions.",
       "changedToast": "Extraction language updated. Reprocess documents to refresh the graph."
-    }
+    },
+    "llmConfigDescNormal": "负责撰写回答的模型。添加文档时不会提取任何内容。"
   },
   "onboarding": {
     "stepOf": "第 {{current}} 步，共 {{total}} 步",
@@ -2138,5 +2189,74 @@
       "resetSubmit": "设置密码并登录",
       "resetNote": "设置新密码会使您在其他所有设备上登出。"
     }
+  },
+  "ragProfile": {
+    "stepLabel": "检索",
+    "stepTitle": "检索类型",
+    "stepDescription": "此工作区如何查找答案。该选择创建后不可更改。",
+    "legend": "检索类型",
+    "graph": {
+      "title": "图谱",
+      "summary": "实体、关系和社区。",
+      "detail": "摄取成本较高，更适合多跳问题。"
+    },
+    "normal": {
+      "title": "常规",
+      "summary": "向量嵌入与关键词匹配，不构建知识图谱。",
+      "detail": "摄取成本较低，足以应对查找类问题。"
+    },
+    "evidence": {
+      "legend": "索引内容",
+      "text": "文本",
+      "textImage": "文本和图片",
+      "textImageHint": "需要支持图片的嵌入模型。",
+      "textImageNeedsNormal": "仅适用于常规检索类型。",
+      "noImageModelHint": "没有可用的图像模型？",
+      "useTextInstead": "仅使用文本"
+    },
+    "keywordLanguage": "关键词语言",
+    "keywordLanguageHint": "关键词索引用它来切分和匹配词语。",
+    "language": {
+      "english": "英语",
+      "simple": "任意语言（不做词干提取）",
+      "french": "法语",
+      "german": "德语",
+      "spanish": "西班牙语"
+    },
+    "permanent": "该选择不可更改。以后若要使用另一种类型，请新建工作区。",
+    "blocked": {
+      "embeddingNotMultimodal": "“文本和图片”需要支持图片的嵌入模型，请选择一个后继续。",
+      "embeddingProbeFailed": "此部署无法用该模型向量化图像。请选择其他图像嵌入模型，或请部署管理员修复其凭据。",
+      "embeddingProbeChecking": "正在检查此部署能否向量化图像…"
+    },
+    "review": {
+      "retrieval": "检索",
+      "extraction": "抽取模型",
+      "off": "关闭",
+      "keywordIndex": "关键词索引",
+      "keywordIndexOn": "已开启，{{language}}",
+      "permanent": "该选择不可更改。以后若要使用另一种类型，请新建工作区并重新上传文档。"
+    },
+    "settings": {
+      "title": "检索",
+      "type": "类型",
+      "permanentGraph": "不可更改。如需使用常规检索，请新建工作区。",
+      "permanentNormal": "不可更改。如需使用图谱检索，请新建工作区。"
+    },
+    "noGraph": {
+      "title": "此工作区没有知识图谱。",
+      "body": "它通过向量嵌入和关键词来检索。",
+      "documents": "前往文档",
+      "newGraph": "新建图谱工作区"
+    },
+    "probe": {
+      "checking": "正在检查此部署能否用 {{model}} 向量化图像…",
+      "failedTitle": "此部署无法用该模型向量化图像",
+      "failedBody": "请选择其他图像嵌入模型，或请部署管理员修复其凭据。",
+      "pair": "模型：{{model}}",
+      "ok": "此部署可以用 {{model}} 向量化图像。",
+      "thisModel": "该模型"
+    },
+    "noImageEmbedding": "此处未提供可向量化图像的嵌入模型。请让部署管理员提供一个（例如 Vertex AI 上的 gemini-embedding-2），或返回并选择“文本”。"
   }
 }

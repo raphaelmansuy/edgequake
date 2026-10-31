@@ -22,6 +22,8 @@ import { StalledRunCard } from "@/components/documents/stalled-run-card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useCancelDocument } from "@/hooks/use-cancel-document";
+import { useWorkspaceCapabilities } from "@/hooks/use-workspace-capabilities";
+import type { RagProfile } from "@/constants/rag-profile";
 import {
   cancelledRetentionDeadlines,
   createCancelledObservationClock,
@@ -97,6 +99,8 @@ interface RunCardHandlers {
   onCancelRun: (run: IngestionRunView) => void;
   onReprocess?: (documentId: string) => void;
   cancellingIds: ReadonlySet<string>;
+  /** SPEC-180: which ingest phases exist for this workspace. */
+  profile: RagProfile;
 }
 
 /** Honest section title — never "Queued run" for cancelled-only. */
@@ -159,6 +163,7 @@ function renderRunCard(run: IngestionRunView, h: RunCardHandlers) {
       key={run.documentId}
       run={run}
       compact
+      profile={h.profile}
       data-testid="spec048-active-run-card"
       onCancel={cancel}
       onDismiss={dismissCancelled ?? dismissFailed}
@@ -183,6 +188,10 @@ export function ActiveRunsPanel({
   onReprocess,
 }: ActiveRunsPanelProps) {
   const cancelDocument = useCancelDocument();
+  // SPEC-180: a normal workspace ingests chunks and vectors, so its run card has no
+  // extraction phase. Read the capability, never the profile name.
+  const caps = useWorkspaceCapabilities();
+  const profile: RagProfile = caps.extracts_graph ? "graph" : "normal";
   const [cancellingIds, setCancellingIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -397,6 +406,7 @@ export function ActiveRunsPanel({
                   onCancelRun,
                   onReprocess,
                   cancellingIds,
+                  profile,
                 }),
               )
             : null}
@@ -444,6 +454,7 @@ export function ActiveRunsPanel({
               onCancelRun,
               onReprocess,
               cancellingIds,
+              profile,
             }),
           )}
         </section>

@@ -33,6 +33,21 @@ pub async fn judge_running_pair(
     .await
 }
 
+/// SPEC-180: a usage the workspace profile never runs is not judged (LAW-180-3).
+/// A normal workspace has no extract, summary or keyword step, so a stale extract pair
+/// cannot block its ingest.
+pub fn usage_not_applicable(
+    caps: &edgequake_core::rag_profile::ProfileCapabilities,
+    usage: Usage,
+) -> bool {
+    match usage {
+        Usage::Extract => !caps.judges_extract_usage,
+        Usage::Summary => !caps.judges_summary_usage,
+        Usage::Keyword => !caps.queries_graph,
+        _ => false,
+    }
+}
+
 /// The pair a workspace will run for one usage. Summary with no role inherits extract.
 pub async fn judge_workspace_usage(
     state: &AppState,
@@ -45,6 +60,9 @@ pub async fn judge_workspace_usage(
     let Ok(Some(ws)) = state.workspace_service.get_workspace(workspace_id).await else {
         return Ok(());
     };
+    if usage_not_applicable(&ws.capabilities(), usage) {
+        return Ok(());
+    }
     let tenant = state
         .workspace_service
         .get_tenant(ws.tenant_id)
@@ -118,15 +136,17 @@ pub async fn judge_ingest(state: &AppState, workspace_id: &str) -> ApiResult<()>
     let Ok(Some(ws)) = state.workspace_service.get_workspace(uuid).await else {
         return Ok(());
     };
-    let extract = edgequake_core::resolve_extract_role_llm(&ws);
-    judge_running_pair(
-        state,
-        &ws,
-        Usage::Extract,
-        &extract.provider,
-        &extract.model,
-    )
-    .await?;
+    if !usage_not_applicable(&ws.capabilities(), Usage::Extract) {
+        let extract = edgequake_core::resolve_extract_role_llm(&ws);
+        judge_running_pair(
+            state,
+            &ws,
+            Usage::Extract,
+            &extract.provider,
+            &extract.model,
+        )
+        .await?;
+    }
     let tenant = state
         .workspace_service
         .get_tenant(ws.tenant_id)

@@ -59,6 +59,12 @@ export interface DocumentFilter {
    * @implements SPEC-031
    */
   document_ids?: string[];
+  /** SPEC-180: restrict a normal workspace to these document kinds. Empty or absent means all. */
+  doc_kinds?: string[];
+  /** SPEC-180: restrict a normal workspace to these MIME types. */
+  mime_types?: string[];
+  /** SPEC-180: restrict a normal workspace to chunks from these source modalities. */
+  source_modalities?: string[];
 }
 
 /** Returns true when the filter has no active criteria. */
@@ -68,7 +74,10 @@ export function isEmptyDocumentFilter(f?: DocumentFilter): boolean {
     !f.date_from &&
     !f.date_to &&
     !f.document_pattern &&
-    (!f.document_ids || f.document_ids.length === 0)
+    (!f.document_ids || f.document_ids.length === 0) &&
+    (!f.doc_kinds || f.doc_kinds.length === 0) &&
+    (!f.mime_types || f.mime_types.length === 0) &&
+    (!f.source_modalities || f.source_modalities.length === 0)
   );
 }
 

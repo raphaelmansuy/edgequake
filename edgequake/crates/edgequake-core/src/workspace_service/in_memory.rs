@@ -6,6 +6,7 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::error::{Error, Result};
+use crate::rag_profile::ProfileError;
 use crate::types::{
     CreateWorkspaceRequest, Membership, MembershipRole, MetricsSnapshot, MetricsTriggerType,
     Tenant, TenantContext, TenantPlan, UpdateWorkspaceRequest, Workspace, WorkspaceStats,
@@ -123,6 +124,9 @@ impl InMemoryWorkspaceService {
                 vision_llm_provider: None,
                 vision_llm_model: None,
                 pdf_parser_backend: Some(edgequake_pdf::PdfParserBackend::Vision),
+                rag_profile: Default::default(),
+                embedding_modalities: Default::default(),
+                fts_regconfig: Default::default(),
             };
             self.workspaces.write().await.insert(workspace_id, ws);
         }
@@ -251,6 +255,11 @@ impl WorkspaceService for InMemoryWorkspaceService {
             }
         }
 
+        // SPEC-180: same rules as the Postgres service (EC-180-59).
+        let (rag_profile, embedding_modalities, fts_regconfig) = request
+            .resolved_profile()
+            .map_err(ProfileError::into_validation)?;
+
         let slug = request
             .slug
             .unwrap_or_else(|| Self::generate_slug(&request.name));
@@ -270,6 +279,9 @@ impl WorkspaceService for InMemoryWorkspaceService {
         }
 
         let mut workspace = Workspace::new(tenant_id, &request.name, &slug);
+        workspace.rag_profile = rag_profile;
+        workspace.embedding_modalities = embedding_modalities;
+        workspace.fts_regconfig = fts_regconfig;
 
         if let Some(desc) = request.description {
             workspace = workspace.with_description(desc);
@@ -557,6 +569,9 @@ impl WorkspaceService for InMemoryWorkspaceService {
         workspace_id: Uuid,
         request: UpdateWorkspaceRequest,
     ) -> Result<Workspace> {
+        request
+            .check_profile_untouched()
+            .map_err(ProfileError::into_conflict)?;
         let tenant = {
             let workspaces = self.workspaces.read().await;
             let ws = workspaces
@@ -1232,6 +1247,9 @@ mod tests {
             vision_image_system_prompt: None,
             vision_chart_system_prompt: None,
             vision_figure_system_prompt: None,
+            rag_profile: None,
+            embedding_modalities: None,
+            fts_regconfig: None,
         };
 
         let workspace = service
@@ -1382,6 +1400,9 @@ mod tests {
                 vision_image_system_prompt: None,
                 vision_chart_system_prompt: None,
                 vision_figure_system_prompt: None,
+                rag_profile: None,
+                embedding_modalities: None,
+                fts_regconfig: None,
             };
             service
                 .create_workspace(tenant.tenant_id, request)
@@ -1431,6 +1452,9 @@ mod tests {
             vision_image_system_prompt: None,
             vision_chart_system_prompt: None,
             vision_figure_system_prompt: None,
+            rag_profile: None,
+            embedding_modalities: None,
+            fts_regconfig: None,
         };
         let result = service.create_workspace(tenant.tenant_id, request).await;
         assert!(result.is_err());

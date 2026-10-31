@@ -277,6 +277,18 @@ pub fn build_chunk_from_result(result: &VectorSearchResult) -> RetrievedChunk {
         chunk = chunk.with_modality(modality);
     }
 
+    // SPEC-180: an image chunk carries no text (`content` is the file name). Downstream
+    // steps that score text — notably the cross-encoder reranker — must be able to tell it
+    // apart, or they drop the only evidence the user asked for.
+    if result
+        .metadata
+        .get("source_modality")
+        .and_then(|v| v.as_str())
+        .is_some_and(|m| m.eq_ignore_ascii_case("image"))
+    {
+        chunk = chunk.with_source_modality("image");
+    }
+
     chunk
 }
 
@@ -484,6 +496,36 @@ mod tests {
         };
         let chunk = build_chunk_from_result(&result);
         assert_eq!(chunk.modality.as_deref(), Some("chart"));
+    }
+
+    #[test]
+    fn an_image_chunk_is_marked_so_text_scoring_can_skip_it() {
+        // SPEC-180: an image chunk stores its file name as `content`. Without the marker a
+        // cross-encoder would read that as an irrelevant empty chunk and drop the picture.
+        let result = VectorSearchResult {
+            id: "img-0".into(),
+            score: 0.9,
+            metadata: serde_json::json!({
+                "type": "chunk",
+                "source_modality": "image",
+                "content": "storefront.png"
+            }),
+        };
+        let chunk = build_chunk_from_result(&result);
+        assert!(chunk.is_image_chunk(), "image chunk must be identifiable");
+        assert_eq!(chunk.source_modality.as_deref(), Some("image"));
+    }
+
+    #[test]
+    fn a_text_chunk_is_not_marked_as_an_image() {
+        let result = VectorSearchResult {
+            id: "t-0".into(),
+            score: 0.9,
+            metadata: serde_json::json!({"type": "chunk", "content": "refunds within 30 days"}),
+        };
+        let chunk = build_chunk_from_result(&result);
+        assert!(!chunk.is_image_chunk());
+        assert!(chunk.source_modality.is_none());
     }
 
     #[test]

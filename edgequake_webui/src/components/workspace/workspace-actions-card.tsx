@@ -15,6 +15,7 @@ import {
   hasPendingRebuild,
   type WorkspacePendingRebuild,
 } from "@/lib/workspace/pending-rebuild-messages";
+import { capabilitiesOf } from "@/constants/rag-profile";
 import type { Workspace } from "@/types";
 import { AlertTriangle, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -33,6 +34,7 @@ export function WorkspaceActionsCard({
   onRebuildComplete,
 }: WorkspaceActionsCardProps) {
   const { t } = useTranslation();
+  const graph = capabilitiesOf(workspace);
 
   const messageKey =
     pendingRebuild && hasPendingRebuild(pendingRebuild)
@@ -92,11 +94,13 @@ export function WorkspaceActionsCard({
             variant="card"
             onComplete={onRebuildComplete}
           />
-          <RebuildKnowledgeGraphButton
-            variant="card"
-            rebuildEmbeddings={true}
-            onComplete={onRebuildComplete}
-          />
+          {graph.extracts_graph ? (
+            <RebuildKnowledgeGraphButton
+              variant="card"
+              rebuildEmbeddings={true}
+              onComplete={onRebuildComplete}
+            />
+          ) : null}
         </div>
 
         <dl

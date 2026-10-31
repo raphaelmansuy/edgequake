@@ -16,6 +16,7 @@ use crate::traits::domain::{
     EmbeddingCapabilities, EmbeddingIndex, EmbeddingRow, ModelId, ScoredChunk, UpsertReport,
     VectorQuery, WorkspaceId,
 };
+use crate::traits::ChunkKinds;
 
 /// Postgres adapter serving typed chunk embeddings from `chunk_embeddings`.
 ///
@@ -195,6 +196,131 @@ impl PgChunkEmbeddingIndex {
         );
         Self::apply_selective_predicates(sql, documents, modality)
     }
+
+    /// Chunk ANN, optionally restricted by SPEC-180 kind predicates.
+    pub(crate) async fn search_scoped(
+        &self,
+        req: &VectorQuery,
+        kinds: Option<&ChunkKinds>,
+    ) -> Result<Vec<ScoredChunk>, StorageError> {
+        if req.limit == 0
+            || req.document_ids.as_ref().is_some_and(Vec::is_empty)
+            || req.modalities.as_ref().is_some_and(Vec::is_empty)
+            || req.filter_ids.as_ref().is_some_and(Vec::is_empty)
+            || kinds.is_some_and(ChunkKinds::matches_nothing)
+            || req
+                .vector_type
+                .as_deref()
+                .is_some_and(|kind| !kind.eq_ignore_ascii_case("chunk"))
+        {
+            return Ok(Vec::new());
+        }
+
+        let dim = validate_ann_dimensions(req.embedding.len() as i32)?;
+        let candidate_limit =
+            super::typed_ann_search::TypedAnnSearch::candidate_limit(req.limit as usize);
+        let mut conn = self.pool.acquire().await.map_err(StorageError::from)?;
+        let mut tx = self
+            .search_session
+            .begin(
+                &mut conn,
+                candidate_limit,
+                req.tenant_id.map(|id| id.into_uuid()),
+                req.workspace_id.map(|id| id.into_uuid()),
+            )
+            .await?;
+        let model_id = match self
+            .find_model_id(tx.as_mut(), &self.model_name, dim)
+            .await?
+        {
+            Some(id) => id,
+            // Registry miss for the requested dimension → authoritative empty set
+            // (mirrors legacy "no table" behavior), not an error.
+            None => {
+                tx.commit().await?;
+                return Ok(Vec::new());
+            }
+        };
+
+        // Dim-scoped expression HNSW (mig 132) requires matching cast + dimensions filter.
+        let cast = format!("halfvec({dim})");
+        let vector = {
+            let mut s = String::with_capacity(req.embedding.len() * 8 + 2);
+            s.push('[');
+            for (i, v) in req.embedding.iter().enumerate() {
+                if i > 0 {
+                    s.push(',');
+                }
+                s.push_str(&v.to_string());
+            }
+            s.push(']');
+            s
+        };
+
+        let documents = req.document_ids.as_ref().is_some();
+        let modality = req.modalities.as_ref().is_some();
+        let in_ids = req.filter_ids.as_ref().is_some();
+        let uuid_ids: Vec<Uuid> = req
+            .filter_ids
+            .iter()
+            .flatten()
+            .filter_map(|id| Uuid::parse_str(id).ok())
+            .collect();
+        if kinds.is_some() && in_ids {
+            return Err(StorageError::InvalidQuery(
+                "kind filters cannot be combined with a chunk id filter".into(),
+            ));
+        }
+        let inner = if kinds.is_some() {
+            super::chunk_embedding_kinds::search_sql(dim, &cast)
+        } else if in_ids {
+            Self::search_sql_in_ids(dim, &cast, documents, modality)
+        } else {
+            Self::search_sql(dim, &cast, documents, modality)
+        };
+        let q = super::typed_ann_search::TypedAnnSearch::ordered_sql(&inner, req.limit);
+        let query = sqlx::query(&q)
+            .bind(&vector)
+            .bind(model_id.0)
+            .bind(req.workspace_id.map(|id| id.into_uuid()))
+            .bind(req.document_ids.as_deref())
+            .bind(req.tenant_id.map(|id| id.into_uuid()))
+            .bind(req.modalities.as_deref());
+        let query = if let Some(kinds) = kinds {
+            let binds = super::chunk_embedding_kinds::KindBinds::from_kinds(kinds);
+            query
+                .bind(req.vector_type.as_deref())
+                .bind(candidate_limit as i64)
+                .bind(binds.source_modalities)
+                .bind(binds.doc_kinds)
+                .bind(binds.mime_types)
+        } else if in_ids {
+            query
+                .bind(req.filter_ids.as_deref())
+                .bind(&uuid_ids)
+                .bind(req.vector_type.as_deref())
+                .bind(candidate_limit as i64)
+        } else {
+            query
+                .bind(req.vector_type.as_deref())
+                .bind(candidate_limit as i64)
+        };
+        let rows = query
+            .fetch_all(tx.as_mut())
+            .await
+            .map_err(StorageError::from)?;
+        tx.commit().await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            let chunk_id: Uuid = row.try_get("chunk_id").map_err(StorageError::from)?;
+            let score: f64 = row.try_get("score").map_err(StorageError::from)?;
+            out.push(ScoredChunk {
+                chunk_id: chunk_id.into(),
+                score: score as f32,
+            });
+        }
+        Ok(out)
+    }
 }
 
 #[async_trait]
@@ -266,107 +392,7 @@ impl EmbeddingIndex for PgChunkEmbeddingIndex {
     }
 
     async fn search(&self, req: &VectorQuery) -> Result<Vec<ScoredChunk>, StorageError> {
-        if req.limit == 0
-            || req.document_ids.as_ref().is_some_and(Vec::is_empty)
-            || req.modalities.as_ref().is_some_and(Vec::is_empty)
-            || req.filter_ids.as_ref().is_some_and(Vec::is_empty)
-            || req
-                .vector_type
-                .as_deref()
-                .is_some_and(|kind| !kind.eq_ignore_ascii_case("chunk"))
-        {
-            return Ok(Vec::new());
-        }
-
-        let dim = validate_ann_dimensions(req.embedding.len() as i32)?;
-        let candidate_limit =
-            super::typed_ann_search::TypedAnnSearch::candidate_limit(req.limit as usize);
-        let mut conn = self.pool.acquire().await.map_err(StorageError::from)?;
-        let mut tx = self
-            .search_session
-            .begin(
-                &mut conn,
-                candidate_limit,
-                req.tenant_id.map(|id| id.into_uuid()),
-                req.workspace_id.map(|id| id.into_uuid()),
-            )
-            .await?;
-        let model_id = match self
-            .find_model_id(tx.as_mut(), &self.model_name, dim)
-            .await?
-        {
-            Some(id) => id,
-            // Registry miss for the requested dimension → authoritative empty set
-            // (mirrors legacy "no table" behavior), not an error.
-            None => {
-                tx.commit().await?;
-                return Ok(Vec::new());
-            }
-        };
-
-        // Dim-scoped expression HNSW (mig 132) requires matching cast + dimensions filter.
-        let cast = format!("halfvec({dim})");
-        let vector = {
-            let mut s = String::with_capacity(req.embedding.len() * 8 + 2);
-            s.push('[');
-            for (i, v) in req.embedding.iter().enumerate() {
-                if i > 0 {
-                    s.push(',');
-                }
-                s.push_str(&v.to_string());
-            }
-            s.push(']');
-            s
-        };
-
-        let documents = req.document_ids.as_ref().is_some();
-        let modality = req.modalities.as_ref().is_some();
-        let in_ids = req.filter_ids.as_ref().is_some();
-        let uuid_ids: Vec<Uuid> = req
-            .filter_ids
-            .iter()
-            .flatten()
-            .filter_map(|id| Uuid::parse_str(id).ok())
-            .collect();
-        let inner = if in_ids {
-            Self::search_sql_in_ids(dim, &cast, documents, modality)
-        } else {
-            Self::search_sql(dim, &cast, documents, modality)
-        };
-        let q = super::typed_ann_search::TypedAnnSearch::ordered_sql(&inner, req.limit);
-        let query = sqlx::query(&q)
-            .bind(&vector)
-            .bind(model_id.0)
-            .bind(req.workspace_id.map(|id| id.into_uuid()))
-            .bind(req.document_ids.as_deref())
-            .bind(req.tenant_id.map(|id| id.into_uuid()))
-            .bind(req.modalities.as_deref());
-        let query = if in_ids {
-            query
-                .bind(req.filter_ids.as_deref())
-                .bind(&uuid_ids)
-                .bind(req.vector_type.as_deref())
-                .bind(candidate_limit as i64)
-        } else {
-            query
-                .bind(req.vector_type.as_deref())
-                .bind(candidate_limit as i64)
-        };
-        let rows = query
-            .fetch_all(tx.as_mut())
-            .await
-            .map_err(StorageError::from)?;
-        tx.commit().await?;
-        let mut out = Vec::with_capacity(rows.len());
-        for row in rows {
-            let chunk_id: Uuid = row.try_get("chunk_id").map_err(StorageError::from)?;
-            let score: f64 = row.try_get("score").map_err(StorageError::from)?;
-            out.push(ScoredChunk {
-                chunk_id: chunk_id.into(),
-                score: score as f32,
-            });
-        }
-        Ok(out)
+        self.search_scoped(req, None).await
     }
 
     async fn delete_for_workspace(&self, workspace: WorkspaceId) -> Result<u64, StorageError> {

@@ -35,7 +35,7 @@ export function EntityRelationStats({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-testid="entity-relation-stats">
         <div className="eq-metric-grid gap-3">
         <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-200 dark:border-purple-900">
           <div className="text-xs text-muted-foreground mb-1">Entities</div>

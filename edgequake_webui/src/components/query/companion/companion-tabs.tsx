@@ -14,6 +14,8 @@ interface CompanionTabsProps {
   available: Record<PaneKind, boolean>;
   onSelect: (kind: PaneKind) => void;
   idPrefix: string;
+  /** SPEC-180: false on a workspace without a graph; the tab is not drawn. */
+  showGraph?: boolean;
 }
 
 export function companionTabId(prefix: string, kind: PaneKind) {
@@ -28,12 +30,17 @@ export function CompanionTabs({
   available,
   onSelect,
   idPrefix,
+  showGraph = true,
 }: CompanionTabsProps) {
   const { t } = useTranslation();
   const tabs: { kind: PaneKind; label: string; Icon: typeof FileText }[] = [
     { kind: "pdf", label: t("query.companion.source", "Source"), Icon: FileText },
     { kind: "graph", label: t("query.companion.graph", "Graph"), Icon: Network },
-  ];
+  ].filter((tab) => showGraph || tab.kind !== "graph") as {
+    kind: PaneKind;
+    label: string;
+    Icon: typeof FileText;
+  }[];
 
   return (
     <div

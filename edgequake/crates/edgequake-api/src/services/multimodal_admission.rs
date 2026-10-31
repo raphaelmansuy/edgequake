@@ -90,6 +90,9 @@ async fn resolve_image_upload(
     raw_ext: &str,
 ) -> ApiResult<ResolvedUploadContent> {
     let mime = image_mime_type(raw_ext).unwrap_or("image/png");
+    if let Some(normal) = normal_workspace(state, workspace_id).await {
+        return resolve_normal_image(&normal, filename, content, mime);
+    }
     if let Some(workspace_id) = workspace_id {
         crate::services::model_gate::judge_workspace_usage(
             state,
@@ -110,6 +113,49 @@ async fn resolve_image_upload(
             source_type: "image",
         },
         manifest: Some(outcome.manifest),
+    })
+}
+
+/// The workspace when it is a normal one. Graph workspaces keep the VLM path.
+async fn normal_workspace(
+    state: &AppState,
+    workspace_id: Option<Uuid>,
+) -> Option<edgequake_core::Workspace> {
+    let ws = state
+        .workspace_service
+        .get_workspace(workspace_id?)
+        .await
+        .ok()
+        .flatten()?;
+    (!ws.capabilities().extracts_graph).then_some(ws)
+}
+
+/// SPEC-180 07: a normal workspace never captions. A text-only one refuses the image
+/// (EC-180-18); an image one checks it now (decode, animation, size) and keeps the pixels
+/// for the worker to embed.
+fn resolve_normal_image(
+    workspace: &edgequake_core::Workspace,
+    filename: &str,
+    content: &[u8],
+    mime: &str,
+) -> ApiResult<ResolvedUploadContent> {
+    workspace.capabilities().check_image_upload()?;
+    crate::embeddings::image_limits::prepare_image(
+        content,
+        edgequake_pdf::image_guard::max_image_bytes_from_env(),
+    )
+    .map_err(|error| crate::embeddings::api_error(&error))?;
+    Ok(ResolvedUploadContent {
+        // The staged body is the file name: the pixels are not text, and an empty body
+        // is indistinguishable from a lost one to the worker.
+        text_content: filename.to_string(),
+        mime_type: mime.to_string(),
+        meta: MultimodalAdmissionMeta {
+            multimodal: false,
+            ingest_mode: None,
+            source_type: "image",
+        },
+        manifest: None,
     })
 }
 

@@ -5,7 +5,9 @@
 
 use std::sync::{Arc, OnceLock};
 
+use edgequake_core::rag_profile::ProfileCapabilities;
 use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
+use edgequake_query::normal::NormalQueryPlan;
 use edgequake_query::{QueryContext, QueryMode, QueryRequest as EngineQueryRequest, QueryResponse};
 use edgequake_storage::traits::VectorStorage;
 use futures::stream::BoxStream;
@@ -26,6 +28,18 @@ pub struct WorkspaceQueryResources {
     pub vector_storage: Option<Arc<dyn VectorStorage>>,
     /// LightRAG KEYWORD role LLM (SPEC-046 EQ-046-13); falls back to answer LLM.
     pub keyword_llm: Option<Arc<dyn LLMProvider>>,
+    /// SPEC-180: what the workspace profile can do (default: graph).
+    pub profile: ProfileCapabilities,
+}
+
+impl WorkspaceQueryResources {
+    /// Route a request through the normal-RAG pipeline when the workspace has no graph.
+    /// The engine reads only the plan, never the profile name (LAW-180-2).
+    pub fn apply_profile(&self, request: &mut EngineQueryRequest) {
+        if !self.profile.queries_graph && request.normal.is_none() {
+            request.normal = Some(NormalQueryPlan::text());
+        }
+    }
 }
 
 /// Resolve workspace-scoped embedding/vector providers (SPEC-017 P2-02).
@@ -38,9 +52,12 @@ pub async fn resolve_workspace_query_resources(
     workspace_id: Option<&str>,
 ) -> ApiResult<WorkspaceQueryResources> {
     let keyword_llm = resolve_keyword_llm(state, workspace_id).await?;
+    let profile =
+        crate::services::workspace_profile::workspace_capabilities(state, workspace_id).await;
     let Some(workspace_id) = workspace_id else {
         return Ok(WorkspaceQueryResources {
             keyword_llm,
+            profile,
             ..Default::default()
         });
     };
@@ -51,6 +68,7 @@ pub async fn resolve_workspace_query_resources(
         embedding,
         vector_storage,
         keyword_llm,
+        profile,
     })
 }
 
@@ -181,10 +199,11 @@ fn resolve_sota_providers(
 /// Execute a SOTA query using the standard workspace routing matrix.
 pub async fn execute_sota_query(
     state: &AppState,
-    request: EngineQueryRequest,
+    mut request: EngineQueryRequest,
     resources: WorkspaceQueryResources,
     llm_override: Option<Arc<dyn LLMProvider>>,
 ) -> ApiResult<QueryResponse> {
+    resources.apply_profile(&mut request);
     let has_llm_override = llm_override.is_some();
     let (keyword_llm, answer_llm) = resolve_role_llms_for_dispatch(&resources, llm_override);
     let (embedding, vector_storage, used_defaults) = resolve_sota_providers(state, resources);
@@ -241,10 +260,11 @@ pub async fn execute_sota_query_with_auth_fallback(
 /// Execute a streaming SOTA query using the same workspace routing matrix.
 pub async fn execute_sota_query_stream(
     state: &AppState,
-    request: EngineQueryRequest,
+    mut request: EngineQueryRequest,
     resources: WorkspaceQueryResources,
     llm_override: Option<Arc<dyn LLMProvider>>,
 ) -> StreamQueryResult {
+    resources.apply_profile(&mut request);
     let has_llm_override = llm_override.is_some();
     let (keyword_llm, answer_llm) = resolve_role_llms_for_dispatch(&resources, llm_override);
     let (embedding, vector_storage, used_defaults) = resolve_sota_providers(state, resources);

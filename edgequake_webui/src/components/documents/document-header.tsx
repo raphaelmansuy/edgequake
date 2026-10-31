@@ -21,6 +21,7 @@ import {
 import { AlertTriangle, Clock, Loader2, MoreHorizontal, RefreshCw, Trash2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useWorkspaceCapabilities } from '@/hooks/use-workspace-capabilities';
 import type { Document } from '@/types';
 import type { WorkspacePresetId } from '@/lib/documents/workspace-layout';
 import { ClearDocumentsDialog } from './clear-documents-dialog';
@@ -100,6 +101,7 @@ export function DocumentHeader({
   onResetLayout,
 }: DocumentHeaderProps) {
   const { t } = useTranslation();
+  const showsGraph = useWorkspaceCapabilities().shows_graph_ui;
   const [clearAllOpen, setClearAllOpen] = useState(false);
   const alertMode = pipelineAlertMode ?? (pipelineWaitingOnly ? 'queued' : 'working');
   const working = activeDocCount ?? 0;
@@ -150,7 +152,9 @@ export function DocumentHeader({
             <ConnectionStatus compact={true} />
           </div>
           <p className="text-[0.8125rem] text-muted-foreground [@media(max-height:820px)]:hidden">
-            {t('documents.subtitle')}
+            {showsGraph
+              ? t('documents.subtitle')
+              : t('documents.subtitleNormal', 'Upload and manage documents for search')}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

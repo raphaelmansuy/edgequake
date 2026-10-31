@@ -128,6 +128,13 @@ pub(crate) fn env_connections() -> Vec<ConnectionView> {
     if let Some(url) = non_empty("MTPLX_HOST") {
         push("mtplx", "openai_chat", &url);
     }
+    // SPEC-180 08: Vertex AI is offered when a Google Cloud project is configured. The
+    // credential is minted on the server (GOOGLE_ACCESS_TOKEN or gcloud), never stored.
+    if non_empty("GOOGLE_CLOUD_PROJECT").is_some() {
+        let url = non_empty("EDGEQUAKE_VERTEX_BASE_URL")
+            .unwrap_or_else(|| "https://aiplatform.googleapis.com".into());
+        push("vertexai", "vertexai", &url);
+    }
     // SPEC-179: a native provider with a key is offered. The default URL is
     // the vendor's public endpoint; a *_BASE_URL env replaces it.
     const NATIVE: &[(&str, &str, &str, &str, &str)] = &[

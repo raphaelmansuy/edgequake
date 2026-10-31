@@ -188,3 +188,6 @@ specs/93-migration-assessment/reports/*/pre-upgrade.dump
 
 # Local cargo target override (SPEC-150 builds)
 .cargo-target/
+
+# Vertex project pinned by `make gcp-use` (SPEC-180)
+.gcloud_active_project

@@ -21,6 +21,7 @@
  */
 'use client';
 
+import { useWorkspaceCapabilities } from '@/hooks/use-workspace-capabilities';
 import { useSelectedWorkspace, useTenantStore } from '@/stores/use-tenant-store';
 import type { Document } from '@/types';
 
@@ -131,6 +132,8 @@ export function DocumentManager() {
   // Get tenant context for query key
   const { selectedTenantId, selectedWorkspaceId } = useTenantStore();
   const selectedWorkspace = useSelectedWorkspace();
+  // SPEC-180: a normal workspace has no extraction mode; a stale pick is never sent.
+  const extractsGraph = useWorkspaceCapabilities().extracts_graph;
 
   // Selected document for preview panel
   // Click-time snapshot; `selectedDocument` below is the live row (SPEC-155).
@@ -248,7 +251,8 @@ export function DocumentManager() {
     pdfParserBackend:
       pdfParserBackend === 'default' ? undefined : pdfParserBackend,
     visionReasoningEffort,
-    extractionMode: buildExtractionModeField(extractionMode).extraction_mode,
+    extractionMode: buildExtractionModeField(extractsGraph ? extractionMode : 'default')
+      .extraction_mode,
     visionExtractImages: visionExtract.extractImages,
     visionExtractCharts: visionExtract.extractCharts,
     visionExtractFigures: visionExtract.extractFigures,
@@ -780,7 +784,7 @@ export function DocumentManager() {
       onPdfParserBackendChange={setPdfParserBackend}
       workspacePdfParserBackend={selectedWorkspace?.pdf_parser_backend}
       extractionMode={extractionMode}
-      onExtractionModeChange={setExtractionMode}
+      onExtractionModeChange={extractsGraph ? setExtractionMode : undefined}
       workspaceExtractionMode={selectedWorkspace?.effective_extraction_mode?.mode}
       workspaceDecisionModel={selectedWorkspace?.decision_model}
       visionReasoningEffort={visionReasoningEffort}

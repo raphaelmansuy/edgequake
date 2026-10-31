@@ -264,6 +264,27 @@ pub fn build_pipeline_with_extractor(
         .with_embedding_provider(embedding)
 }
 
+/// SPEC-180: build the pipeline of a `normal` workspace: chunk, embed, nothing else.
+///
+/// There is no extractor and no chat LLM, so no text leaves for a cloud model at ingest
+/// (LAW-180-3). The shape is fixed here, not read from `EDGEQUAKE_INGEST_PROFILE`: that
+/// variable is a global eval switch and must never decide a workspace's behavior
+/// (EC-180-31). Gleaning and extraction caps do not apply.
+pub fn build_chunk_only_pipeline(
+    embedding: Arc<dyn EmbeddingProvider>,
+    options: IngestionPipelineOptions,
+) -> Pipeline {
+    let mut pipeline_config = ingestion_pipeline_config(&options);
+    crate::pipeline::IngestProfile::ChunkOnly.apply_to(&mut pipeline_config);
+    tracing::info!(
+        doc_size_bytes = options.document_size_bytes,
+        chunk_size = pipeline_config.chunker.chunk_size,
+        chunk_strategy = options.chunk_strategy.as_str(),
+        "Building chunk-only (normal RAG) ingestion pipeline"
+    );
+    Pipeline::new(pipeline_config).with_embedding_provider(embedding)
+}
+
 /// Build a document-scoped ingestion pipeline with adaptive chunking and optional gleaning.
 pub fn build_ingestion_pipeline(
     llm: Arc<dyn LLMProvider>,

@@ -19,6 +19,7 @@ import { locationToDocumentHref } from "@/lib/query/companion-pane";
 import { studioEntityHref } from "@/lib/query/neighborhood-graph";
 import type { QueryMessage } from "@/lib/query/query-interface-types";
 import { cn } from "@/lib/utils";
+import { useWorkspaceCapabilities } from "@/hooks/use-workspace-capabilities";
 import { useCompanionPaneStore } from "@/stores/use-companion-pane-store";
 import type { GraphNode } from "@/types/graph";
 import { ExternalLink, X } from "lucide-react";
@@ -69,6 +70,8 @@ export function CompanionShell({
   const close = useCompanionPaneStore((s) => s.close);
   const switchTo = useCompanionPaneStore((s) => s.switchTo);
   const setWidth = useCompanionPaneStore((s) => s.setWidth);
+  // SPEC-180: a workspace without a graph never mounts a graph pane.
+  const showsGraph = useWorkspaceCapabilities().shows_graph_ui;
 
   const open = target.kind !== "none";
   useReturnFocus(open, onRestoreFocus);
@@ -102,7 +105,9 @@ export function CompanionShell({
       ? t("query.companion.announceClosed", "Pane closed")
       : "";
 
-  if (target.kind === "none") return <Announcer text={announcement} />;
+  if (target.kind === "none" || (target.kind === "graph" && !showsGraph)) {
+    return <Announcer text={announcement} />;
+  }
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Escape" && !e.defaultPrevented) {
@@ -157,7 +162,8 @@ export function CompanionShell({
         <CompanionTabs
           idPrefix={idPrefix}
           active={target.kind}
-          available={{ pdf: Boolean(lastSource), graph: true }}
+          available={{ pdf: Boolean(lastSource), graph: showsGraph }}
+          showGraph={showsGraph}
           onSelect={switchTo}
         />
         <div className="flex-1" />

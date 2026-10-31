@@ -5,6 +5,7 @@
 //! - `query_workspace`: Queries with workspace-specific storage/embedding
 //! - `query_stream`: All streaming query variants
 
+mod normal_pipeline;
 mod query_basic;
 mod query_pipeline;
 mod query_stream;

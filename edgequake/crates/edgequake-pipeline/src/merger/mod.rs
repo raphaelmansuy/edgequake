@@ -555,6 +555,9 @@ pub struct KnowledgeGraphMerger<G: GraphStorage + ?Sized, V: VectorStorage + ?Si
     /// SPEC-091 IW2: optional typed fleet mirror (entity/relationship/report).
     pub(super) fleet_embedding_index:
         Option<Arc<dyn edgequake_storage::traits::FleetEmbeddingIndex>>,
+    /// When set, this store's capability replaces the process vector-backend
+    /// flag. `None` keeps the live env read (merger unit tests).
+    pub(super) typed_authority_override: Option<bool>,
 }
 
 impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G, V> {
@@ -571,7 +574,26 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
             relational_sink: Arc::new(NoopEntitySink),
             lineage_sink: Arc::new(NoopLineageSink),
             fleet_embedding_index: None,
+            typed_authority_override: None,
         }
+    }
+
+    /// The vector store is, or is not, the typed embedding authority.
+    ///
+    /// Unset means "read `EDGEQUAKE_VECTOR_BACKEND` at merge time". The
+    /// persister sets it from the store so an in-memory backend is not treated
+    /// as typed just because the process default is.
+    pub fn with_typed_authority(mut self, typed_authority: bool) -> Self {
+        self.typed_authority_override = Some(typed_authority);
+        self
+    }
+
+    pub(super) fn typed_reads(&self) -> bool {
+        self.typed_authority_override.unwrap_or_else(|| {
+            edgequake_storage::vector_backend_reads_typed(
+                edgequake_storage::vector_backend_from_env(),
+            )
+        })
     }
 
     /// SPEC-091 IW2: mirror entity/relationship/report vectors into typed tables.
@@ -662,10 +684,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
                     .await
                 {
                     Ok(report) => {
-                        let typed = edgequake_storage::vector_backend::vector_backend_reads_typed(
-                            edgequake_storage::vector_backend_from_env(),
-                        );
-                        if typed && !slice.is_empty() {
+                        if self.typed_reads() && !slice.is_empty() {
                             if !report.invalid_workspace.is_empty() {
                                 return Err(crate::error::PipelineError::StorageError(
                                     edgequake_storage::error::StorageError::Database(format!(
@@ -699,10 +718,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
                         }
                     }
                     Err(e) => {
-                        let typed = edgequake_storage::vector_backend::vector_backend_reads_typed(
-                            edgequake_storage::vector_backend_from_env(),
-                        );
-                        if typed {
+                        if self.typed_reads() {
                             return Err(crate::error::PipelineError::StorageError(e));
                         }
                         tracing::warn!(
@@ -892,9 +908,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
         emit_progress(
             progress,
             MergeProgress {
-                phase: if edgequake_storage::vector_backend::vector_backend_reads_typed(
-                    edgequake_storage::vector_backend_from_env(),
-                ) {
+                phase: if self.typed_reads() {
                     MergePhase::EntityGraph
                 } else {
                     MergePhase::EntityVectors
@@ -913,9 +927,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> KnowledgeGraphMerger<G
         // ── Entity / relationship vector + graph phases ─────────────────
         // Under typed_embeddings, graph merge MUST precede fleet vector write
         // (mirror_legacy_batch resolves entities/relationships by name FK).
-        let typed_authority = edgequake_storage::vector_backend::vector_backend_reads_typed(
-            edgequake_storage::vector_backend_from_env(),
-        );
+        let typed_authority = self.typed_reads();
         let entity_vector_batch = self.collect_entity_vector_batch(&results);
         let all_rels: Vec<_> = results
             .iter()

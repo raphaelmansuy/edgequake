@@ -7,6 +7,10 @@
 import { visionChoicePatch } from '@/lib/workspace/vision-choice';
 import type { UpdateWorkspaceRequest } from '@/lib/api/edgequake/workspaces';
 import type { PdfParserBackendDraft, WizardDraft } from '@/lib/onboarding/wizard-state';
+import {
+  profileCreateFields,
+  withoutGraphFields,
+} from '@/lib/onboarding/rag-profile-payload';
 import type { WorkspaceConfigChangedKey } from '@/lib/onboarding/workspace-config-diff';
 import type { Workspace } from '@/types/workspace';
 import { extractionLanguageToUpdatePayload } from '@/constants/extraction-languages';
@@ -319,6 +323,9 @@ export type WorkspaceIngestMode = 'create' | 'update';
 export function buildWorkspaceIngestPayload(
   draft: Pick<
     WizardDraft,
+    | 'ragProfile'
+    | 'embeddingModalities'
+    | 'ftsRegconfig'
     | 'pdfParserBackend'
     | 'visionExtractImages'
     | 'visionExtractCharts'
@@ -349,6 +356,17 @@ export function buildWorkspaceIngestPayload(
     | 'extractionMode'
   >,
   mode: WorkspaceIngestMode = 'create',
+): UpdateWorkspaceRequest {
+  const graphPayload = buildGraphIngestPayload(draft, mode);
+  if (mode !== 'create') return graphPayload;
+  // SPEC-180: the profile is chosen once, at create. A normal draft drops graph-only keys.
+  const base = draft.ragProfile === 'normal' ? withoutGraphFields(graphPayload) : graphPayload;
+  return { ...base, ...profileCreateFields(draft) };
+}
+
+function buildGraphIngestPayload(
+  draft: Parameters<typeof buildWorkspaceIngestPayload>[0],
+  mode: WorkspaceIngestMode,
 ): UpdateWorkspaceRequest {
   const payload: UpdateWorkspaceRequest = {};
   const parser = draft.pdfParserBackend;

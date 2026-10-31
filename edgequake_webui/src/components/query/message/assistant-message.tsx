@@ -28,6 +28,7 @@ import {
 import { MessageActions } from "./message-actions";
 import { MessageError } from "./message-error";
 import { ReasoningPanel } from "./reasoning-panel";
+import { ImageMatchesGrid } from "../citations/image-matches-grid";
 import { SourceChips } from "./source-chips";
 import { StageTimeline } from "./stage-timeline";
 import type { ChatMessageProps } from "./types";
@@ -211,6 +212,13 @@ export const AssistantMessage = memo(function AssistantMessage({
                 />
               </div>
             </div>
+          ) : null}
+
+          {message.context ? (
+            <ImageMatchesGrid
+              chunks={message.context.chunks}
+              onOpenSources={() => setSourcesOpenSignal((n) => n + 1)}
+            />
           ) : null}
 
           {message.context ? (

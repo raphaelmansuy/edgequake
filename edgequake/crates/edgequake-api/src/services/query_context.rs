@@ -171,6 +171,13 @@ async fn run_context_retrieval(
         llm_provider: None,
         llm_model: None,
         reasoning_effort: None,
+        normal_plan: crate::services::query_image::normal_plan(
+            workspace.as_ref(),
+            query,
+            document_filter.as_ref(),
+            None,
+        )
+        .await?,
     };
 
     let engine_request = build_engine_request(&params);
@@ -254,6 +261,12 @@ pub async fn retrieve_context(
         .map_err(|_| ApiError::BadRequest("Invalid query mode; bypass is not allowed".into()))?;
     QueryExecutionParams::reject_bypass(mode)
         .map_err(|_| ApiError::BadRequest("Invalid query mode; bypass is not allowed".into()))?;
+    crate::services::workspace_profile::ensure_mode_allowed_for_id(
+        state,
+        tenant_ctx.workspace_id.as_deref(),
+        request.mode.as_deref(),
+    )
+    .await?;
 
     let run = run_context_retrieval(
         state,
@@ -290,6 +303,12 @@ pub async fn search_context(
         .map_err(|_| ApiError::BadRequest("Invalid query mode".into()))?;
     QueryExecutionParams::reject_bypass(mode)
         .map_err(|_| ApiError::BadRequest("Invalid query mode".into()))?;
+    crate::services::workspace_profile::ensure_mode_allowed_for_id(
+        state,
+        tenant_ctx.workspace_id.as_deref(),
+        request.mode.as_deref(),
+    )
+    .await?;
 
     let full_request = ContextRetrievalRequest {
         query: request.query.clone(),

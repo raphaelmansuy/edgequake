@@ -14,6 +14,11 @@ import {
   detectKgSchemaPreset,
   type RelationEdge,
 } from '@/constants/kg-schema-presets';
+import {
+  parseEmbeddingModalities,
+  parseFtsRegconfig,
+  parseRagProfile,
+} from '@/constants/rag-profile';
 import type { EmbeddingSelection } from '@/components/workspace/embedding-model-selector';
 import type { LLMSelection } from '@/components/workspace/llm-model-selector';
 import {
@@ -130,6 +135,9 @@ export function prefillReconfigureFromWorkspace(workspace: Workspace): Reconfigu
 
   const draft: WizardDraft = {
     ...EMPTY_WIZARD_DRAFT,
+    ragProfile: parseRagProfile(workspace.rag_profile),
+    embeddingModalities: parseEmbeddingModalities(workspace.embedding_modalities),
+    ftsRegconfig: parseFtsRegconfig(workspace.fts_regconfig),
     workspaceName: workspace.name,
     workspaceSlug: workspace.slug ?? '',
     workspaceDescription: workspace.description ?? '',

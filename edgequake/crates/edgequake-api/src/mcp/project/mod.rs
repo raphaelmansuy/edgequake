@@ -23,6 +23,7 @@ pub mod graph_theme;
 pub mod ids;
 pub mod ingest;
 pub mod profile;
+pub mod profile_gate;
 pub mod scores;
 pub mod search;
 pub mod summary;

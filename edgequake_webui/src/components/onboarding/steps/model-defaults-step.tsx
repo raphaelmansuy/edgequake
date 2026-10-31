@@ -1,6 +1,7 @@
 'use client';
 
 import { CustomModelPickers } from '@/components/onboarding/steps/custom-model-pickers';
+import { ImageEmbeddingProbeNotice } from '@/components/onboarding/steps/image-embedding-probe-notice';
 import { ModelSourceChoice } from '@/components/onboarding/steps/model-source-choice';
 import { DecisionEngineFields } from '@/components/workspace/decision-engine-fields';
 import type { EmbeddingSelection } from '@/components/workspace/embedding-model-selector';
@@ -12,6 +13,7 @@ import { blockedRoles, type WizardRole } from '@/lib/onboarding/defaults-eligibi
 import { formatInheritModelLabel } from '@/lib/onboarding/inherited-defaults';
 import type { WizardDraft } from '@/lib/onboarding/wizard-state';
 import { draftIssue, type ExtractionModeDraft } from '@/lib/workspace/extraction-mode-draft';
+import { ImageOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -37,6 +39,10 @@ export interface ModelDefaultsStepProps {
   eligibility?: WizardEligibility;
   /** Organization admins can open the offer from here. */
   canManageProviders?: boolean;
+  /** SPEC-180: the draft is a normal workspace. It has no extraction engine to configure. */
+  hidesExtractionEngine?: boolean;
+  /** SPEC-180: the draft embeds images, so the server default (text only) cannot serve it. */
+  requiresImageEmbedding?: boolean;
 }
 
 type Inherited = ReturnType<typeof useInheritedModelDefaults>;
@@ -82,6 +88,8 @@ export function ModelDefaultsStep({
   choiceScope,
   eligibility,
   canManageProviders = false,
+  hidesExtractionEngine = false,
+  requiresImageEmbedding = false,
 }: ModelDefaultsStepProps) {
   const { t } = useTranslation();
   const pickerScope = choiceScope ?? (tenantId ? 'tenant' : 'deployment');
@@ -107,6 +115,13 @@ export function ModelDefaultsStep({
     }
   }, [isLoading, hasConfiguredDefaults, draft.useServerDefaults, onChange, onAdvancedOpenChange]);
 
+  // Text and images: the inherited embedding model reads text only, so the user must pick one.
+  useEffect(() => {
+    if (!requiresImageEmbedding || !draft.useServerDefaults) return;
+    onChange({ useServerDefaults: false });
+    onAdvancedOpenChange(true);
+  }, [requiresImageEmbedding, draft.useServerDefaults, onChange, onAdvancedOpenChange]);
+
   const showAdvanced = advancedOpen && !isLoading;
   const [focusRequest, setFocusRequest] = useState<{ role: WizardRole; nonce: number } | null>(null);
 
@@ -129,7 +144,7 @@ export function ModelDefaultsStep({
         fullId: `${inherited.defaultLlmProvider}/${inherited.defaultLlmModel}`,
       });
     }
-    if (seed.embedding && !embedding) {
+    if (seed.embedding && !embedding && !requiresImageEmbedding) {
       onEmbeddingChange({
         provider: inherited.defaultEmbeddingProvider!,
         model: inherited.defaultEmbeddingModel!,
@@ -200,6 +215,32 @@ export function ModelDefaultsStep({
           onReasoningEffortChange={(reasoningEffort) => onChange({ reasoningEffort })}
           focusRole={focusRequest?.role}
           focusNonce={focusRequest?.nonce ?? 0}
+          imageEmbeddingOnly={requiresImageEmbedding}
+          embeddingNotice={
+            /* SPEC-180 08: the reason and the deployment's answer sit with the pick they judge. */
+            requiresImageEmbedding && !embedding?.provider ? (
+              <p
+                className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400"
+                data-testid="wizard-image-embedding-required"
+                role="status"
+              >
+                <ImageOff aria-hidden className="mt-px h-3.5 w-3.5 shrink-0" />
+                {t(
+                  'ragProfile.evidence.textImageHint',
+                  'Needs an embedding model that accepts images.',
+                )}
+              </p>
+            ) : (
+              <ImageEmbeddingProbeNotice
+                enabled={requiresImageEmbedding}
+                probe={eligibility?.imageProbe ?? { status: 'idle' }}
+                pair={{
+                  provider: embedding?.provider ?? inherited.defaultEmbeddingProvider,
+                  model: embedding?.model ?? inherited.defaultEmbeddingModel,
+                }}
+              />
+            )
+          }
         />
       ) : null}
 
@@ -217,6 +258,7 @@ export function ModelDefaultsStep({
         </p>
       ) : null}
 
+      {hidesExtractionEngine ? null : (
       <section className="space-y-2" aria-labelledby="wizard-decision-heading">
         <h4
           id="wizard-decision-heading"
@@ -254,6 +296,7 @@ export function ModelDefaultsStep({
           />
         </div>
       </section>
+      )}
     </div>
   );
 }

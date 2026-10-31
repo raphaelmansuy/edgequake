@@ -265,11 +265,79 @@ fn ollama_api_routes() -> Router<AppState> {
         .route("/chat", post(handlers::ollama_chat))
 }
 
+/// SPEC-180: every route that reads or edits the knowledge graph. One gate (409
+/// `profile_has_no_graph` on a normal workspace) covers the whole surface, so a new graph
+/// route added here cannot forget the check.
+fn graph_surface_routes(state: AppState) -> Router<AppState> {
+    Router::new()
+        // Graph
+        .route("/graph", get(handlers::get_graph))
+        .route("/graph/stream", get(handlers::stream_graph))
+        .route("/graph/nodes/{node_id}", get(handlers::get_node))
+        .route("/graph/nodes/search", get(handlers::search_nodes))
+        .route("/graph/labels/search", get(handlers::search_labels))
+        .route("/graph/labels/popular", get(handlers::get_popular_labels))
+        .route("/graph/degrees/batch", post(handlers::get_degrees_batch))
+        .route("/graph/communities", get(handlers::get_graph_communities))
+        .route("/graph/facets", get(handlers::get_graph_facets))
+        // Entities (Phase 2)
+        .route(
+            "/graph/entities",
+            get(handlers::list_entities).post(handlers::create_entity),
+        )
+        .route("/graph/entities/exists", get(handlers::entity_exists))
+        .route("/graph/entities/merge", post(handlers::merge_entities))
+        .route("/graph/entities/{entity_name}", get(handlers::get_entity))
+        .route(
+            "/graph/entities/{entity_name}",
+            put(handlers::update_entity),
+        )
+        .route(
+            "/graph/entities/{entity_name}",
+            delete(handlers::delete_entity),
+        )
+        .route(
+            "/graph/entities/{entity_name}/neighborhood",
+            get(handlers::get_entity_neighborhood),
+        )
+        // Relationships (Phase 2)
+        .route(
+            "/graph/relationships",
+            get(handlers::list_relationships).post(handlers::create_relationship),
+        )
+        .route(
+            "/graph/relationships/{relationship_id}",
+            get(handlers::get_relationship),
+        )
+        .route(
+            "/graph/relationships/{relationship_id}",
+            put(handlers::update_relationship),
+        )
+        .route(
+            "/graph/relationships/{relationship_id}",
+            delete(handlers::delete_relationship),
+        )
+        .route(
+            "/lineage/entities/{entity_name}",
+            get(handlers::get_entity_lineage),
+        )
+        // Entity Provenance (WebUI Spec WEBUI-006)
+        .route(
+            "/entities/{entity_id}/provenance",
+            get(handlers::get_entity_provenance),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            state,
+            crate::graph_profile_gate::require_graph_profile,
+        ))
+}
+
 /// API v1 routes.
 fn api_v1_routes(state: AppState) -> Router<AppState> {
     use crate::mcp::gateway::body::MCP_MAX_BODY_BYTES;
 
     Router::new()
+        .merge(graph_surface_routes(state.clone()))
         // Authentication (Phase 3)
         .route("/auth/login", post(handlers::login))
         .route("/auth/refresh", post(handlers::refresh_token))
@@ -761,53 +829,6 @@ fn api_v1_routes(state: AppState) -> Router<AppState> {
         .route("/folders/{folder_id}", delete(handlers::delete_folder))
         // Shared conversations (public access)
         .route("/shared/{share_id}", get(handlers::get_shared_conversation))
-        // Graph
-        .route("/graph", get(handlers::get_graph))
-        .route("/graph/stream", get(handlers::stream_graph))
-        .route("/graph/nodes/{node_id}", get(handlers::get_node))
-        .route("/graph/nodes/search", get(handlers::search_nodes))
-        .route("/graph/labels/search", get(handlers::search_labels))
-        .route("/graph/labels/popular", get(handlers::get_popular_labels))
-        .route("/graph/degrees/batch", post(handlers::get_degrees_batch))
-        .route("/graph/communities", get(handlers::get_graph_communities))
-        .route("/graph/facets", get(handlers::get_graph_facets))
-        // Entities (Phase 2)
-        .route(
-            "/graph/entities",
-            get(handlers::list_entities).post(handlers::create_entity),
-        )
-        .route("/graph/entities/exists", get(handlers::entity_exists))
-        .route("/graph/entities/merge", post(handlers::merge_entities))
-        .route("/graph/entities/{entity_name}", get(handlers::get_entity))
-        .route(
-            "/graph/entities/{entity_name}",
-            put(handlers::update_entity),
-        )
-        .route(
-            "/graph/entities/{entity_name}",
-            delete(handlers::delete_entity),
-        )
-        .route(
-            "/graph/entities/{entity_name}/neighborhood",
-            get(handlers::get_entity_neighborhood),
-        )
-        // Relationships (Phase 2)
-        .route(
-            "/graph/relationships",
-            get(handlers::list_relationships).post(handlers::create_relationship),
-        )
-        .route(
-            "/graph/relationships/{relationship_id}",
-            get(handlers::get_relationship),
-        )
-        .route(
-            "/graph/relationships/{relationship_id}",
-            put(handlers::update_relationship),
-        )
-        .route(
-            "/graph/relationships/{relationship_id}",
-            delete(handlers::delete_relationship),
-        )
         // Tasks
         .route("/tasks/{track_id}", get(handlers::get_task))
         .route("/tasks", get(handlers::list_tasks))
@@ -838,10 +859,6 @@ fn api_v1_routes(state: AppState) -> Router<AppState> {
         .route("/costs/budget", patch(handlers::update_budget))
         // Lineage (Phase 5)
         .route(
-            "/lineage/entities/{entity_name}",
-            get(handlers::get_entity_lineage),
-        )
-        .route(
             "/lineage/documents/{document_id}",
             get(handlers::get_document_lineage),
         )
@@ -851,11 +868,6 @@ fn api_v1_routes(state: AppState) -> Router<AppState> {
         .route(
             "/chunks/{chunk_id}/lineage",
             get(handlers::get_chunk_lineage),
-        )
-        // Entity Provenance (WebUI Spec WEBUI-006)
-        .route(
-            "/entities/{entity_id}/provenance",
-            get(handlers::get_entity_provenance),
         )
         // Settings (Provider Status) (SPEC-032 Phase 5E)
         .route(
@@ -896,6 +908,10 @@ fn api_v1_routes(state: AppState) -> Router<AppState> {
         .route("/models", get(handlers::list_models))
         .route("/models/llm", get(handlers::list_llm_models))
         .route("/models/eligible", get(handlers::get_eligible_models))
+        .route(
+            "/models/embedding-support",
+            get(handlers::get_embedding_support),
+        )
         .route(
             "/deployment/providers",
             get(handlers::get_deployment_providers),

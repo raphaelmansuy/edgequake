@@ -195,6 +195,7 @@ mod tests {
             page_start: None,
             page_end: None,
             modality: None,
+            source_modality: None,
             citation_id: None,
         });
         ctx.chunks.push(RetrievedChunk {
@@ -210,6 +211,7 @@ mod tests {
             page_start: None,
             page_end: None,
             modality: None,
+            source_modality: None,
             citation_id: None,
         });
 
@@ -259,6 +261,7 @@ mod tests {
             page_start: None,
             page_end: None,
             modality: None,
+            source_modality: None,
             citation_id: None,
         });
         ctx.citation_chunks = Some(vec![
@@ -275,6 +278,7 @@ mod tests {
                 page_start: None,
                 page_end: None,
                 modality: None,
+                source_modality: None,
                 citation_id: None,
             },
             RetrievedChunk {
@@ -290,6 +294,7 @@ mod tests {
                 page_start: None,
                 page_end: None,
                 modality: None,
+                source_modality: None,
                 citation_id: None,
             },
         ]);
@@ -320,6 +325,7 @@ mod tests {
                 page_start: None,
                 page_end: None,
                 modality: None,
+                source_modality: None,
                 citation_id: None,
             });
         }
@@ -336,6 +342,7 @@ mod tests {
             page_start: None,
             page_end: None,
             modality: None,
+            source_modality: None,
             citation_id: None,
         });
         ctx.chunks = citation[..30].to_vec();
@@ -368,6 +375,7 @@ mod tests {
             page_start: None,
             page_end: None,
             modality: None,
+            source_modality: None,
             citation_id: None,
         });
 

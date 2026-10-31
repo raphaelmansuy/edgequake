@@ -754,6 +754,12 @@ pub fn create_safe_embedding_provider(
     model: &str,
     dimension: usize,
 ) -> Result<Arc<dyn EmbeddingProvider>> {
+    // SPEC-180 08: the Vertex multimodal model has its own client, ahead of the test
+    // override, so a hermetic test reaches the fake `:embedContent` server and text and
+    // image vectors share one space. It never degrades to a mock.
+    if let Some(client) = crate::embeddings::text_provider_for(provider_name, model, dimension) {
+        return client.map_err(|e| LlmError::ConfigError(format!("{}: {}", e.code, e.message)));
+    }
     if let Some((_, embedding)) = test_provider_override() {
         return Ok(embedding);
     }

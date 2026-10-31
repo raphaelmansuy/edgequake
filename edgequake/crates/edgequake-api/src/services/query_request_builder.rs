@@ -30,6 +30,8 @@ pub struct QueryExecutionParams {
     pub llm_model: Option<String>,
     /// SPEC-109: effective reasoning effort (post-clamp) for answer generation.
     pub reasoning_effort: Option<String>,
+    /// SPEC-180: chunk-kind filters of a normal workspace (validated by the caller).
+    pub normal_plan: Option<edgequake_query::normal::NormalQueryPlan>,
 }
 
 impl QueryExecutionParams {
@@ -137,6 +139,10 @@ pub fn build_engine_request(params: &QueryExecutionParams) -> EngineQueryRequest
         }
     }
 
+    if let Some(plan) = params.normal_plan.clone() {
+        engine_request = engine_request.with_normal_plan(plan);
+    }
+
     engine_request
 }
 
@@ -167,6 +173,7 @@ mod tests {
             llm_provider: None,
             llm_model: None,
             reasoning_effort: None,
+            normal_plan: None,
         };
         let req = build_engine_request(&params);
         assert!(req.context_only);
@@ -195,6 +202,7 @@ mod tests {
             llm_provider: None,
             llm_model: None,
             reasoning_effort: None,
+            normal_plan: None,
         };
         let req = build_engine_request(&params);
         assert_eq!(req.question_type(), Some("Complex Reasoning"));
@@ -223,6 +231,7 @@ mod tests {
             llm_provider: None,
             llm_model: None,
             reasoning_effort: None,
+            normal_plan: None,
         };
         let req = build_engine_request(&params);
         assert!(req.has_keyword_override());

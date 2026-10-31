@@ -1,6 +1,7 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
+import { ReviewRetrievalGroup } from '@/components/onboarding/steps/review-retrieval-group';
+import { Group, Row } from '@/components/onboarding/steps/review-parts';
 import type { EmbeddingSelection } from '@/components/workspace/embedding-model-selector';
 import type { LLMSelection } from '@/components/workspace/llm-model-selector';
 import { useInheritedModelDefaults } from '@/hooks/use-inherited-model-defaults';
@@ -32,61 +33,8 @@ export interface ReviewStepProps {
   impact?: WorkspaceConfigDiff | null;
   /** Document count for soft messaging when zero. */
   documentCount?: number;
-}
-
-function Group({
-  title,
-  onEdit,
-  editLabel,
-  children,
-  testId,
-}: {
-  title: string;
-  onEdit?: () => void;
-  editLabel: string;
-  children: React.ReactNode;
-  testId: string;
-}) {
-  return (
-    <div className="rounded-md border p-2.5 space-y-1.5" data-testid={testId}>
-      <div className="flex items-center justify-between gap-2">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {title}
-        </h4>
-        {onEdit ? (
-          <Button
-            type="button"
-            variant="link"
-            className="h-auto p-0 text-xs"
-            onClick={onEdit}
-            data-testid={`${testId}-edit`}
-          >
-            {editLabel}
-          </Button>
-        ) : null}
-      </div>
-      <dl className="space-y-1">{children}</dl>
-    </div>
-  );
-}
-
-function Row({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
-  return (
-    <div className="flex gap-2 text-sm items-start">
-      <dt className="w-32 shrink-0 text-muted-foreground">{label}</dt>
-      <dd className={`font-medium break-all flex-1 ${mono ? 'font-mono text-xs' : ''}`}>
-        {value || '—'}
-      </dd>
-    </div>
-  );
+  /** SPEC-180: Create Workspace states the retrieval choice and its permanence. */
+  showRetrieval?: boolean;
 }
 
 function pdfLabel(
@@ -177,6 +125,7 @@ export function ReviewStep({
   showDocumentParsing = false,
   impact = null,
   documentCount = 0,
+  showRetrieval = false,
 }: ReviewStepProps) {
   const { t } = useTranslation();
   const defaults = useInheritedModelDefaults(tenantId ?? null);
@@ -207,6 +156,8 @@ export function ReviewStep({
         : `${draft.entityTypes.slice(0, 3).join(', ')} +${draft.entityTypes.length - 3}`;
 
   const showImpact = impact != null && impact.hasChanges;
+  // SPEC-180: a normal workspace has no extraction engine, budget or schema to review.
+  const hasGraph = draft.ragProfile !== 'normal';
 
   return (
     <div className="space-y-3" data-testid="wizard-step-review">
@@ -325,6 +276,10 @@ export function ReviewStep({
         </Group>
       ) : null}
 
+      {showRetrieval ? (
+        <ReviewRetrievalGroup draft={draft} onEditStep={onEditStep} editLabel={editLabel} />
+      ) : null}
+
       <Group
         title={t('onboarding.modelsSection', 'Models')}
         onEdit={onEditStep ? () => onEditStep('models') : undefined}
@@ -342,15 +297,17 @@ export function ReviewStep({
         <Row label="LLM" value={llmId} mono />
         <Row label="Embedding" value={embId} mono />
         <Row label="Vision" value={visionId} mono />
-        <Row
-          label={t('extractionMode.workspace.model', 'Decision model')}
-          value={
-            draft.decisionEnabled
-              ? draft.decisionModel || 'tev1:0.8b'
-              : t('extractionMode.engine.badgeInactive', 'Not activated')
-          }
-          mono={draft.decisionEnabled}
-        />
+        {hasGraph ? (
+          <Row
+            label={t('extractionMode.workspace.model', 'Decision model')}
+            value={
+              draft.decisionEnabled
+                ? draft.decisionModel || 'tev1:0.8b'
+                : t('extractionMode.engine.badgeInactive', 'Not activated')
+            }
+            mono={draft.decisionEnabled}
+          />
+        ) : null}
       </Group>
 
       {showDocumentParsing ? (
@@ -388,6 +345,8 @@ export function ReviewStep({
         />
       </Group>
 
+      {hasGraph ? (
+      <>
       <Group
         title={t('onboarding.extractBudgetSection', 'Extract budget')}
         onEdit={onEditStep ? () => onEditStep('extract-budget') : undefined}
@@ -471,6 +430,8 @@ export function ReviewStep({
           />
         ) : null}
       </Group>
+      </>
+      ) : null}
     </div>
   );
 }

@@ -13,6 +13,7 @@
 
 mod extraction_mode;
 mod map;
+mod rag_profile;
 mod rebuild;
 mod requests;
 mod responses;
@@ -21,6 +22,9 @@ pub use extraction_mode::{
     EffectiveExtractionModeDto, ExtractionModeFieldsDto, ExtractionModeView,
 };
 pub use map::{mark_embedding_rebuild, workspace_to_response};
+pub use rag_profile::{
+    ProfileCapabilitiesDto, RagProfileFieldsDto, RagProfileView, ResolvedProfile,
+};
 pub use rebuild::*;
 pub use requests::*;
 pub use responses::*;
@@ -108,6 +112,7 @@ mod tests {
             extract_max_entities: None,
             extract_max_records: None,
             extraction: Default::default(),
+            profile: Default::default(),
             entity_type_colors: None,
             relation_types: None,
             relation_types_strict: None,
@@ -154,6 +159,7 @@ mod tests {
             extract_max_entities: None,
             extract_max_records: None,
             extraction: Default::default(),
+            profile: Default::default(),
             entity_type_colors: None,
             relation_types: None,
             relation_types_strict: None,
@@ -252,6 +258,7 @@ mod tests {
             extract_max_entities: None,
             extract_max_records: None,
             extraction: Default::default(),
+            profile: Default::default(),
             entity_type_colors: None,
             relation_types: None,
             relation_types_strict: true,

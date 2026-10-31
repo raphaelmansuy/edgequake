@@ -57,11 +57,16 @@ pub async fn create_workspace(
 
     // SPEC-160: coded 400 before any state is touched.
     request.extraction.validate()?;
+    // SPEC-180: profile words, pairs and extraction_mode applicability, all before any write.
+    let profile = request.profile.resolve_for_create()?;
+    profile
+        .capabilities()
+        .check_extraction_mode(request.extraction.extraction_mode.as_deref())?;
 
     // SPEC-032 / LAW-123-8: the tenant must exist, but omitted model fields are NOT copied
     // from the tenant. They stay inherited and resolve at read time, so a later tenant
     // default change still reaches this workspace.
-    state
+    let tenant = state
         .workspace_service
         .get_tenant(tenant_id)
         .await
@@ -99,6 +104,23 @@ pub async fn create_workspace(
             decision_model: request.extraction.decision_model.as_deref(),
             llm_roles: request.llm_roles.as_ref(),
         },
+    )
+    .await?;
+
+    // SPEC-180 08: a workspace that embeds images needs an image-capable embedding model.
+    let chosen = edgequake_core::resolve_embedding_choice(
+        embedding_provider.as_deref(),
+        request.embedding_model.as_deref(),
+        embedding_dimension,
+        None,
+        Some(&tenant),
+    );
+    crate::services::multimodal_policy::ensure_embedding_matches_modalities(
+        &state,
+        profile.modalities,
+        &chosen.provider,
+        &chosen.model,
+        embedding_dimension.unwrap_or(chosen.dimension),
     )
     .await?;
 
@@ -156,6 +178,9 @@ pub async fn create_workspace(
         vision_image_system_prompt: request.vision_image_system_prompt.clone(),
         vision_chart_system_prompt: request.vision_chart_system_prompt.clone(),
         vision_figure_system_prompt: request.vision_figure_system_prompt.clone(),
+        rag_profile: Some(profile.profile),
+        embedding_modalities: Some(profile.modalities),
+        fts_regconfig: Some(profile.regconfig),
     };
 
     // Store workspace via workspace service
@@ -163,7 +188,10 @@ pub async fn create_workspace(
         .workspace_service
         .create_workspace(tenant_id, create_request)
         .await
-        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+        .map_err(|e| {
+            crate::error::profile::parse_tagged_profile_error(&e.to_string())
+                .unwrap_or_else(|| ApiError::BadRequest(e.to_string()))
+        })?;
 
     let tenant = state
         .workspace_service
@@ -390,6 +418,17 @@ pub async fn update_workspace(
     // BR0201: verify workspace belongs to requesting tenant before mutating
     verify_workspace_tenant_access(&state, workspace_id, &tenant_ctx).await?;
 
+    // SPEC-180: the profile never changes. Presence of a field is the 409, even unchanged.
+    let (rag_profile, embedding_modalities, fts_regconfig) =
+        request.profile.clone().into_update_markers();
+    let profile_guard = UpdateWorkspaceRequest {
+        rag_profile: rag_profile.clone(),
+        embedding_modalities: embedding_modalities.clone(),
+        fts_regconfig: fts_regconfig.clone(),
+        ..Default::default()
+    };
+    profile_guard.check_profile_untouched()?;
+
     // Never persist Mock — heal stale leftovers (e.g. mock + embeddinggemma:latest).
     let llm_provider = crate::provider_visibility::heal_optional_mock_provider(
         request.llm_provider,
@@ -437,6 +476,19 @@ pub async fn update_workspace(
         }
         None => request.embedding_dimension,
     };
+    if let (Some(ws), Some(model)) = (&current, request.embedding_model.as_deref()) {
+        let provider = embedding_provider
+            .clone()
+            .unwrap_or_else(|| ws.embedding_provider.clone());
+        crate::services::multimodal_policy::ensure_embedding_matches_modalities(
+            &state,
+            ws.embedding_modalities,
+            &provider,
+            model,
+            embedding_dimension.unwrap_or(ws.embedding_dimension),
+        )
+        .await?;
+    }
 
     // SPEC-032: Include LLM/embedding model configuration in update
     let update_request = UpdateWorkspaceRequest {
@@ -483,6 +535,9 @@ pub async fn update_workspace(
         vision_image_system_prompt: request.vision_image_system_prompt,
         vision_chart_system_prompt: request.vision_chart_system_prompt,
         vision_figure_system_prompt: request.vision_figure_system_prompt,
+        rag_profile,
+        embedding_modalities,
+        fts_regconfig,
     };
 
     let workspace = state

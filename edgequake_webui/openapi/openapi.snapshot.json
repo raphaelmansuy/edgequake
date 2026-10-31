@@ -4293,8 +4293,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "reprocess_failed"
+        "x-edgequake-v2-job-type": "reprocess_failed",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/documents/scan": {
@@ -7644,6 +7644,105 @@
                 }
               }
             }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/models/embedding-support": {
+      "get": {
+        "tags": [
+          "Models"
+        ],
+        "summary": "`GET /api/v1/models/embedding-support`: may this workspace embed images with this pair?",
+        "description": "SPEC-180 08 + 11: the model step asks before the user walks to Review. The answer is the\nsame probe create enforces, so the inline reason cannot disagree with the refusal.",
+        "operationId": "get_embedding_support",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "query",
+            "description": "Embedding provider slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "description": "Embedding model id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dimension",
+            "in": "query",
+            "description": "Width to probe; the card's width by default",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "description": "Tenant scope",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "description": "Workspace scope",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "description": "deployment",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether the pair can embed images here",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingSupportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Zero or two scopes"
+          },
+          "403": {
+            "description": "Caller cannot read this scope"
           }
         },
         "security": [
@@ -12584,8 +12683,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "rebuild_knowledge_graph"
+        "x-edgequake-v2-job-type": "rebuild_knowledge_graph",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/reprocess-documents": {
@@ -17696,6 +17795,10 @@
             "description": "SPEC-160: extraction mode and decision settings (future ingestions only)."
           },
           {
+            "$ref": "#/components/schemas/RagProfileFieldsDto",
+            "description": "SPEC-180: retrieval profile, modalities and text-search config.\nCreate only; on update any of these is a 409."
+          },
+          {
             "type": "object",
             "required": [
               "name"
@@ -18848,6 +18951,16 @@
             ],
             "description": "End date (inclusive) in ISO 8601 format (e.g., \"2025-12-31T23:59:59Z\").\nOnly documents created on or before this date are included."
           },
+          "doc_kinds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "SPEC-180: keep chunks of these document kinds (`pdf`, `image`, `markdown`,\n`text`, `office`, `other`). Normal workspaces only."
+          },
           "document_ids": {
             "type": [
               "array",
@@ -18864,13 +18977,36 @@
               "null"
             ],
             "description": "Case-insensitive substring pattern to match against document titles.\nComma-separated values are treated as OR conditions.\nExample: \"report,summary\" matches documents containing \"report\" OR \"summary\"."
+          },
+          "mime_types": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "SPEC-180: keep chunks of documents with these MIME types (exact, case-insensitive)."
+          },
+          "source_modalities": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "SPEC-180: keep chunks of this source modality (`text` or `image`)."
           }
         },
         "example": {
           "date_from": {},
           "date_to": {},
+          "doc_kinds": [],
           "document_ids": [],
-          "document_pattern": {}
+          "document_pattern": {},
+          "mime_types": [],
+          "source_modalities": []
         }
       },
       "DocumentGraphLineageResponse": {
@@ -19978,6 +20114,62 @@
           "name": {},
           "status": {},
           "type": {}
+        }
+      },
+      "EmbeddingSupportResponse": {
+        "type": "object",
+        "description": "Answer to \"may this workspace embed images with this pair, here?\" (SPEC-180 08).\n\n`ok = false` carries the same code and words create would return, so the model step can\nexplain itself before the user reaches Review.",
+        "required": [
+          "provider",
+          "model",
+          "eligible",
+          "multimodal"
+        ],
+        "properties": {
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Stable code when `ok` is false (`embedding_auth`, `embedding_model_not_multimodal`, …)."
+          },
+          "eligible": {
+            "type": "boolean",
+            "description": "The pair is eligible for the embedding usage at this scope."
+          },
+          "embeds_images": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "A live image embed succeeded. `null` when the pair needs no such probe."
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One sentence naming the fix."
+          },
+          "model": {
+            "type": "string"
+          },
+          "multimodal": {
+            "type": "boolean",
+            "description": "The catalog says the model reads images."
+          },
+          "provider": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "code": {},
+          "eligible": {},
+          "embeds_images": {},
+          "message": {},
+          "model": {},
+          "multimodal": {},
+          "provider": {}
         }
       },
       "EnableClearanceRequest": {
@@ -29038,6 +29230,46 @@
           "ok": {}
         }
       },
+      "ProfileCapabilitiesDto": {
+        "type": "object",
+        "description": "Capability booleans the UI reads. The UI never re-derives the matrix (10-api-contract).",
+        "required": [
+          "extracts_graph",
+          "embeds_images",
+          "writes_bm25",
+          "queries_graph",
+          "allows_graph_modes",
+          "shows_graph_ui"
+        ],
+        "properties": {
+          "allows_graph_modes": {
+            "type": "boolean"
+          },
+          "embeds_images": {
+            "type": "boolean"
+          },
+          "extracts_graph": {
+            "type": "boolean"
+          },
+          "queries_graph": {
+            "type": "boolean"
+          },
+          "shows_graph_ui": {
+            "type": "boolean"
+          },
+          "writes_bm25": {
+            "type": "boolean"
+          }
+        },
+        "example": {
+          "allows_graph_modes": {},
+          "embeds_images": {},
+          "extracts_graph": {},
+          "queries_graph": {},
+          "shows_graph_ui": {},
+          "writes_bm25": {}
+        }
+      },
       "ProviderAttributionInfo": {
         "type": "object",
         "required": [
@@ -30875,6 +31107,72 @@
           "throughput_per_minute": {},
           "timestamp": {},
           "worker_utilization": {}
+        }
+      },
+      "RagProfileFieldsDto": {
+        "type": "object",
+        "description": "Request fragment. Every field is optional. On create, absent means the default.\nOn update, **presence** is the error (409): the profile never changes.",
+        "properties": {
+          "embedding_modalities": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`text` (default) or `text,image`. Immutable. `text,image` needs `normal`."
+          },
+          "fts_regconfig": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`english` (default), `simple`, `french`, `german` or `spanish`. Immutable."
+          },
+          "rag_profile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`graph` (default) or `normal`. Immutable after create."
+          }
+        },
+        "example": {
+          "embedding_modalities": {},
+          "fts_regconfig": {},
+          "rag_profile": {}
+        }
+      },
+      "RagProfileView": {
+        "type": "object",
+        "description": "Response fragment.",
+        "required": [
+          "rag_profile",
+          "embedding_modalities",
+          "fts_regconfig",
+          "rag_profile_capabilities"
+        ],
+        "properties": {
+          "embedding_modalities": {
+            "type": "string",
+            "description": "`text` or `text,image`."
+          },
+          "fts_regconfig": {
+            "type": "string",
+            "description": "Text-search configuration of the BM25 index."
+          },
+          "rag_profile": {
+            "type": "string",
+            "description": "`graph` or `normal`."
+          },
+          "rag_profile_capabilities": {
+            "$ref": "#/components/schemas/ProfileCapabilitiesDto",
+            "description": "Read-only booleans for the UI."
+          }
+        },
+        "example": {
+          "embedding_modalities": {},
+          "fts_regconfig": {},
+          "rag_profile": {},
+          "rag_profile_capabilities": {}
         }
       },
       "ReadModelHealthSnapshot": {
@@ -36258,6 +36556,10 @@
             "description": "SPEC-160: extraction mode and decision settings (future ingestions only)."
           },
           {
+            "$ref": "#/components/schemas/RagProfileFieldsDto",
+            "description": "SPEC-180: retrieval profile, modalities and text-search config.\nCreate only; on update any of these is a 409."
+          },
+          {
             "type": "object",
             "properties": {
               "chunk_overlap_token_size": {
@@ -37059,6 +37361,10 @@
           {
             "$ref": "#/components/schemas/ExtractionModeView",
             "description": "SPEC-160: workspace extraction mode, effective mode, and decision settings."
+          },
+          {
+            "$ref": "#/components/schemas/RagProfileView",
+            "description": "SPEC-180: retrieval profile, modalities, text-search config and capabilities."
           },
           {
             "type": "object",

@@ -100,6 +100,7 @@ mod tests {
             llm_provider: None,
             llm_model: None,
             reasoning_effort: None,
+            normal_plan: None,
         };
         assert!(!params.context_only);
     }

@@ -8,7 +8,7 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
-import { memo, useMemo } from "react";
+import { Fragment, memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 
@@ -19,6 +19,7 @@ import {
 import type { QueryMode } from "@/types/query";
 import { apiClient } from "@/lib/api/client";
 import { getWorkspaceStats } from "@/lib/api/edgequake/workspaces";
+import { useWorkspaceCapabilities } from "@/hooks/use-workspace-capabilities";
 import { useTenantStore } from "@/stores/use-tenant-store";
 
 export interface QueryEmptyStateProps {
@@ -36,7 +37,8 @@ export const QueryEmptyState = memo(function QueryEmptyState({
 }: QueryEmptyStateProps) {
   const { t } = useTranslation();
   const isChat = isChatQueryMode(mode);
-  const copy = getQueryEmptyCopy(mode);
+  const { shows_graph_ui: hasGraph } = useWorkspaceCapabilities();
+  const copy = getQueryEmptyCopy(mode, hasGraph);
 
   const selectedWorkspaceId = useTenantStore((s) => s.selectedWorkspaceId);
 
@@ -60,7 +62,7 @@ export const QueryEmptyState = memo(function QueryEmptyState({
       }
     },
     staleTime: 60_000,
-    enabled: !isChat,
+    enabled: !isChat && hasGraph,
   });
 
   const suggestionIcons = isChat
@@ -97,14 +99,19 @@ export const QueryEmptyState = memo(function QueryEmptyState({
     corpusSuggestions ??
     copy.suggestions.map((text, i) => ({
       icon: suggestionIcons[i] ?? <Search className="h-4 w-4" />,
-      text: isChat
-        ? t(`query.chatSuggestions.${i}`, text)
-        : t(`query.suggestions.${i}`, text),
+      text: t(`${copy.keys.suggestions}.${i}`, text),
     }));
 
   const hasDocs = (stats?.document_count ?? 0) > 0;
-  const entityCount = stats?.entity_count ?? 0;
-  const relCount = stats?.relationship_count ?? 0;
+  const figures = hasGraph
+    ? [
+        { n: stats?.entity_count ?? 0, key: "query.stats.entities", text: "entities" },
+        { n: stats?.relationship_count ?? 0, key: "query.stats.relationships", text: "relationships" },
+      ]
+    : [
+        { n: stats?.document_count ?? 0, key: "query.stats.documents", text: "documents" },
+        { n: stats?.chunk_count ?? 0, key: "query.stats.chunks", text: "passages" },
+      ];
 
   return (
     // Top-anchored with a viewport-relative gap: sits low on tall screens and
@@ -122,14 +129,10 @@ export const QueryEmptyState = memo(function QueryEmptyState({
       </div>
 
       <h2 className="mb-2 text-center text-2xl font-semibold tracking-tight">
-        {isChat
-          ? t("query.chatEmptyTitle", copy.title)
-          : t("query.emptyTitle", copy.title)}
+        {t(copy.keys.title, copy.title)}
       </h2>
       <p className="mb-5 max-w-lg text-center leading-relaxed text-muted-foreground">
-        {isChat
-          ? t("query.chatEmptyDescription", copy.description)
-          : t("query.emptyDescription", copy.description)}
+        {t(copy.keys.description, copy.description)}
       </p>
 
       {/* Reserved slot: the pill fades in without moving the content below it. */}
@@ -139,28 +142,29 @@ export const QueryEmptyState = memo(function QueryEmptyState({
           role="status"
           aria-hidden={stats ? undefined : true}
         >
-          <span className="text-sm">
-            <span className="font-medium">{entityCount}</span>{" "}
-            <span className="text-muted-foreground">
-              {t("query.stats.entities", "entities")}
-            </span>
-          </span>
-          <span className="w-px h-4 bg-border" aria-hidden />
-          <span className="text-sm">
-            <span className="font-medium">{relCount}</span>{" "}
-            <span className="text-muted-foreground">
-              {t("query.stats.relationships", "relationships")}
-            </span>
-          </span>
+          {figures.map((f, i) => (
+            <Fragment key={f.key}>
+              {i > 0 ? <span className="w-px h-4 bg-border" aria-hidden /> : null}
+              <span className="text-sm">
+                <span className="font-medium">{f.n}</span>{" "}
+                <span className="text-muted-foreground">{t(f.key, f.text)}</span>
+              </span>
+            </Fragment>
+          ))}
         </div>
       )}
 
       {!isChat && !hasDocs && stats ? (
         <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
-          {t(
-            "query.emptyNoDocs",
-            "No documents yet — upload documents to ground answers in your knowledge graph.",
-          )}
+          {hasGraph
+            ? t(
+                "query.emptyNoDocs",
+                "No documents yet — upload documents to ground answers in your knowledge graph.",
+              )
+            : t(
+                "query.normalEmptyNoDocs",
+                "No documents yet — upload documents and I will answer from their passages.",
+              )}
         </p>
       ) : null}
 

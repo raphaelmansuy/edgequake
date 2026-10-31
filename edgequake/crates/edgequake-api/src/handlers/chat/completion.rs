@@ -46,10 +46,14 @@ pub async fn chat_completion(
     State(state): State<AppState>,
     tenant_ctx: TenantContext,
     OptionalAuth(auth_user): OptionalAuth,
-    Json(request): Json<ChatCompletionRequest>,
+    body: crate::handlers::query::json_or_image::JsonOrImage<ChatCompletionRequest>,
 ) -> ApiResult<Json<ChatCompletionResponse>> {
+    let crate::handlers::query::json_or_image::JsonOrImage {
+        body: request,
+        image: query_image,
+    } = body;
     // Validate request
-    if request.message.trim().is_empty() {
+    if request.message.trim().is_empty() && query_image.is_none() {
         return Err(ApiError::ValidationError(
             "Message cannot be empty".to_string(),
         ));
@@ -79,6 +83,10 @@ pub async fn chat_completion(
 
     // Fail closed when an explicit workspace header is invalid (same as /query).
     let workspace = resolve_query_workspace(&state, tenant_ctx.workspace_id.as_deref()).await?;
+    crate::services::workspace_profile::ensure_mode_allowed(
+        workspace.as_ref(),
+        request.mode.as_deref(),
+    )?;
     let workspace_id = workspace.as_ref().map(|ws| ws.workspace_id);
 
     let mode = parse_mode(&request.mode);
@@ -203,6 +211,16 @@ pub async fn chat_completion(
         {
             engine_request = engine_request.with_allowed_document_ids(allowed_ids);
         }
+    }
+    if let Some(plan) = crate::services::query_image::normal_plan(
+        workspace.as_ref(),
+        &request.message,
+        request.document_filter.as_ref(),
+        query_image.as_ref(),
+    )
+    .await?
+    {
+        engine_request = engine_request.with_normal_plan(plan);
     }
 
     // FEAT0203: Forward image attachments to the query engine for vision queries.

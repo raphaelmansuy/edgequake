@@ -14,6 +14,8 @@ import { IngestionRunCard } from '@/components/documents/ingestion-run-card';
 import { PdfUploadProgress } from '@/components/documents/pdf-upload-progress';
 import { Button } from '@/components/ui/button';
 import { useIngestionProgress } from '@/hooks/use-ingestion-progress';
+import { useWorkspaceCapabilities } from '@/hooks/use-workspace-capabilities';
+import type { RagProfile } from '@/constants/rag-profile';
 import { shouldShowReprocessQueuingPanel } from '@/lib/documents/reprocess-cache';
 import { buildIngestionRunViewFromProgress } from '@/lib/pipeline/ingestion-run-view';
 import { sourceTypeFromFileName } from '@/lib/upload/file-kind';
@@ -64,6 +66,9 @@ export function ProgressPanelRow({
   'data-track-id': dataTrackId,
 }: ProgressPanelRowProps) {
   const { t } = useTranslation();
+  // SPEC-180: a normal workspace never extracts entities, so its row has no Extract phase.
+  const caps = useWorkspaceCapabilities();
+  const profile: RagProfile = caps.extracts_graph ? 'graph' : 'normal';
   const isAdmission = shouldShowReprocessQueuingPanel(trackId);
   const admissionPhase = resolveAdmissionPhase(currentStage);
   const dismissHint = t(
@@ -143,6 +148,7 @@ export function ProgressPanelRow({
         <IngestionRunCard
           run={run}
           compact
+          profile={profile}
           onCancel={handleCancel}
           nestedDetail={
             isPdf ? (

@@ -258,6 +258,9 @@ mod tests {
             vision_llm_model: Some("gpt-4.1-mini".into()),
             vision_llm_provider: Some("openai".into()),
             pdf_parser_backend: None,
+            rag_profile: Default::default(),
+            embedding_modalities: Default::default(),
+            fts_regconfig: Default::default(),
         }
     }
 

@@ -15,5 +15,5 @@ pub use injection::{
 pub use retrieval_modality::{
     map_image_type_to_retrieval_modality, resolve_retrieval_modality_from_content,
     resolve_retrieval_modality_from_mm, stamp_retrieval_modality_on_chunks, MODALITY_CHART,
-    MODALITY_EQUATION, MODALITY_FIGURE, MODALITY_TABLE,
+    MODALITY_EQUATION, MODALITY_FIGURE, MODALITY_IMAGE, MODALITY_TABLE,
 };

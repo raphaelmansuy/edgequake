@@ -1,6 +1,12 @@
 /** Tenant and workspace multi-tenancy types. */
 
 import type { ExtractionModeWord } from "@/constants/extraction-mode";
+import type {
+  EmbeddingModalities,
+  FtsRegconfig,
+  RagProfile,
+  RagProfileCapabilities,
+} from "@/constants/rag-profile";
 import type { PdfParserBackend } from "./graph";
 
 export interface Tenant {
@@ -86,6 +92,14 @@ export interface Tenant {
 }
 
 export interface Workspace {
+  /** SPEC-180: `graph` (default) or `normal`. Fixed at create. */
+  rag_profile?: RagProfile;
+  /** SPEC-180: `text` or `text,image`. Fixed at create. */
+  embedding_modalities?: EmbeddingModalities;
+  /** SPEC-180: keyword-index language. Fixed at create. */
+  fts_regconfig?: FtsRegconfig;
+  /** SPEC-180: read-only booleans the UI reads instead of comparing the profile name. */
+  rag_profile_capabilities?: RagProfileCapabilities;
   /** Workspace unique identifier (UUID). */
   id: string;
   /** Parent tenant ID. */
@@ -260,6 +274,12 @@ export interface Workspace {
  * @implements SPEC-032: Workspace LLM and embedding configuration on creation
  */
 export interface CreateWorkspaceRequest {
+  /** SPEC-180: create-only. Omitted means `graph`. */
+  rag_profile?: RagProfile;
+  /** SPEC-180: create-only. `text,image` needs `normal` and an image-capable embedding model. */
+  embedding_modalities?: EmbeddingModalities;
+  /** SPEC-180: create-only keyword-index language. */
+  fts_regconfig?: FtsRegconfig;
   /** Workspace display name. */
   name: string;
   /** URL-friendly slug (optional, auto-generated from name). */

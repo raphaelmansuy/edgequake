@@ -83,12 +83,17 @@ where
         INSERT INTO chunks (
             document_id, tenant_id, workspace_id, chunk_index,
             content, start_offset, end_offset, token_count, metadata,
-            page_start, page_end
+            page_start, page_end, source_modality
         )
-        SELECT * FROM unnest(
+        SELECT t.*, COALESCE(NULLIF(t.metadata->>'source_modality', ''), 'text')
+        FROM unnest(
             $1::uuid[], $2::uuid[], $3::uuid[], $4::int[],
             $5::text[], $6::int[], $7::int[], $8::int[], $9::jsonb[],
             $10::int[], $11::int[]
+        ) AS t(
+            document_id, tenant_id, workspace_id, chunk_index,
+            content, start_offset, end_offset, token_count, metadata,
+            page_start, page_end
         )
         ON CONFLICT (document_id, chunk_index) DO NOTHING
         RETURNING id
@@ -254,12 +259,17 @@ pub(crate) async fn insert_prepared_chunks_in_transaction(
         r#"
         INSERT INTO public.chunks (
             id, document_id, tenant_id, workspace_id, chunk_index, content,
-            start_offset, end_offset, token_count, metadata, page_start, page_end
+            start_offset, end_offset, token_count, metadata, page_start, page_end,
+            source_modality
         )
-        SELECT * FROM unnest(
+        SELECT t.*, COALESCE(NULLIF(t.metadata->>'source_modality', ''), 'text')
+        FROM unnest(
             $1::uuid[], $2::uuid[], $3::uuid[], $4::uuid[], $5::int[],
             $6::text[], $7::int[], $8::int[], $9::int[], $10::jsonb[],
             $11::int[], $12::int[]
+        ) AS t(
+            id, document_id, tenant_id, workspace_id, chunk_index, content,
+            start_offset, end_offset, token_count, metadata, page_start, page_end
         )
         ON CONFLICT DO NOTHING
         "#,

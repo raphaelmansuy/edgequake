@@ -496,12 +496,15 @@ impl DocumentTaskProcessor {
                             .map(|n| n as usize)
                     })
                 });
+                // SPEC-180: the profile shape is part of what a checkpoint was built from.
+                let caps = self.get_workspace_capabilities(workspace_id).await;
                 let fp_input = ProcessFingerprintInput::from_ingest_fields(
                     chunk_strategy.as_str(),
                     token_size,
                     overlap,
                     mm_opts.as_deref(),
-                );
+                )
+                .with_profile(&caps);
                 let new_fp = fp_input.digest();
                 let stored_fp = doc_metadata
                     .as_ref()
@@ -512,8 +515,10 @@ impl DocumentTaskProcessor {
                     .and_then(|m| m.get("is_retry").or_else(|| m.get("reanalyze")))
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
-                let should_purge =
-                    is_retry && should_purge_stale_extraction(stored_fp.as_deref(), &fp_input);
+                // A normal workspace has no graph artifacts to purge.
+                let should_purge = caps.extracts_graph
+                    && is_retry
+                    && should_purge_stale_extraction(stored_fp.as_deref(), &fp_input);
 
                 if should_purge {
                     info!(

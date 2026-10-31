@@ -2758,6 +2758,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/models/embedding-support": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/models/embedding-support`: may this workspace embed images with this pair?
+         * @description SPEC-180 08 + 11: the model step asks before the user walks to Review. The answer is the
+         *     same probe create enforces, so the inline reason cannot disagree with the refusal.
+         */
+        get: operations["get_embedding_support"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/models/health": {
         parameters: {
             query?: never;
@@ -6720,7 +6741,7 @@ export interface components {
          *     - `"gemma3:12b"` - auto-detects provider as "ollama"
          *     - `"ollama/gemma3:12b"` - explicit provider
          */
-        CreateWorkspaceApiRequest: components["schemas"]["ExtractionModeFieldsDto"] & {
+        CreateWorkspaceApiRequest: components["schemas"]["ExtractionModeFieldsDto"] & components["schemas"]["RagProfileFieldsDto"] & {
             /**
              * Format: int32
              * @description SPEC-116: fixed overlap tokens (default 100).
@@ -7281,8 +7302,11 @@ export interface components {
          * @example {
          *       "date_from": {},
          *       "date_to": {},
+         *       "doc_kinds": [],
          *       "document_ids": [],
-         *       "document_pattern": {}
+         *       "document_pattern": {},
+         *       "mime_types": [],
+         *       "source_modalities": []
          *     }
          */
         DocumentFilter: {
@@ -7296,6 +7320,11 @@ export interface components {
              *     Only documents created on or before this date are included.
              */
             date_to?: string | null;
+            /**
+             * @description SPEC-180: keep chunks of these document kinds (`pdf`, `image`, `markdown`,
+             *     `text`, `office`, `other`). Normal workspaces only.
+             */
+            doc_kinds?: string[] | null;
             /**
              * @description Explicit document IDs to restrict query scope.
              *
@@ -7315,6 +7344,10 @@ export interface components {
              *     Example: "report,summary" matches documents containing "report" OR "summary".
              */
             document_pattern?: string | null;
+            /** @description SPEC-180: keep chunks of documents with these MIME types (exact, case-insensitive). */
+            mime_types?: string[] | null;
+            /** @description SPEC-180: keep chunks of this source modality (`text` or `image`). */
+            source_modalities?: string[] | null;
         };
         /**
          * @description Graph lineage summary for a document.
@@ -7824,6 +7857,35 @@ export interface components {
             status: components["schemas"]["ConnectionStatus"];
             /** @description Provider type (always "embedding") */
             type: string;
+        };
+        /**
+         * @description Answer to "may this workspace embed images with this pair, here?" (SPEC-180 08).
+         *
+         *     `ok = false` carries the same code and words create would return, so the model step can
+         *     explain itself before the user reaches Review.
+         * @example {
+         *       "code": {},
+         *       "eligible": {},
+         *       "embeds_images": {},
+         *       "message": {},
+         *       "model": {},
+         *       "multimodal": {},
+         *       "provider": {}
+         *     }
+         */
+        EmbeddingSupportResponse: {
+            /** @description Stable code when `ok` is false (`embedding_auth`, `embedding_model_not_multimodal`, …). */
+            code?: string | null;
+            /** @description The pair is eligible for the embedding usage at this scope. */
+            eligible: boolean;
+            /** @description A live image embed succeeded. `null` when the pair needs no such probe. */
+            embeds_images?: boolean | null;
+            /** @description One sentence naming the fix. */
+            message?: string | null;
+            model: string;
+            /** @description The catalog says the model reads images. */
+            multimodal: boolean;
+            provider: string;
         };
         /**
          * @example {
@@ -12422,6 +12484,25 @@ export interface components {
             ok: boolean;
         };
         /**
+         * @description Capability booleans the UI reads. The UI never re-derives the matrix (10-api-contract).
+         * @example {
+         *       "allows_graph_modes": {},
+         *       "embeds_images": {},
+         *       "extracts_graph": {},
+         *       "queries_graph": {},
+         *       "shows_graph_ui": {},
+         *       "writes_bm25": {}
+         *     }
+         */
+        ProfileCapabilitiesDto: {
+            allows_graph_modes: boolean;
+            embeds_images: boolean;
+            extracts_graph: boolean;
+            queries_graph: boolean;
+            shows_graph_ui: boolean;
+            writes_bm25: boolean;
+        };
+        /**
          * @example {
          *       "attribution_support": {},
          *       "body_fields": [],
@@ -13356,6 +13437,42 @@ export interface components {
              * @description Worker utilization percentage (0-100).
              */
             worker_utilization: number;
+        };
+        /**
+         * @description Request fragment. Every field is optional. On create, absent means the default.
+         *     On update, **presence** is the error (409): the profile never changes.
+         * @example {
+         *       "embedding_modalities": {},
+         *       "fts_regconfig": {},
+         *       "rag_profile": {}
+         *     }
+         */
+        RagProfileFieldsDto: {
+            /** @description `text` (default) or `text,image`. Immutable. `text,image` needs `normal`. */
+            embedding_modalities?: string | null;
+            /** @description `english` (default), `simple`, `french`, `german` or `spanish`. Immutable. */
+            fts_regconfig?: string | null;
+            /** @description `graph` (default) or `normal`. Immutable after create. */
+            rag_profile?: string | null;
+        };
+        /**
+         * @description Response fragment.
+         * @example {
+         *       "embedding_modalities": {},
+         *       "fts_regconfig": {},
+         *       "rag_profile": {},
+         *       "rag_profile_capabilities": {}
+         *     }
+         */
+        RagProfileView: {
+            /** @description `text` or `text,image`. */
+            embedding_modalities: string;
+            /** @description Text-search configuration of the BM25 index. */
+            fts_regconfig: string;
+            /** @description `graph` or `normal`. */
+            rag_profile: string;
+            /** @description Read-only booleans for the UI. */
+            rag_profile_capabilities: components["schemas"]["ProfileCapabilitiesDto"];
         };
         /**
          * @example {
@@ -16062,7 +16179,7 @@ export interface components {
          *     Changing LLM provider/model is safe and takes effect immediately for new ingestions.
          *     Changing embedding provider/model requires rebuilding vectors (use rebuild-embeddings endpoint).
          */
-        UpdateWorkspaceApiRequest: components["schemas"]["ExtractionModeFieldsDto"] & {
+        UpdateWorkspaceApiRequest: components["schemas"]["ExtractionModeFieldsDto"] & components["schemas"]["RagProfileFieldsDto"] & {
             /** Format: int32 */
             chunk_overlap_token_size?: number | null;
             /** Format: int32 */
@@ -16387,7 +16504,7 @@ export interface components {
          *
          *     Includes full model configuration (SPEC-032) for transparency.
          */
-        WorkspaceResponse: components["schemas"]["ExtractionModeView"] & {
+        WorkspaceResponse: components["schemas"]["ExtractionModeView"] & components["schemas"]["RagProfileView"] & {
             /** Format: int32 */
             chunk_overlap_token_size?: number | null;
             /** Format: int32 */
@@ -21579,6 +21696,53 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["EmbeddingModelsResponse"];
                 };
+            };
+        };
+    };
+    get_embedding_support: {
+        parameters: {
+            query: {
+                /** @description Embedding provider slug */
+                provider: string;
+                /** @description Embedding model id */
+                model: string;
+                /** @description Width to probe; the card's width by default */
+                dimension?: number;
+                /** @description Tenant scope */
+                tenant_id?: string;
+                /** @description Workspace scope */
+                workspace_id?: string;
+                /** @description deployment */
+                scope?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether the pair can embed images here */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmbeddingSupportResponse"];
+                };
+            };
+            /** @description Zero or two scopes */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Caller cannot read this scope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

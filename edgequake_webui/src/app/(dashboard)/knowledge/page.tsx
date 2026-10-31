@@ -9,6 +9,7 @@
 
 import { PageShell } from '@/components/shared/page-shell';
 import { PageHeader } from '@/components/shared/page-header';
+import { RequiresGraph } from '@/components/workspace/requires-graph';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -72,7 +73,7 @@ async function pollForCompletion(
   }
 }
 
-export default function KnowledgePage() {
+function KnowledgeInjectionPage() {
   const { selectedWorkspaceId } = useTenantContext();
   const { data, isLoading } = useInjections(selectedWorkspaceId);
   const queryClient = useQueryClient();
@@ -426,5 +427,14 @@ export default function KnowledgePage() {
       )}
     </PageShell>
     </ScrollArea>
+  );
+}
+
+/** SPEC-180: injection feeds the knowledge graph, so a normal workspace gets an explanation. */
+export default function KnowledgePage() {
+  return (
+    <RequiresGraph>
+      <KnowledgeInjectionPage />
+    </RequiresGraph>
   );
 }

@@ -21,7 +21,16 @@ import {
   type IngestionRunView,
 } from "@/lib/pipeline/ingestion-run-view";
 import {
+  activeProfilePhase,
+  isStageOutsideProfile,
+  phasesForProfile,
+  type ProfilePhase,
+  type ProfilePhaseId,
+} from "@/lib/pipeline/profile-phases";
+import type { RagProfile } from "@/constants/rag-profile";
+import {
   buildPhaseSegments,
+  buildProfileSegments,
   phaseSegmentStatus,
   type PhaseSegment,
   type PhaseSegmentStatus,
@@ -74,11 +83,20 @@ export interface PhaseStripProps {
   run: IngestionRunView;
   /** Present ⇒ segmented progress look; absent ⇒ plain chips. */
   progress?: PhaseStripProgress;
+  /**
+   * SPEC-180: the workspace profile. A `normal` (classical RAG) ingest has no extraction
+   * phase, so it is never painted with one. Defaults to `graph` for older call sites.
+   */
+  profile?: RagProfile;
   className?: string;
 }
 
-/** The bar under one phase label. */
-function SegmentTrack({ segment }: { segment: PhaseSegment }) {
+/** The bar under one phase label. Takes only what it paints, for either profile shape. */
+function SegmentTrack({
+  segment,
+}: {
+  segment: Pick<PhaseSegment, "status" | "fillPct" | "indeterminate">;
+}) {
   const { status, fillPct, indeterminate } = segment;
   const isActive = status === "active";
   return (
@@ -115,18 +133,25 @@ function SegmentTrack({ segment }: { segment: PhaseSegment }) {
 
 function PhaseLabel({
   phase,
+  label,
+  hint,
   status,
   wireStage,
   chip,
   summary,
 }: {
-  phase: (typeof PHASE_STRIP_ORDER)[number];
+  phase: ProfilePhaseId;
+  /** Profile-specific label; GraphRAG has Extract, classical RAG does not. */
+  label: string;
+  /** One sentence describing what this phase produces for this profile. */
+  hint: string;
   status: PhaseSegmentStatus;
   wireStage: string;
   /** Chips keep their pill background; segmented labels stay flat. */
   chip: boolean;
   summary?: string | null;
 }) {
+  const description = summary ? `${label}: ${summary}` : `${label} — ${hint}`;
   return (
     <span
       className={cn(
@@ -147,13 +172,9 @@ function PhaseLabel({
       data-state={status}
       data-wire-stage={wireStage}
       data-summary={summary ?? undefined}
-      title={summary ? `${PHASE_STRIP_LABELS[phase]}: ${summary}` : PHASE_STRIP_LABELS[phase]}
+      title={description}
       aria-current={status === "active" ? "step" : undefined}
-      aria-label={
-        summary
-          ? `${PHASE_STRIP_LABELS[phase]}: ${summary}`
-          : PHASE_STRIP_LABELS[phase]
-      }
+      aria-label={description}
     >
       <span
         className={cn(
@@ -162,7 +183,7 @@ function PhaseLabel({
           status === "active" && "motion-reduce:animate-none",
         )}
       />
-      <span className="min-w-0 truncate">{PHASE_STRIP_LABELS[phase]}</span>
+      <span className="min-w-0 truncate">{label}</span>
     </span>
   );
 }
@@ -184,19 +205,36 @@ function WireMarkers({ run }: { run: IngestionRunView }) {
   );
 }
 
-export function PhaseStrip({ run, progress, className }: PhaseStripProps) {
-  const active = mapWireStageToPhase(run.stage);
+export function PhaseStrip({ run, progress, profile = "graph", className }: PhaseStripProps) {
+  const profilePhases = phasesForProfile(profile);
+  // The profile decides which phases exist. `activeIndex` is the honest position: a
+  // graph-only stage reported on a normal workspace lands on that profile's last phase
+  // rather than resetting the strip to the beginning.
+  const activeId: ProfilePhaseId = activeProfilePhase(profile, run.stage);
+  const activeIndex = profilePhases.findIndex((phase) => phase.id === activeId);
   const failed = run.stageStatus === "failed" || run.stage === "failed";
+  const outsideProfile = isStageOutsideProfile(profile, run.stage);
+  const statusOf = (index: number): PhaseSegmentStatus => {
+    if (failed && index === activeIndex) return "failed";
+    if (index < activeIndex) return "done";
+    if (index === activeIndex) return "active";
+    return "pending";
+  };
 
   if (progress) {
-    const segments = buildPhaseSegments(run, progress.stagePct);
+    const segments = buildProfileSegments(run, progress.stagePct, {
+      phases: profilePhases,
+      activeIndex,
+    });
     return (
       <div
         className={cn("eq-metric-grid sm:gap-2", className)}
         data-testid="spec091-phase-strip"
         data-variant="segmented"
         data-wire-stage={run.stage}
-        data-phase={active}
+        data-phase={activeId}
+        data-profile={profile}
+        data-outside-profile={outsideProfile ? "true" : undefined}
       >
         {segments.map((segment) => (
           <div
@@ -210,6 +248,8 @@ export function PhaseStrip({ run, progress, className }: PhaseStripProps) {
           >
             <PhaseLabel
               phase={segment.phase}
+              label={segment.label}
+              hint={segment.hint}
               status={segment.status}
               wireStage={run.stage}
               chip={false}
@@ -230,10 +270,12 @@ export function PhaseStrip({ run, progress, className }: PhaseStripProps) {
       className={cn("flex flex-wrap items-center gap-1.5 text-xs", className)}
       data-testid="spec091-phase-strip"
       data-wire-stage={run.stage}
-      data-phase={active}
+      data-phase={activeId}
+      data-profile={profile}
+      data-outside-profile={outsideProfile ? "true" : undefined}
     >
-      {PHASE_STRIP_ORDER.map((phase, index) => (
-        <Fragment key={phase}>
+      {profilePhases.map((phase, index) => (
+        <Fragment key={phase.id}>
           {index > 0 ? (
             <ChevronRight
               className="h-3 w-3 shrink-0 text-muted-foreground/40"
@@ -241,8 +283,10 @@ export function PhaseStrip({ run, progress, className }: PhaseStripProps) {
             />
           ) : null}
           <PhaseLabel
-            phase={phase}
-            status={phaseSegmentStatus(phase, active, failed)}
+            phase={phase.id}
+            label={phase.label}
+            hint={phase.hint}
+            status={statusOf(index)}
             wireStage={run.stage}
             chip
           />

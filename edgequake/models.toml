@@ -2583,6 +2583,31 @@ output_per_1k = 0.0
 embedding_per_1k = 0.00001
 image_per_unit = 0.0
 
+[[providers.models]]
+name = "gemini-embedding-2"
+display_name = "Gemini Embedding 2 (Vertex, text + image)"
+model_type = "embedding"
+description = "Multimodal embedding on Vertex AI (text and images in one vector space). Dimensions 768, 1536 or 3072."
+deprecated = false
+tags = ["recommended", "embedding", "multimodal", "vertex"]
+
+[providers.models.capabilities]
+context_length = 8192
+max_output_tokens = 0
+# For an embedding card this flag means "embeds images" (SPEC-180 08).
+supports_vision = true
+supports_function_calling = false
+supports_json_mode = false
+supports_streaming = false
+supports_system_message = false
+embedding_dimension = 1536
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.00020
+image_per_unit = 0.0
+
 # =============================================================================
 # MOCK PROVIDER
 # =============================================================================

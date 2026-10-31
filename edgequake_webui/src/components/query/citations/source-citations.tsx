@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { calculateConfidence, getConfidenceLabel } from '@/lib/citations/confidence';
 import { chunksByDocument } from '@/lib/citations/group-passages';
 import type { OnDocumentClick } from '@/lib/citations/types';
+import { useWorkspaceCapabilities } from '@/hooks/use-workspace-capabilities';
 import { useSettingsStore } from '@/stores/use-settings-store';
 import type { QueryContext } from '@/types';
 import { BookOpen, Brain, ChevronDown, ChevronUp, FileText, Network } from 'lucide-react';
@@ -43,6 +44,8 @@ export function SourceCitations({
   openSignal = 0,
 }: SourceCitationsProps) {
   const { t } = useTranslation();
+  // SPEC-180: a workspace without a graph cites passages only: no Topics, no Graph tab.
+  const showsGraph = useWorkspaceCapabilities().shows_graph_ui;
   const [isExpanded, setIsExpanded] = useState(defaultOpen);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -97,16 +100,23 @@ export function SourceCitations({
           size="sm"
           className="w-full flex items-center justify-between text-muted-foreground hover:text-foreground py-2 h-auto"
           aria-expanded={isExpanded}
-          aria-label={t('query.citations.panelAria', 'Source citations: {{sources}} sources, {{topics}} topics, {{confidence}} confidence', {
-            sources: sourceCount,
-            topics: topicCount,
-            confidence: confidenceLabel,
-          })}
+          aria-label={
+            showsGraph
+              ? t('query.citations.panelAria', 'Source citations: {{sources}} sources, {{topics}} topics, {{confidence}} confidence', {
+                  sources: sourceCount,
+                  topics: topicCount,
+                  confidence: confidenceLabel,
+                })
+              : t('query.citations.panelAriaPassages', 'Source citations: {{sources}} sources, {{confidence}} confidence', {
+                  sources: sourceCount,
+                  confidence: confidenceLabel,
+                })
+          }
         >
           <span className="flex items-center gap-2">
             <BookOpen className="h-4 w-4" aria-hidden="true" />
             <span className="text-xs font-medium">
-              {sourceLabel} · {topicLabel}
+              {showsGraph ? `${sourceLabel} · ${topicLabel}` : sourceLabel}
             </span>
             <span className={`text-xs flex items-center gap-1.5 ${confidenceColor}`}>
               <ConfidenceDots score={confidence} />
@@ -127,6 +137,7 @@ export function SourceCitations({
       <CollapsibleContent className="mt-2 animate-in fade-in-0 slide-in-from-top-1 duration-200">
         <Card className="border-muted/50 shadow-sm">
           <CardContent className="p-3">
+            {showsGraph ? (
             <Tabs defaultValue="documents" className="w-full">
               <TabsList className="grid w-full grid-cols-3 h-9 mb-3">
                 <TabsTrigger
@@ -188,6 +199,13 @@ export function SourceCitations({
                 />
               </TabsContent>
             </Tabs>
+            ) : (
+              <DocumentsTab
+                chunksByDocument={groupedChunks}
+                fullChunkContent={fullChunkContent}
+                onDocumentClick={onDocumentClick}
+              />
+            )}
           </CardContent>
         </Card>
       </CollapsibleContent>

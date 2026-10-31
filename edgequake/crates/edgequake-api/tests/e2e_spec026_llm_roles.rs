@@ -37,6 +37,9 @@ fn workspace_with_roles() -> Workspace {
         vision_llm_model: None,
         vision_llm_provider: None,
         pdf_parser_backend: None,
+        rag_profile: Default::default(),
+        embedding_modalities: Default::default(),
+        fts_regconfig: Default::default(),
     }
 }
 

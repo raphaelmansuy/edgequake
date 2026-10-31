@@ -9,7 +9,8 @@ use std::sync::Arc;
 use edgequake_core::WorkspaceService;
 use edgequake_pipeline::extractor::decision::DecisionRuntime;
 use edgequake_pipeline::{
-    build_ingestion_pipeline, ExtractionMode, IngestionPipelineOptions, Pipeline,
+    build_chunk_only_pipeline, build_ingestion_pipeline, ExtractionMode, IngestionPipelineOptions,
+    Pipeline,
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
@@ -142,6 +143,14 @@ impl WorkspacePipelineFactory {
             .ok()
             .flatten();
 
+        // SPEC-180: a normal workspace never extracts. Decide before any mode is resolved,
+        // so extraction_mode, env profile and gleaning cannot reach it (LAW-180-2, EC-180-31).
+        if !ws.capabilities().extracts_graph {
+            return self
+                .resolve_normal_pipeline(&ws, tenant.as_ref(), options)
+                .await;
+        }
+
         // SPEC-160: resolve the mode first. A mode error never falls back (LAW-160-4).
         let resolved_mode = resolve_mode(&ws, &options)?;
         if resolved_mode.mode == ExtractionMode::Decision {
@@ -190,31 +199,7 @@ impl WorkspacePipelineFactory {
         // SPEC-123: embedding via SSOT (metadata gate + tenant), not painted DTO alone.
         let emb =
             edgequake_core::resolve_embedding_choice(None, None, None, Some(&ws), tenant.as_ref());
-        let embedding_provider = {
-            #[cfg(feature = "postgres")]
-            let from_conn = if let (Some(raw), Some(pool)) = (
-                edgequake_core::metadata_connection_id(&ws, "embedding"),
-                self.pg_pool.as_ref(),
-            ) {
-                crate::providers::connection_store::embedding_from_pool(
-                    pool,
-                    &raw,
-                    &emb.model,
-                    emb.dimension,
-                )
-                .await
-            } else {
-                None
-            };
-            #[cfg(not(feature = "postgres"))]
-            let from_conn: Option<
-                std::sync::Arc<dyn edgequake_llm::EmbeddingProvider>,
-            > = None;
-            match from_conn {
-                Some(provider) => Ok(provider),
-                None => create_safe_embedding_provider(&emb.provider, &emb.model, emb.dimension),
-            }
-        };
+        let embedding_provider = self.embedding_provider_for(&ws, &emb).await;
 
         match (llm_provider, embedding_provider) {
             (Ok(llm), Ok(embedding)) => {
@@ -373,6 +358,66 @@ impl WorkspacePipelineFactory {
                 )
             }
         }
+    }
+
+    /// Embedding provider of a workspace: its connection first, then the safe factory.
+    /// Shared by the graph and the normal pipelines (DRY, SPEC-123).
+    async fn embedding_provider_for(
+        &self,
+        ws: &edgequake_core::Workspace,
+        emb: &edgequake_core::ResolvedEmbedding,
+    ) -> Result<Arc<dyn edgequake_llm::EmbeddingProvider>, String> {
+        #[cfg(feature = "postgres")]
+        let from_conn = if let (Some(raw), Some(pool)) = (
+            edgequake_core::metadata_connection_id(ws, "embedding"),
+            self.pg_pool.as_ref(),
+        ) {
+            crate::providers::connection_store::embedding_from_pool(
+                pool,
+                &raw,
+                &emb.model,
+                emb.dimension,
+            )
+            .await
+        } else {
+            None
+        };
+        #[cfg(not(feature = "postgres"))]
+        let from_conn: Option<Arc<dyn edgequake_llm::EmbeddingProvider>> = {
+            let _ = ws;
+            None
+        };
+        match from_conn {
+            Some(provider) => Ok(provider),
+            None => create_safe_embedding_provider(&emb.provider, &emb.model, emb.dimension)
+                .map_err(|e| e.to_string()),
+        }
+    }
+
+    /// SPEC-180: the pipeline of a `normal` workspace. It never reads the chat LLM and a
+    /// provider failure is a mode error, never a fallback to the global graph pipeline.
+    async fn resolve_normal_pipeline(
+        &self,
+        ws: &edgequake_core::Workspace,
+        tenant: Option<&edgequake_core::Tenant>,
+        options: IngestionPipelineOptions,
+    ) -> Result<Arc<Pipeline>, String> {
+        let emb = edgequake_core::resolve_embedding_choice(None, None, None, Some(ws), tenant);
+        let embedding = self.embedding_provider_for(ws, &emb).await.map_err(|e| {
+            crate::workspace_pipeline_decision::mode_error(
+                "embedding_provider_unavailable",
+                e,
+                "provider_misconfigured",
+            )
+        })?;
+        info!(
+            workspace_id = %ws.workspace_id,
+            embedding_provider = %emb.provider,
+            embedding_model = %emb.model,
+            "Resolved normal-RAG (chunk-only) ingestion pipeline"
+        );
+        let options = with_workspace_chunking(options, ws);
+        Ok(Arc::new(build_chunk_only_pipeline(embedding, options)))
     }
 
     fn handle_failure(

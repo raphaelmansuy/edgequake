@@ -13,6 +13,7 @@
 // Key stats card (sticky at top of sidebar)
 'use client';
 
+import { useWorkspaceCapabilities } from '@/hooks/use-workspace-capabilities';
 import { cn } from '@/lib/utils';
 import type { Document } from '@/types';
 import { Clock, FileText, Link2, Network } from 'lucide-react';
@@ -22,6 +23,9 @@ interface KeyStatsProps {
 }
 
 export function KeyStats({ document }: KeyStatsProps) {
+  // SPEC-180: a chunk-only (classical RAG) workspace has no entities or relationships. Two
+  // permanent "0" cards imply an extraction that failed; they simply do not apply.
+  const extractsGraph = useWorkspaceCapabilities().extracts_graph;
   return (
     <div className="eq-metric-grid gap-2">
       <StatCard
@@ -29,24 +33,32 @@ export function KeyStats({ document }: KeyStatsProps) {
         label="Chunks"
         value={document.chunk_count ?? '-'}
         color="blue"
+        testId="key-stats-chunks"
       />
-      <StatCard
-        icon={<Network className="h-4 w-4" />}
-        label="Entities"
-        value={document.entity_count ?? '-'}
-        color="purple"
-      />
-      <StatCard
-        icon={<Link2 className="h-4 w-4" />}
-        label="Relations"
-        value={document.relationship_count ?? '-'}
-        color="green"
-      />
+      {extractsGraph ? (
+        <>
+          <StatCard
+            icon={<Network className="h-4 w-4" />}
+            label="Entities"
+            value={document.entity_count ?? '-'}
+            color="purple"
+            testId="key-stats-entities"
+          />
+          <StatCard
+            icon={<Link2 className="h-4 w-4" />}
+            label="Relations"
+            value={document.relationship_count ?? '-'}
+            color="green"
+            testId="key-stats-relations"
+          />
+        </>
+      ) : null}
       <StatCard
         icon={<Clock className="h-4 w-4" />}
         label="Processed"
         value={formatDuration(document.lineage?.processing_duration_ms)}
         color="orange"
+        testId="key-stats-processed"
       />
     </div>
   );
@@ -57,9 +69,10 @@ interface StatCardProps {
   label: string;
   value: string | number;
   color: 'blue' | 'purple' | 'green' | 'orange';
+  testId?: string;
 }
 
-function StatCard({ icon, label, value, color }: StatCardProps) {
+function StatCard({ icon, label, value, color, testId }: StatCardProps) {
   const colorClasses = {
     blue: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900',
     purple: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-900',
@@ -69,6 +82,7 @@ function StatCard({ icon, label, value, color }: StatCardProps) {
 
   return (
     <div 
+      data-testid={testId}
       className={cn(
         'flex min-w-0 flex-col gap-1 overflow-hidden p-2.5 rounded-lg border bg-card',
         'transition-all duration-200 ease-out cursor-default',

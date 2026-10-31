@@ -13,6 +13,7 @@ export type SortField =
   | "title"
   | "status"
   | "entity_count"
+  | "chunk_count"
   | "cost_usd";
 
 export type SortDirection = "asc" | "desc";
@@ -23,6 +24,7 @@ export const DOCUMENT_SORT_FIELDS: readonly SortField[] = [
   "title",
   "status",
   "entity_count",
+  "chunk_count",
   "cost_usd",
 ] as const;
 
@@ -81,6 +83,8 @@ export function documentSortValue(
       return (doc.status || "").toLowerCase();
     case "entity_count":
       return doc.entity_count ?? doc.chunk_count ?? 0;
+    case "chunk_count":
+      return doc.chunk_count ?? 0;
     case "cost_usd":
       return doc.cost_usd ?? 0;
   }

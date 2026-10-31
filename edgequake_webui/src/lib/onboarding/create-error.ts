@@ -38,6 +38,33 @@ const BY_CODE: Record<string, Omit<CreateFailure, 'description'> & { description
     description: 'Ask a deployment admin to fix the connection, or pick another provider.',
     step: MODEL_STEP,
   },
+  embedding_model_not_multimodal: {
+    title: 'The embedding model cannot read images',
+    description: 'Pick an embedding model that accepts images, or choose Text only.',
+    step: MODEL_STEP,
+  },
+  /**
+   * SPEC-180 11 "Create probe failing": the deployment cannot call the image embedding
+   * model (usually a project the identity has no access to). The fix lives on the model
+   * step, so the wizard goes back there instead of leaving the user on Review with a
+   * vendor stack trace.
+   */
+  embedding_auth: {
+    title: 'This deployment cannot embed images yet',
+    description:
+      'The image embedding call was refused. Choose a different image embedding model, or ask a deployment admin to fix the provider credentials.',
+    step: MODEL_STEP,
+  },
+  embedding_request_failed: {
+    title: 'The embedding model did not answer',
+    description: 'The provider could not be reached. Try again, or pick another embedding model.',
+    step: MODEL_STEP,
+  },
+  image_too_large: {
+    title: 'The probe image was rejected',
+    description: 'The embedding endpoint refused the image. Check its size limits.',
+    step: MODEL_STEP,
+  },
   offer_unavailable: {
     title: 'Provider choices are unavailable right now',
     description: 'Nothing was created. Try again in a moment.',
@@ -46,7 +73,14 @@ const BY_CODE: Record<string, Omit<CreateFailure, 'description'> & { description
 
 export function describeCreateFailure(error: unknown): CreateFailure {
   const code = (error as { code?: string } | null)?.code;
-  const message = error instanceof Error ? error.message : '';
+  // The API client throws an `Error`; a test or a plain rejection may carry `message` alone.
+  const asObject = error as { message?: unknown } | null;
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof asObject?.message === 'string'
+        ? asObject.message
+        : '';
   const known = code ? BY_CODE[code] : undefined;
   if (known) {
     return {

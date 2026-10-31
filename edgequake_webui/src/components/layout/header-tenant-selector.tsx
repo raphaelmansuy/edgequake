@@ -24,6 +24,7 @@ import {
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
+import { OPEN_CREATE_WORKSPACE_EVENT } from '@/lib/workspace/create-workspace-event';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -79,6 +80,13 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
   useEffect(() => {
     initializeFromStorage();
   }, [initializeFromStorage]);
+
+  // Other screens ask for the wizard through one event (SPEC-180 no-graph empty state).
+  useEffect(() => {
+    const open = () => setShowCreateWorkspace(true);
+    window.addEventListener(OPEN_CREATE_WORKSPACE_EVENT, open);
+    return () => window.removeEventListener(OPEN_CREATE_WORKSPACE_EVENT, open);
+  }, []);
 
   const { data: tenantsData, isLoading: isLoadingTenants } = useQuery({
     queryKey: ['tenants'],

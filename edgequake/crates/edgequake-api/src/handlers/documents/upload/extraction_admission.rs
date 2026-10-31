@@ -7,6 +7,7 @@
 
 use std::collections::HashMap;
 
+use edgequake_core::Workspace;
 use edgequake_pipeline::extractor::decision::gate::META_DECISION_GATE_PRESET;
 use edgequake_pipeline::extractor::decision::settings::parse_gate_preset_override;
 use edgequake_pipeline::extractor::decision::{DecisionError, DecisionRuntime, GatePreset};
@@ -17,6 +18,7 @@ use edgequake_pipeline::{
 use serde_json::{json, Map, Value};
 
 use crate::error::{ApiError, ApiResult};
+use crate::services::workspace_profile::load_workspace;
 use crate::state::AppState;
 
 /// Raw upload words, before validation.
@@ -169,8 +171,21 @@ pub async fn admit_extraction(
     workspace_id: &str,
     upload: &UploadExtraction,
 ) -> ApiResult<AdmittedExtraction> {
+    let workspace = load_workspace(state, workspace_id).await;
+    let caps = workspace
+        .as_ref()
+        .map(Workspace::capabilities)
+        .unwrap_or_default();
+    // SPEC-180: a normal workspace builds no graph, so no mode applies (400, not 422).
+    caps.check_extraction_mode(upload.mode.as_deref())?;
+    if !caps.extracts_graph {
+        return Ok(AdmittedExtraction {
+            mode: ExtractionMode::Llm,
+            source: ExtractionModeSource::Default,
+        });
+    }
     let parsed = upload.parse()?;
-    let ws_meta = workspace_metadata(state, workspace_id).await;
+    let ws_meta = workspace.map(|ws| ws.metadata).unwrap_or_default();
     let ws_word = extraction_mode_from_metadata(&ws_meta);
     let doc_word = parsed.mode.map(|m| m.as_str());
     let resolved = resolve_extraction_mode_from_env(doc_word, ws_word.as_deref())
@@ -182,16 +197,6 @@ pub async fn admit_extraction(
         mode: resolved.mode,
         source: resolved.source,
     })
-}
-
-async fn workspace_metadata(state: &AppState, workspace_id: &str) -> HashMap<String, Value> {
-    let Some(uuid) = crate::middleware::resolve_workspace_uuid(Some(workspace_id)) else {
-        return HashMap::new();
-    };
-    match state.workspace_service.get_workspace(uuid).await {
-        Ok(Some(ws)) => ws.metadata,
-        _ => HashMap::new(),
-    }
 }
 
 async fn check_decision_backend(

@@ -168,6 +168,7 @@ Two searches run over the same chunks. The fused list is the result.
 
 - It builds a keyword candidate pool of `max_chunks` x 5 (default 20 x 5 = 100). The multiplier is `EDGEQUAKE_BM25_CANDIDATE_MULTIPLIER`, range 2 to 20.
 - Results scoring below `min_score` (default 0.1, `EDGEQUAKE_MIN_ENTITY_SCORE`) are dropped.
+- On a Normal RAG workspace (SPEC-180) the fusion is fixed to the dense and keyword lists. Their reciprocal-rank weights are `EDGEQUAKE_NORMAL_DENSE_WEIGHT` (default 1.0) and `EDGEQUAKE_NORMAL_BM25_WEIGHT` (default 1.25). Before those legs run, the question is rewritten (`EDGEQUAKE_NORMAL_QUERY_REWRITE`, default on; a timeout or a bad completion keeps the original). After rerank, near-duplicate chunks are dropped with MMR (`EDGEQUAKE_NORMAL_MMR`, default on). A hermetic check of the two legs writes `target/spec180-normal-hybrid.json`; the live number is `make bench`.
 - The keyword search is on by default. `EDGEQUAKE_BM25_RETRIEVAL=false` turns it off. On PostgreSQL it uses full-text ranking (`ts_rank_cd`), which is close to but not the same as BM25. The in-memory adapter uses real BM25.
 - By default the fused order follows the keyword hits (`EDGEQUAKE_SPARSE_FUSION=sparse_first`). Set it to `rrf` to blend ranks instead.
 - If the question mentions charts or figures, chart chunks may be preferred.

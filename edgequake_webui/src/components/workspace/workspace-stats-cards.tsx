@@ -7,6 +7,7 @@ import { resolveWorkspaceStatCounts } from "@/lib/workspace/stats-display";
 import type { Workspace } from "@/types";
 import { Database, FileText, GitBranch, Layers } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { capabilitiesOf } from "@/constants/rag-profile";
 
 export interface WorkspaceStatsCardsProps {
   workspace: Workspace;
@@ -21,6 +22,7 @@ export function WorkspaceStatsCards({
 }: WorkspaceStatsCardsProps) {
   const { t } = useTranslation();
   const counts = resolveWorkspaceStatCounts(stats, workspace);
+  const showsGraph = capabilitiesOf(workspace).shows_graph_ui;
 
   const items = [
     {
@@ -58,10 +60,12 @@ export function WorkspaceStatsCards({
       footer: null,
     },
   ] as const;
+  // SPEC-180: a normal workspace has no entities to count, so the tiles are not drawn.
+  const visible = items.filter((item) => showsGraph || (item.key !== "entities" && item.key !== "relationships"));
 
   return (
-    <StatStrip>
-      {items.map(({ key, icon: Icon, label, value, footer }) => (
+    <StatStrip className={showsGraph ? undefined : "lg:grid-cols-2"}>
+      {visible.map(({ key, icon: Icon, label, value, footer }) => (
         <div key={key} className="flex min-w-0 flex-col bg-card px-4 py-3.5">
           <p className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
             <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />

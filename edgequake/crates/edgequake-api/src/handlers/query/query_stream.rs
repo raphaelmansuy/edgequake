@@ -4,7 +4,7 @@
 //! @implements FEAT0404 (Query Streaming Endpoint)
 //! @implements SPEC-006 (Unified Streaming Response)
 
-use axum::{extract::State, response::sse::Event, response::Response, Extension, Json};
+use axum::{extract::State, response::sse::Event, response::Response, Extension};
 use edgequake_observability::{
     record_llm_request, record_query_completed, record_query_root_io, scope_llm_provider,
     stamp_query_langfuse_identity, ErrorEvent, PropagationHeaders, QueryFailureGuard,
@@ -61,7 +61,7 @@ type BoxedSseStream = Pin<Box<dyn futures::Stream<Item = Result<Event, Infallibl
 )]
 #[tracing::instrument(
     name = "query_stream",
-    skip(state, tenant_ctx, propagation, request),
+    skip(state, tenant_ctx, propagation, body),
     fields(
         request_id = %req_ctx.request_id,
         query.mode = tracing::field::Empty,
@@ -75,8 +75,12 @@ pub async fn stream_query(
     OptionalAuth(auth_user): OptionalAuth,
     Extension(req_ctx): Extension<RequestContext>,
     Extension(propagation): Extension<PropagationHeaders>,
-    Json(request): Json<StreamQueryRequest>,
+    body: super::json_or_image::JsonOrImage<StreamQueryRequest>,
 ) -> ApiResult<Response> {
+    let super::json_or_image::JsonOrImage {
+        body: request,
+        image: query_image,
+    } = body;
     let mode = request
         .mode
         .as_ref()
@@ -96,7 +100,9 @@ pub async fn stream_query(
         "Executing streaming query with tenant context"
     );
 
-    validate_query(&request.query, state.config.max_query_length)?;
+    if query_image.is_none() || !request.query.trim().is_empty() {
+        validate_query(&request.query, state.config.max_query_length)?;
+    }
     ensure_debug_granularity_allowed(
         request.content_granularity,
         auth_user.as_ref().map(|u| u.role.clone()),
@@ -115,6 +121,10 @@ pub async fn stream_query(
     // WHY: If the client explicitly names a workspace and it is invalid or
     // missing, returning a normal 200 stream would hide an isolation failure.
     let workspace = resolve_query_workspace(&state, tenant_ctx.workspace_id.as_deref()).await?;
+    crate::services::workspace_profile::ensure_mode_allowed(
+        workspace.as_ref(),
+        request.mode.as_deref(),
+    )?;
 
     // Use workspace's tenant_id for data queries, fall back to header tenant_id
     // only for the legacy no-workspace path.
@@ -206,6 +216,13 @@ pub async fn stream_query(
                 None,
             )
         },
+        normal_plan: crate::services::query_image::normal_plan(
+            workspace.as_ref(),
+            &request.query,
+            request.document_filter.as_ref(),
+            query_image.as_ref(),
+        )
+        .await?,
     };
     let engine_request = build_engine_request(&params);
 

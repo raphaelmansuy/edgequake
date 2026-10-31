@@ -3,6 +3,8 @@
 //! Fault injection via query string or `X-Fake-Mode` header:
 //! `ok` (default), `401`, `500`, `slow`, `wrong-dim`, `down`.
 
+pub mod embed_content;
+
 use axum::body::Body;
 use axum::extract::{Query, Request, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -52,7 +54,7 @@ fn mode_from(headers: &HeaderMap, q: &ModeQuery) -> String {
         .to_ascii_lowercase()
 }
 
-fn auth_ok(state: &FakeLlmState, headers: &HeaderMap) -> bool {
+pub(crate) fn auth_ok(state: &FakeLlmState, headers: &HeaderMap) -> bool {
     let Some(expected) = state.require_key.as_deref() else {
         return true;
     };
@@ -105,6 +107,10 @@ pub fn app(state: FakeLlmState) -> Router {
         .route("/api/version", get(ollama_version))
         .route("/api/chat", post(ollama_chat))
         .route("/api/embed", post(ollama_embed))
+        .route(
+            "/v1/projects/{project}/locations/{location}/publishers/google/models/{model_action}",
+            post(embed_content::embed_content),
+        )
         .layer(middleware::from_fn(fault_mw))
         .with_state(state)
 }

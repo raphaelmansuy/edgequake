@@ -7,6 +7,10 @@
 "use client";
 
 import { ContentRenderer } from "@/components/document/content-renderer";
+import {
+  DocumentImageViewer,
+  isImageDocument,
+} from "@/components/documents/document-image-viewer";
 import { PDFViewer } from "@/components/documents/pdf-viewer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getPdfDownloadUrl } from "@/lib/api/edgequake";
@@ -55,6 +59,16 @@ export function DocumentSourceView({
           onPageChange={setPage}
           documentId={document.id}
         />
+      </div>
+    );
+  }
+
+  // SPEC-180: an image document has no text body — its `content` is the file name. Show the
+  // picture, so a cited image is evidence and not a filename in a text pane.
+  if (isImageDocument(document)) {
+    return (
+      <div className="h-full min-h-0" data-testid="companion-source-image">
+        <DocumentImageViewer document={document} className="h-full" />
       </div>
     );
   }

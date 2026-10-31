@@ -232,7 +232,8 @@
       "preview": "Aperçu",
       "openGraph": "Ouvrir le graphe",
       "retry": "Réessayer",
-      "moreActions": "Plus d'actions"
+      "moreActions": "Plus d'actions",
+      "chunks": "Segments"
     },
     "actions": {
       "view": "Voir les détails",
@@ -325,7 +326,8 @@
       "contentCopied": "Contenu copié dans le presse-papiers",
       "actions": "Actions",
       "technicalDetails": "Détails techniques",
-      "retryable": "Réessayable"
+      "retryable": "Réessayable",
+      "image": "Image"
     },
     "delete": {
       "failed": "Échec de la suppression",
@@ -536,6 +538,20 @@
       "yearsAgo": "il y a {{count}} ans",
       "unchanged": "Inchangé depuis l'import",
       "neverModified": "non modifié depuis l'import"
+    },
+    "subtitleNormal": "Importez et gérez les documents pour la recherche",
+    "noDocumentsSubtitleNormal": "Importez des documents, des scans ou des images pour les rechercher",
+    "image": {
+      "label": "Image",
+      "download": "Télécharger l'original",
+      "failed": "L'image n'a pas pu être chargée",
+      "failedHint": "Elle est peut-être encore en cours de traitement, ou l'original n'est plus stocké. Réessayez ou retraitez le document.",
+      "fit": "Ajuster à la fenêtre",
+      "loading": "Chargement de l'image…",
+      "open": "Ouvrir en taille réelle",
+      "stage": "Aperçu de l'image. Utilisez plus et moins pour zoomer.",
+      "zoomIn": "Zoom avant",
+      "zoomOut": "Zoom arrière"
     }
   },
   "graph": {
@@ -796,7 +812,8 @@
       "topicCount": "{{count}} sujets",
       "openSource": "Ouvrir la source",
       "openSourcePage": "Ouvrir la source · {{page}}",
-      "openSourceAria": "Ouvrir la source {{index}} : {{title}}"
+      "openSourceAria": "Ouvrir la source {{index}} : {{title}}",
+      "panelAriaPassages": "Citations : {{sources}} sources, confiance {{confidence}}"
     },
     "history": {
       "title": "Historique",
@@ -870,7 +887,9 @@
     },
     "stats": {
       "entities": "entités",
-      "relationships": "relations"
+      "relationships": "relations",
+      "documents": "documents",
+      "chunks": "passages"
     },
     "stop": "Arrêter",
     "queued": "En file",
@@ -959,6 +978,37 @@
       "deselect": "Effacer la sélection",
       "expanded": "Voisins affichés",
       "expand": "Afficher les voisins"
+    },
+    "kinds": {
+      "groupLabel": "Types de documents",
+      "all": "Tous",
+      "pdf": "PDF",
+      "image": "Images",
+      "markdown": "Markdown",
+      "text": "Texte",
+      "office": "Office"
+    },
+    "searchByImage": {
+      "label": "Rechercher par image",
+      "remove": "Retirer l’image de recherche",
+      "defaultMessage": "Trouver des correspondances pour cette image"
+    },
+    "normalEmptyTitle": "Interrogez vos documents",
+    "normalEmptyDescription": "Je retrouve les passages qui répondent à votre question, je les cite et j'indique la page.",
+    "normalSuggestions": {
+      "0": "Que dit le manuel sur les remboursements ?",
+      "1": "Trouve le passage qui mentionne les délais",
+      "2": "Quels documents parlent de l'accueil des nouveaux ?",
+      "3": "Cite la section sur les exigences de sécurité"
+    },
+    "normalSubtitle": "Posez vos questions sur vos documents",
+    "normalEmptyNoDocs": "Aucun document — importez des documents et je répondrai à partir de leurs passages.",
+    "imageMatches": {
+      "title": "Images correspondantes",
+      "open": "Ouvrir l'image {{index}} : {{title}}",
+      "more": "+{{count}} de plus",
+      "unavailable": "Aucun aperçu",
+      "relevance": "Force de correspondance"
     }
   },
   "pipeline": {
@@ -1405,7 +1455,8 @@
       "futureOnlyHint": "Applies to future document ingestions. Use Rebuild Knowledge Graph to re-extract existing documents.",
       "typesRemappedToast": "Entity types updated to match extraction language. Applies to future ingestions.",
       "changedToast": "Extraction language updated. Reprocess documents to refresh the graph."
-    }
+    },
+    "llmConfigDescNormal": "Modèle qui rédige les réponses. Rien n'est extrait à l'ajout des documents."
   },
   "onboarding": {
     "stepOf": "Étape {{current}} sur {{total}}",
@@ -2138,5 +2189,74 @@
       "resetSubmit": "Définir le mot de passe et se connecter",
       "resetNote": "Définir un nouveau mot de passe vous déconnecte partout ailleurs."
     }
+  },
+  "ragProfile": {
+    "stepLabel": "Recherche",
+    "stepTitle": "Type de recherche",
+    "stepDescription": "Comment cet espace de travail trouve les réponses. Ce choix est définitif.",
+    "legend": "Type de recherche",
+    "graph": {
+      "title": "Graphe",
+      "summary": "Entités, relations et communautés.",
+      "detail": "Coût d’ingestion plus élevé. Mieux adapté aux questions à plusieurs étapes."
+    },
+    "normal": {
+      "title": "Normale",
+      "summary": "Embeddings et correspondance par mots-clés. Pas de graphe de connaissances.",
+      "detail": "Coût d’ingestion plus faible. Suffisant pour retrouver une information."
+    },
+    "evidence": {
+      "legend": "Contenu indexé",
+      "text": "Texte",
+      "textImage": "Texte et images",
+      "textImageHint": "Nécessite un modèle d’embedding qui accepte les images.",
+      "textImageNeedsNormal": "Disponible avec la recherche normale.",
+      "noImageModelHint": "Pas de modèle d'images disponible ?",
+      "useTextInstead": "Utiliser Texte uniquement"
+    },
+    "keywordLanguage": "Langue des mots-clés",
+    "keywordLanguageHint": "Utilisée par l’index de mots-clés pour découper et faire correspondre les mots.",
+    "language": {
+      "english": "Anglais",
+      "simple": "Toute langue (sans racinisation)",
+      "french": "Français",
+      "german": "Allemand",
+      "spanish": "Espagnol"
+    },
+    "permanent": "Ce choix est définitif. Pour utiliser l’autre type plus tard, créez un nouvel espace de travail.",
+    "blocked": {
+      "embeddingNotMultimodal": "Texte et images nécessite un modèle d’embedding qui accepte les images. Choisissez-en un pour continuer.",
+      "embeddingProbeFailed": "Ce déploiement ne peut pas vectoriser d'images avec ce modèle. Choisissez un autre modèle, ou demandez à un administrateur de corriger ses identifiants.",
+      "embeddingProbeChecking": "Vérification que ce déploiement peut vectoriser des images…"
+    },
+    "review": {
+      "retrieval": "Recherche",
+      "extraction": "Modèle d’extraction",
+      "off": "Désactivé",
+      "keywordIndex": "Index de mots-clés",
+      "keywordIndexOn": "Activé, {{language}}",
+      "permanent": "Ce choix est définitif. Pour utiliser l’autre type plus tard, créez un nouvel espace de travail et importez de nouveau vos documents."
+    },
+    "settings": {
+      "title": "Recherche",
+      "type": "Type",
+      "permanentGraph": "Définitif. Créez un nouvel espace de travail pour utiliser la recherche normale.",
+      "permanentNormal": "Définitif. Créez un nouvel espace de travail pour utiliser la recherche par graphe."
+    },
+    "noGraph": {
+      "title": "Cet espace de travail n’a pas de graphe de connaissances.",
+      "body": "Il retrouve l’information par embeddings et mots-clés.",
+      "documents": "Aller aux documents",
+      "newGraph": "Nouvel espace avec graphe"
+    },
+    "probe": {
+      "checking": "Vérification que ce déploiement peut vectoriser des images avec {{model}}…",
+      "failedTitle": "Ce déploiement ne peut pas vectoriser d'images avec ce modèle",
+      "failedBody": "Choisissez un autre modèle de vectorisation d'images, ou demandez à un administrateur de corriger ses identifiants.",
+      "pair": "Modèle : {{model}}",
+      "ok": "Ce déploiement peut vectoriser des images avec {{model}}.",
+      "thisModel": "ce modèle"
+    },
+    "noImageEmbedding": "Aucun modèle de vectorisation d'images n'est proposé ici. Demandez à un administrateur d'en proposer un (par exemple gemini-embedding-2 sur Vertex AI), ou revenez en arrière et choisissez Texte."
   }
 }

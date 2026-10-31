@@ -41,6 +41,7 @@ describe('wizard-state', () => {
       }),
     ).toEqual([
       'workspace-basics',
+      'retrieval',
       'models',
       'document-parsing',
       'chunking',
@@ -48,6 +49,16 @@ describe('wizard-state', () => {
       'extraction',
       'review',
     ]);
+  });
+
+  it('offers a normal workspace no extract-budget or extraction step', () => {
+    expect(
+      stepsForWizard('create-workspace', {
+        includeAdmin: false,
+        includeExtraction: true,
+        ragProfile: 'normal',
+      }),
+    ).toEqual(['workspace-basics', 'retrieval', 'models', 'document-parsing', 'chunking', 'review']);
   });
 
   it('disables review Apply when reconfigure has no config changes', () => {

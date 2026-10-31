@@ -97,6 +97,40 @@ pub struct EligibleModelsResponse {
     pub models: Vec<EligibleModelDto>,
 }
 
+/// Query string for `GET /models/embedding-support`. Exactly one scope.
+#[derive(Debug, Clone, Deserialize)]
+pub struct EmbeddingSupportQuery {
+    pub workspace_id: Option<uuid::Uuid>,
+    pub tenant_id: Option<uuid::Uuid>,
+    /// `deployment` selects the fleet offer. Any other value is `scope_required`.
+    pub scope: Option<String>,
+    /// Embedding pair to judge. Both are required.
+    pub provider: String,
+    pub model: String,
+    /// Width to probe at; the model card's width is used when omitted.
+    pub dimension: Option<usize>,
+}
+
+/// Answer to "may this workspace embed images with this pair, here?" (SPEC-180 08).
+///
+/// `ok = false` carries the same code and words create would return, so the model step can
+/// explain itself before the user reaches Review.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct EmbeddingSupportResponse {
+    pub provider: String,
+    pub model: String,
+    /// The pair is eligible for the embedding usage at this scope.
+    pub eligible: bool,
+    /// The catalog says the model reads images.
+    pub multimodal: bool,
+    /// A live image embed succeeded. `null` when the pair needs no such probe.
+    pub embeds_images: Option<bool>,
+    /// Stable code when `ok` is false (`embedding_auth`, `embedding_model_not_multimodal`, …).
+    pub code: Option<String>,
+    /// One sentence naming the fix.
+    pub message: Option<String>,
+}
+
 /// Parse a usage name, rejecting unknown names and rerank (not configurable in W2).
 pub fn parse_configurable_usage(name: &str) -> ApiResult<Usage> {
     let usage = Usage::from_wire(name.trim())

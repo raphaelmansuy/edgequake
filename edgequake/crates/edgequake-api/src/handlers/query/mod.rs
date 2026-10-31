@@ -53,6 +53,7 @@
 
 pub mod context;
 pub(crate) mod document_filter_resolver;
+pub mod json_or_image;
 mod query_execute;
 mod query_stream;
 pub(crate) mod workspace_resolve;
@@ -171,7 +172,7 @@ mod tests {
     use crate::middleware::TenantContext;
     use crate::state::AppState;
     use axum::extract::State;
-    use axum::{Extension, Json};
+    use axum::Extension;
     use edgequake_observability::{PropagationHeaders, RequestContext};
 
     fn no_auth() -> OptionalAuth {
@@ -224,7 +225,7 @@ mod tests {
             no_auth(),
             ctx,
             propagation,
-            Json(request),
+            json_or_image::JsonOrImage::text(request),
         )
         .await;
         assert!(result.is_err());
@@ -269,7 +270,7 @@ mod tests {
             no_auth(),
             ctx,
             propagation,
-            Json(request),
+            json_or_image::JsonOrImage::text(request),
         )
         .await;
         assert!(result.is_ok());
@@ -307,7 +308,7 @@ mod tests {
             no_auth(),
             ctx,
             propagation,
-            Json(request),
+            json_or_image::JsonOrImage::text(request),
         )
         .await;
         assert!(result.is_ok());
@@ -354,7 +355,7 @@ mod tests {
                 no_auth(),
                 ctx,
                 propagation,
-                Json(request),
+                json_or_image::JsonOrImage::text(request),
             )
             .await;
             assert!(result.is_ok(), "Mode '{}' should succeed", mode);
@@ -400,7 +401,7 @@ mod tests {
             no_auth(),
             ctx,
             propagation,
-            Json(request),
+            json_or_image::JsonOrImage::text(request),
         )
         .await;
         assert!(result.is_ok());
@@ -445,7 +446,7 @@ mod tests {
             no_auth(),
             ctx,
             propagation,
-            Json(request),
+            json_or_image::JsonOrImage::text(request),
         )
         .await;
         assert!(result.is_err());
@@ -483,7 +484,7 @@ mod tests {
             no_auth(),
             ctx,
             propagation,
-            Json(request),
+            json_or_image::JsonOrImage::text(request),
         )
         .await;
         assert!(result.is_err());

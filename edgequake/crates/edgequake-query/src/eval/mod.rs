@@ -9,6 +9,7 @@ pub mod golden_set;
 pub mod graphrag_corpus;
 pub mod graphrag_levels;
 pub mod metrics;
+pub mod normal_hybrid;
 
 pub use acc_at_n::{evaluate_acc_at_n_regression, load_acc_at_n_floors, AccAtNFloors, AccAtNPoint};
 pub use acc_harness::{
@@ -38,3 +39,4 @@ pub use graphrag_levels::{
     GraphRagBenchCaseResult, GraphRagBenchReport, GraphRagLevel,
 };
 pub use metrics::{context_entity_recall, keyword_recall_in_text};
+pub use normal_hybrid::{mean, mrr_at_k, ndcg_at_k, recall_at_k};

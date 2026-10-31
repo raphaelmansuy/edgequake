@@ -55,6 +55,24 @@ pub fn tools_list_for(profile: McpProfile) -> Value {
     })
 }
 
+/// SPEC-180: add `doc_kinds`, `mime_types` and `source_modalities` to a search tool, at the
+/// top level and inside `document_filter` when the tool declares its properties.
+fn with_kind_filters(mut tool: Value) -> Value {
+    let extra = crate::mcp::project::profile_gate::kind_filter_schema();
+    let Some(extra) = extra.as_object() else {
+        return tool;
+    };
+    for path in [
+        "/inputSchema/properties",
+        "/inputSchema/properties/document_filter/properties",
+    ] {
+        if let Some(props) = tool.pointer_mut(path).and_then(Value::as_object_mut) {
+            props.extend(extra.clone());
+        }
+    }
+    tool
+}
+
 fn annotations_ro() -> Value {
     json!({
         "readOnlyHint": true,
@@ -115,7 +133,7 @@ fn eq_document_list_tool() -> Value {
 }
 
 fn eq_search_tool() -> Value {
-    json!({
+    with_kind_filters(json!({
         "name": "eq_search",
         "description": "Search Graph-RAG; returns hits[] (handles) + retrieval_id. Modes: naive=dense chunks; local=entity neighborhood; global=themes; hybrid=local∪global; mix=fused+rerank (default). Prefer document_ids when the user names a paper. Do not use for listing documents.",
         "inputSchema": {
@@ -147,7 +165,7 @@ fn eq_search_tool() -> Value {
         },
         "outputSchema": envelope_output(),
         "annotations": annotations_ro()
-    })
+    }))
 }
 
 fn eq_fetch_tool() -> Value {
@@ -176,7 +194,7 @@ fn eq_fetch_tool() -> Value {
 }
 
 fn eq_retrieve_tool() -> Value {
-    json!({
+    with_kind_filters(json!({
         "name": "eq_retrieve",
         "description": "Sugar: eq_search then eq_fetch(view=chunks). Still returns hits so you can fetch more without re-searching. Prefer search→fetch for incremental work.",
         "inputSchema": {
@@ -200,7 +218,7 @@ fn eq_retrieve_tool() -> Value {
         },
         "outputSchema": envelope_output(),
         "annotations": annotations_ro()
-    })
+    }))
 }
 
 fn eq_entity_search_tool() -> Value {

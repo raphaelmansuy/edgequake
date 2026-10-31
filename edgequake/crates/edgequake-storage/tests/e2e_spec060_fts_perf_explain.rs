@@ -101,6 +101,7 @@ async fn e2e_spec060_fts_p95_and_gin_explain() {
         document_ids: None,
         modalities: None,
         embedding_model: None,
+        kinds: None,
     };
 
     let _ = vectors
