@@ -234,6 +234,25 @@ impl DocumentTaskProcessor {
         .map_err(|e| e.to_string())
     }
 
+    /// SPEC-180: the capabilities of the workspace a job runs in. An unknown workspace
+    /// or a missing service means `graph`, the behavior every older caller expects.
+    pub(super) async fn get_workspace_capabilities(
+        &self,
+        workspace_id: Option<&str>,
+    ) -> edgequake_core::rag_profile::ProfileCapabilities {
+        let uuid = workspace_id
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .and_then(|id| crate::middleware::resolve_workspace_uuid(Some(id)));
+        let (Some(uuid), Some(service)) = (uuid, self.workspace_service.as_ref()) else {
+            return Default::default();
+        };
+        match service.get_workspace(uuid).await {
+            Ok(Some(ws)) => ws.capabilities(),
+            _ => Default::default(),
+        }
+    }
+
     /// SPEC-032/OODA-198: Get provider lineage for a workspace.
     ///
     /// Returns the provider configuration that will be used for processing

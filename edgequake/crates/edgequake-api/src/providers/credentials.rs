@@ -234,7 +234,8 @@ pub fn vertex_auth_configured_sync() -> bool {
         && (env_non_empty("GOOGLE_ACCESS_TOKEN")
             || service_account_credentials_file_exists()
             || adc_well_known_file_exists()
-            || gcloud_adc_token_available())
+            || gcloud_adc_token_available()
+            || gcloud_account_token_available())
 }
 
 /// Async gate: includes GCE/GKE/Cloud Run metadata server.
@@ -301,7 +302,7 @@ pub async fn probe_vertex_auth_live() -> Result<(), String> {
     if vertex_metadata_available().await {
         return Ok(());
     }
-    if gcloud_adc_token_available() {
+    if gcloud_adc_token_available() || gcloud_account_token_available() {
         return Ok(());
     }
     if service_account_credentials_file_exists() {
@@ -339,14 +340,24 @@ fn adc_well_known_file_exists() -> bool {
         .unwrap_or(false)
 }
 
-fn gcloud_adc_token_available() -> bool {
-    use std::process::Command;
-
-    Command::new("gcloud")
-        .args(["auth", "application-default", "print-access-token"])
+/// Does `gcloud <args>` print a token? The token itself is never read into a log.
+fn gcloud_prints_token(args: &[&str]) -> bool {
+    std::process::Command::new("gcloud")
+        .args(args)
         .output()
         .map(|out| out.status.success() && !out.stdout.is_empty())
         .unwrap_or(false)
+}
+
+fn gcloud_adc_token_available() -> bool {
+    gcloud_prints_token(&["auth", "application-default", "print-access-token"])
+}
+
+/// The active `gcloud` account can mint a token. This is the source the multimodal
+/// embedder (`embeddings::vertex_token`) falls back to, so the probe must accept it too:
+/// otherwise a broken ADC file hides Vertex while embedding would work.
+fn gcloud_account_token_available() -> bool {
+    gcloud_prints_token(&["auth", "print-access-token"])
 }
 
 async fn vertex_metadata_available() -> bool {

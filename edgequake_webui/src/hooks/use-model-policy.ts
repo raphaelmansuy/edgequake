@@ -11,6 +11,7 @@
 import {
   fetchEffectiveUsages,
   fetchEligibleModels,
+  fetchEmbeddingSupport,
   fetchScopedEligibleModels,
   fetchTenantModelCatalog,
   getTenantModelPolicy,
@@ -96,6 +97,43 @@ export function useScopedEligibleModels(input: {
 
 const CHAT_FAMILY = ["extract", "query", "summary", "keyword"] as const;
 
+/**
+ * SPEC-180 08 — the model step's own answer to "can this deployment embed images with the
+ * pair I am about to save?". Create enforces the same probe, so the inline reason and the
+ * refusal cannot disagree. Disabled until a pair is complete and images are wanted.
+ */
+export function useEmbeddingSupport(input: {
+  scope: "workspace" | "tenant" | "deployment";
+  id?: string | null;
+  provider?: string;
+  model?: string;
+  dimension?: number;
+  enabled?: boolean;
+}) {
+  const ready = Boolean(input.provider && input.model) && input.enabled !== false;
+  return useQuery({
+    queryKey: [
+      "embedding-support",
+      input.scope,
+      input.scope === "deployment" ? "deployment" : (input.id ?? ""),
+      input.provider ?? "",
+      input.model ?? "",
+      input.dimension ?? 0,
+    ],
+    queryFn: () =>
+      fetchEmbeddingSupport({
+        scope: input.scope,
+        id: input.id,
+        provider: input.provider as string,
+        model: input.model as string,
+        dimension: input.dimension,
+      }),
+    enabled: ready,
+    // The server caches the probe for five minutes; do not re-ask on every focus.
+    staleTime: 60_000,
+    retry: false,
+  });
+}
 /** Intersection of the four chat usages. A view; the save still judges each usage. */
 export function useChatFamilyModels(input: {
   scope: "workspace" | "tenant" | "deployment";

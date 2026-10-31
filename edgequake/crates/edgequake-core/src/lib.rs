@@ -51,9 +51,11 @@ pub mod keyword_extractor;
 pub mod llm_roles;
 pub mod model_policy;
 pub mod model_resolution;
+pub mod multimodal_embed;
 #[cfg(feature = "pipeline")]
 pub mod orchestrator;
 pub mod provider_offer;
+pub mod rag_profile;
 pub mod resource;
 pub mod server_config_overrides;
 pub mod sota_bridge;

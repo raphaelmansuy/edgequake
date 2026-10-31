@@ -2,6 +2,7 @@
 
 import { useQueryConversationLifecycle } from "@/hooks/use-query-conversation-lifecycle";
 import { useQueryImages } from "@/hooks/use-query-images";
+import { useQuerySearchImage } from "@/hooks/use-query-search-image";
 import { useQueryStreamSession } from "@/hooks/use-query-stream-session";
 import { useStickToBottom } from "@/hooks/use-stick-to-bottom";
 import { convertServerMessage } from "@/lib/query/convert-server-message";
@@ -15,9 +16,11 @@ import {
 } from "@/lib/query/query-handoff";
 import type { QueryMessage } from "@/lib/query/query-interface-types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 /** Composes query page lifecycle, streaming, scroll, and image hooks (SPEC-155 W7Q). */
 export function useQueryInterface() {
+  const { t } = useTranslation();
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const draftKeyRef = useRef<string>("query-draft:new");
@@ -148,6 +151,7 @@ export function useQueryInterface() {
     useStickToBottom(stream.streamingState, messages);
 
   const images = useQueryImages();
+  const searchImage = useQuerySearchImage();
 
   // Drain queue when stream completes
   useEffect(() => {
@@ -183,10 +187,11 @@ export function useQueryInterface() {
   );
 
   const handleSubmit = async () => {
-    if (!input.trim() || stream.isStreamingOrLoading) return;
+    const pendingSearchImage = searchImage.image?.file;
+    if ((!input.trim() && !pendingSearchImage) || stream.isStreamingOrLoading) return;
 
     endQueryHandoffNewConversation();
-    const queryText = input.trim();
+    const queryText = input.trim() || t("query.searchByImage.defaultMessage", "Find matches for this image");
     const currentImages = images.getPayload();
     setInput("");
     try {
@@ -195,12 +200,13 @@ export function useQueryInterface() {
       /* ignore */
     }
     images.clearImages();
+    searchImage.clear();
 
     if (inputRef.current) {
       inputRef.current.style.height = "auto";
     }
 
-    await stream.submitQuery(queryText, currentImages);
+    await stream.submitQuery(queryText, currentImages, pendingSearchImage);
   };
 
   const handleSuggestionClick = useCallback((text: string) => {
@@ -252,5 +258,6 @@ export function useQueryInterface() {
     queueMessage: stream.queueMessage,
     clearQueue: stream.clearQueue,
     ...images,
+    searchImage,
   };
 }

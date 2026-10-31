@@ -14,6 +14,7 @@ import {
 } from "@/components/documents/phase-strip";
 import { cn } from "@/lib/utils";
 import type { IngestionRunView } from "@/lib/pipeline/ingestion-run-view";
+import type { RagProfile } from "@/constants/rag-profile";
 import {
   buildStageTimeline,
   formatStepDetailLine,
@@ -45,6 +46,8 @@ interface ServerStageStepperProps {
    * Skip the second detail row so "3/5 pages" is not repeated under the strip.
    */
   hideStepDetail?: boolean;
+  /** SPEC-180: which phases exist. A `normal` workspace has no extraction phase. */
+  profile?: RagProfile;
   className?: string;
 }
 
@@ -103,6 +106,7 @@ export function ServerStageStepper({
   headlineText,
   phaseProgress,
   hideStepDetail = false,
+  profile = "graph",
   className,
 }: ServerStageStepperProps) {
   const timeline = buildStageTimeline(run);
@@ -145,7 +149,12 @@ export function ServerStageStepper({
       ) : null}
 
       {variant === "phases" ? (
-        <PhaseStrip run={run} progress={phaseProgress} className="min-w-0" />
+        <PhaseStrip
+          run={run}
+          progress={phaseProgress}
+          profile={profile}
+          className="min-w-0"
+        />
       ) : (
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
         {steps.map((step) => (

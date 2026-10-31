@@ -3,6 +3,7 @@
  */
 
 import { api } from "../client";
+import { withoutImmutableProfileFields } from "@/lib/onboarding/rag-profile-payload";
 import { fetchAllPages } from "../fetch-all-pages";
 import { buildQueryString, withQuery } from "../query-params";
 
@@ -334,7 +335,8 @@ export async function updateWorkspace(
   data: UpdateWorkspaceRequest,
 ): Promise<Workspace> {
   // Backend route: PUT /api/v1/workspaces/{workspace_id}
-  return api.put<Workspace>(`/workspaces/${workspaceId}`, data, {
+  // SPEC-180: the profile is fixed at create; a caller that spreads a Workspace must not 409.
+  return api.put<Workspace>(`/workspaces/${workspaceId}`, withoutImmutableProfileFields(data), {
     headers: {
       "X-Tenant-ID": tenantId,
       "X-Workspace-ID": workspaceId,

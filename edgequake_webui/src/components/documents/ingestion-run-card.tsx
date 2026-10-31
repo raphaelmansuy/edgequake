@@ -21,6 +21,7 @@ import {
   type IngestionRunView,
 } from "@/lib/pipeline/ingestion-run-view";
 import { resolveCaptionProgress } from "@/lib/pipeline/phase-segments";
+import type { RagProfile } from "@/constants/rag-profile";
 import {
   buildStageTimeline,
   formatStepDetailLine,
@@ -42,6 +43,11 @@ export interface IngestionRunCardProps {
    */
   onDismiss?: () => void;
   className?: string;
+  /**
+   * SPEC-180: the workspace profile. A `normal` workspace ingests chunks and vectors only,
+   * so its card never shows an extraction phase. Defaults to `graph` for older call sites.
+   */
+  profile?: RagProfile;
   "data-testid"?: string;
 }
 
@@ -137,6 +143,7 @@ export function IngestionRunCard({
   onCancel,
   onDismiss,
   className,
+  profile = "graph",
   "data-testid": testId,
 }: IngestionRunCardProps) {
   // SPEC-099: compact cards hide verbose message until expanded
@@ -284,6 +291,7 @@ export function IngestionRunCard({
       <ServerStageStepper
         run={run}
         variant="phases"
+        profile={profile}
         headlineText={cancelTerminal ? undefined : headlineText}
         phaseProgress={captionMode ? { stagePct: determinateStagePct } : undefined}
         hideStepDetail={stepLinePaints}

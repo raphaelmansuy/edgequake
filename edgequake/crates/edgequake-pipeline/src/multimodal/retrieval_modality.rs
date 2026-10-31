@@ -22,6 +22,8 @@ pub const MODALITY_CHART: &str = "chart";
 pub const MODALITY_FIGURE: &str = "figure";
 pub const MODALITY_TABLE: &str = "table";
 pub const MODALITY_EQUATION: &str = "equation";
+/// SPEC-180: the chunk is an image embedded as pixels (`chunks.source_modality = 'image'`).
+pub const MODALITY_IMAGE: &str = "image";
 
 /// True when `chunk_content` contains the mm sidecar text (shared with KG injection).
 pub fn chunk_matches_mm_sidecar(chunk_content: &str, mm: &MmChunkSidecarMeta) -> bool {

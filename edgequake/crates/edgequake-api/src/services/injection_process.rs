@@ -179,6 +179,7 @@ pub async fn run_injection_pipeline(
             source_file_path: Some("injection"),
             embedding_model,
             task_id: None,
+            merges_graph: true,
         },
         None,
     )

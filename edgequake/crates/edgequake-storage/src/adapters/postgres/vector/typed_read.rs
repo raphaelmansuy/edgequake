@@ -153,7 +153,10 @@ pub async fn try_typed_chunk_query(
     else {
         return Ok(Some(Vec::new()));
     };
-    let scored = index.search(&req).await?;
+    let scored = match metadata_filter.kinds.as_ref().filter(|k| !k.is_empty()) {
+        Some(kinds) => index.search_scoped(&req, Some(kinds)).await?,
+        None => index.search(&req).await?,
+    };
     let results = scored_to_legacy_results(pool, scored).await?;
     let results = super::super::serving_fence_query::apply_serving_fence(pool, results).await?;
     record_typed_hit();
@@ -222,6 +225,7 @@ mod tests {
             vector_type: Some("chunk".into()),
             modalities: Some(vec!["table".into()]),
             embedding_model: None,
+            kinds: None,
         };
 
         let query =

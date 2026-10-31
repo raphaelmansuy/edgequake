@@ -20,8 +20,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useWorkspaceCapabilities } from '@/hooks/use-workspace-capabilities';
 import { APP_VERSION_NUMBER } from '@/lib/app-version';
-import { DESTINATION_GROUPS, isActiveDestination, type Destination } from '@/lib/keyboard/destinations';
+import { destinationGroupsFor, isActiveDestination, type Destination } from '@/lib/keyboard/destinations';
 import { cn } from '@/lib/utils';
 import { Network, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import Link from 'next/link';
@@ -167,6 +168,7 @@ export function SidebarNav({ layout, onNavigate, onToggle, onOpenDrawer }: Sideb
   const pathname = usePathname();
   const { t } = useTranslation();
   const collapsed = layout === 'rail';
+  const groups = destinationGroupsFor(useWorkspaceCapabilities());
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -218,7 +220,7 @@ export function SidebarNav({ layout, onNavigate, onToggle, onOpenDrawer }: Sideb
           className="flex-1 overflow-y-auto px-2 pb-3 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           aria-label={t('common.navigation', 'Main navigation')}
         >
-          {DESTINATION_GROUPS.map((group, index) => (
+          {groups.map((group, index) => (
             <div key={group.id} className={cn('space-y-px', index > 0 && (layout === 'full' ? 'mt-3.5' : 'mt-2 lg:mt-3.5'))}>
               {group.label && (
                 <GroupHeading layout={layout} text={group.labelKey ? t(group.labelKey, group.label) : group.label} />

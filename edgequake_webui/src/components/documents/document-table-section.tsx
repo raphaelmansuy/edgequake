@@ -44,6 +44,8 @@ import type { Document } from '@/types';
 import { FileText } from 'lucide-react';
 import { memo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { countColumn, countKindFor, sortFieldFor } from '@/lib/documents/document-count';
+import { useWorkspaceCapabilities } from '@/hooks/use-workspace-capabilities';
 import { DocumentTableRow } from './document-table-row';
 import { DocumentTableStates } from './document-table-states';
 import { SortableColumnHeader } from './sortable-column-header';
@@ -199,6 +201,8 @@ export const DocumentTableSection = memo(function DocumentTableSection({
   overflowLabel = null,
 }: DocumentTableSectionProps) {
   const { t } = useTranslation();
+  const countKind = countKindFor(useWorkspaceCapabilities().extracts_graph);
+  const countCol = countColumn(countKind);
   const workspaceId = useTenantStore((state) => state.selectedWorkspaceId);
   const clearance = useClearanceSettings(workspaceId);
   const clearanceEmpty =
@@ -323,9 +327,9 @@ export const DocumentTableSection = memo(function DocumentTableSection({
                     className="overflow-hidden"
                   />
                   <SortableColumnHeader
-                    field="entity_count"
-                    label={t('documents.table.entities', 'Entities')}
-                    activeField={sortField}
+                    field={countCol.field}
+                    label={t(countCol.labelKey, countCol.fallback)}
+                    activeField={sortFieldFor(sortField, countKind)}
                     direction={sortDirection}
                     onSort={onSort}
                     align="right"
@@ -408,6 +412,7 @@ export const DocumentTableSection = memo(function DocumentTableSection({
                         isLiveRun={isLiveRun}
                         showCostColumn={showCostColumn}
                         showUpdatedColumn={showUpdatedColumn}
+                        countKind={countKind}
                         rowMeasureRef={virtualizer.measureElement}
                         searchQuery={searchQuery}
                         onSelect={onSelectOne}

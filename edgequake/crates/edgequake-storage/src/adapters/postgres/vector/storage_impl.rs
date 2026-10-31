@@ -2,6 +2,50 @@ use async_trait::async_trait;
 use sqlx::Row;
 
 use super::super::ann_exact_reorder_policy::{build_ann_select_sql, AnnExactReorderPolicy};
+
+/// Vectors for one batch of chunk ids (MMR).
+///
+/// `$1` is the legacy keys, `$2` is the chunk UUIDs. Each id is looked up on
+/// `chunks.legacy_chunk_key` or `chunks_pkey`. `OFFSET 0` keeps that lookup
+/// from being rewritten into a scan. Equality on `legacy_chunk_key` is
+/// leakproof, so forced row security can use `idx_chunks_tenant_legacy_key`.
+/// `metadata->>'legacy_chunk_key'` is not, and must not appear here.
+///
+/// The widest stored row wins when several models exist. The dimension is
+/// whatever was written — this statement does not assume `halfvec(1536)`.
+const EMBEDDINGS_BY_IDS_SQL: &str = r#"
+    SELECT DISTINCT ON (requested_id)
+           requested_id,
+           embedding
+    FROM (
+        SELECT wanted.key AS requested_id,
+               ce.embedding::text AS embedding,
+               ce.dimensions,
+               ce.model_id
+        FROM unnest($1::text[]) AS wanted(key)
+        JOIN LATERAL (
+            SELECT c.id
+            FROM chunks c
+            WHERE c.legacy_chunk_key = wanted.key
+            OFFSET 0
+        ) c ON true
+        JOIN chunk_embeddings ce ON ce.chunk_id = c.id
+        UNION ALL
+        SELECT wanted.id::text AS requested_id,
+               ce.embedding::text AS embedding,
+               ce.dimensions,
+               ce.model_id
+        FROM unnest($2::uuid[]) AS wanted(id)
+        JOIN LATERAL (
+            SELECT c.id
+            FROM chunks c
+            WHERE c.id = wanted.id
+            OFFSET 0
+        ) c ON true
+        JOIN chunk_embeddings ce ON ce.chunk_id = c.id
+    ) hits
+    ORDER BY requested_id, dimensions DESC, model_id
+"#;
 use super::super::statement_timeout::{vector_query_statement_timeout_ms, LocalTimeoutTx};
 use super::PgVectorStorage;
 use crate::error::{Result, StorageError};
@@ -15,6 +59,10 @@ impl VectorStorage for PgVectorStorage {
 
     fn dimension(&self) -> usize {
         self.dimension
+    }
+
+    fn is_typed_authority(&self) -> bool {
+        crate::vector_backend::vector_backend_reads_typed(crate::vector_backend_from_env())
     }
 
     async fn initialize(&self) -> Result<()> {
@@ -517,6 +565,36 @@ impl VectorStorage for PgVectorStorage {
             .await
             .map_err(|e| StorageError::Database(format!("Get by IDs failed: {}", e)))?;
 
+        Ok(rows
+            .into_iter()
+            .map(|(id, embedding_str)| (id, Self::parse_embedding(&embedding_str)))
+            .collect())
+    }
+
+    async fn get_embeddings_by_ids(&self, ids: &[String]) -> Result<Vec<(String, Vec<f32>)>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        // Legacy rollback still stores chunk vectors in `eq_*_vectors`.
+        if !self.is_typed_authority() {
+            return self.get_by_ids(ids).await;
+        }
+        let pool = self.pool.get().await?;
+        let mut keys = Vec::new();
+        let mut uuids = Vec::new();
+        for id in ids {
+            if let Ok(parsed) = uuid::Uuid::parse_str(id) {
+                uuids.push(parsed);
+            } else {
+                keys.push(id.clone());
+            }
+        }
+        let rows: Vec<(String, String)> = sqlx::query_as(EMBEDDINGS_BY_IDS_SQL)
+            .bind(&keys)
+            .bind(&uuids)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| StorageError::Database(format!("get_embeddings_by_ids failed: {e}")))?;
         Ok(rows
             .into_iter()
             .map(|(id, embedding_str)| (id, Self::parse_embedding(&embedding_str)))
@@ -1159,8 +1237,41 @@ impl VectorStorage for PgVectorStorage {
         super::super::serving_fence_query::apply_serving_fence(&pool, results).await
     }
 
+    async fn bm25_search_filtered(
+        &self,
+        req: &crate::traits::Bm25Request<'_>,
+        metadata_filter: Option<&MetadataFilter>,
+    ) -> Result<Option<Vec<VectorSearchResult>>> {
+        let _timed = crate::TimedStorageOp::start("bm25_search_filtered");
+        let hits = self.typed_chunks_bm25_search(req, metadata_filter).await?;
+        match hits {
+            Some(hits) => {
+                let pool = self.pool.get().await?;
+                super::super::serving_fence_query::apply_serving_fence(&pool, hits)
+                    .await
+                    .map(Some)
+            }
+            None => Ok(None),
+        }
+    }
+
     async fn warmup_workspace_ann(&self, workspace_id: &str) -> Result<bool> {
         // Inherent method on PgVectorStorage (ddl.rs) — avoid trait recursion.
         PgVectorStorage::ensure_hot_workspace_ann(self, workspace_id).await
+    }
+}
+
+#[cfg(test)]
+mod embeddings_by_ids_sql {
+    use super::EMBEDDINGS_BY_IDS_SQL;
+
+    #[test]
+    fn lookup_uses_the_leakproof_key_and_does_not_assume_1536() {
+        assert!(EMBEDDINGS_BY_IDS_SQL.contains("c.legacy_chunk_key = wanted.key"));
+        assert!(EMBEDDINGS_BY_IDS_SQL.contains("c.id = wanted.id"));
+        assert!(EMBEDDINGS_BY_IDS_SQL.contains("OFFSET 0"));
+        assert!(!EMBEDDINGS_BY_IDS_SQL.contains("metadata->>'legacy_chunk_key'"));
+        assert!(!EMBEDDINGS_BY_IDS_SQL.contains("halfvec(1536)"));
+        assert!(EMBEDDINGS_BY_IDS_SQL.contains("dimensions DESC"));
     }
 }

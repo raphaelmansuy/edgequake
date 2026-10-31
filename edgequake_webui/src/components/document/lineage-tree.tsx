@@ -16,13 +16,17 @@
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { DocumentLineage } from '@/types';
-import { Brain, Database, FileSearch, Network, Upload } from 'lucide-react';
+import { useWorkspaceCapabilities } from '@/hooks/use-workspace-capabilities';
+import { Brain, Database, FileSearch, MinusCircle, Network, Upload } from 'lucide-react';
 
 interface LineageTreeProps {
   lineage: DocumentLineage | null | undefined;
 }
 
 export function LineageTree({ lineage }: LineageTreeProps) {
+  // SPEC-180: read the capability, never the profile name. A chunk-only workspace has no
+  // extraction or graph step to report as completed.
+  const extractsGraph = useWorkspaceCapabilities().extracts_graph;
   if (!lineage) return null;
 
   return (
@@ -54,29 +58,53 @@ export function LineageTree({ lineage }: LineageTreeProps) {
       <LineageNode
         icon={<FileSearch className="h-3.5 w-3.5" />}
         label="Content Extraction"
-        details={lineage.chunking_strategy ? `${lineage.chunking_strategy} • ${lineage.avg_chunk_size} chars/chunk` : undefined}
+        details={
+          lineage.chunking_strategy
+            ? `${lineage.chunking_strategy} • ${
+                // An image has no characters per chunk: the payload is pixels and the
+                // stored body is the file name. Printing `undefined` promised a number
+                // the ingest never produced.
+                typeof lineage.avg_chunk_size === 'number' && lineage.avg_chunk_size > 0
+                  ? `${lineage.avg_chunk_size} chars/chunk`
+                  : 'no text body'
+              }`
+            : undefined
+        }
         status="completed"
       />
       <LineageConnector />
+      {/* SPEC-180: a chunk-only (classical RAG) workspace extracts no entities. Showing a
+          completed Entity Extraction step is a claim the ingest never made — and the graph
+          pane contradicts it two inches away. */}
       <LineageNode
         icon={<Brain className="h-3.5 w-3.5" />}
         label="Entity Extraction"
-        details={lineage.llm_model ? `${lineage.llm_model} • ${lineage.entity_types?.length || 0} types` : undefined}
-        duration={lineage.entity_extraction_ms}
-        status="completed"
+        details={
+          extractsGraph
+            ? lineage.llm_model
+              ? `${lineage.llm_model} • ${lineage.entity_types?.length || 0} types`
+              : undefined
+            : 'Chunk-only workspace · no entities extracted'
+        }
+        duration={extractsGraph ? lineage.entity_extraction_ms : undefined}
+        status={extractsGraph ? 'completed' : 'skipped'}
       />
       <LineageConnector />
       <LineageNode
         icon={<Network className="h-3.5 w-3.5" />}
         label="Relationship Mapping"
-        details={`Relationships mapped`}
-        duration={lineage.relationship_extraction_ms}
-        status="completed"
+        details={
+          extractsGraph
+            ? 'Relationships mapped'
+            : 'Not part of this retrieval type'
+        }
+        duration={extractsGraph ? lineage.relationship_extraction_ms : undefined}
+        status={extractsGraph ? 'completed' : 'skipped'}
       />
       <LineageConnector />
       <LineageNode
         icon={<Database className="h-3.5 w-3.5" />}
-        label="Graph Indexing"
+        label="Indexing"
         details={lineage.embedding_model ? `${lineage.embedding_model} • ${lineage.embedding_dimensions}D` : undefined}
         status="completed"
       />
@@ -89,7 +117,8 @@ interface LineageNodeProps {
   label: string;
   details?: string;
   duration?: number;
-  status: 'completed' | 'processing' | 'failed';
+  /** `skipped`: a real step this workspace's profile does not run. */
+  status: 'completed' | 'processing' | 'failed' | 'skipped';
 }
 
 function LineageNode({ icon, label, details, duration, status }: LineageNodeProps) {
@@ -100,14 +129,25 @@ function LineageNode({ icon, label, details, duration, status }: LineageNodeProp
           'flex items-center justify-center w-8 h-8 rounded-full shrink-0',
           status === 'completed' && 'bg-green-500/10 text-green-600 dark:text-green-400',
           status === 'processing' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-          status === 'failed' && 'bg-red-500/10 text-red-600 dark:text-red-400'
+          status === 'failed' && 'bg-red-500/10 text-red-600 dark:text-red-400',
+          status === 'skipped' && 'bg-muted text-muted-foreground/70'
         )}
       >
         {icon}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-1">
-          <span className="text-sm font-medium">{label}</span>
+          <span
+            className={cn(
+              'text-sm font-medium',
+              status === 'skipped' && 'text-muted-foreground',
+            )}
+          >
+            {label}
+          </span>
+          {status === 'skipped' ? (
+            <MinusCircle aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+          ) : null}
           {duration && (
             <Badge variant="outline" className="text-xs">
               {formatDuration(duration)}

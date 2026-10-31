@@ -9,6 +9,7 @@ use crate::env::{
     first_non_empty_env_var, non_empty_env_var, EMBEDDING_DIMENSION_ALIASES,
     EMBEDDING_MODEL_ALIASES, EMBEDDING_PROVIDER_ALIASES, LLM_MODEL_ALIASES, LLM_PROVIDER_ALIASES,
 };
+use crate::rag_profile::{EmbeddingModalities, FtsRegconfig, ProfileCapabilities, RagProfile};
 
 // ============================================================================
 // Model Configuration Constants (SPEC-032)
@@ -153,6 +154,17 @@ pub struct Workspace {
     /// Default PDF parser backend for this workspace.
     /// None falls back to tenant → environment → Vision (SPEC-123).
     pub pdf_parser_backend: Option<PdfParserBackend>,
+
+    // === SPEC-180: retrieval profile (immutable after create) ===
+    /// `graph` (default) or `normal`. Decides every ingest and query gate.
+    #[serde(default)]
+    pub rag_profile: RagProfile,
+    /// What the workspace embeds: `text` or `text,image`.
+    #[serde(default)]
+    pub embedding_modalities: EmbeddingModalities,
+    /// Postgres text-search configuration used by the BM25 index.
+    #[serde(default)]
+    pub fts_regconfig: FtsRegconfig,
 }
 
 impl Workspace {
@@ -189,7 +201,15 @@ impl Workspace {
             vision_llm_model: None,
             // Persist vision by default so new workspaces are not env-overridden.
             pdf_parser_backend: Some(edgequake_pdf::PdfParserBackend::Vision),
+            rag_profile: RagProfile::default(),
+            embedding_modalities: EmbeddingModalities::default(),
+            fts_regconfig: FtsRegconfig::default(),
         }
+    }
+
+    /// SPEC-180: every behavior gate of this workspace, from its immutable profile.
+    pub fn capabilities(&self) -> ProfileCapabilities {
+        ProfileCapabilities::new(self.rag_profile, self.embedding_modalities)
     }
 
     /// Resolve the effective PDF parser backend for this workspace (no upload).
@@ -569,6 +589,8 @@ impl Workspace {
                 Some(1024)
             }
             "mxbai-embed-large" | "mxbai-embed-large:latest" => Some(1024),
+            // SPEC-180: Vertex multimodal embedding; the card default (create may pick 768/3072).
+            "gemini-embedding-2" => Some(1536),
             _ if model.contains("768") => Some(768),
             _ if model.contains("1024") => Some(1024),
             _ if model.contains("3072") => Some(3072),

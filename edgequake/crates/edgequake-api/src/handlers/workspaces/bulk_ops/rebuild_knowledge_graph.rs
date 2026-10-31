@@ -95,6 +95,9 @@ pub(crate) async fn run_rebuild_knowledge_graph(
         }
     }
 
+    // SPEC-180: a normal workspace has no graph to rebuild.
+    workspace.capabilities().require_graph()?;
+
     // 2. Get workspace stats
     let stats = state
         .workspace_service

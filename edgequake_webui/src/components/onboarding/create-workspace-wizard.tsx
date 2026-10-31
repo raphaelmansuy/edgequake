@@ -8,6 +8,7 @@ import { ReviewStep } from '@/components/onboarding/steps/review-step';
 import { WorkspaceBasicsStep } from '@/components/onboarding/steps/workspace-basics-step';
 import { WorkspaceChunkingStep } from '@/components/onboarding/steps/workspace-chunking-step';
 import { WorkspaceExtractBudgetStep } from '@/components/onboarding/steps/workspace-extract-budget-step';
+import { WorkspaceRetrievalStep } from '@/components/onboarding/steps/workspace-retrieval-step';
 import { WorkspaceExtractionStep } from '@/components/onboarding/steps/workspace-extraction-step';
 import { ENTITY_PRESETS } from '@/constants/entity-presets';
 import { EDGE_PRESETS, RELATION_PRESETS } from '@/constants/kg-schema-presets';
@@ -19,6 +20,7 @@ import { describeCreateFailure } from '@/lib/onboarding/create-error';
 import { useWizardDraftPicks } from '@/hooks/use-wizard-draft-picks';
 import { createWorkspace } from '@/lib/api/edgequake';
 import { buildWorkspaceIngestPayload, buildWorkspaceModelPayload } from '@/lib/onboarding/model-payload';
+import { draftEmbedsImages, imageEmbeddingOk } from '@/lib/onboarding/retrieval-draft';
 import { useWizardDraftPersistence } from '@/lib/onboarding/use-wizard-draft-persistence';
 import {
   EMPTY_WIZARD_DRAFT,
@@ -58,14 +60,20 @@ export function CreateWorkspaceWizard({
   onCreated,
 }: CreateWorkspaceWizardProps) {
   const { t } = useTranslation();
-  const steps = useMemo(
-    () => stepsForWizard('create-workspace', { includeAdmin: false, includeExtraction: true }),
-    [],
-  );
   const baselineRef = useRef(initialWorkspaceDraft());
+  const [draft, setDraft] = useState<WizardDraft>(initialWorkspaceDraft);
+  // SPEC-180: choosing Normal removes the graph-only steps.
+  const steps = useMemo(
+    () =>
+      stepsForWizard('create-workspace', {
+        includeAdmin: false,
+        includeExtraction: true,
+        ragProfile: draft.ragProfile,
+      }),
+    [draft.ragProfile],
+  );
   const nav = useWizardSteps(steps);
   const { stepIndex, setStepIndex, stepId, goToStep } = nav;
-  const [draft, setDraft] = useState<WizardDraft>(initialWorkspaceDraft);
   const [submitting, setSubmitting] = useState(false);
   const inherited = useInheritedModelDefaults(tenantId);
   const { hasConfiguredDefaults } = inherited;
@@ -126,6 +134,9 @@ export function CreateWorkspaceWizard({
     embedding,
     vision,
     hasConfiguredDefaults,
+    imageEmbeddingOk: imageEmbeddingOk(draft),
+    // SPEC-180 08: an image draft asks the deployment before Review, not after create.
+    probeImages: draftEmbedsImages(draft),
   });
 
   const isDirty =
@@ -200,6 +211,8 @@ export function CreateWorkspaceWizard({
     switch (stepId) {
       case 'workspace-basics':
         return <WorkspaceBasicsStep draft={draft} onChange={patchDraft} />;
+      case 'retrieval':
+        return <WorkspaceRetrievalStep draft={draft} onChange={patchDraft} />;
       case 'models':
         return (
           <ModelDefaultsStep
@@ -216,6 +229,8 @@ export function CreateWorkspaceWizard({
             onAdvancedOpenChange={setAdvancedOpen}
             eligibility={eligibility}
             canManageProviders={access.data?.tenant_manage === true}
+            hidesExtractionEngine={draft.ragProfile === 'normal'}
+            requiresImageEmbedding={draftEmbedsImages(draft)}
           />
         );
       case 'document-parsing':
@@ -238,6 +253,7 @@ export function CreateWorkspaceWizard({
             vision={vision}
             onEditStep={goToStep}
             showDocumentParsing
+            showRetrieval
           />
         );
       default:

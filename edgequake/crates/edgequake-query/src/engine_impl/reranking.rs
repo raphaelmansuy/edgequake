@@ -179,6 +179,30 @@ impl QueryEngine {
                     );
                 }
 
+                // SPEC-180 09: a cross-encoder scores text. An image chunk has none, so it
+                // ranks last or fails `min_rerank_score` and the picture the user searched for
+                // disappears from the answer. Keep every image chunk that the fused lists
+                // already selected — fusion, not the text reranker, is what judged it.
+                if !prefer_bm25 {
+                    let image_ids: Vec<String> = chunks
+                        .iter()
+                        .filter(|c| c.is_image_chunk())
+                        .map(|c| c.id.clone())
+                        .collect();
+                    if !image_ids.is_empty() {
+                        tracing::debug!(
+                            image_chunks = image_ids.len(),
+                            "SPEC-180 image chunks protected from text reranking"
+                        );
+                        out = crate::rerank_protect::blend_protect_ids(
+                            &chunks,
+                            out,
+                            &image_ids,
+                            rerank_top_k.max(image_ids.len()),
+                        );
+                    }
+                }
+
                 out
             }
             Err(e) => {

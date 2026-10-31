@@ -28,7 +28,13 @@ import {
   MentionMenu,
   mentionOptionId,
 } from "./mention-menu";
+import { useWorkspaceCapabilities } from "@/hooks/use-workspace-capabilities";
+import type { QuerySearchImageControl } from "@/hooks/use-query-search-image";
+import { selectKinds, useQueryKindsStore } from "@/stores/use-query-kinds-store";
+import { useTenantStore } from "@/stores/use-tenant-store";
+import { KindChips } from "./kind-chips";
 import { ModeMenu } from "./mode-menu";
+import { SearchImageButton, SearchImageChip, SearchImageInput } from "./search-image";
 import { ScopeChips } from "./scope-chips";
 import { useComposerKeys } from "./use-composer-keys";
 import { useMentionMenu } from "./use-mention-menu";
@@ -71,6 +77,8 @@ export interface ComposerProps {
   scopePickerOpen?: boolean;
   onScopePickerOpenChange?: (open: boolean) => void;
   slashMenu?: React.ReactNode;
+  /** SPEC-180: the image to search by (multimodal normal workspaces only). */
+  searchImage?: QuerySearchImageControl;
 }
 
 export function Composer({
@@ -102,8 +110,16 @@ export function Composer({
   scopePickerOpen,
   onScopePickerOpenChange,
   slashMenu,
+  searchImage,
 }: ComposerProps) {
   const { t } = useTranslation();
+  const caps = useWorkspaceCapabilities();
+  const workspaceId = useTenantStore((s) => s.selectedWorkspaceId);
+  const kinds = useQueryKindsStore(selectKinds(workspaceId));
+  const toggleKind = useQueryKindsStore((s) => s.toggle);
+  const clearKinds = useQueryKindsStore((s) => s.clear);
+  const canSearchByImage = caps.embeds_images && searchImage !== undefined;
+  const hasSearchImage = canSearchByImage && searchImage?.image != null;
   const { onCompositionStart, onCompositionEnd, isImeBlocked } =
     useComposerKeys();
   const dropActiveRef = useRef(false);
@@ -230,6 +246,8 @@ export function Composer({
         onChange={onImageInputChange}
       />
 
+      {canSearchByImage && searchImage ? <SearchImageInput control={searchImage} /> : null}
+
       <div
         className={cn(
           // Floating shell — ambient depth only (no stroke/ring = less “clunky” edge)
@@ -259,6 +277,16 @@ export function Composer({
           titles={scope.titles}
           onRemove={scope.removeDocument}
         />
+
+        {!caps.extracts_graph && workspaceId ? (
+          <KindChips
+            selected={kinds}
+            onToggle={(kind) => toggleKind(workspaceId, kind)}
+            onClear={() => clearKinds(workspaceId)}
+          />
+        ) : null}
+
+        {canSearchByImage && searchImage ? <SearchImageChip control={searchImage} /> : null}
 
         <Textarea
           ref={inputRef}
@@ -350,6 +378,8 @@ export function Composer({
 
             <ModeMenu value={mode} onChange={onModeChange} compact />
 
+            {canSearchByImage && searchImage ? <SearchImageButton control={searchImage} /> : null}
+
             {modelSlot}
           </div>
 
@@ -372,7 +402,7 @@ export function Composer({
               <Button
                 type="submit"
                 size="sm"
-                disabled={!input.trim() || sendBlocked}
+                disabled={(!input.trim() && !hasSearchImage) || sendBlocked}
                 aria-describedby={sendBlocked ? "query-choice-empty" : undefined}
                 className={cn(
                   "h-8 w-8 p-0 rounded-full",

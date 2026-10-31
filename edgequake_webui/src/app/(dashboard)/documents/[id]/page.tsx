@@ -1,6 +1,10 @@
 'use client';
 
 import { ContentRenderer } from '@/components/document/content-renderer';
+import {
+  DocumentImageViewer,
+  isImageDocument,
+} from '@/components/documents/document-image-viewer';
 import { MetadataSidebar } from '@/components/document/metadata-sidebar';
 import { DetailLifecycleBadge } from '@/components/documents/detail-lifecycle-badge';
 import { DocumentDownloadMenu } from '@/components/documents/document-download-menu';
@@ -467,6 +471,9 @@ export default function DocumentViewPage() {
     [document, pdfIdForViewer, pdfContent?.markdown_content],
   );
 
+  // SPEC-180: image documents are shown as a picture, not as their filename.
+  const isImage = isImageDocument(documentWithContent ?? {});
+
   const pdfMarkdownMissing =
     isPdfDocument &&
     !isPdfContentLoading &&
@@ -901,6 +908,10 @@ export default function DocumentViewPage() {
                     )
                   }
                 />
+              ) : isImage ? (
+                /* SPEC-180: an image document's `content` is its file name; the pixels are
+                   the payload. Render the picture, never the filename as body text. */
+                <DocumentImageViewer document={document} className="h-full" />
               ) : (
                 /* Non-PDF documents show ContentRenderer only */
                 <ContentRenderer
@@ -1042,6 +1053,8 @@ export default function DocumentViewPage() {
                       : undefined
                   }
                 />
+              ) : isImage ? (
+                <DocumentImageViewer document={document} className="h-full" />
               ) : (
                 <ContentRenderer
                   document={documentWithContent}

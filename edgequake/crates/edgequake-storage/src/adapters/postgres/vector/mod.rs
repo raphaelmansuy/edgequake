@@ -34,6 +34,7 @@ use super::config::{
 use super::connection::PostgresPool;
 use super::schema;
 
+mod bm25;
 mod ddl;
 mod fts;
 mod migration;

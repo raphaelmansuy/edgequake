@@ -66,7 +66,7 @@ pub use graph_traversal::{
 };
 pub use kv::{kv_key_matches_like, KVStorage};
 pub use vector::{
-    vector_upsert_chunk_size, MetadataFilter, VectorSearchResult, VectorStorage,
-    DEFAULT_VECTOR_UPSERT_CHUNK,
+    vector_upsert_chunk_size, Bm25Request, ChunkKinds, MetadataFilter, VectorSearchResult,
+    VectorStorage, DEFAULT_VECTOR_UPSERT_CHUNK,
 };
 pub use workspace_vector::{WorkspaceVectorConfig, WorkspaceVectorRegistry};

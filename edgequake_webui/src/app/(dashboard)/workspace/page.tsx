@@ -36,11 +36,13 @@ import { WorkspaceRelationTypesCard } from '@/components/workspace/workspace-rel
 import { WorkspaceExtractionLanguageCard } from '@/components/workspace/workspace-extraction-language-card';
 import { WorkspaceChunkingCard } from '@/components/workspace/workspace-chunking-card';
 import { WorkspaceExtractBudgetCard } from '@/components/workspace/workspace-extract-budget-card';
+import { WorkspaceRetrievalCard } from '@/components/workspace/workspace-retrieval-card';
 import { WorkspaceExtractionModeCard } from '@/components/workspace/workspace-extraction-mode-card';
 import { PageShell } from '@/components/shared/page-shell';
 import { WorkspacePageHeader } from '@/components/workspace/workspace-page-header';
 import { WorkspaceStatsCards } from '@/components/workspace/workspace-stats-cards';
 import { ENTITY_PRESETS } from '@/constants/entity-presets';
+import { capabilitiesOf } from '@/constants/rag-profile';
 import { useWorkspaceDetailQueries } from '@/hooks/use-workspace-detail-queries';
 import { useWorkspaceTenantValidator } from '@/hooks/use-workspace-tenant-validator';
 import { deleteWorkspace } from '@/lib/api/edgequake';
@@ -242,6 +244,7 @@ export default function WorkspacePage() {
     );
   }
 
+  const hasGraph = capabilitiesOf(workspace).shows_graph_ui;
   const entityTypes = workspace.entity_types?.length
     ? workspace.entity_types
     : [...ENTITY_PRESETS.general.types];
@@ -260,6 +263,8 @@ export default function WorkspacePage() {
           stats={stats}
           isLoadingStats={isLoadingStats}
         />
+
+        <WorkspaceRetrievalCard workspace={workspace} />
 
         <WorkspaceModelConfigGrid
           workspace={workspace}
@@ -282,33 +287,37 @@ export default function WorkspacePage() {
           visionLLMChanged={false}
         />
 
-        <WorkspaceExtractionLanguageCard
-          isEditing={false}
-          workspace={workspace}
-          selectedLanguage={workspace.extraction_language ?? null}
-          onLanguageChange={() => {}}
-        />
-
         <WorkspaceChunkingCard isEditing={false} workspace={workspace} />
-        <WorkspaceExtractBudgetCard isEditing={false} workspace={workspace} />
-        <WorkspaceExtractionModeCard workspace={workspace} />
 
-        <div
-          className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start [&>*]:min-w-0"
-          data-testid="workspace-kg-schema-row"
-        >
-          <WorkspaceEntityTypesCard
-            isEditing={false}
-            workspace={workspace}
-            selectedTypes={entityTypes}
-            onTypesChange={() => {}}
-            strictLimit={workspace.entity_types_strict ?? true}
-            onStrictLimitChange={() => {}}
-            extractionLanguage={workspace.extraction_language ?? null}
-          />
+        {hasGraph ? (
+          <>
+            <WorkspaceExtractionLanguageCard
+              isEditing={false}
+              workspace={workspace}
+              selectedLanguage={workspace.extraction_language ?? null}
+              onLanguageChange={() => {}}
+            />
+            <WorkspaceExtractBudgetCard isEditing={false} workspace={workspace} />
+            <WorkspaceExtractionModeCard workspace={workspace} />
 
-          <WorkspaceRelationTypesCard workspace={workspace} />
-        </div>
+            <div
+              className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start [&>*]:min-w-0"
+              data-testid="workspace-kg-schema-row"
+            >
+              <WorkspaceEntityTypesCard
+                isEditing={false}
+                workspace={workspace}
+                selectedTypes={entityTypes}
+                onTypesChange={() => {}}
+                strictLimit={workspace.entity_types_strict ?? true}
+                onStrictLimitChange={() => {}}
+                extractionLanguage={workspace.extraction_language ?? null}
+              />
+
+              <WorkspaceRelationTypesCard workspace={workspace} />
+            </div>
+          </>
+        ) : null}
 
         <WorkspaceActionsCard
           workspace={workspace}

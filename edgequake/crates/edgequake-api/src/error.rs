@@ -57,6 +57,7 @@ use serde_json::{json, Value};
 use crate::providers::ProviderResolutionError;
 
 mod problem_details;
+pub mod profile;
 
 /// Result type for API operations.
 pub type ApiResult<T> = std::result::Result<T, ApiError>;

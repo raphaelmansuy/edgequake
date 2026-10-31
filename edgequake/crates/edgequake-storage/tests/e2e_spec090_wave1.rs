@@ -234,6 +234,7 @@ async fn e2e_spec090_relaxed_reorder() {
         document_ids: None,
         modalities: None,
         embedding_model: None,
+        kinds: None,
     };
     let mut q = emb(1.0);
     q[0] = 1.0;

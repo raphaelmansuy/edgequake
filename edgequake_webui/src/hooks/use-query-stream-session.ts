@@ -79,6 +79,7 @@ export function useQueryStreamSession({
       text: string,
       conversationId: string | null,
       images?: Array<{ data: string; mime_type: string }>,
+      queryImage?: File,
     ) => Promise<void>
   >(async () => {});
   const [session, setSession] = useState<StreamSessionState>(() =>
@@ -177,6 +178,7 @@ export function useQueryStreamSession({
       queryText: string,
       conversationId: string | null,
       payloadImages?: Array<{ data: string; mime_type: string }>,
+      queryImage?: File,
     ) => {
       const messageId = generateUUID();
       const gen = requestGenRef.current;
@@ -200,6 +202,7 @@ export function useQueryStreamSession({
           conversationId,
           language: i18n.language,
           images: payloadImages,
+          queryImage,
           stream: true,
           seedEntityIds: companionSeedEntityIds(),
         });
@@ -391,7 +394,7 @@ export function useQueryStreamSession({
           action: {
             label: t("common.retry", "Retry"),
             onClick: () => {
-              void rerunRef.current(queryText, conversationId, payloadImages);
+              void rerunRef.current(queryText, conversationId, payloadImages, queryImage);
             },
           },
         });
@@ -452,6 +455,7 @@ export function useQueryStreamSession({
       queryText: string,
       conversationId: string | null,
       payloadImages?: Array<{ data: string; mime_type: string }>,
+      queryImage?: File,
     ) => {
       const gen = requestGenRef.current;
       setSession((s) =>
@@ -479,6 +483,7 @@ export function useQueryStreamSession({
             conversationId,
             language: i18n.language,
             images: payloadImages,
+            queryImage,
             stream: false,
             seedEntityIds: companionSeedEntityIds(),
           }),
@@ -527,7 +532,7 @@ export function useQueryStreamSession({
             action: {
               label: t("common.retry", "Retry"),
               onClick: () => {
-                void rerunRef.current(queryText, conversationId, payloadImages);
+                void rerunRef.current(queryText, conversationId, payloadImages, queryImage);
               },
             },
           });
@@ -554,11 +559,12 @@ export function useQueryStreamSession({
       queryText: string,
       conversationId: string | null,
       payloadImages?: Array<{ data: string; mime_type: string }>,
+      queryImage?: File,
     ) => {
       if (effectiveStream) {
-        await handleStreamQuery(queryText, conversationId, payloadImages);
+        await handleStreamQuery(queryText, conversationId, payloadImages, queryImage);
       } else {
-        await handleBlockingQuery(queryText, conversationId, payloadImages);
+        await handleBlockingQuery(queryText, conversationId, payloadImages, queryImage);
       }
     },
     [effectiveStream, handleBlockingQuery, handleStreamQuery],
@@ -572,9 +578,10 @@ export function useQueryStreamSession({
     async (
       queryText: string,
       payloadImages?: Array<{ data: string; mime_type: string }>,
+      queryImage?: File,
     ) => {
       await truncateFromEditAnchor();
-      await runQuery(queryText, activeConversationId, payloadImages);
+      await runQuery(queryText, activeConversationId, payloadImages, queryImage);
     },
     [activeConversationId, runQuery, truncateFromEditAnchor],
   );

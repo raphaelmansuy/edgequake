@@ -34,6 +34,10 @@ pub struct ProcessFingerprintInput {
     /// fingerprint stays valid (LAW-160-9). A mode change marks a document stale.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub extraction_mode: String,
+    /// SPEC-180: `rp=normal` for a normal workspace. Empty means graph, so every
+    /// pre-SPEC-180 fingerprint stays valid (LAW-180-12).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub profile_segment: String,
 }
 
 impl ProcessFingerprintInput {
@@ -50,6 +54,7 @@ impl ProcessFingerprintInput {
             multimodal_process_options: multimodal_process_options.into(),
             content_hash: String::new(),
             extraction_mode: String::new(),
+            profile_segment: String::new(),
         }
     }
 
@@ -105,6 +110,16 @@ impl ProcessFingerprintInput {
         self
     }
 
+    /// SPEC-180: record the profile shape. A graph workspace keeps the legacy digest.
+    pub fn with_profile(mut self, caps: &edgequake_core::rag_profile::ProfileCapabilities) -> Self {
+        self.profile_segment = if caps.extracts_graph {
+            String::new()
+        } else {
+            caps.fingerprint_segment().to_string()
+        };
+        self
+    }
+
     pub fn with_content_hash(mut self, hash: impl Into<String>) -> Self {
         self.content_hash = hash.into();
         self
@@ -124,6 +139,10 @@ impl ProcessFingerprintInput {
         if !mode.is_empty() && mode != ExtractionMode::Llm.as_str() {
             canonical.push_str("|em=");
             canonical.push_str(&mode);
+        }
+        if !self.profile_segment.is_empty() {
+            canonical.push('|');
+            canonical.push_str(&self.profile_segment);
         }
         let mut hasher = Sha256::new();
         hasher.update(canonical.as_bytes());
@@ -305,5 +324,15 @@ mod tests {
             Some("abc123")
         );
         assert!(resolve_fingerprint_from_metadata(&json!({})).is_none());
+    }
+
+    #[test]
+    fn profile_segment_keeps_graph_digest_and_changes_normal() {
+        use edgequake_core::rag_profile::{EmbeddingModalities, RagProfile};
+        let graph = RagProfile::Graph.capabilities(EmbeddingModalities::Text);
+        let normal = RagProfile::Normal.capabilities(EmbeddingModalities::Text);
+        let base = ProcessFingerprintInput::new("recursive", 800, 100, "");
+        assert_eq!(base.digest(), base.clone().with_profile(&graph).digest());
+        assert_ne!(base.digest(), base.clone().with_profile(&normal).digest());
     }
 }

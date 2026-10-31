@@ -479,9 +479,7 @@ impl<G: GraphStorage + ?Sized, V: VectorStorage + ?Sized> super::KnowledgeGraphM
                         error = %e,
                         "Relational relationship sink batch failed"
                     );
-                    if edgequake_storage::vector_backend_reads_typed(
-                        edgequake_storage::vector_backend_from_env(),
-                    ) {
+                    if self.typed_reads() {
                         return Err(e);
                     }
                 }

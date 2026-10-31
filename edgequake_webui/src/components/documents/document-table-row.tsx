@@ -46,6 +46,7 @@ import { DocumentTimeCell } from './document-time-cell';
 import { EnhancedStatusBadge } from './enhanced-status-badge';
 import { ErrorMessagePopover } from './error-message-popover';
 import { ExtractionModeBadge } from './extraction-mode-badge';
+import { documentCount, type DocumentCountKind } from '@/lib/documents/document-count';
 import { QuickActionButtons } from './quick-action-buttons';
 
 /** Stages that show live backend detail under the status badge */
@@ -188,6 +189,8 @@ export interface DocumentTableRowProps {
   isDeleting?: boolean;
   /** SPEC-099: Cost column opt-in */
   showCostColumn?: boolean;
+  /** SPEC-180: a workspace without a graph counts chunks, not entities. */
+  countKind?: DocumentCountKind;
   /** Last Updated column — dropped when every row is unmodified (see section). */
   showUpdatedColumn?: boolean;
   /** Virtualizer measure callback (reads data-index). */
@@ -222,6 +225,7 @@ export const DocumentTableRow = memo(function DocumentTableRow({
   isDeleting = false,
   showCostColumn = false,
   showUpdatedColumn = true,
+  countKind = 'entities',
   rowMeasureRef,
 }: DocumentTableRowProps) {
   const { t, i18n } = useTranslation();
@@ -263,7 +267,7 @@ export const DocumentTableRow = memo(function DocumentTableRow({
 
   // Entity count: `0` is real data, `undefined` is unknown. Collapsing both to
   // "-" hid genuinely empty extractions and misaligned the numeric column.
-  const entityCount = doc.entity_count ?? doc.chunk_count ?? null;
+  const entityCount = documentCount(doc, countKind);
 
   return (
     <TableRow

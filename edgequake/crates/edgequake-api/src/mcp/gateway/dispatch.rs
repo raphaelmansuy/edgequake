@@ -88,8 +88,14 @@ pub async fn dispatch_method(
     match method {
         "tools/list" => Ok(tools_list_result()),
         "tools/call" => tools_call(ctx, params).await,
-        "initialize" => Ok(legacy_initialize(ctx.protocol_version)),
-        "server/discover" => Ok(server_discover(ctx.protocol_version)),
+        "initialize" => Ok(legacy_initialize(
+            ctx.protocol_version,
+            &instructions_for_ctx(ctx).await,
+        )),
+        "server/discover" => Ok(server_discover(
+            ctx.protocol_version,
+            &instructions_for_ctx(ctx).await,
+        )),
         "resources/list" => Ok(crate::mcp::gateway::resources::resources_list(
             ctx.tenant_ctx,
         )),
@@ -103,8 +109,19 @@ pub async fn dispatch_method(
     }
 }
 
-fn legacy_initialize(protocol_version: &str) -> Value {
-    let profile = mcp_profile();
+/// The profile text, plus the normal-workspace note when the connection names a normal
+/// workspace (SPEC-180). Without a workspace header the text is the generic one.
+async fn instructions_for_ctx(ctx: &DispatchContext<'_>) -> String {
+    let base = instructions_for_profile(mcp_profile());
+    let caps = crate::services::workspace_profile::workspace_capabilities(
+        ctx.state,
+        ctx.workspace_header.as_deref(),
+    )
+    .await;
+    crate::mcp::project::profile_gate::instructions_with_note(base, &caps)
+}
+
+fn legacy_initialize(protocol_version: &str, instructions: &str) -> Value {
     json!({
         "protocolVersion": protocol_version,
         "capabilities": {
@@ -115,12 +132,11 @@ fn legacy_initialize(protocol_version: &str) -> Value {
             "name": "edgequake-mcp",
             "version": env!("CARGO_PKG_VERSION")
         },
-        "instructions": instructions_for_profile(profile)
+        "instructions": instructions
     })
 }
 
-fn server_discover(protocol_version: &str) -> Value {
-    let profile = mcp_profile();
+fn server_discover(protocol_version: &str, instructions: &str) -> Value {
     json!({
         "protocolVersion": protocol_version,
         "capabilities": {
@@ -131,7 +147,7 @@ fn server_discover(protocol_version: &str) -> Value {
             "name": "edgequake-mcp",
             "version": env!("CARGO_PKG_VERSION")
         },
-        "instructions": instructions_for_profile(profile),
+        "instructions": instructions,
         "supportedProtocolVersions": [PROTOCOL_2026_07_28, PROTOCOL_2025_11_25]
     })
 }
@@ -247,6 +263,10 @@ async fn execute_tool(
         other => other,
     };
 
+    if let Some(refusal) = graph_refusal(canonical, workspace.as_ref()) {
+        return Ok(refusal);
+    }
+
     match canonical {
         "eq_document_list" => eq_document_list(state, tenant_ctx, &arguments).await,
         "eq_document_get" => eq_document_get(state, tenant_ctx, &arguments).await,
@@ -271,6 +291,12 @@ async fn execute_tool(
         "eq_upload_abort" => eq_upload_abort(state, tenant_ctx, &arguments).await,
         other => Err(ApiError::BadRequest(format!("Unknown tool: {other}"))),
     }
+}
+
+/// SPEC-180: a graph tool on a workspace without a graph is refused before it runs.
+fn graph_refusal(tool: &str, workspace: Option<&edgequake_core::Workspace>) -> Option<Value> {
+    let caps = workspace.map(edgequake_core::Workspace::capabilities)?;
+    crate::mcp::project::profile_gate::graph_tool_refusal(tool, &caps)
 }
 
 async fn eq_retrieve(

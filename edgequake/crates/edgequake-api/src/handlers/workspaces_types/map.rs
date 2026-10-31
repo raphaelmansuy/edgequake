@@ -118,6 +118,7 @@ pub fn workspace_to_response(workspace: &Workspace, tenant: Option<&Tenant>) -> 
             .and_then(|v| v.as_u64())
             .map(|n| n as u32),
         extraction: super::ExtractionModeView::from_metadata(&workspace.metadata),
+        profile: super::RagProfileView::from_workspace(workspace),
         entity_type_colors: workspace.metadata.get("entity_type_colors").and_then(|v| {
             serde_json::from_value::<std::collections::HashMap<String, String>>(v.clone()).ok()
         }),

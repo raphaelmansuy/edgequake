@@ -129,8 +129,9 @@ pub use extractor::{
     SOTAExtractor, SimpleExtractor,
 };
 pub use ingestion_pipeline::{
-    build_chunker_config, build_chunker_config_with_policy, build_ingestion_pipeline,
-    build_ingestion_pipeline_simple, build_pipeline_with_extractor, IngestionPipelineOptions,
+    build_chunk_only_pipeline, build_chunker_config, build_chunker_config_with_policy,
+    build_ingestion_pipeline, build_ingestion_pipeline_simple, build_pipeline_with_extractor,
+    IngestionPipelineOptions,
 };
 pub use markdown_ir::{
     extract_markdown_blocks, format_breadcrumb, is_atx_heading_only_text, parse_atx_heading,
@@ -179,7 +180,7 @@ pub use multimodal::{
     resolve_mm_entity_display, resolve_retrieval_modality_from_content,
     stamp_retrieval_modality_on_chunks, DrawingItemKind, DrawingItemLocus, MmChunkSidecarMeta,
     MmDisplayInput, MmDisplayLabel, MmHeadingBlock, MmSidecarBlock, MmSidecarRef, MODALITY_CHART,
-    MODALITY_EQUATION, MODALITY_FIGURE, MODALITY_TABLE,
+    MODALITY_EQUATION, MODALITY_FIGURE, MODALITY_IMAGE, MODALITY_TABLE,
 };
 pub use persistence::{
     build_chunk_vector_batch, build_relational_chunks, is_injection_composite_document_id,

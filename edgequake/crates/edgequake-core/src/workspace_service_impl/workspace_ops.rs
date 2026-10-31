@@ -9,7 +9,6 @@ use crate::{
     types::{CreateWorkspaceRequest, UpdateWorkspaceRequest, Workspace, WorkspaceStats},
 };
 
-#[cfg(feature = "postgres")]
 use super::helpers::{
     apply_chunking_metadata, apply_default_reasoning_effort_metadata, apply_entity_types_metadata,
     apply_entity_types_strict_metadata, apply_extraction_language_metadata,
@@ -23,6 +22,8 @@ use super::rows::WorkspaceRow;
 use super::WorkspaceServiceImpl;
 #[cfg(feature = "postgres")]
 use crate::model_resolution::{write_sent_model_choice_metadata, SentModelChoice};
+#[cfg(feature = "postgres")]
+use crate::rag_profile::ProfileError;
 
 #[cfg(feature = "postgres")]
 impl WorkspaceServiceImpl {
@@ -62,6 +63,11 @@ impl WorkspaceServiceImpl {
             request.embedding_provider.as_deref(),
         );
 
+        // SPEC-180: profile, modalities and regconfig are fixed here, once.
+        let (rag_profile, embedding_modalities, fts_regconfig) = request
+            .resolved_profile()
+            .map_err(ProfileError::into_validation)?;
+
         let slug = request
             .slug
             .unwrap_or_else(|| Self::generate_slug(&request.name));
@@ -84,6 +90,9 @@ impl WorkspaceServiceImpl {
         }
 
         let mut workspace = Workspace::new(tenant_id, &request.name, &slug);
+        workspace.rag_profile = rag_profile;
+        workspace.embedding_modalities = embedding_modalities;
+        workspace.fts_regconfig = fts_regconfig;
         if let Some(desc) = request.description {
             workspace = workspace.with_description(desc);
         }
@@ -249,10 +258,25 @@ impl WorkspaceServiceImpl {
         )
         .map_err(Error::validation)?;
 
+        // SPEC-032/SPEC-040: Store LLM, embedding, and vision config in metadata.
+        // LAW-123-8: only the model groups the caller sent become overrides.
+        // Inherited values stay unset so tenant/env changes still reach this workspace.
+        // The returned workspace carries the same metadata as the stored row.
+        let mut metadata = workspace.metadata.clone();
+        write_sent_model_choice_metadata(&mut metadata, &workspace, sent);
+        // SPEC-041: Vision LLM configuration (already set in workspace.metadata above)
+        if let Some(pdf_parser_backend) = workspace.pdf_parser_backend {
+            metadata.insert(
+                "pdf_parser_backend".to_string(),
+                serde_json::Value::String(pdf_parser_backend.as_str().to_string()),
+            );
+        }
+        workspace.metadata = metadata;
+
         sqlx::query(
             r#"
-            INSERT INTO workspaces (workspace_id, tenant_id, name, slug, description, is_active, metadata, settings, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, '{}'::jsonb, $8, $9)
+            INSERT INTO workspaces (workspace_id, tenant_id, name, slug, description, is_active, metadata, settings, created_at, updated_at, rag_profile, embedding_modalities, fts_regconfig)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, '{}'::jsonb, $8, $9, $10, $11, $12)
             "#,
         )
         .bind(workspace.workspace_id)
@@ -262,22 +286,12 @@ impl WorkspaceServiceImpl {
         .bind(&workspace.description)
         .bind(workspace.is_active)
         // SPEC-032/SPEC-040: Store LLM, embedding, and vision config in metadata
-        .bind({
-            let mut metadata = workspace.metadata.clone();
-            // LAW-123-8: only the model groups the caller sent become overrides.
-            // Inherited values stay unset so tenant/env changes still reach this workspace.
-            write_sent_model_choice_metadata(&mut metadata, &workspace, sent);
-            // SPEC-041: Vision LLM configuration (already set in workspace.metadata above)
-            if let Some(pdf_parser_backend) = workspace.pdf_parser_backend {
-                metadata.insert(
-                    "pdf_parser_backend".to_string(),
-                    serde_json::Value::String(pdf_parser_backend.as_str().to_string()),
-                );
-            }
-            serde_json::json!(metadata)
-        })
+        .bind(serde_json::json!(&workspace.metadata))
         .bind(workspace.created_at)
         .bind(workspace.updated_at)
+        .bind(workspace.rag_profile.as_str())
+        .bind(workspace.embedding_modalities.as_str())
+        .bind(workspace.fts_regconfig.as_str())
         .execute(&self.pool)
         .await
         .map_err(|e| Error::internal(format!("Failed to create workspace: {}", e)))?;
@@ -305,8 +319,8 @@ impl WorkspaceServiceImpl {
 
         sqlx::query(
             r#"
-            INSERT INTO workspaces (workspace_id, tenant_id, name, slug, description, is_active, metadata, settings, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, '{}'::jsonb, $8, $9)
+            INSERT INTO workspaces (workspace_id, tenant_id, name, slug, description, is_active, metadata, settings, created_at, updated_at, rag_profile, embedding_modalities, fts_regconfig)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, '{}'::jsonb, $8, $9, $10, $11, $12)
             ON CONFLICT (workspace_id) DO UPDATE SET
                 name = EXCLUDED.name,
                 description = EXCLUDED.description,
@@ -324,6 +338,9 @@ impl WorkspaceServiceImpl {
         .bind(serde_json::json!(workspace.metadata))
         .bind(workspace.created_at)
         .bind(workspace.updated_at)
+        .bind(workspace.rag_profile.as_str())
+        .bind(workspace.embedding_modalities.as_str())
+        .bind(workspace.fts_regconfig.as_str())
         .execute(&self.pool)
         .await
         .map_err(|e| Error::internal(format!("Failed to insert workspace: {}", e)))?;
@@ -340,7 +357,8 @@ impl WorkspaceServiceImpl {
     pub(super) async fn pg_get_workspace(&self, workspace_id: Uuid) -> Result<Option<Workspace>> {
         let row: Option<WorkspaceRow> = sqlx::query_as(
             r#"
-            SELECT workspace_id, tenant_id, name, slug, description, is_active, metadata, created_at, updated_at
+            SELECT workspace_id, tenant_id, name, slug, description, is_active, metadata, created_at, updated_at,
+                   rag_profile, embedding_modalities, fts_regconfig
             FROM workspaces
             WHERE workspace_id = $1
             "#,
@@ -371,7 +389,8 @@ impl WorkspaceServiceImpl {
     ) -> Result<Option<Workspace>> {
         let row: Option<WorkspaceRow> = sqlx::query_as(
             r#"
-            SELECT workspace_id, tenant_id, name, slug, description, is_active, metadata, created_at, updated_at
+            SELECT workspace_id, tenant_id, name, slug, description, is_active, metadata, created_at, updated_at,
+                   rag_profile, embedding_modalities, fts_regconfig
             FROM workspaces
             WHERE tenant_id = $1 AND slug = $2
             "#,
@@ -401,6 +420,11 @@ impl WorkspaceServiceImpl {
         workspace_id: Uuid,
         request: UpdateWorkspaceRequest,
     ) -> Result<Workspace> {
+        // SPEC-180: the profile columns never change; the trigger is only the backstop.
+        request
+            .check_profile_untouched()
+            .map_err(ProfileError::into_conflict)?;
+
         // First get the existing workspace
         let mut workspace = self
             .pg_get_workspace(workspace_id)
@@ -604,7 +628,8 @@ impl WorkspaceServiceImpl {
     ) -> Result<Vec<Workspace>> {
         let rows: Vec<WorkspaceRow> = sqlx::query_as(
             r#"
-            SELECT workspace_id, tenant_id, name, slug, description, is_active, metadata, created_at, updated_at
+            SELECT workspace_id, tenant_id, name, slug, description, is_active, metadata, created_at, updated_at,
+                   rag_profile, embedding_modalities, fts_regconfig
             FROM workspaces
             WHERE tenant_id = $1
             ORDER BY created_at DESC, workspace_id DESC

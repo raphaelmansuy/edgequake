@@ -14,6 +14,8 @@ use axum::Json;
 use edgequake_core::model_policy::{
     eligible_models, policy_mode, usages_left_empty, widening_rows, CatalogEntry, PolicyRow,
 };
+use edgequake_core::rag_profile::codes;
+use edgequake_core::Usage;
 use edgequake_core::Workspace;
 use uuid::Uuid;
 
@@ -22,8 +24,9 @@ use crate::handlers::auth::ApiAuthenticated;
 use crate::handlers::me_settings_access::{caller_scope, CallerScope};
 use crate::handlers::model_policy_types::{
     catalog_view, parse_configurable_usage, parse_policy_rows, EligibleModelDto,
-    EligibleModelsResponse, EligibleQuery, PolicyRowDto, PutPolicyRequest, TenantCatalogResponse,
-    TenantPolicyResponse, WorkspacePolicyResponse,
+    EligibleModelsResponse, EligibleQuery, EmbeddingSupportQuery, EmbeddingSupportResponse,
+    PolicyRowDto, PutPolicyRequest, TenantCatalogResponse, TenantPolicyResponse,
+    WorkspacePolicyResponse,
 };
 use crate::handlers::workspaces::tenant_access::{require_tenant_access, TenantAccess};
 use crate::services::model_policy_catalog::{load_catalog, CatalogItem};
@@ -286,6 +289,126 @@ impl ChoiceScope {
             Self::Tenant { .. } => "tenant",
             Self::Deployment => "deployment",
         }
+    }
+}
+
+/// `GET /api/v1/models/embedding-support`: may this workspace embed images with this pair?
+///
+/// SPEC-180 08 + 11: the model step asks before the user walks to Review. The answer is the
+/// same probe create enforces, so the inline reason cannot disagree with the refusal.
+#[utoipa::path(
+    get,
+    path = "/api/v1/models/embedding-support",
+    tag = "Models",
+    params(
+        ("provider" = String, Query, description = "Embedding provider slug"),
+        ("model" = String, Query, description = "Embedding model id"),
+        ("dimension" = Option<usize>, Query, description = "Width to probe; the card's width by default"),
+        ("tenant_id" = Option<Uuid>, Query, description = "Tenant scope"),
+        ("workspace_id" = Option<Uuid>, Query, description = "Workspace scope"),
+        ("scope" = Option<String>, Query, description = "deployment"),
+    ),
+    responses(
+        (status = 200, description = "Whether the pair can embed images here", body = EmbeddingSupportResponse),
+        (status = 400, description = "Zero or two scopes"),
+        (status = 403, description = "Caller cannot read this scope"),
+    )
+)]
+pub async fn get_embedding_support(
+    State(state): State<AppState>,
+    ApiAuthenticated(auth): ApiAuthenticated,
+    Query(query): Query<EmbeddingSupportQuery>,
+) -> ApiResult<Json<EmbeddingSupportResponse>> {
+    let choice = authorize_choice(
+        &state,
+        &auth,
+        &parse_choice_scope(&support_query_as_eligible(&query))?,
+    )
+    .await?;
+    let (offer, ceiling, narrowing) = load_choice_inputs(&state, &choice).await?;
+    let mut catalog = load_catalog(&state).await;
+    crate::services::model_policy_catalog::append_connection_models(&state, &mut catalog).await?;
+    let entries = catalog_entries(&catalog);
+    let provider = query.provider.trim().to_ascii_lowercase();
+    let model = query.model.trim().to_string();
+    let card = catalog
+        .iter()
+        .find(|item| item.entry.provider == provider && item.entry.model == model);
+    let eligible = eligible_models(
+        Usage::Embedding,
+        &entries,
+        &ceiling,
+        &narrowing,
+        Some(&offer.slugs),
+    )
+    .iter()
+    .any(|entry| entry.provider == provider && entry.model == model);
+    let multimodal = card.is_some_and(|item| item.entry.facts.embeds_image());
+    let dimension = query
+        .dimension
+        .filter(|d| *d > 0)
+        .or_else(|| {
+            card.and_then(|item| item.embedding_dimension)
+                .map(|d| d as usize)
+        })
+        .unwrap_or(0);
+
+    let mut answer = EmbeddingSupportResponse {
+        provider: provider.clone(),
+        model: model.clone(),
+        eligible,
+        multimodal,
+        embeds_images: None,
+        code: None,
+        message: None,
+    };
+    if !eligible {
+        answer.code = Some("model_not_eligible".to_string());
+        answer.message = Some(
+            "this scope does not offer the pair; pick an offered model or ask an admin".to_string(),
+        );
+        return Ok(Json(answer));
+    }
+    if !multimodal {
+        answer.code = Some(codes::EMBEDDING_MODEL_NOT_MULTIMODAL.to_string());
+        answer.message = Some(
+            "this model reads text only; pick an image-capable embedding model or use Text only"
+                .to_string(),
+        );
+        return Ok(Json(answer));
+    }
+    if dimension == 0 {
+        answer.code = Some("embedding_dimension_required".to_string());
+        answer.message =
+            Some("the model card has no width; ask an admin to register it".to_string());
+        return Ok(Json(answer));
+    }
+    // A live answer. The probe is cached, so opening the step and saving share one call.
+    match crate::services::embed_capability_probe::probe_image_for_picker(
+        &provider, &model, dimension,
+    )
+    .await
+    {
+        Some(Ok(())) => answer.embeds_images = Some(true),
+        Some(Err(error)) => {
+            answer.embeds_images = Some(false);
+            answer.code = Some(error.code.to_string());
+            answer.message = Some(crate::services::embed_capability_probe::action_message(
+                &error,
+            ));
+        }
+        // Not a pair this build can probe: the card's word stands.
+        None => answer.embeds_images = Some(true),
+    }
+    Ok(Json(answer))
+}
+
+fn support_query_as_eligible(query: &EmbeddingSupportQuery) -> EligibleQuery {
+    EligibleQuery {
+        workspace_id: query.workspace_id,
+        tenant_id: query.tenant_id,
+        scope: query.scope.clone(),
+        usage: Usage::Embedding.as_str().to_string(),
     }
 }
 

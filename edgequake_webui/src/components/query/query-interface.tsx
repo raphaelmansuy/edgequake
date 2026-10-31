@@ -13,6 +13,7 @@ import { useQueryInterface } from "@/hooks/use-query-interface";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useQueryScope } from "@/hooks/use-query-scope";
 import { useCompanionLayout } from "@/hooks/use-companion-layout";
+import { useWorkspaceCapabilities } from "@/hooks/use-workspace-capabilities";
 import {
   entityHandoffFromNode,
   useQueryHandoff,
@@ -32,6 +33,7 @@ import { SlashMenu } from "./composer/slash-menu";
 import { useQueryComposerShortcuts } from "./composer/use-query-composer-shortcuts";
 import { ConversationHistoryPanelV2 } from "./conversation-history-panel-v2";
 import { MobileHistoryPanel } from "./mobile-history-panel";
+import { getQueryEmptyCopy } from "@/lib/query/query-empty-copy";
 import { QueryEmptyState } from "./query-empty-state";
 import { CompanionShell } from "./companion/companion-shell";
 import { QuerySettingsSheet } from "./query-settings-sheet";
@@ -60,6 +62,7 @@ export function QueryInterface() {
     jumpToLatest,
     inputRef,
     attachedImages,
+    searchImage,
     imageInputRef,
     maxImages,
     handleInputChange,
@@ -86,6 +89,9 @@ export function QueryInterface() {
   const { rootRef, layout, history, companionOpen } = useCompanionLayout(isXl);
   const historyDock = history !== "overlay";
   const companionEnabled = isCompanionEnabled();
+  // SPEC-180: the split opens a graph; a workspace without one has nothing to split to.
+  const showsGraph = useWorkspaceCapabilities().shows_graph_ui;
+  const emptyCopy = getQueryEmptyCopy(querySettings.mode, showsGraph);
   const closeCompanion = useCompanionPaneStore((s) => s.close);
   const openSource = useCompanionPaneStore((s) => s.openSource);
   const openWorkspaceGraph = useCompanionPaneStore((s) => s.openWorkspaceGraph);
@@ -211,15 +217,7 @@ export function QueryInterface() {
                 {t("query.title", "Query")}
               </h1>
               <span className="hidden min-w-0 truncate whitespace-nowrap text-xs text-muted-foreground xl:inline">
-                {querySettings.mode === "bypass"
-                  ? t(
-                      "query.chatSubtitle",
-                      "General chat — no knowledge graph retrieval",
-                    )
-                  : t(
-                      "query.subtitle",
-                      "Ask questions about your knowledge graph",
-                    )}
+                {t(emptyCopy.keys.subtitle, emptyCopy.subtitle)}
               </span>
             </div>
             <div className="eq-toolbar min-w-0 shrink-0">
@@ -236,7 +234,7 @@ export function QueryInterface() {
                 </span>
               </Button>
 
-              {companionEnabled ? (
+              {companionEnabled && showsGraph ? (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -401,6 +399,7 @@ export function QueryInterface() {
               onQueue={queueMessage}
               mode={querySettings.mode}
               onModeChange={(mode) => setQuerySettings({ mode })}
+              searchImage={searchImage}
               scope={scope}
               attachedImages={attachedImages}
               onRemoveImage={removeImage}

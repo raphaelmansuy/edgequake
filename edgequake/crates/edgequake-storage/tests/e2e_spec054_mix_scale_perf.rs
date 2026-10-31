@@ -85,6 +85,7 @@ async fn e2e_q1d_mix_filtered_ann_p95_under_500ms_at_50k() {
         document_ids: None,
         modalities: None,
         embedding_model: None,
+        kinds: None,
     };
     let query = emb(0.0);
 

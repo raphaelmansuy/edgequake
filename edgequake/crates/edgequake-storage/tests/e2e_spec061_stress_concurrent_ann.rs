@@ -70,6 +70,7 @@ async fn e2e_spec061_stress_concurrent_filtered_ann() {
         document_ids: None,
         modalities: None,
         embedding_model: None,
+        kinds: None,
     };
 
     let mut single = Vec::new();

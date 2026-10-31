@@ -37,6 +37,7 @@ mod binary_quantize_policy;
 mod binding_registry;
 mod capabilities;
 pub mod chunk_embedding_index;
+mod chunk_embedding_kinds;
 pub(crate) mod chunk_repository;
 mod config;
 mod connection;

@@ -90,6 +90,11 @@ export interface ChatCompletionRequest {
    */
   images?: Array<{ data: string; mime_type: string }>;
   /**
+   * SPEC-180: one image to search by. Sent as the multipart part `query_image`; the rest of
+   * the request rides in the part `request`. Only a workspace that embeds images accepts it.
+   */
+  query_image?: File;
+  /**
    * Payload tier for source snippets: citation (200 chars) | agent (full chunk).
    * @implements SPEC-037 + SPEC-028
    */
@@ -237,6 +242,23 @@ export type ChatStreamEvent =
 // ============================================================================
 
 /**
+ * One body builder for both chat calls. JSON, or multipart when a query image is attached
+ * (the browser sets the boundary, so no Content-Type is written here).
+ */
+export function chatRequestBody(
+  request: ChatCompletionRequest,
+  stream: boolean,
+): string | FormData {
+  const { query_image: queryImage, ...rest } = request;
+  const json = JSON.stringify({ ...rest, stream });
+  if (!queryImage) return json;
+  const form = new FormData();
+  form.append("request", json);
+  form.append("query_image", queryImage, queryImage.name);
+  return form;
+}
+
+/**
  * Send a chat completion request (non-streaming).
  *
  * @param request - Chat completion request
@@ -247,7 +269,7 @@ export async function chatCompletion(
 ): Promise<ChatCompletionResponse> {
   return apiClient<ChatCompletionResponse>("/chat/completions", {
     method: "POST",
-    body: JSON.stringify({ ...request, stream: false }),
+    body: chatRequestBody(request, false),
   });
 }
 
@@ -282,7 +304,7 @@ export async function* chatCompletionStream(
 ): AsyncGenerator<ChatStreamEvent, void, unknown> {
   yield* streamClient<ChatStreamEvent>("/chat/completions/stream", {
     method: "POST",
-    body: JSON.stringify({ ...request, stream: true }),
+    body: chatRequestBody(request, true),
   });
 }
 

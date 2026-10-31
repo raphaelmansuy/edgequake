@@ -1073,6 +1073,9 @@ mod tests {
                 vision_image_system_prompt: None,
                 vision_chart_system_prompt: None,
                 vision_figure_system_prompt: None,
+                rag_profile: None,
+                embedding_modalities: None,
+                fts_regconfig: None,
             };
 
             let workspace = service

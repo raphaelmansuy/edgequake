@@ -157,9 +157,12 @@ fn axum_route_paths(routes_rs: &str) -> std::collections::BTreeSet<String> {
             paths.insert(normalize_path_for_openapi(&format!("/api{path}")));
         }
     }
-    if let Some(body) = function_body(routes_rs, "api_v1_routes") {
-        for path in extract_route_literals(body) {
-            paths.insert(normalize_path_for_openapi(&format!("/api/v1{path}")));
+    // `graph_surface_routes` is the SPEC-180 profile-gated sub-router merged into v1.
+    for fn_name in &["api_v1_routes", "graph_surface_routes"] {
+        if let Some(body) = function_body(routes_rs, fn_name) {
+            for path in extract_route_literals(body) {
+                paths.insert(normalize_path_for_openapi(&format!("/api/v1{path}")));
+            }
         }
     }
     if let Some(body) = function_body(routes_rs, "api_v2_routes") {

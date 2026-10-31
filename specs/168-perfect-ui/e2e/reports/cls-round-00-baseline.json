@@ -5,71 +5,71 @@
       "route": "dashboard",
       "state": "default",
       "width": 1440,
-      "cls": 0.00023812063293038408,
-      "shifts": 2
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "documents",
       "state": "default",
       "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "query",
       "state": "default",
       "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "graph",
       "state": "default",
       "width": 1440,
-      "cls": 0.0033373601466049384,
-      "shifts": 3
+      "cls": 0.000038580246913580246,
+      "shifts": 1
     },
     {
       "route": "pipeline",
       "state": "default",
       "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "costs",
       "state": "default",
       "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "workspace",
       "state": "default",
       "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "settings",
       "state": "default",
       "width": 1440,
-      "cls": 0.006706164266117969,
-      "shifts": 2
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "knowledge",
       "state": "default",
       "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "login",
       "state": "default",
       "width": 1440,
-      "cls": 0.003848079561042524,
-      "shifts": 1
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "dashboard",
@@ -96,8 +96,8 @@
       "route": "graph",
       "state": "default",
       "width": 390,
-      "cls": 0,
-      "shifts": 0
+      "cls": 0.0002591689660713267,
+      "shifts": 1
     },
     {
       "route": "pipeline",
@@ -124,8 +124,8 @@
       "route": "settings",
       "state": "default",
       "width": 390,
-      "cls": 0.19691357781803775,
-      "shifts": 2
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "knowledge",
@@ -145,64 +145,64 @@
       "route": "dashboard",
       "state": "collapsed-dark",
       "width": 1440,
-      "cls": 0.000455136330268347,
-      "shifts": 1
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "documents",
       "state": "collapsed-dark",
       "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "query",
       "state": "collapsed-dark",
       "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "graph",
       "state": "collapsed-dark",
       "width": 1440,
-      "cls": 0.00035379821191272294,
-      "shifts": 3
+      "cls": 0.00047449417009602196,
+      "shifts": 2
     },
     {
       "route": "pipeline",
       "state": "collapsed-dark",
       "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "costs",
       "state": "collapsed-dark",
       "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "workspace",
       "state": "collapsed-dark",
       "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "settings",
       "state": "collapsed-dark",
       "width": 1440,
-      "cls": 0.006706164266117969,
-      "shifts": 2
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "knowledge",
       "state": "collapsed-dark",
       "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "login",
@@ -236,8 +236,8 @@
       "route": "graph",
       "state": "collapsed-dark",
       "width": 390,
-      "cls": 0,
-      "shifts": 0
+      "cls": 0.0002591689660713267,
+      "shifts": 1
     },
     {
       "route": "pipeline",
@@ -264,8 +264,8 @@
       "route": "settings",
       "state": "collapsed-dark",
       "width": 390,
-      "cls": 0.19691357781803775,
-      "shifts": 2
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "knowledge",
@@ -278,96 +278,96 @@
       "route": "login",
       "state": "collapsed-dark",
       "width": 390,
-      "cls": 0.021512176045991552,
-      "shifts": 1
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "dashboard",
       "state": "empty-workspace",
       "width": 1440,
-      "cls": 0.00023812063293038408,
-      "shifts": 2
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "documents",
       "state": "empty-workspace",
       "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
-    },
-    {
-      "route": "query",
-      "state": "empty-workspace",
-      "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
-    },
-    {
-      "route": "graph",
-      "state": "empty-workspace",
-      "width": 1440,
-      "cls": 0.0033604239004629633,
-      "shifts": 3
-    },
-    {
-      "route": "pipeline",
-      "state": "empty-workspace",
-      "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
-    },
-    {
-      "route": "costs",
-      "state": "empty-workspace",
-      "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
-    },
-    {
-      "route": "workspace",
-      "state": "empty-workspace",
-      "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
-    },
-    {
-      "route": "settings",
-      "state": "empty-workspace",
-      "width": 1440,
-      "cls": 0.0034493591392318244,
-      "shifts": 1
-    },
-    {
-      "route": "knowledge",
-      "state": "empty-workspace",
-      "width": 1440,
-      "cls": 0.00002132221739969136,
-      "shifts": 1
-    },
-    {
-      "route": "login",
-      "state": "empty-workspace",
-      "width": 1440,
-      "cls": 0.003848079561042524,
-      "shifts": 1
-    },
-    {
-      "route": "dashboard",
-      "state": "empty-workspace",
-      "width": 390,
-      "cls": 0.005683686112690122,
-      "shifts": 1
-    },
-    {
-      "route": "documents",
-      "state": "empty-workspace",
-      "width": 390,
       "cls": 0,
       "shifts": 0
     },
     {
       "route": "query",
       "state": "empty-workspace",
+      "width": 1440,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "graph",
+      "state": "empty-workspace",
+      "width": 1440,
+      "cls": 0.0004800668724279835,
+      "shifts": 2
+    },
+    {
+      "route": "pipeline",
+      "state": "empty-workspace",
+      "width": 1440,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "costs",
+      "state": "empty-workspace",
+      "width": 1440,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "workspace",
+      "state": "empty-workspace",
+      "width": 1440,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "settings",
+      "state": "empty-workspace",
+      "width": 1440,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "knowledge",
+      "state": "empty-workspace",
+      "width": 1440,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "login",
+      "state": "empty-workspace",
+      "width": 1440,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "dashboard",
+      "state": "empty-workspace",
+      "width": 390,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "documents",
+      "state": "empty-workspace",
+      "width": 390,
+      "cls": 0,
+      "shifts": 0
+    },
+    {
+      "route": "query",
+      "state": "empty-workspace",
       "width": 390,
       "cls": 0,
       "shifts": 0
@@ -376,8 +376,8 @@
       "route": "graph",
       "state": "empty-workspace",
       "width": 390,
-      "cls": 0,
-      "shifts": 0
+      "cls": 0.0002850858626784594,
+      "shifts": 1
     },
     {
       "route": "pipeline",
@@ -404,8 +404,8 @@
       "route": "settings",
       "state": "empty-workspace",
       "width": 390,
-      "cls": 0.00784436068487415,
-      "shifts": 1
+      "cls": 0,
+      "shifts": 0
     },
     {
       "route": "knowledge",
@@ -418,8 +418,8 @@
       "route": "login",
       "state": "empty-workspace",
       "width": 390,
-      "cls": 0.021512176045991552,
-      "shifts": 1
+      "cls": 0,
+      "shifts": 0
     }
   ]
 }

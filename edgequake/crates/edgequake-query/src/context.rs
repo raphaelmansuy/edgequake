@@ -183,6 +183,11 @@ pub struct RetrievedChunk {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub modality: Option<String>,
 
+    /// What the chunk was made from (`text`, `image`). SPEC-180: an image chunk has no text
+    /// body, so text-only scoring must not treat it as an empty — i.e. irrelevant — chunk.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_modality: Option<String>,
+
     /// Stable citation index for prompt `[N]` and API `reference_id` (SPEC-083 X-20).
     ///
     /// Assigned once before format; never renumbered after reorder.
@@ -208,6 +213,7 @@ impl RetrievedChunk {
             page_start: None,
             page_end: None,
             modality: None,
+            source_modality: None,
             citation_id: None,
         }
     }
@@ -259,6 +265,22 @@ impl RetrievedChunk {
     pub fn with_modality(mut self, modality: impl Into<String>) -> Self {
         self.modality = Some(modality.into());
         self
+    }
+
+    /// Record what the chunk was made from (`text` or `image`). SPEC-180.
+    pub fn with_source_modality(mut self, modality: impl Into<String>) -> Self {
+        self.source_modality = Some(modality.into());
+        self
+    }
+
+    /// True when this chunk's payload is pixels, so it has no text to score.
+    ///
+    /// SPEC-180 09: a cross-encoder cannot rank an image and would score it 0, dropping the
+    /// very evidence a search-by-image query asked for. Callers protect these rows instead.
+    pub fn is_image_chunk(&self) -> bool {
+        self.source_modality
+            .as_deref()
+            .is_some_and(|m| m.eq_ignore_ascii_case("image"))
     }
 }
 

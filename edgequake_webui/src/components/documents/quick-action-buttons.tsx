@@ -16,6 +16,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
+import { useWorkspaceCapabilities } from '@/hooks/use-workspace-capabilities';
 import { needsReuploadNotReprocess } from '@/lib/pipeline/pipeline-document-state';
 import { cn } from '@/lib/utils';
 import type { Document } from '@/types';
@@ -130,6 +131,7 @@ export function QuickActionButtons({
   children,
 }: QuickActionButtonsProps) {
   const { t } = useTranslation();
+  const hasGraph = useWorkspaceCapabilities().shows_graph_ui;
   const contextAction = resolveRowContextAction(doc);
   const previewLabel = t('documents.table.preview', 'Preview');
   const graphLabel = t('documents.table.openGraph', 'Open graph');
@@ -159,7 +161,7 @@ export function QuickActionButtons({
           onClick={() => onPreview(doc)}
         />
 
-        {contextAction === 'graph' ? (
+        {contextAction === 'graph' && hasGraph ? (
           <ActionButton
             icon={<Sparkles className="h-4 w-4" />}
             label={graphLabel}

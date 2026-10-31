@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Normal retrieval: query rewrite and near-duplicate suppression.** A Normal question is rewritten before the dense and BM25 legs (`EDGEQUAKE_NORMAL_QUERY_REWRITE`, default on). A timeout, an error, or a completion that would poison retrieval keeps the original question, and the extra call is `stats.llm_calls`. After rerank, MMR drops near-copy chunks (`EDGEQUAKE_NORMAL_MMR`, default on; `EDGEQUAKE_NORMAL_MMR_LAMBDA`, default 0.7). A chunk with no vector is kept. The hermetic hybrid report is `target/spec180-normal-hybrid.json`; the live number remains `make bench`.
+- **SPEC-180 Normal RAG.** A workspace can be created as `normal`: chunks, dense embeddings and BM25, no knowledge graph and no chat model at ingest. The choice is permanent. A normal workspace can embed images with a multimodal embedding model (`text,image`), filter by document kind, and search by image (`query_image` on chat and query). Graph-only modes answer `422`, graph endpoints answer `409`. The WebUI adds the retrieval step to the create wizard, a retrieval card, a Chunks column, kind chips, search by image with a thumbnail grid of matching images, and no-graph states. MCP search honours the same filters and profile. Migration **225** adds the profile columns (expand). New env vars: `EDGEQUAKE_NORMAL_DENSE_WEIGHT`, `EDGEQUAKE_NORMAL_BM25_WEIGHT`.
+
+  An image workspace is probed for real before it is created: the model step asks
+  `GET /models/embedding-support`, which embeds one 1x1 PNG with the chosen pair. A deployment
+  whose identity cannot call the model (for example a `GOOGLE_CLOUD_PROJECT` without
+  `aiplatform.endpoints.predict`) is told so on the model step, with the project named and
+  Next disabled, instead of failing on the last wizard step. The answer is cached five
+  minutes and create/update/rebuild enforce the same probe.
+- **Gemini multimodal embedding is active in dev.** The Vertex auth probe now accepts the active `gcloud` account (the same source the `gemini-embedding-2` client uses), so a broken ADC file no longer hides Vertex. `make backend-bg` pins `EDGEQUAKE_MODELS_CONFIG` to the repo `models.toml`, so a stale `~/.edgequake/models.toml` cannot hide `vertexai/gemini-embedding-2`. Live check: `specs/180-normal-rag/e2e/live_gemini_e2e.py`.
+
 ## [0.38.4] — 2026-10-29
 
 Patch on v0.38.3. Schema stays **224**. An upgrade from 0.38.3 applies no new migration:

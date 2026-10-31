@@ -77,6 +77,16 @@ pub(crate) async fn run_reprocess_failed(
         }
     }
 
+    // SPEC-180: entities_only / merge_only rebuild a graph a normal workspace does not have.
+    if let Some(mode) = request.mode.as_deref() {
+        crate::services::workspace_profile::workspace_capabilities(
+            &state,
+            tenant_ctx.workspace_id.as_deref(),
+        )
+        .await
+        .check_reprocess_mode(mode)?;
+    }
+
     // Resolve reprocess intent (DRY single knob). Default is EntitiesOnly so
     // existing callers (failed-retry, bulk reprocess) keep current behavior.
     let reprocess_mode = request

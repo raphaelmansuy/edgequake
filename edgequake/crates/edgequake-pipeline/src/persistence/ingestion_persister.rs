@@ -85,6 +85,18 @@ impl DefaultIngestionPersister {
         self
     }
 
+    /// SPEC-180: a normal workspace has no graph to merge into.
+    pub fn with_graph_merge(mut self, merges_graph: bool) -> Self {
+        self.config = self.config.with_graph_merge(merges_graph);
+        self
+    }
+
+    /// The vector store says whether typed tables are the authority.
+    pub fn with_typed_authority(mut self, typed_authority: bool) -> Self {
+        self.config = self.config.with_typed_authority(typed_authority);
+        self
+    }
+
     /// Attach a lineage sink (SPEC-032 W-08).
     pub fn with_lineage_sink(mut self, sink: Arc<dyn crate::merger::LineageSink>) -> Self {
         self.config.lineage_sink = Some(sink);
@@ -340,6 +352,16 @@ pub struct IngestionPersistConfig {
     pub text_embedder: Option<Arc<dyn TextEmbedder>>,
     /// SPEC-091 IP2: transactional outbox for multi-store milestones (LAW-D3).
     pub outbox: Option<Arc<dyn edgequake_storage::OutboxSink>>,
+    /// SPEC-180: `false` for a normal workspace. No graph merge, no fleet vectors and no
+    /// community refresh run. Chunks and their embeddings are persisted as always.
+    pub merges_graph: bool,
+    /// SPEC-091: this store is the typed embedding authority.
+    ///
+    /// Defaults from `EDGEQUAKE_VECTOR_BACKEND` so the API path is unchanged.
+    /// The orchestrator overrides it from [`VectorStorage::is_typed_authority`]:
+    /// an in-memory store has no typed tables, and the process-wide env flag
+    /// must not fail that write closed.
+    pub typed_authority: bool,
 }
 
 impl IngestionPersistConfig {
@@ -366,7 +388,24 @@ impl IngestionPersistConfig {
             lineage_sink: None,
             text_embedder: None,
             outbox: None,
+            merges_graph: true,
+            typed_authority: edgequake_storage::vector_backend_reads_typed(
+                edgequake_storage::vector_backend_from_env(),
+            ),
         }
+    }
+
+    /// Override the typed-authority gate. The store's own capability wins over
+    /// the process environment (memory is never a typed authority).
+    pub fn with_typed_authority(mut self, typed_authority: bool) -> Self {
+        self.typed_authority = typed_authority;
+        self
+    }
+
+    /// SPEC-180: turn graph merge and community refresh off (normal workspaces).
+    pub fn with_graph_merge(mut self, merges_graph: bool) -> Self {
+        self.merges_graph = merges_graph;
+        self
     }
 
     pub fn with_kv_storage(mut self, kv_storage: Option<Arc<dyn KVStorage>>) -> Self {
@@ -548,7 +587,8 @@ fn build_merger(
     };
     let mut merger = KnowledgeGraphMerger::new(merger_config, graph_storage, vector_storage)
         .with_tenant_context(ctx.tenant_id.clone(), ctx.workspace_id.clone())
-        .with_relational_sink(config.relational_sink.clone());
+        .with_relational_sink(config.relational_sink.clone())
+        .with_typed_authority(config.typed_authority);
 
     // Wire lineage sink if provided (SPEC-032 W-08)
     if let Some(ref ls) = config.lineage_sink {
@@ -582,9 +622,9 @@ async fn persist_processing_result_impl(
 ) -> Result<IngestionPersistOutput> {
     // SPEC-091: under typed authority, incomplete wiring is fail-closed —
     // never silently skip typed chunk / fleet writes while legacy is stopped.
-    let typed_authority = edgequake_storage::vector_backend::vector_backend_reads_typed(
-        edgequake_storage::vector_backend_from_env(),
-    );
+    // The flag is the store's capability (set on the config), not a fresh env
+    // read: an in-memory store has no typed tables.
+    let typed_authority = config.typed_authority;
     if typed_authority {
         let has_chunk_embeddings = result.chunks.iter().any(|c| c.embedding.is_some());
         if has_chunk_embeddings
@@ -709,11 +749,13 @@ async fn persist_processing_result_impl(
         // The committer owns chunks, graph facts and chunk embeddings. Entity and
         // relationship vectors are not in its command, so write them here or the
         // Local/Global/Mix vector arms see an empty index.
-        let fleet = {
+        let fleet = if config.merges_graph {
             log_ctx_phase(ctx, "fleet_vectors");
             build_merger(graph_storage, vector_storage, config, ctx)
                 .persist_fleet_vectors(&result.extractions)
                 .await?
+        } else {
+            Default::default()
         };
         tracing::info!(
             document_id = %ctx.document_id,
@@ -737,7 +779,7 @@ async fn persist_processing_result_impl(
     // SPEC-091 IP0: under typed authority legacy eq_*_vectors is write-stopped —
     // skip the adapter call entirely (no dead RTT / stage noise).
     if !chunk_vectors.is_empty() {
-        if edgequake_storage::legacy_vector_writes_stopped() {
+        if config.typed_authority {
             record_ingest_stage_duration("chunk_vector_upsert_skipped", 0.0);
             tracing::debug!(
                 document_id = %ctx.document_id,
@@ -777,8 +819,7 @@ async fn persist_processing_result_impl(
             stage_start.elapsed().as_secs_f64(),
         );
         if let Err(e) = typed_result {
-            let backend = edgequake_storage::vector_backend_from_env();
-            if edgequake_storage::vector_backend::vector_backend_reads_typed(backend) {
+            if config.typed_authority {
                 return Err(crate::error::PipelineError::StorageError(e));
             }
             tracing::warn!(
@@ -792,12 +833,16 @@ async fn persist_processing_result_impl(
     let merger = build_merger(graph_storage.clone(), vector_storage.clone(), config, ctx);
     log_ctx_phase(ctx, "merger");
 
-    let merge_result = merger
-        .merge_with_progress(
-            result.extractions.clone(),
-            config.merge_progress.as_ref().map(|cb| cb.as_ref()),
-        )
-        .await;
+    let merge_result = if config.merges_graph {
+        merger
+            .merge_with_progress(
+                result.extractions.clone(),
+                config.merge_progress.as_ref().map(|cb| cb.as_ref()),
+            )
+            .await
+    } else {
+        Ok(MergeStats::default())
+    };
 
     match merge_result {
         Ok(stats) if stats.errors == 0 => {
@@ -818,7 +863,7 @@ async fn persist_processing_result_impl(
             //
             // SPEC-046: also collect full-graph quality metrics in the same
             // background task (non-blocking).
-            {
+            if config.merges_graph {
                 let gs = graph_storage.clone();
                 let vs = vector_storage.clone();
                 let ws = ctx.workspace_id.clone();

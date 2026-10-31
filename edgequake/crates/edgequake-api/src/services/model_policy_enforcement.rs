@@ -220,6 +220,13 @@ pub async fn ensure_resolved_pair(
     } else {
         (resolved_provider, resolved_model)
     };
+    // Same exemption as `judge_running_pair`: the test-only mock provider is not in the
+    // catalog, and it exists only when a test opted in.
+    if provider.is_some_and(crate::provider_visibility::is_mock_provider)
+        && crate::provider_visibility::mock_provider_allowed()
+    {
+        return Ok(());
+    }
     match require_running_pair(
         request_set,
         resolved_provider,
@@ -496,6 +503,13 @@ fn embedding_dimension_from_card(
     body: Option<usize>,
 ) -> ApiResult<Option<usize>> {
     let provider = provider.trim().to_lowercase();
+    // SPEC-180 08: the multimodal model is served at 768, 1536 or 3072. The card holds the
+    // default; the body may pick another width of the finite set.
+    if crate::embeddings::is_vertex_multimodal(&provider, model) {
+        let width = body.filter(|value| *value != 0).unwrap_or(1536);
+        edgequake_core::rag_profile::check_multimodal_dimension(width)?;
+        return Ok(Some(width));
+    }
     let card = catalog
         .iter()
         .find(|item| item.entry.provider == provider && item.entry.model == model.trim());

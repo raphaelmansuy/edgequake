@@ -24,6 +24,7 @@ export function embeddingSelectionFromPick(
     // SPEC-179: never guess a vector size. 0 means "not registered"; the wizard blocks on it.
     dimension:
       typeof pick.dimension === 'number' && pick.dimension > 0 ? pick.dimension : 0,
+    embedsImages: pick.embedsImages,
   };
 }
 
@@ -44,6 +45,7 @@ export function pickFromEmbedding(
     provider: sel.provider,
     model: sel.model,
     dimension: sel.dimension,
+    embedsImages: sel.embedsImages,
   };
 }
 

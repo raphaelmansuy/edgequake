@@ -72,6 +72,49 @@ pub struct MetadataFilter {
     /// `text-embedding-3-small` and would miss workspace rows.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub embedding_model: Option<String>,
+    /// SPEC-180: document kind, MIME type and chunk source modality filters.
+    ///
+    /// Pushed into SQL next to the document filter. `None` adds no predicate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kinds: Option<ChunkKinds>,
+}
+
+/// SPEC-180 chunk-kind predicates. Every present list is `= ANY(list)`; lists are ANDed.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChunkKinds {
+    /// `documents.doc_kind` (`pdf`, `image`, `markdown`, `text`, `office`, `other`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub doc_kinds: Option<Vec<String>>,
+    /// `lower(documents.content_type)`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_types: Option<Vec<String>>,
+    /// `chunks.source_modality` (`text`, `image`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_modalities: Option<Vec<String>>,
+}
+
+impl ChunkKinds {
+    /// True when no list is set, so the filter adds no predicate.
+    pub fn is_empty(&self) -> bool {
+        self.doc_kinds.is_none() && self.mime_types.is_none() && self.source_modalities.is_none()
+    }
+
+    /// A present but empty list can match nothing.
+    pub fn matches_nothing(&self) -> bool {
+        [&self.doc_kinds, &self.mime_types, &self.source_modalities]
+            .iter()
+            .any(|list| list.as_ref().is_some_and(Vec::is_empty))
+    }
+}
+
+/// SPEC-180 lexical (BM25) leg request.
+#[derive(Debug, Clone, Copy)]
+pub struct Bm25Request<'a> {
+    pub query_text: &'a str,
+    /// Hits returned.
+    pub top_k: usize,
+    /// Chunks scored before the cut (the spec caps this at 500).
+    pub candidate_cap: usize,
 }
 
 impl MetadataFilter {
@@ -83,6 +126,7 @@ impl MetadataFilter {
             && self.vector_type.is_none()
             && self.modalities.is_none()
             && self.embedding_model.is_none()
+            && self.kinds.as_ref().is_none_or(ChunkKinds::is_empty)
     }
 
     /// Build a filter from optional tenant and workspace IDs.
@@ -100,6 +144,7 @@ impl MetadataFilter {
             vector_type: None,
             modalities: None,
             embedding_model: None,
+            kinds: None,
         })
     }
 
@@ -119,6 +164,7 @@ impl MetadataFilter {
             vector_type: Some(vector_type.into()),
             modalities: None,
             embedding_model: None,
+            kinds: None,
         })
     }
 
@@ -342,6 +388,26 @@ pub trait VectorStorage: Send + Sync {
     /// Get multiple vectors by IDs.
     async fn get_by_ids(&self, ids: &[String]) -> Result<Vec<(String, Vec<f32>)>>;
 
+    /// Vectors for ranking-time diversity (MMR).
+    ///
+    /// The default is the same read as [`Self::get_by_ids`]. Postgres overrides
+    /// this under typed authority, because `get_by_ids` only sees the legacy
+    /// `eq_*_vectors` tables and those are empty once `chunk_embeddings` is
+    /// the source of truth.
+    async fn get_embeddings_by_ids(&self, ids: &[String]) -> Result<Vec<(String, Vec<f32>)>> {
+        self.get_by_ids(ids).await
+    }
+
+    /// True when this store is the typed embedding authority (SPEC-091).
+    ///
+    /// Memory and other non-Postgres adapters keep the default `false`: they
+    /// have no `chunk_embeddings` table, so a fail-closed typed gate would
+    /// reject a write that can only land in this store. Postgres reports the
+    /// process vector-backend flag.
+    fn is_typed_authority(&self) -> bool {
+        false
+    }
+
     /// Check if storage is empty.
     async fn is_empty(&self) -> Result<bool>;
 
@@ -425,6 +491,19 @@ pub trait VectorStorage: Send + Sync {
         Ok(Vec::new())
     }
 
+    /// SPEC-180: Okapi BM25 over the workspace postings (`chunk_terms`).
+    ///
+    /// `Ok(None)` means this backend keeps no BM25 index (memory adapter); callers go
+    /// dense-only. `Ok(Some(vec![]))` means the index exists and nothing matched.
+    async fn bm25_search_filtered(
+        &self,
+        req: &Bm25Request<'_>,
+        metadata_filter: Option<&MetadataFilter>,
+    ) -> Result<Option<Vec<VectorSearchResult>>> {
+        let _ = (req, metadata_filter);
+        Ok(None)
+    }
+
     /// SPEC-071: warm Wave-2 partial HNSW for a workspace (ops/admin path).
     ///
     /// Default: no-op (`Ok(false)`). Postgres shared-table adapters create a
@@ -482,6 +561,7 @@ mod tests {
             vector_type: None,
             modalities: None,
             embedding_model: None,
+            kinds: None,
         };
         let json = serde_json::to_string(&mf).unwrap();
         let mf2: MetadataFilter = serde_json::from_str(&json).unwrap();

@@ -44,6 +44,11 @@ pub mod oidc_wiremock;
 pub mod spec026_delivery;
 pub mod spec026_multimodal;
 pub mod spec028_mcp;
+pub mod spec180;
+#[cfg(feature = "postgres")]
+pub mod spec180_harness;
+#[cfg(feature = "postgres")]
+pub mod spec180_images;
 
 // ============================================================================
 // Constants
@@ -597,6 +602,62 @@ pub async fn get_with_tenant(
         .oneshot(
             Request::builder()
                 .method("GET")
+                .uri(uri)
+                .header("X-Tenant-ID", tenant_id)
+                .header("X-User-ID", user_id)
+                .header("X-Workspace-ID", workspace_id)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = response.status();
+    let body = extract_json(response).await;
+    (status, body)
+}
+
+/// PUT JSON with X-Tenant-ID, X-User-ID, X-Workspace-ID headers.
+pub async fn put_with_tenant(
+    app: &axum::Router,
+    uri: &str,
+    payload: &Value,
+    tenant_id: &str,
+    user_id: &str,
+    workspace_id: &str,
+) -> (StatusCode, Value) {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(uri)
+                .header("Content-Type", "application/json")
+                .header("X-Tenant-ID", tenant_id)
+                .header("X-User-ID", user_id)
+                .header("X-Workspace-ID", workspace_id)
+                .body(Body::from(serde_json::to_string(payload).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = response.status();
+    let body = extract_json(response).await;
+    (status, body)
+}
+
+/// DELETE with X-Tenant-ID, X-User-ID, X-Workspace-ID headers.
+pub async fn delete_with_tenant(
+    app: &axum::Router,
+    uri: &str,
+    tenant_id: &str,
+    user_id: &str,
+    workspace_id: &str,
+) -> (StatusCode, Value) {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
                 .uri(uri)
                 .header("X-Tenant-ID", tenant_id)
                 .header("X-User-ID", user_id)

@@ -26,6 +26,7 @@ import { EntityRelationStats } from './entity-relation-stats';
 import { KeyStats } from './key-stats';
 import { LineageExport } from './lineage-export';
 import { LineageTree } from './lineage-tree';
+import { useWorkspaceCapabilities } from '@/hooks/use-workspace-capabilities';
 import { ProcessingDetails } from './processing-details';
 import { SourceInfoGrid } from './source-info-grid';
 
@@ -45,6 +46,7 @@ interface MetadataSidebarProps {
 }
 
 export function MetadataSidebar({ document, onChunkSelect, onChunkResolved, selectedChunkId, className }: MetadataSidebarProps) {
+  const extractsGraph = useWorkspaceCapabilities().extracts_graph;
   // WHY: lineage is written only at pipeline finalize — tell the hierarchy tree
   // whether to keep polling, so it fills in when ingestion finishes.
   const isDocumentProcessing = isActiveProcessingDocument({
@@ -73,8 +75,11 @@ export function MetadataSidebar({ document, onChunkSelect, onChunkResolved, sele
             </CollapsibleSection>
           )}
 
-          {/* Entity & Relationships */}
-          {(document.entity_count !== undefined || document.relationship_count !== undefined) && (
+          {/* Entity & Relationships. SPEC-180: a chunk-only (classical RAG) workspace has no
+              graph, so a "Knowledge Graph · 0 entities / 0 relations" section was noise that
+              implied a failed extraction. Read the capability, not the profile name. */}
+          {extractsGraph &&
+          (document.entity_count !== undefined || document.relationship_count !== undefined) && (
             <CollapsibleSection
               title="Knowledge Graph"
               icon={<Network className="h-4 w-4" />}

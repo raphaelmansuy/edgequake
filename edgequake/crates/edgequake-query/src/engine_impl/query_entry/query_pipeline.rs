@@ -113,6 +113,11 @@ impl QueryEngine {
                 .await;
         }
 
+        // SPEC-180: a normal workspace never reaches keyword extraction or the graph.
+        if let Some(plan) = request.normal.clone() {
+            return self.run_normal_pipeline(request, plan, providers).await;
+        }
+
         let prepared = self.pipeline_prepare(&request, &providers).await?;
         stats.embedding_time_ms = prepared.embedding_time_ms;
         stats.keyword_time_ms = prepared.keyword_time_ms;
@@ -179,6 +184,10 @@ impl QueryEngine {
             return Ok((QueryContext::default(), QueryMode::Bypass));
         }
 
+        if let Some(plan) = request.normal.as_ref() {
+            return self.run_normal_context(request, plan, &providers).await;
+        }
+
         let prepared = self.pipeline_prepare(request, &providers).await?;
         let mut context = self
             .pipeline_retrieve(&prepared, request, &providers)
@@ -209,6 +218,11 @@ impl QueryEngine {
         mut context: QueryContext,
         mut stats: Option<&mut QueryStats>,
     ) -> QueryContext {
+        if request.normal.is_some() {
+            return self
+                .postprocess_normal_context(request, context, stats)
+                .await;
+        }
         crate::context_filter::filter_context_by_document_ids(
             &mut context,
             request.allowed_document_ids.as_deref(),
@@ -871,7 +885,7 @@ impl QueryEngine {
         Ok(context)
     }
 
-    async fn pipeline_finalize(
+    pub(super) async fn pipeline_finalize(
         &self,
         request: QueryRequest,
         context: QueryContext,

@@ -28,6 +28,7 @@ import { destinationForChord } from "@/lib/keyboard/destinations";
 import { isEditableTarget, isOverlayOpen } from "@/lib/keyboard/dom";
 import { toggleNavigation } from "@/lib/keyboard/nav-drawer";
 import { createReturnFocus } from "@/lib/keyboard/return-focus";
+import { useWorkspaceCapabilities } from "@/hooks/use-workspace-capabilities";
 import { useSettingsStore } from "@/stores/use-settings-store";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -40,6 +41,7 @@ function hasCommandModifier(e: KeyboardEvent): boolean {
 
 export function useKeyboardShortcuts() {
   const router = useRouter();
+  const caps = useWorkspaceCapabilities();
   const toggleSidebar = useSettingsStore((s) => s.toggleSidebar);
   const [helpOpen, setHelpOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -77,7 +79,7 @@ export function useKeyboardShortcuts() {
       }
       if (outcome.kind === "complete") {
         disarm();
-        const dest = destinationForChord(outcome.key);
+        const dest = destinationForChord(outcome.key, caps);
         if (dest) {
           e.preventDefault();
           router.push(dest.href);
@@ -131,7 +133,7 @@ export function useKeyboardShortcuts() {
       window.removeEventListener("keydown", handler);
       if (disarmTimer.current) clearTimeout(disarmTimer.current);
     };
-  }, [router, toggleSidebar, disarm, returnFocus]);
+  }, [router, toggleSidebar, disarm, returnFocus, caps]);
 
   return {
     helpOpen,

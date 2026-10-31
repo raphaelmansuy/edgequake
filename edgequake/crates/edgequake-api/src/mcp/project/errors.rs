@@ -14,6 +14,8 @@ pub enum ErrorCode {
     ConfirmRequired,
     NotImplemented,
     UnsupportedMedia,
+    /// SPEC-180: the workspace has chunks and embeddings but no graph (HTTP 409 in REST).
+    ProfileHasNoGraph,
 }
 
 impl ErrorCode {
@@ -29,6 +31,8 @@ impl ErrorCode {
             Self::ConfirmRequired => "eq/confirm_required",
             Self::NotImplemented => "eq/not_implemented",
             Self::UnsupportedMedia => "eq/unsupported_media",
+            // The REST code, verbatim: one list for API and MCP.
+            Self::ProfileHasNoGraph => edgequake_core::rag_profile::codes::PROFILE_HAS_NO_GRAPH,
         }
     }
 }

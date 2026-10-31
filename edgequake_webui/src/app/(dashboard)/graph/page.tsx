@@ -8,6 +8,7 @@
 'use client';
 
 import { GraphLoadingOverlay } from '@/components/graph/graph-loading-overlay';
+import { RequiresGraph } from '@/components/workspace/requires-graph';
 import { useGraphStore } from '@/stores/use-graph-store';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
@@ -80,9 +81,11 @@ export default function GraphPage() {
   
   return (
     <div className="h-full overflow-hidden">
-      <GraphTourWrapper>
-        <GraphViewer />
-      </GraphTourWrapper>
+      <RequiresGraph>
+        <GraphTourWrapper>
+          <GraphViewer />
+        </GraphTourWrapper>
+      </RequiresGraph>
     </div>
   );
 }

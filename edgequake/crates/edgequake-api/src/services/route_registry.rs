@@ -90,9 +90,12 @@ pub fn all_axum_route_paths(routes_rs: &str) -> Vec<String> {
             paths.insert(path);
         }
     }
-    if let Some(body) = function_body(routes_rs, "api_v1_routes") {
-        for path in prefixed_paths(body, "/api/v1") {
-            paths.insert(path);
+    // `graph_surface_routes` (SPEC-180) is merged into `api_v1_routes`.
+    for fn_name in &["api_v1_routes", "graph_surface_routes"] {
+        if let Some(body) = function_body(routes_rs, fn_name) {
+            for path in prefixed_paths(body, "/api/v1") {
+                paths.insert(path);
+            }
         }
     }
     if let Some(body) = function_body(routes_rs, "api_v2_routes") {

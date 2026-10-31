@@ -64,7 +64,7 @@ pub fn from_embedding(item: &EmbeddingModelItem) -> CatalogItem {
             model: model.name.clone(),
             facts: ModelFacts {
                 chat: false,
-                vision: false,
+                vision: model.capabilities.supports_vision,
                 embedding: true,
                 registered: registered(model),
                 probe: model.available,
@@ -72,7 +72,8 @@ pub fn from_embedding(item: &EmbeddingModelItem) -> CatalogItem {
         },
         display_name: model.display_name.clone(),
         provider_display_name: item.provider_display_name.clone(),
-        supports_vision: false,
+        // For an embedding card this flag means "embeds images" (SPEC-180 08).
+        supports_vision: model.capabilities.supports_vision,
         supports_streaming: false,
         embedding_dimension: (dim > 0).then_some(dim as i32),
     }

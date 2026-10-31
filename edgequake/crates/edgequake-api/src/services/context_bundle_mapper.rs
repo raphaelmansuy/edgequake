@@ -456,6 +456,7 @@ mod tests {
             page_start: None,
             page_end: None,
             modality: None,
+            source_modality: None,
             citation_id: None,
         });
 

@@ -317,6 +317,9 @@ fn e2e_role_llm_keyword_and_summary_resolve() {
         vision_llm_model: None,
         vision_llm_provider: None,
         pdf_parser_backend: None,
+        rag_profile: Default::default(),
+        embedding_modalities: Default::default(),
+        fts_regconfig: Default::default(),
     };
     assert!(role_config_from_workspace(&ws, LlmRole::Keyword).is_some());
     assert_eq!(resolve_role_llm(&ws, LlmRole::Keyword).model, "mock-kw");
@@ -481,6 +484,9 @@ fn e2e_summary_role_helper_prefers_configured_model() {
         vision_llm_model: None,
         vision_llm_provider: None,
         pdf_parser_backend: None,
+        rag_profile: Default::default(),
+        embedding_modalities: Default::default(),
+        fts_regconfig: Default::default(),
     };
     assert!(role_config_from_workspace(&ws, LlmRole::Summary).is_some());
     assert_eq!(resolve_role_llm(&ws, LlmRole::Summary).model, "sum-1");

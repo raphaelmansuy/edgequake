@@ -57,6 +57,7 @@ async fn seed_and_measure(storage: &PgVectorStorage) -> (Duration, Vec<String>) 
         document_ids: None,
         modalities: None,
         embedding_model: None,
+        kinds: None,
     };
     let query = emb(0.0);
     // Warm + discard a few cold samples so p95 is not dominated by HNSW init.

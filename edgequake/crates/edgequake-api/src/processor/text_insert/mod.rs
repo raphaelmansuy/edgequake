@@ -4,6 +4,7 @@ mod cancel;
 mod decision_outcome;
 mod extraction;
 mod finalize;
+mod image_extract;
 mod persist;
 mod prepare;
 mod types;
@@ -74,11 +75,17 @@ impl DocumentTaskProcessor {
             .and_then(|v| v.as_str())
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string());
-        let extracted = edgequake_pipeline::with_optional_document_language(
-            doc_lang,
-            self.text_insert_extract(task, prepared, cancel_token.clone()),
-        )
-        .await?;
+        // SPEC-180: an image of an image-embedding workspace is one pixel-embedded chunk.
+        let extracted = if self.takes_image_chunk_path(&prepared).await {
+            self.text_insert_extract_image(task, prepared, cancel_token.clone())
+                .await?
+        } else {
+            edgequake_pipeline::with_optional_document_language(
+                doc_lang,
+                self.text_insert_extract(task, prepared, cancel_token.clone()),
+            )
+            .await?
+        };
         edgequake_observability::metrics::record_ingest_stage_duration(
             "extract",
             stage_t0.elapsed().as_secs_f64(),

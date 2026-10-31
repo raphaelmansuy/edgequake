@@ -3,7 +3,6 @@
 use axum::extract::{Extension, State};
 use axum::response::sse::Event;
 use axum::response::Response;
-use axum::Json;
 use edgequake_observability::ErrorEvent;
 use futures::stream::StreamExt;
 use serde_json::json;
@@ -58,7 +57,7 @@ use super::{
 )]
 #[tracing::instrument(
     name = "chat_stream",
-    skip(state, tenant_ctx, request),
+    skip(state, tenant_ctx, body),
     fields(
         request_id = %req_ctx.request_id,
         query.mode = tracing::field::Empty,
@@ -70,10 +69,14 @@ pub async fn chat_completion_stream(
     tenant_ctx: TenantContext,
     OptionalAuth(auth_user): OptionalAuth,
     Extension(req_ctx): Extension<RequestContext>,
-    Json(request): Json<ChatCompletionRequest>,
+    body: crate::handlers::query::json_or_image::JsonOrImage<ChatCompletionRequest>,
 ) -> ApiResult<Response> {
+    let crate::handlers::query::json_or_image::JsonOrImage {
+        body: request,
+        image: query_image,
+    } = body;
     // Validate request
-    if request.message.trim().is_empty() {
+    if request.message.trim().is_empty() && query_image.is_none() {
         return Err(ApiError::ValidationError(
             "Message cannot be empty".to_string(),
         ));
@@ -103,6 +106,10 @@ pub async fn chat_completion_stream(
 
     // Fail closed when an explicit workspace header is invalid (same as /query).
     let workspace = resolve_query_workspace(&state, tenant_ctx.workspace_id.as_deref()).await?;
+    crate::services::workspace_profile::ensure_mode_allowed(
+        workspace.as_ref(),
+        request.mode.as_deref(),
+    )?;
     let workspace_id = workspace.as_ref().map(|ws| ws.workspace_id);
 
     let mode = parse_mode(&request.mode);
@@ -198,6 +205,14 @@ pub async fn chat_completion_stream(
     let request_system_prompt = request.system_prompt.clone();
     // SPEC-005: Clone document filter for async task
     let request_document_filter = request.document_filter.clone();
+    // SPEC-180: validate kind filters before the stream opens (4xx, not a stream error).
+    let kind_plan = crate::services::query_image::normal_plan(
+        workspace.as_ref(),
+        &request.message,
+        request_document_filter.as_ref(),
+        query_image.as_ref(),
+    )
+    .await?;
     // FEAT0505: Clone for auto-title generation
     let first_message_for_title = request.message.clone();
     let stream_request_id = req_ctx.request_id.clone();
@@ -311,6 +326,10 @@ pub async fn chat_completion_stream(
                             return;
                         }
                     }
+                }
+
+                if let Some(plan) = kind_plan.clone() {
+                    engine_request = engine_request.with_normal_plan(plan);
                 }
 
                 // FEAT0203: Forward image attachments to the query engine for vision queries.

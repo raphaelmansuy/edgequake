@@ -365,7 +365,10 @@ impl Pipeline {
                 ));
             }
 
-            if result.stats.entity_count == 0 && result.stats.chunk_count > 0 {
+            // SPEC-180: a chunk-only pipeline extracts nothing on purpose. Zero entities is
+            // its normal result, not a warning and not an error_details line (EC-180-12).
+            let expects_entities = self.config.enable_entity_extraction;
+            if expects_entities && result.stats.entity_count == 0 && result.stats.chunk_count > 0 {
                 tracing::warn!(
                     document_id = document_id,
                     chunk_count = result.stats.chunk_count,

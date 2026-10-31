@@ -400,7 +400,8 @@
       "preview": "Preview",
       "openGraph": "Open graph",
       "retry": "Retry",
-      "moreActions": "More actions"
+      "moreActions": "More actions",
+      "chunks": "Chunks"
     },
     "actions": {
       "view": "View Details",
@@ -493,7 +494,8 @@
       "contentCopied": "Content copied to clipboard",
       "actions": "Actions",
       "technicalDetails": "Technical details",
-      "retryable": "Retryable"
+      "retryable": "Retryable",
+      "image": "Image"
     },
     "viewer": {
       "layout": {
@@ -536,6 +538,20 @@
       "yearsAgo": "{{count}}y ago",
       "unchanged": "Unchanged since upload",
       "neverModified": "not modified since upload"
+    },
+    "subtitleNormal": "Upload and manage documents for search",
+    "noDocumentsSubtitleNormal": "Upload documents, scans or images to search them",
+    "image": {
+      "label": "Image",
+      "download": "Download original",
+      "failed": "The image could not be loaded",
+      "failedHint": "It may still be processing, or the original is no longer stored. Try again, or reprocess the document.",
+      "fit": "Fit to window",
+      "loading": "Loading image…",
+      "open": "Open full size",
+      "stage": "Image preview. Use plus and minus to zoom.",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out"
     }
   },
   "graph": {
@@ -724,7 +740,9 @@
     },
     "stats": {
       "entities": "entities",
-      "relationships": "relationships"
+      "relationships": "relationships",
+      "documents": "documents",
+      "chunks": "passages"
     },
     "emptyNoDocs": "No documents yet — upload documents to ground answers in your knowledge graph.",
     "corpusSuggestion": "What do we know about {{name}}?",
@@ -833,7 +851,8 @@
       "topicCount": "{{count}} topics",
       "openSource": "Open source",
       "openSourcePage": "Open source · {{page}}",
-      "openSourceAria": "Open source {{index}}: {{title}}"
+      "openSourceAria": "Open source {{index}}: {{title}}",
+      "panelAriaPassages": "Source citations: {{sources}} sources, {{confidence}} confidence"
     },
     "history": {
       "title": "History",
@@ -959,6 +978,37 @@
       "deselect": "Clear selection",
       "expanded": "Neighbours shown",
       "expand": "Show neighbours"
+    },
+    "kinds": {
+      "groupLabel": "Document kinds",
+      "all": "All",
+      "pdf": "PDFs",
+      "image": "Images",
+      "markdown": "Markdown",
+      "text": "Text",
+      "office": "Office"
+    },
+    "searchByImage": {
+      "label": "Search by image",
+      "remove": "Remove the search image",
+      "defaultMessage": "Find matches for this image"
+    },
+    "normalEmptyTitle": "Ask about your documents",
+    "normalEmptyDescription": "I find the passages that answer your question, quote them and point to the page.",
+    "normalSuggestions": {
+      "0": "What does the handbook say about refunds?",
+      "1": "Find the passage that mentions deadlines",
+      "2": "Which documents cover onboarding?",
+      "3": "Quote the section about security requirements"
+    },
+    "normalSubtitle": "Ask questions about your documents",
+    "normalEmptyNoDocs": "No documents yet — upload documents and I will answer from their passages.",
+    "imageMatches": {
+      "title": "Matching images",
+      "open": "Open image {{index}}: {{title}}",
+      "more": "+{{count}} more",
+      "unavailable": "No preview",
+      "relevance": "Match strength"
     }
   },
   "pipeline": {
@@ -1376,7 +1426,8 @@
         "warning3": "Queries may return empty results until reprocessing completes",
         "info": "A progress dialog will appear to track reprocessing status."
       }
-    }
+    },
+    "llmConfigDescNormal": "Model that writes the answers. Nothing is extracted when documents are added."
   },
   "entity": {
     "edit": "Edit Entity",
@@ -2138,5 +2189,74 @@
       "resetSubmit": "Set password and sign in",
       "resetNote": "Setting a new password signs you out everywhere else."
     }
+  },
+  "ragProfile": {
+    "stepLabel": "Retrieval",
+    "stepTitle": "Retrieval type",
+    "stepDescription": "How this workspace finds answers. This choice is permanent.",
+    "legend": "Retrieval type",
+    "graph": {
+      "title": "Graph",
+      "summary": "Entities, relationships, and communities.",
+      "detail": "Higher ingest cost. Better for multi-hop questions."
+    },
+    "normal": {
+      "title": "Normal",
+      "summary": "Embeddings and keyword match. No knowledge graph.",
+      "detail": "Lower ingest cost. Enough for lookup."
+    },
+    "evidence": {
+      "legend": "Evidence",
+      "text": "Text",
+      "textImage": "Text and images",
+      "textImageHint": "Needs an embedding model that accepts images.",
+      "textImageNeedsNormal": "Available with the Normal retrieval type.",
+      "noImageModelHint": "No image model available?",
+      "useTextInstead": "Use Text only"
+    },
+    "keywordLanguage": "Keyword language",
+    "keywordLanguageHint": "Used by the keyword index to split and match words.",
+    "language": {
+      "english": "English",
+      "simple": "Any language (no stemming)",
+      "french": "French",
+      "german": "German",
+      "spanish": "Spanish"
+    },
+    "permanent": "This choice is permanent. To use the other type later, create a new workspace.",
+    "blocked": {
+      "embeddingNotMultimodal": "Text and images needs an embedding model that accepts images. Choose one to continue.",
+      "embeddingProbeFailed": "This deployment cannot embed images with that model. Choose another image embedding model, or ask a deployment admin to fix its credentials.",
+      "embeddingProbeChecking": "Checking that this deployment can embed images…"
+    },
+    "review": {
+      "retrieval": "Retrieval",
+      "extraction": "Extraction model",
+      "off": "Off",
+      "keywordIndex": "Keyword index",
+      "keywordIndexOn": "On, {{language}}",
+      "permanent": "This choice is permanent. To use the other type later, create a new workspace and upload again."
+    },
+    "settings": {
+      "title": "Retrieval",
+      "type": "Type",
+      "permanentGraph": "Permanent. Create a new workspace to use Normal retrieval.",
+      "permanentNormal": "Permanent. Create a new workspace to use Graph retrieval."
+    },
+    "noGraph": {
+      "title": "This workspace has no knowledge graph.",
+      "body": "It retrieves by embeddings and keywords.",
+      "documents": "Go to documents",
+      "newGraph": "New graph workspace"
+    },
+    "probe": {
+      "checking": "Checking that this deployment can embed images with {{model}}…",
+      "failedTitle": "This deployment cannot embed images with this model",
+      "failedBody": "Choose another image embedding model, or ask a deployment admin to fix its credentials.",
+      "pair": "Model: {{model}}",
+      "ok": "This deployment can embed images with {{model}}.",
+      "thisModel": "this model"
+    },
+    "noImageEmbedding": "No image-capable embedding model is offered here. Ask a deployment admin to offer one (for example gemini-embedding-2 on Vertex AI), or go back and choose Text instead."
   }
 }

@@ -119,7 +119,7 @@ export function ModelChip({ className }: ModelChipProps) {
         size="sm"
         disabled
         className={cn(
-          "h-8 w-44 max-w-full min-w-0 shrink-0 justify-start gap-1.5 px-2 text-[13px] font-medium",
+          "h-8 w-44 max-w-full min-w-0 shrink justify-start gap-1.5 px-2 text-[13px] font-medium",
           "text-[#57544e] disabled:opacity-100 dark:text-[#b5b2ab]",
           className,
         )}
@@ -151,7 +151,7 @@ export function ModelChip({ className }: ModelChipProps) {
           variant="ghost"
           size="sm"
           className={cn(
-            "h-8 w-44 max-w-full min-w-0 shrink-0 justify-start overflow-hidden gap-1.5 px-2 text-[13px] font-medium",
+            "h-8 w-44 max-w-full min-w-0 shrink justify-start overflow-hidden gap-1.5 px-2 text-[13px] font-medium",
             "text-[#57544e] hover:bg-[#f6f5f2] hover:text-[#1d1c1a] dark:text-[#b5b2ab] dark:hover:bg-[#252524] dark:hover:text-[#eceae5]",
             open && "bg-[#f6f5f2] text-[#1d1c1a] dark:bg-[#252524] dark:text-[#eceae5]",
             className,

@@ -53,6 +53,11 @@ export interface QuerySettings {
    */
   documentFilter?: DocumentFilter;
   /**
+   * SPEC-180: kind chips of the active workspace. Derived per workspace at read time,
+   * never persisted with the user's preferences.
+   */
+  docKinds?: string[];
+  /**
    * Explicitly selected document IDs for query scope restriction.
    * Rendered as dismissible pills in the query bar.
    * Merged into documentFilter.document_ids before API calls.

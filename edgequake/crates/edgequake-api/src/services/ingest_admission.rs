@@ -64,7 +64,10 @@ pub async fn provision_relational_document_shell(
                 created_at, updated_at
             )
             VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, 'pending', $9, NOW(), NOW())
-            ON CONFLICT (id) DO NOTHING
+            -- The staging KV write usually creates the row first without a MIME type.
+            -- `documents.doc_kind` derives from `content_type`, so keep the admitted one.
+            ON CONFLICT (id) DO UPDATE
+               SET content_type = COALESCE(NULLIF(EXCLUDED.content_type, ''), documents.content_type)
             "#,
         )
         .bind(document_id)

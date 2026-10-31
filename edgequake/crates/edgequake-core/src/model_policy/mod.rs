@@ -51,6 +51,12 @@ pub struct ModelFacts {
 }
 
 impl ModelFacts {
+    /// An embedding card that also embeds images (SPEC-180 08). For embedding
+    /// cards the catalog's `supports_vision` flag carries this meaning.
+    pub fn embeds_image(&self) -> bool {
+        self.embedding && self.vision
+    }
+
     /// Capability predicate: can this model serve `usage` at all?
     pub fn supports(&self, usage: Usage) -> bool {
         match usage {

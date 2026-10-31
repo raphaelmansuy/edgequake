@@ -248,6 +248,7 @@ fn engine_request_is_never_unscoped() {
         llm_provider: None,
         llm_model: None,
         reasoning_effort: None,
+        normal_plan: None,
     };
 
     // Headerless → clamps to the default workspace UUID (GAP-091-11).

@@ -1,0 +1,29 @@
+{
+  "k": 1,
+  "cases": [
+    {
+      "id": "n1",
+      "query": "How long do refunds take?",
+      "expect_chunks": ["within 30 days"],
+      "kind": "paraphrase"
+    },
+    {
+      "id": "n2",
+      "query": "How long is the warranty?",
+      "expect_chunks": ["one year"],
+      "kind": "paraphrase"
+    },
+    {
+      "id": "n3",
+      "query": "ERR-4419",
+      "expect_chunks": ["sensor cable"],
+      "kind": "exact"
+    },
+    {
+      "id": "n4",
+      "query": "SKU-9088",
+      "expect_chunks": ["battery low"],
+      "kind": "exact"
+    }
+  ]
+}

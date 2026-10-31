@@ -18,6 +18,8 @@ export interface QueryRequestSettings {
   fullChunkContent?: boolean;
   documentFilter?: DocumentFilter;
   scopedDocumentIds?: string[];
+  /** SPEC-180: kind chips (normal workspaces). Empty or absent means all. */
+  docKinds?: readonly string[];
 }
 
 export interface BuildChatRequestOptions {
@@ -26,6 +28,8 @@ export interface BuildChatRequestOptions {
   conversationId?: string | null;
   language?: string;
   images?: Array<{ data: string; mime_type: string }>;
+  /** SPEC-180: one image to search by (multimodal normal workspaces). Sent as a multipart part. */
+  queryImage?: File;
   /** Force stream flag (overrides settings.stream when set). */
   stream?: boolean;
   /** Ask companion entity id(s) for graph-first admission. */
@@ -38,7 +42,7 @@ export interface BuildChatRequestOptions {
  * - Otherwise merges them: scopedDocumentIds maps to document_ids field
  */
 export function buildDocumentFilter(
-  settings: Pick<QueryRequestSettings, "documentFilter" | "scopedDocumentIds">,
+  settings: Pick<QueryRequestSettings, "documentFilter" | "scopedDocumentIds" | "docKinds">,
 ): DocumentFilter | undefined {
   const hasScopedIds =
     settings.scopedDocumentIds && settings.scopedDocumentIds.length > 0;
@@ -47,11 +51,14 @@ export function buildDocumentFilter(
     settings.documentFilter?.date_to ||
     settings.documentFilter?.document_pattern;
 
-  if (!hasScopedIds && !hasDateOrPattern) return undefined;
+  const hasKinds = settings.docKinds && settings.docKinds.length > 0;
+
+  if (!hasScopedIds && !hasDateOrPattern && !hasKinds) return undefined;
 
   return {
     ...settings.documentFilter,
     document_ids: hasScopedIds ? settings.scopedDocumentIds : undefined,
+    doc_kinds: hasKinds ? [...(settings.docKinds ?? [])] : undefined,
   };
 }
 
@@ -65,6 +72,7 @@ export function buildChatRequest(
     conversationId,
     language,
     images,
+    queryImage,
     stream,
     seedEntityIds,
   } = options;
@@ -89,6 +97,7 @@ export function buildChatRequest(
     document_filter: buildDocumentFilter(settings),
     content_granularity: settings.fullChunkContent ? "agent" : "citation",
     images,
+    query_image: queryImage,
     seed_entity_ids: seeds && seeds.length > 0 ? seeds : undefined,
   };
 }

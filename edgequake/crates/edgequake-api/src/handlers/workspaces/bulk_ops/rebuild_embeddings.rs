@@ -149,6 +149,16 @@ pub(crate) async fn run_rebuild_embeddings(
         ));
     }
 
+    // SPEC-180 08: refuse before anything is cleared. An image workspace keeps an image model.
+    crate::services::multimodal_policy::ensure_embedding_matches_modalities(
+        &state,
+        workspace.embedding_modalities,
+        &new_provider,
+        &new_model,
+        new_dimension,
+    )
+    .await?;
+
     // REQ-25: Validate chunk size vs embedding model compatibility (CRITICAL INVARIANT)
     // Get the new embedding model's context length to ensure chunks will fit
     let model_context_length = state

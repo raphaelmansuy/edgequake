@@ -150,6 +150,45 @@ export function fetchScopedEligibleModels(input: {
   return api.get<EligibleModelsResponse>(eligibleModelsPath(input));
 }
 
+/**
+ * SPEC-180 08 — may this deployment embed images with this pair, right now?
+ * `ok = false` carries the same code and words create would return.
+ */
+export interface EmbeddingSupport {
+  provider: string;
+  model: string;
+  eligible: boolean;
+  multimodal: boolean;
+  embeds_images: boolean | null;
+  code: string | null;
+  message: string | null;
+}
+
+export function embeddingSupportPath(input: {
+  scope: "workspace" | "tenant" | "deployment";
+  id?: string | null;
+  provider: string;
+  model: string;
+  dimension?: number;
+}) {
+  const params = new URLSearchParams({ provider: input.provider, model: input.model });
+  if (input.scope === "workspace" && input.id) params.set("workspace_id", input.id);
+  if (input.scope === "tenant" && input.id) params.set("tenant_id", input.id);
+  if (input.scope === "deployment") params.set("scope", "deployment");
+  if (input.dimension && input.dimension > 0) params.set("dimension", String(input.dimension));
+  return `/models/embedding-support?${params.toString()}`;
+}
+
+export function fetchEmbeddingSupport(input: {
+  scope: "workspace" | "tenant" | "deployment";
+  id?: string | null;
+  provider: string;
+  model: string;
+  dimension?: number;
+}) {
+  return api.get<EmbeddingSupport>(embeddingSupportPath(input));
+}
+
 export const fetchTenantModelCatalog = (tenantId: string) =>
   api.get<CatalogResponse>(`${tenantPath(tenantId)}/model-catalog`);
 

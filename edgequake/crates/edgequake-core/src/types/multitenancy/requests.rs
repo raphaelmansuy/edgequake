@@ -152,6 +152,12 @@ pub struct CreateWorkspaceRequest {
     pub vision_image_system_prompt: Option<String>,
     pub vision_chart_system_prompt: Option<String>,
     pub vision_figure_system_prompt: Option<String>,
+    /// SPEC-180: `graph` (default) or `normal`. Immutable after create.
+    pub rag_profile: Option<crate::rag_profile::RagProfile>,
+    /// SPEC-180: `text` (default) or `text,image`. Immutable after create.
+    pub embedding_modalities: Option<crate::rag_profile::EmbeddingModalities>,
+    /// SPEC-180: BM25 text-search configuration. Immutable after create.
+    pub fts_regconfig: Option<crate::rag_profile::FtsRegconfig>,
 }
 
 impl CreateWorkspaceRequest {
@@ -307,6 +313,72 @@ impl CreateWorkspaceRequest {
         self.entity_types = Some(types);
         self
     }
+
+    /// SPEC-180: choose the retrieval profile (immutable after create).
+    pub fn with_rag_profile(mut self, profile: crate::rag_profile::RagProfile) -> Self {
+        self.rag_profile = Some(profile);
+        self
+    }
+
+    /// SPEC-180: choose what the workspace embeds (immutable after create).
+    pub fn with_embedding_modalities(
+        mut self,
+        modalities: crate::rag_profile::EmbeddingModalities,
+    ) -> Self {
+        self.embedding_modalities = Some(modalities);
+        self
+    }
+
+    /// SPEC-180: effective profile, modalities and regconfig after defaults, validated.
+    pub fn resolved_profile(
+        &self,
+    ) -> Result<
+        (
+            crate::rag_profile::RagProfile,
+            crate::rag_profile::EmbeddingModalities,
+            crate::rag_profile::FtsRegconfig,
+        ),
+        crate::rag_profile::ProfileError,
+    > {
+        let profile = self.rag_profile.unwrap_or_default();
+        let modalities = self.embedding_modalities.unwrap_or_default();
+        crate::rag_profile::check_create_combination(profile, modalities)?;
+        Ok((profile, modalities, self.fts_regconfig.unwrap_or_default()))
+    }
+}
+
+impl UpdateWorkspaceRequest {
+    /// SPEC-180: the first immutable profile field present, as a coded error.
+    /// A value equal to the current one is rejected too, so a client cannot "confirm" it.
+    pub fn check_profile_untouched(&self) -> Result<(), crate::rag_profile::ProfileError> {
+        use crate::rag_profile::{codes, ProfileError};
+        let hit = [
+            (
+                &self.rag_profile,
+                codes::RAG_PROFILE_IMMUTABLE,
+                "rag_profile",
+            ),
+            (
+                &self.embedding_modalities,
+                codes::EMBEDDING_MODALITIES_IMMUTABLE,
+                "embedding_modalities",
+            ),
+            (
+                &self.fts_regconfig,
+                codes::FTS_REGCONFIG_IMMUTABLE,
+                "fts_regconfig",
+            ),
+        ]
+        .into_iter()
+        .find(|(value, _, _)| value.is_some());
+        match hit {
+            Some((_, code, field)) => Err(ProfileError::new(
+                code,
+                format!("{field} cannot change after the workspace is created"),
+            )),
+            None => Ok(()),
+        }
+    }
 }
 
 /// Request to update a workspace.
@@ -418,6 +490,12 @@ pub struct UpdateWorkspaceRequest {
     pub vision_image_system_prompt: Option<String>,
     pub vision_chart_system_prompt: Option<String>,
     pub vision_figure_system_prompt: Option<String>,
+    /// SPEC-180: presence marker. Any value is rejected (`rag_profile_immutable`).
+    pub rag_profile: Option<String>,
+    /// SPEC-180: presence marker. Any value is rejected (`embedding_modalities_immutable`).
+    pub embedding_modalities: Option<String>,
+    /// SPEC-180: presence marker. Any value is rejected (`fts_regconfig_immutable`).
+    pub fts_regconfig: Option<String>,
 }
 
 /// Statistics for a workspace.

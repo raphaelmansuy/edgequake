@@ -16,10 +16,11 @@ import {
   CommandSeparator,
 } from '@/components/ui/command';
 import { Kbd, KeyCombo } from '@/components/shared/kbd';
+import { useWorkspaceCapabilities } from '@/hooks/use-workspace-capabilities';
 import { useDebounce } from '@/hooks/use-debounce';
 import { searchDocuments } from '@/lib/api/edgequake/documents';
 import { toggleNavigation } from '@/lib/keyboard/nav-drawer';
-import { DESTINATIONS } from '@/lib/keyboard/destinations';
+import { destinationsFor } from '@/lib/keyboard/destinations';
 import { beginNewQueryConversation } from '@/lib/query/query-handoff';
 import { useKeyboardShortcutsContext } from '@/providers/keyboard-shortcuts-provider';
 import { useSettingsStore } from '@/stores/use-settings-store';
@@ -81,6 +82,7 @@ function useDocumentMatches(search: string, enabled: boolean) {
 export function CommandPalette() {
   const { t } = useTranslation();
   const router = useRouter();
+  const caps = useWorkspaceCapabilities();
   const { searchOpen, closeSearch, openHelp, onCloseAutoFocus } = useKeyboardShortcutsContext();
   const { setTheme } = useTheme();
   const toggleSidebar = useSettingsStore((s) => s.toggleSidebar);
@@ -123,7 +125,7 @@ export function CommandPalette() {
         <CommandEmpty>{t('command.empty', 'Nothing matches')}</CommandEmpty>
 
         <CommandGroup heading={t('command.navigate', 'Go to')}>
-          {DESTINATIONS.map((d) => {
+          {destinationsFor(caps).map((d) => {
             const label = t(d.labelKey, d.fallback);
             return (
               <CommandItem key={d.href} value={`${label} ${d.href}`} onSelect={go(d.href)}>

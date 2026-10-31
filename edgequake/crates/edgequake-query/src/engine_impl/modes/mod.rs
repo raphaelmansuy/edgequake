@@ -52,5 +52,6 @@ pub(super) fn make_scope_metadata_filter(
         vector_type: vector_type.map(str::to_string),
         modalities: None,
         embedding_model: emb,
+        kinds: None,
     })
 }

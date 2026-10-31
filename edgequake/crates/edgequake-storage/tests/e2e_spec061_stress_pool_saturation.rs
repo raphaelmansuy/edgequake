@@ -49,6 +49,7 @@ async fn e2e_spec061_stress_pool_saturation() {
         document_ids: None,
         modalities: None,
         embedding_model: None,
+        kinds: None,
     };
     let _ = storage
         .upsert(&[(

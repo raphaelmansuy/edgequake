@@ -7,7 +7,7 @@ description: "Plain-English guide to upgrade any published EdgeQuake version saf
 
 This is the canonical guide to database upgrades. It is for operators who run EdgeQuake on their own PostgreSQL. Read it before you start a newer image or binary. Per-release pages (`upgrade-to-0.XX.md`) describe product changes; this page describes the migration process, which works from any published version to HEAD.
 
-> **Schema train today:** migration **224** (`224_spec179_provider_refresh.sql`: provider refresh). **223** (`223_spec177_provider_offers.sql`: provider offers). `222` is the secret manager. `221` is the model catalog policy. `220` is document clearance. `219` (`219_spec173_mcp_upload_sessions.sql`) is MCP upload sessions. `218` is the PDF window digest. `217` lets page images and extracted markdown live in the object store. `216` adds the originals maintenance role. `215` adds the object-ref ledger. `214_spec169_user_access_links.sql` is the v0.36.0 head (one-time magic and password-reset links). `215`–`224` are expand.
+> **Schema train today:** migration **224** (`224_spec179_provider_refresh.sql`: provider refresh). **223** (`223_spec177_provider_offers.sql`: provider offers). `222` is the secret manager. `221` is the model catalog policy. `220` is document clearance. `219` (`219_spec173_mcp_upload_sessions.sql`) is MCP upload sessions. `218` is the PDF window digest. `217` lets page images and extracted markdown live in the object store. `216` adds the originals maintenance role. `215` adds the object-ref ledger. `214_spec169_user_access_links.sql` is the v0.36.0 head (one-time magic and password-reset links). `215`–`225` are expand.
 > The released product is **v0.38.4** (schema **224**). v0.38.3, v0.38.2 and v0.38.1 also stopped at **224**. v0.38.0 stopped at **219**. v0.37.0 stopped at **218**. v0.36.0 stopped at **214**. v0.35.7 stopped at **207**. v0.35.0 stopped at **206**. Migration 170 adds plain graph tables. From v0.35.5 the published Postgres image does not include Apache AGE. When `age` is absent from `pg_available_extensions`, `edgequake migrate` records migration 171 in the same run. When the package is installed, 171 still runs only if you pass `--drop-age`. `--confirm-drop` does not answer that question. Migrations 172 through 207 are expand. A v0.35.4 data directory that already loaded AGE cannot open on the v0.35.5 or later image; drop AGE on the v0.35.4 image first. See [upgrade-to-0.38.4.md](upgrade-to-0.38.4.md).
 >
 > **One rule:** the API never changes the database schema. Only `edgequake migrate` (or the Compose service or Helm Job that runs it) writes schema.
@@ -328,6 +328,19 @@ Full list: [env-reference.md](env-reference.md). Defaults are read from code.
 - **`edgequake/docker/init.sql`** is legacy and not mounted. The numbered migrations are the schema source of truth.
 
 ---
+
+## Vertex project
+
+Image embedding (`gemini-embedding-2`) calls Vertex in one Google Cloud project. A shell that exports a different `GOOGLE_CLOUD_PROJECT` (a common `.zshrc` leftover) sends that call to a project which answers **403**, and the failure used to surface on the last step of creating an image workspace.
+
+`make dev` resolves the project in this order, highest first:
+
+1. `.gcloud_active_project` in the repo root, written by `make gcp-use PROJECT=<id>` or by the first interactive `make dev`.
+2. `GOOGLE_CLOUD_PROJECT`.
+3. `PROJECT_ID` (what `gcp-use-mobioos` exports).
+4. Unset. Image embedding stays off. Every other provider still works.
+
+A saved file wins over a stray export. Check it with `make vertex-project`. Change it with `make gcp-use PROJECT=<id>`. Forget it with `make vertex-project-forget`; the next interactive `make dev` asks again. Non-interactive runs (`make dev-bg`, CI) never prompt.
 
 ## 10. Related pages
 

@@ -125,6 +125,11 @@ pub struct QueryRequest {
     /// Resolved via [`EntityId::exact_lookup_candidates`]. Does not change query mode.
     #[serde(default)]
     pub seed_entity_ids: Option<Vec<String>>,
+
+    /// SPEC-180: present when the workspace is `normal`. The engine then skips keyword
+    /// extraction and every graph step and retrieves chunks with dense + BM25 + RRF.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub normal: Option<crate::normal::NormalQueryPlan>,
 }
 
 /// A single message in conversation history.
@@ -161,7 +166,14 @@ impl QueryRequest {
             response_type: None,
             reasoning_effort: None,
             seed_entity_ids: None,
+            normal: None,
         }
+    }
+
+    /// SPEC-180: route this request through the normal-RAG pipeline.
+    pub fn with_normal_plan(mut self, plan: crate::normal::NormalQueryPlan) -> Self {
+        self.normal = Some(plan);
+        self
     }
 
     /// Stamp Ask / companion entity ids for graph-first admission.
@@ -463,6 +475,11 @@ pub struct QueryStats {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub keyword_cache_hit: bool,
 
+    /// LLM calls before answer generation. Normal query rewriting increments this
+    /// so the extra call is visible; answer generation stays in `generation_time_ms`.
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    pub llm_calls: u64,
+
     /// Total time (ms).
     pub total_time_ms: u64,
 
@@ -628,6 +645,13 @@ impl QueryStats {
             .metadata
             .get("query_intent")
             .and_then(|v| v.as_str().map(str::to_string));
+        if let Some(calls) = context
+            .metadata
+            .get(crate::normal::meta::REWRITE_LLM_CALLS)
+            .and_then(|v| v.as_u64())
+        {
+            self.llm_calls = calls;
+        }
         self.context_empty = context.chunks.is_empty()
             && context.entities.is_empty()
             && context.relationships.is_empty();

@@ -146,37 +146,47 @@ impl DocumentTaskProcessor {
         // SPEC-021 P-G2: single persist path — KV chunks + chunk vectors + KnowledgeGraphMerger
         let mut storage_errors: Vec<String> = Vec::new();
 
-        // Merger LLM summarization: prefer Summary role when configured (SPEC-046),
-        // else Extract role from lineage (same provider as pipeline extraction).
-        let extract_fallback = match crate::safety_limits::create_safe_llm_provider(
-            &provider_lineage.extraction_provider,
-            &provider_lineage.extraction_model,
-        ) {
-            Ok(provider) => provider,
-            Err(e) => {
-                warn!(
-                    document_id = %document_id,
-                    extraction_provider = %provider_lineage.extraction_provider,
-                    extraction_model = %provider_lineage.extraction_model,
-                    error = %e,
-                    "Workspace extraction LLM unavailable for merge summarizer — falling back to processor default"
-                );
-                self.llm_provider.clone()
-            }
-        };
-
         let summary_ws = async {
             let uuid = crate::middleware::resolve_workspace_uuid(Some(workspace_id_meta.as_str()))?;
             let ws_svc = self.workspace_service.as_ref()?;
             ws_svc.get_workspace(uuid).await.ok().flatten()
         }
         .await;
+        // SPEC-180: the workspace profile decides every graph step below.
+        let caps = summary_ws
+            .as_ref()
+            .map(|ws| ws.capabilities())
+            .unwrap_or_default();
+
+        // Merger LLM summarization: prefer Summary role when configured (SPEC-046),
+        // else Extract role from lineage (same provider as pipeline extraction).
+        // A normal workspace never merges, so no summary or extract LLM is built (LAW-180-3).
+        let extract_fallback = if !caps.runs_summary_llm {
+            self.llm_provider.clone()
+        } else {
+            match crate::safety_limits::create_safe_llm_provider(
+                &provider_lineage.extraction_provider,
+                &provider_lineage.extraction_model,
+            ) {
+                Ok(provider) => provider,
+                Err(e) => {
+                    warn!(
+                        document_id = %document_id,
+                        extraction_provider = %provider_lineage.extraction_provider,
+                        extraction_model = %provider_lineage.extraction_model,
+                        error = %e,
+                        "Workspace extraction LLM unavailable for merge summarizer — falling back to processor default"
+                    );
+                    self.llm_provider.clone()
+                }
+            }
+        };
 
         let summary_connection = {
             #[cfg(feature = "postgres")]
             {
                 match (summary_ws.as_ref(), self.pg_pool.as_ref()) {
-                    (Some(ws), Some(pool)) => {
+                    (Some(ws), Some(pool)) if caps.runs_summary_llm => {
                         crate::providers::connection_store::llm_from_workspace_role(
                             pool,
                             ws,
@@ -407,7 +417,8 @@ impl DocumentTaskProcessor {
                     Some(&data.file_source),
                     Some(provider_lineage.embedding_model.as_str()),
                 )
-                .with_task_id(Some(track_id.as_str())),
+                .with_task_id(Some(track_id.as_str()))
+                .with_graph_merge(caps.merges_graph),
                 merge_progress_cb,
             ),
         )
@@ -460,6 +471,11 @@ impl DocumentTaskProcessor {
         stats_with_lineage.embedding_provider = Some(provider_lineage.embedding_provider.clone());
         stats_with_lineage.embedding_model = Some(provider_lineage.embedding_model.clone());
         stats_with_lineage.embedding_dimensions = Some(provider_lineage.embedding_dimension);
+        // SPEC-180: a normal workspace ran no chat LLM at ingest. Lineage must say so.
+        if !caps.extracts_graph {
+            stats_with_lineage.llm_provider = None;
+            stats_with_lineage.llm_model = None;
+        }
         // SPEC-160: a decision run used no chat LLM. Lineage must say what answered.
         if let Some(decision) =
             edgequake_pipeline::extractor::decision::outcome_from_extractions(&result.extractions)
@@ -497,7 +513,10 @@ impl DocumentTaskProcessor {
                 "CRITICAL: Document chunking produced 0 chunks - marking as failed"
             );
             "failed"
-        } else if result.stats.entity_count == 0 && result.stats.chunk_count > 0 {
+        } else if caps.zero_entities_is_failure
+            && result.stats.entity_count == 0
+            && result.stats.chunk_count > 0
+        {
             // Pipeline created chunks but extracted 0 entities - likely LLM failure
             warn!(
                 document_id = %document_id,

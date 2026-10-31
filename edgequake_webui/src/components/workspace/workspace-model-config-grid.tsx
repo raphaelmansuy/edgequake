@@ -1,5 +1,6 @@
 "use client";
 
+import { capabilitiesOf } from "@/constants/rag-profile";
 import { useLlmCapabilityModels } from "@/hooks/use-llm-capability-models";
 import { ProviderIcon } from "@/components/providers/provider-icon";
 import { Badge } from "@/components/ui/badge";
@@ -222,6 +223,8 @@ export function WorkspaceModelConfigGrid({
 
   const resolvedLlm = effectiveLlmFromWorkspace(workspace);
   const resolvedEmbedding = effectiveEmbeddingFromWorkspace(workspace);
+  // SPEC-180: without a graph the LLM only answers; it extracts nothing at ingest.
+  const showsGraph = capabilitiesOf(workspace).shows_graph_ui;
   const llmResolvesTo = `${resolvedLlm.provider}/${resolvedLlm.model}`;
   const embeddingResolvesTo = `${resolvedEmbedding.provider}/${resolvedEmbedding.model}`;
   // Prefer API provenance (LAW-123-8); fall back to source from FE mirror.
@@ -250,10 +253,15 @@ export function WorkspaceModelConfigGrid({
             {t("workspace.llmConfig", "LLM Configuration")}
           </CardTitle>
           <CardDescription>
-            {t(
-              "workspace.llmConfigDesc",
-              "Model used for entity extraction and summarization during document ingestion.",
-            )}
+            {showsGraph
+              ? t(
+                  "workspace.llmConfigDesc",
+                  "Model used for entity extraction and summarization during document ingestion.",
+                )
+              : t(
+                  "workspace.llmConfigDescNormal",
+                  "Model that writes the answers. Nothing is extracted when documents are added.",
+                )}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -264,7 +272,7 @@ export function WorkspaceModelConfigGrid({
                 onChange={onLlmChange}
                 showUsageHint
               />
-              {llmModelChanged && (
+              {llmModelChanged && showsGraph && (
                 <ChangeWarning
                   tone="blue"
                   message={t(
@@ -277,6 +285,7 @@ export function WorkspaceModelConfigGrid({
                 className="space-y-3 pt-2 border-t"
                 data-testid="workspace-role-reasoning"
               >
+                {showsGraph ? (
                 <ReasoningEffortSelect
                   id="workspace-extract-effort"
                   data-testid="workspace-extract-reasoning"
@@ -290,6 +299,7 @@ export function WorkspaceModelConfigGrid({
                   effectiveWhenAuto={extractEffectiveAuto}
                   onChange={(v) => onExtractReasoningChange?.(v)}
                 />
+                ) : null}
                 <ReasoningEffortSelect
                   id="workspace-query-effort"
                   data-testid="workspace-query-reasoning"
@@ -324,6 +334,8 @@ export function WorkspaceModelConfigGrid({
               className="text-xs text-muted-foreground space-y-1"
               data-testid="workspace-role-reasoning-readonly"
             >
+              {showsGraph ? (
+                <>
               <div>
                 Extract effort:{" "}
                 {extractDisplay?.trim()
@@ -336,6 +348,8 @@ export function WorkspaceModelConfigGrid({
               >
                 {formatEffectiveBestPracticeHint(extractEffectiveAuto)}
               </div>
+                </>
+              ) : null}
               <div>
                 Query effort:{" "}
                 {queryDisplay?.trim()

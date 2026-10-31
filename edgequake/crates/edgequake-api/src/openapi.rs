@@ -285,6 +285,7 @@ use crate::handlers;
         handlers::get_workspace_model_policy,
         handlers::put_workspace_model_policy,
         handlers::get_eligible_models,
+        handlers::get_embedding_support,
         handlers::get_deployment_providers,
         handlers::put_deployment_provider,
         handlers::put_connection_models,

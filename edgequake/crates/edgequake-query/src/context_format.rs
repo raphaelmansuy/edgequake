@@ -155,8 +155,22 @@ pub fn format_chunk_block(ref_id: usize, chunk: &RetrievedChunk) -> String {
     let ref_id = chunk_citation_ref(chunk, ref_id);
     format!(
         "[{ref_id}] (score: {:.3}){meta}\n{}\n\n",
-        chunk.score, chunk.content
+        chunk.score,
+        chunk_body(chunk)
     )
+}
+
+/// The text the model sees for a chunk. An image chunk has no text (SPEC-180): it is
+/// named, so the model can cite the picture without inventing what it shows.
+pub fn chunk_body(chunk: &RetrievedChunk) -> String {
+    let is_image = chunk.modality.as_deref() == Some("image");
+    if !is_image || !chunk.content.trim().is_empty() {
+        return chunk.content.clone();
+    }
+    match chunk.document_name.as_deref().map(str::trim) {
+        Some(name) if !name.is_empty() => format!("[Image: {name}]"),
+        _ => "[Image]".to_string(),
+    }
 }
 
 /// Format string used when estimating entity tokens (must stay close to prompt).
@@ -627,5 +641,29 @@ mod tests {
             api_src.contains("citation_id"),
             "X-20: API source builder must use citation_id for reference_id"
         );
+    }
+}
+
+#[cfg(test)]
+mod image_chunk_tests {
+    use super::*;
+
+    fn image(name: Option<&str>) -> RetrievedChunk {
+        let mut chunk = RetrievedChunk::new("c", "", 0.5);
+        chunk.modality = Some("image".into());
+        chunk.document_name = name.map(str::to_string);
+        chunk
+    }
+
+    #[test]
+    fn an_empty_image_chunk_is_named() {
+        assert!(format_chunk_block(1, &image(Some("kestrel.png"))).contains("[Image: kestrel.png]"));
+        assert!(format_chunk_block(1, &image(None)).contains("\n[Image]\n"));
+    }
+
+    #[test]
+    fn text_chunks_are_left_alone() {
+        let chunk = RetrievedChunk::new("c", "plain text", 0.5);
+        assert!(format_chunk_block(1, &chunk).contains("\nplain text\n"));
     }
 }

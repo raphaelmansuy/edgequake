@@ -82,6 +82,10 @@ pub fn build_relational_chunks(
             }) {
                 metadata["modality"] = serde_json::json!(modality);
             }
+            // SPEC-180: the typed `chunks.source_modality` column is filled from here.
+            if chunk.modality.as_deref() == Some(crate::multimodal::MODALITY_IMAGE) {
+                metadata["source_modality"] = serde_json::json!("image");
+            }
             let stable_key = format!("{}:{}:{}", document_id.into_uuid(), chunk.index, chunk.id);
             Chunk {
                 id: ChunkId::new(Uuid::new_v5(&Uuid::NAMESPACE_OID, stable_key.as_bytes())),

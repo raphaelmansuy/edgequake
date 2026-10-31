@@ -28,6 +28,12 @@ export const STEP_META: Record<
     descriptionKey: 'onboarding.workspaceSubtitle',
     description: 'Documents and extracted knowledge live here.',
   },
+  retrieval: {
+    titleKey: 'ragProfile.stepTitle',
+    title: 'Retrieval type',
+    descriptionKey: 'ragProfile.stepDescription',
+    description: 'How this workspace finds answers. This choice is permanent.',
+  },
   'document-parsing': {
     titleKey: 'onboarding.documentParsingTitle',
     title: 'Document parsing',
@@ -74,6 +80,7 @@ export const STEP_LABEL: Record<WizardStepId, { key: string; label: string }> = 
   'tenant-basics': { key: 'onboarding.stepTenant', label: 'Organization' },
   models: { key: 'onboarding.stepModels', label: 'Models' },
   'workspace-basics': { key: 'onboarding.stepWorkspace', label: 'Name' },
+  retrieval: { key: 'ragProfile.stepLabel', label: 'Retrieval' },
   'document-parsing': { key: 'onboarding.stepParsing', label: 'Parsing' },
   chunking: { key: 'onboarding.stepChunking', label: 'Chunking' },
   'extract-budget': { key: 'onboarding.stepBudget', label: 'Budget' },

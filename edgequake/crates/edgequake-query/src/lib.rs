@@ -85,6 +85,7 @@ pub mod math_span;
 pub mod mix_weights;
 pub mod modality_retrieve;
 pub mod modes;
+pub mod normal;
 pub mod path_prune;
 pub mod query_reliability;
 pub mod relation_select;

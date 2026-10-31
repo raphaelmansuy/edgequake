@@ -287,6 +287,11 @@ pub struct CreateWorkspaceApiRequest {
     #[serde(flatten)]
     pub extraction: super::ExtractionModeFieldsDto,
 
+    /// SPEC-180: retrieval profile, modalities and text-search config.
+    /// Create only; on update any of these is a 409.
+    #[serde(flatten)]
+    pub profile: super::RagProfileFieldsDto,
+
     /// Custom entity-type → hex color map for graph visualization (SPEC-102).
     /// Keys UPPERCASE; values `#RGB` / `#RRGGBB`. Empty object clears.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -423,6 +428,11 @@ pub struct UpdateWorkspaceApiRequest {
     /// SPEC-160: extraction mode and decision settings (future ingestions only).
     #[serde(flatten)]
     pub extraction: super::ExtractionModeFieldsDto,
+
+    /// SPEC-180: retrieval profile, modalities and text-search config.
+    /// Create only; on update any of these is a 409.
+    #[serde(flatten)]
+    pub profile: super::RagProfileFieldsDto,
 
     /// Custom entity-type → hex color map (SPEC-102). Omit = leave unchanged;
     /// empty object clears the workspace override.

@@ -21,6 +21,8 @@ import {
   resolveHydratedUseServerDefaults,
   snapshotFromWizardState,
 } from '@/lib/onboarding/reconfigure-from-workspace';
+import { parseRagProfile } from '@/constants/rag-profile';
+import { draftEmbedsImages, imageEmbeddingOk } from '@/lib/onboarding/retrieval-draft';
 import { useWizardDraftPersistence } from '@/lib/onboarding/use-wizard-draft-persistence';
 import {
   hydrateWizardDraft,
@@ -70,7 +72,12 @@ export function ReconfigureWorkspaceWizard({
   onApplied,
 }: ReconfigureWorkspaceWizardProps) {
   const { t } = useTranslation();
-  const steps = useMemo(() => stepsForWizard('reconfigure-workspace'), []);
+  const ragProfile = parseRagProfile(workspace?.rag_profile);
+  // SPEC-180: a normal workspace has no extraction step to reconfigure.
+  const steps = useMemo(
+    () => stepsForWizard('reconfigure-workspace', { includeAdmin: false, includeExtraction: true, ragProfile }),
+    [ragProfile],
+  );
   const baselineRef = useRef(EMPTY_WIZARD_DRAFT);
   const baselineSnapshotRef = useRef<WorkspaceConfigSnapshot | null>(null);
   const nav = useWizardSteps(steps);
@@ -191,6 +198,18 @@ export function ReconfigureWorkspaceWizard({
     vision,
     hasConfiguredDefaults,
     hasConfigChanges: stepId === 'review' ? impact.hasChanges : undefined,
+    imageEmbeddingOk: imageEmbeddingOk(draft, {
+      provider: workspace?.embedding_provider,
+      model: workspace?.embedding_model,
+    }),
+    // The saved model was already accepted for this workspace, so only a *new* image pick
+    // needs the deployment's answer.
+    probeImages:
+      draftEmbedsImages(draft) &&
+      !(
+        draft.embeddingPick?.provider === workspace?.embedding_provider &&
+        draft.embeddingPick?.model === workspace?.embedding_model
+      ),
   });
 
   const isDirty =
@@ -327,6 +346,8 @@ export function ReconfigureWorkspaceWizard({
             onAdvancedOpenChange={setAdvancedOpen}
             eligibility={eligibility}
             canManageProviders={access.data ? toSettingsAccess(access.data).workspaceManage : false}
+            hidesExtractionEngine={draft.ragProfile === 'normal'}
+            requiresImageEmbedding={draftEmbedsImages(draft)}
           />
         );
       case 'document-parsing':
@@ -352,6 +373,7 @@ export function ReconfigureWorkspaceWizard({
             onEditStep={goToStep}
             hideWorkspaceIdentity
             showDocumentParsing
+            showRetrieval
             impact={impact}
             documentCount={documentCount}
           />

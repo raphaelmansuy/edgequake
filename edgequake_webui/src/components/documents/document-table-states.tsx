@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FileText, Search, Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useWorkspaceCapabilities } from '@/hooks/use-workspace-capabilities';
 
 export interface DocumentTableStatesProps {
   /** Whether data is currently loading */
@@ -119,6 +120,7 @@ function ClearanceEmptyState() {
 
 function EmptyState({ onUploadClick }: { onUploadClick: () => void }) {
   const { t } = useTranslation();
+  const showsGraph = useWorkspaceCapabilities().shows_graph_ui;
   return (
     <div className="text-center py-16 text-muted-foreground border rounded-lg bg-muted/5">
       <FileText className="h-12 w-12 mx-auto mb-4 opacity-40" />
@@ -126,10 +128,15 @@ function EmptyState({ onUploadClick }: { onUploadClick: () => void }) {
         {t('documents.noDocuments', 'No documents yet')}
       </p>
       <p className="text-sm mt-2 max-w-sm mx-auto">
-        {t(
-          'documents.noDocumentsSubtitle',
-          'Upload documents to build your knowledge graph',
-        )}
+        {showsGraph
+          ? t(
+              'documents.noDocumentsSubtitle',
+              'Upload documents to build your knowledge graph',
+            )
+          : t(
+              'documents.noDocumentsSubtitleNormal',
+              'Upload documents, scans or images to search them',
+            )}
       </p>
       <Button variant="outline" className="mt-4" onClick={onUploadClick}>
         <Upload className="h-4 w-4 mr-2" />

@@ -9,6 +9,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useWorkspaceCapabilities } from "@/hooks/use-workspace-capabilities";
+import { modesForProfile } from "@/lib/query/query-profile";
 import { QUERY_MODE_META } from "@/lib/query/query-mode-meta";
 import { cn } from "@/lib/utils";
 import type { QueryMode } from "@/types";
@@ -31,7 +33,9 @@ export function ModeMenu({
   compact = true,
 }: ModeMenuProps) {
   const { t } = useTranslation();
-  const current = QUERY_MODE_META.find((m) => m.id === value) ?? QUERY_MODE_META[3]!;
+  // SPEC-180: a workspace without a graph lists only the modes it can run.
+  const modes = modesForProfile(useWorkspaceCapabilities());
+  const current = modes.find((m) => m.id === value) ?? modes[0] ?? QUERY_MODE_META[3]!;
   const Icon = current.icon;
   const label = t(`query.modes.${current.id}`, current.label);
 
@@ -61,7 +65,7 @@ export function ModeMenu({
           {t("query.modes.menuTitle", "Retrieval mode")}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {QUERY_MODE_META.map((mode) => {
+        {modes.map((mode) => {
           const ModeIcon = mode.icon;
           const modeLabel = t(`query.modes.${mode.id}`, mode.label);
           const description = t(

@@ -250,6 +250,9 @@ impl EdgeQuake {
             .clone();
 
         let persister = {
+            // Memory has no typed tables. The process env defaults to typed,
+            // which would fail this write closed; the store's own answer wins.
+            let typed_authority = vector_storage.is_typed_authority();
             let mut p = DefaultIngestionPersister::from_settings(
                 graph_storage.clone(),
                 vector_storage,
@@ -257,7 +260,8 @@ impl EdgeQuake {
                 self.relational_sink.clone(),
                 Some(llm.clone()),
                 Some(kv_storage),
-            );
+            )
+            .with_typed_authority(typed_authority);
             // SPEC-046: community_report auto-embed when embedding provider is set (DIP).
             if let Some(emb) = self.embedding_provider.clone() {
                 p = p.with_text_embedder(edgequake_pipeline::LlmTextEmbedder::arc(emb));

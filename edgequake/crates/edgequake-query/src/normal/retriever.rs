@@ -1,0 +1,348 @@
+//! The two retrieval legs of a normal workspace, run together and fused.
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use edgequake_storage::traits::{Bm25Request, MetadataFilter, VectorSearchResult, VectorStorage};
+
+use super::fuse::fuse_ranked;
+use super::plan::QueryModality;
+use super::weights::NormalWeights;
+use crate::context::RetrievedChunk;
+use crate::error::Result;
+use crate::helpers::build_chunk_from_result;
+
+/// Everything one normal retrieval needs.
+pub struct NormalSearch<'a> {
+    pub query_text: &'a str,
+    pub text_vector: Option<&'a [f32]>,
+    pub image_vector: Option<&'a [f32]>,
+    /// Tenant, workspace, document scope, `type=chunk`, embedding model and kind filters.
+    pub scope: MetadataFilter,
+    pub max_chunks: usize,
+    /// Both legs fetch `max_chunks * candidate_multiplier` candidates.
+    pub candidate_multiplier: usize,
+    pub weights: NormalWeights,
+}
+
+/// Retrieval trace. Counts and labels only, never chunk text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalTrace {
+    pub dense_hits: usize,
+    pub bm25_hits: usize,
+    pub fused_hits: usize,
+    /// `postgres_bm25`, `none` (backend keeps no index) or `error` (lexical leg failed).
+    pub bm25_backend: &'static str,
+    pub modality: QueryModality,
+}
+
+/// Fused chunks (best first, at most `2 * max_chunks`) and the trace.
+pub struct NormalOutcome {
+    pub chunks: Vec<RetrievedChunk>,
+    pub trace: NormalTrace,
+}
+
+struct Legs {
+    dense: Vec<Vec<VectorSearchResult>>,
+    bm25: Vec<VectorSearchResult>,
+    backend: &'static str,
+}
+
+/// Run dense and BM25 concurrently, then fuse by weighted RRF.
+pub async fn retrieve_normal(
+    vectors: &Arc<dyn VectorStorage>,
+    search: &NormalSearch<'_>,
+) -> Result<NormalOutcome> {
+    let candidates = search
+        .max_chunks
+        .saturating_mul(search.candidate_multiplier.max(1))
+        .max(1);
+    let legs = run_legs(vectors, search, candidates).await?;
+    Ok(fuse_legs(search, legs))
+}
+
+async fn run_legs(
+    vectors: &Arc<dyn VectorStorage>,
+    search: &NormalSearch<'_>,
+    candidates: usize,
+) -> Result<Legs> {
+    let scope = Some(&search.scope);
+    let dense_inputs: Vec<&[f32]> = [search.text_vector, search.image_vector]
+        .into_iter()
+        .flatten()
+        .collect();
+    let dense = futures::future::try_join_all(
+        dense_inputs
+            .iter()
+            .map(|v| vectors.query_filtered(v, candidates, None, scope)),
+    );
+    let lexical = lexical_leg(vectors, search, candidates);
+    let (dense, (bm25, backend)) = futures::join!(dense, lexical);
+    Ok(Legs {
+        dense: dense?,
+        bm25,
+        backend,
+    })
+}
+
+async fn lexical_leg(
+    vectors: &Arc<dyn VectorStorage>,
+    search: &NormalSearch<'_>,
+    candidates: usize,
+) -> (Vec<VectorSearchResult>, &'static str) {
+    if search.query_text.trim().is_empty() {
+        return (Vec::new(), "postgres_bm25");
+    }
+    let req = Bm25Request {
+        query_text: search.query_text,
+        top_k: candidates,
+        candidate_cap: candidates.saturating_mul(4),
+    };
+    match vectors
+        .bm25_search_filtered(&req, Some(&search.scope))
+        .await
+    {
+        Ok(Some(hits)) => (hits, "postgres_bm25"),
+        Ok(None) => (Vec::new(), "none"),
+        Err(e) => {
+            // Dense still answers; the trace says the lexical leg was lost.
+            tracing::warn!(error = %e, "BM25 leg failed; serving dense only");
+            (Vec::new(), "error")
+        }
+    }
+}
+
+fn fuse_legs(search: &NormalSearch<'_>, legs: Legs) -> NormalOutcome {
+    let mut lookup: HashMap<String, RetrievedChunk> = HashMap::new();
+    let mut lists: Vec<Vec<String>> = Vec::new();
+    let mut weights: Vec<f32> = Vec::new();
+    for hits in legs.dense.iter().chain(std::iter::once(&legs.bm25)) {
+        for hit in hits {
+            lookup
+                .entry(hit.id.clone())
+                .or_insert_with(|| build_chunk_from_result(hit));
+        }
+    }
+    let dense_hits: usize = legs.dense.iter().map(Vec::len).sum();
+    for hits in &legs.dense {
+        lists.push(hits.iter().map(|h| h.id.clone()).collect());
+        weights.push(search.weights.dense);
+    }
+    lists.push(legs.bm25.iter().map(|h| h.id.clone()).collect());
+    weights.push(search.weights.bm25);
+
+    let keep = search.max_chunks.saturating_mul(2).max(1);
+    let chunks: Vec<RetrievedChunk> = fuse_ranked(&lists, &weights)
+        .into_iter()
+        .filter_map(|hit| {
+            lookup.remove(&hit.id).map(|mut chunk| {
+                chunk.score = hit.score;
+                chunk
+            })
+        })
+        .take(keep)
+        .collect();
+    let trace = NormalTrace {
+        dense_hits,
+        bm25_hits: legs.bm25.len(),
+        fused_hits: chunks.len(),
+        bm25_backend: legs.backend,
+        modality: modality_of(search),
+    };
+    NormalOutcome { chunks, trace }
+}
+
+fn modality_of(search: &NormalSearch<'_>) -> QueryModality {
+    match (search.text_vector.is_some(), search.image_vector.is_some()) {
+        (true, true) => QueryModality::Both,
+        (false, true) => QueryModality::Image,
+        _ => QueryModality::Text,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_trait::async_trait;
+    use edgequake_storage::error::Result as StorageResult;
+    use serde_json::json;
+
+    /// Storage double with canned dense and BM25 hits.
+    struct Canned {
+        dense: Vec<VectorSearchResult>,
+        bm25: Option<StorageResult<Option<Vec<VectorSearchResult>>>>,
+    }
+
+    fn hit(id: &str, score: f32, content: &str) -> VectorSearchResult {
+        VectorSearchResult {
+            id: id.into(),
+            score,
+            metadata: json!({"content": content}),
+        }
+    }
+
+    #[async_trait]
+    impl VectorStorage for Canned {
+        async fn initialize(&self) -> StorageResult<()> {
+            Ok(())
+        }
+        async fn finalize(&self) -> StorageResult<()> {
+            Ok(())
+        }
+        async fn upsert(&self, _d: &[(String, Vec<f32>, serde_json::Value)]) -> StorageResult<()> {
+            Ok(())
+        }
+        async fn query(
+            &self,
+            _e: &[f32],
+            _k: usize,
+            _f: Option<&[String]>,
+        ) -> StorageResult<Vec<VectorSearchResult>> {
+            Ok(self.dense.clone())
+        }
+        async fn delete(&self, _ids: &[String]) -> StorageResult<()> {
+            Ok(())
+        }
+        async fn delete_entity(&self, _e: &str) -> StorageResult<()> {
+            Ok(())
+        }
+        async fn delete_entity_relations(&self, _e: &str) -> StorageResult<()> {
+            Ok(())
+        }
+        async fn get_by_id(&self, _id: &str) -> StorageResult<Option<Vec<f32>>> {
+            Ok(None)
+        }
+        async fn get_by_ids(&self, _ids: &[String]) -> StorageResult<Vec<(String, Vec<f32>)>> {
+            Ok(vec![])
+        }
+        async fn is_empty(&self) -> StorageResult<bool> {
+            Ok(false)
+        }
+        async fn count(&self) -> StorageResult<usize> {
+            Ok(0)
+        }
+        async fn clear(&self) -> StorageResult<()> {
+            Ok(())
+        }
+        async fn clear_workspace(&self, _w: &uuid::Uuid) -> StorageResult<usize> {
+            Ok(0)
+        }
+        async fn delete_by_document(&self, _d: &str) -> StorageResult<usize> {
+            Ok(0)
+        }
+        fn dimension(&self) -> usize {
+            3
+        }
+        fn namespace(&self) -> &str {
+            "t"
+        }
+        async fn query_filtered(
+            &self,
+            _e: &[f32],
+            _k: usize,
+            _f: Option<&[String]>,
+            _m: Option<&MetadataFilter>,
+        ) -> StorageResult<Vec<VectorSearchResult>> {
+            Ok(self.dense.clone())
+        }
+        async fn bm25_search_filtered(
+            &self,
+            _r: &Bm25Request<'_>,
+            _m: Option<&MetadataFilter>,
+        ) -> StorageResult<Option<Vec<VectorSearchResult>>> {
+            match &self.bm25 {
+                Some(Ok(v)) => Ok(v.clone()),
+                Some(Err(e)) => Err(edgequake_storage::error::StorageError::Database(
+                    e.to_string(),
+                )),
+                None => Ok(None),
+            }
+        }
+    }
+
+    fn search<'a>(q: &'a str, v: &'a [f32]) -> NormalSearch<'a> {
+        NormalSearch {
+            query_text: q,
+            text_vector: Some(v),
+            image_vector: None,
+            scope: MetadataFilter::default(),
+            max_chunks: 2,
+            candidate_multiplier: 5,
+            weights: NormalWeights::default(),
+        }
+    }
+
+    #[tokio::test]
+    async fn lexical_hit_joins_the_dense_list() {
+        let store: Arc<dyn VectorStorage> = Arc::new(Canned {
+            dense: vec![hit("a", 0.9, "alpha"), hit("b", 0.8, "beta")],
+            bm25: Some(Ok(Some(vec![hit("b", 3.0, "beta"), hit("c", 2.0, "")]))),
+        });
+        let out = retrieve_normal(&store, &search("beta", &[1.0, 0.0, 0.0]))
+            .await
+            .unwrap();
+        let ids: Vec<&str> = out.chunks.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids[0], "b", "found by both legs");
+        assert_eq!(out.trace.dense_hits, 2);
+        assert_eq!(out.trace.bm25_hits, 2);
+        assert_eq!(out.trace.bm25_backend, "postgres_bm25");
+        assert!(out.chunks.len() <= 4);
+    }
+
+    #[tokio::test]
+    async fn backend_without_an_index_serves_dense_only() {
+        let store: Arc<dyn VectorStorage> = Arc::new(Canned {
+            dense: vec![hit("a", 0.9, "alpha"), hit("b", 0.8, "beta")],
+            bm25: None,
+        });
+        let out = retrieve_normal(&store, &search("alpha", &[1.0, 0.0, 0.0]))
+            .await
+            .unwrap();
+        let ids: Vec<&str> = out.chunks.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, ["a", "b"]);
+        assert_eq!(out.trace.bm25_backend, "none");
+        assert_eq!(out.trace.bm25_hits, 0);
+    }
+
+    #[tokio::test]
+    async fn a_failing_lexical_leg_does_not_fail_the_query() {
+        let store: Arc<dyn VectorStorage> = Arc::new(Canned {
+            dense: vec![hit("a", 0.9, "alpha")],
+            bm25: Some(Err(edgequake_storage::error::StorageError::Database(
+                "boom".into(),
+            ))),
+        });
+        let out = retrieve_normal(&store, &search("alpha", &[1.0, 0.0, 0.0]))
+            .await
+            .unwrap();
+        assert_eq!(out.chunks.len(), 1);
+        assert_eq!(out.trace.bm25_backend, "error");
+    }
+
+    #[tokio::test]
+    async fn blank_text_skips_the_lexical_leg() {
+        let store: Arc<dyn VectorStorage> = Arc::new(Canned {
+            dense: vec![hit("a", 0.9, "alpha")],
+            bm25: Some(Ok(Some(vec![hit("zzz", 9.0, "never")]))),
+        });
+        let out = retrieve_normal(&store, &search("   ", &[1.0, 0.0, 0.0]))
+            .await
+            .unwrap();
+        assert_eq!(out.trace.bm25_hits, 0);
+        assert_eq!(out.chunks[0].id, "a");
+    }
+
+    #[tokio::test]
+    async fn image_only_query_uses_one_dense_list() {
+        let store: Arc<dyn VectorStorage> = Arc::new(Canned {
+            dense: vec![hit("img", 0.7, "")],
+            bm25: None,
+        });
+        let mut s = search("", &[]);
+        s.text_vector = None;
+        s.image_vector = Some(&[0.0, 1.0, 0.0]);
+        let out = retrieve_normal(&store, &s).await.unwrap();
+        assert_eq!(out.trace.modality, QueryModality::Image);
+        assert_eq!(out.chunks[0].id, "img");
+    }
+}

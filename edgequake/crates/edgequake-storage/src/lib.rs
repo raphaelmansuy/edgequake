@@ -298,14 +298,14 @@ pub use serving_fence::{
     SERVING_FENCE_ENV, SERVING_STATE_READY,
 };
 pub use traits::{
-    kv_key_matches_like, vector_upsert_chunk_size, BoundedGraphTraversal, Chunk, ChunkCursor,
-    ChunkId, ChunkRepository, ChunkText, DocumentId, DocumentRepository, EmbeddingIndex,
-    FleetEmbeddingIndex, GraphEdge, GraphExpansionAuthorizer, GraphNode, GraphPropertyWriteMode,
-    GraphReadView, GraphStorage, GraphStorageAnalyticsOps, GraphStorageMutateOps,
-    GraphStorageReadOps, GraphTraversalBudget, GraphTruncationReason, InsertReport, KVStorage,
-    KnowledgeGraph, MetadataFilter, MirrorLegacyReport, ModelId, TextEmbedder, UnitOfWork,
-    VectorSearchResult, VectorStorage, WorkspaceId, WorkspaceVectorConfig, WorkspaceVectorRegistry,
-    DEFAULT_VECTOR_UPSERT_CHUNK,
+    kv_key_matches_like, vector_upsert_chunk_size, Bm25Request, BoundedGraphTraversal, Chunk,
+    ChunkCursor, ChunkId, ChunkKinds, ChunkRepository, ChunkText, DocumentId, DocumentRepository,
+    EmbeddingIndex, FleetEmbeddingIndex, GraphEdge, GraphExpansionAuthorizer, GraphNode,
+    GraphPropertyWriteMode, GraphReadView, GraphStorage, GraphStorageAnalyticsOps,
+    GraphStorageMutateOps, GraphStorageReadOps, GraphTraversalBudget, GraphTruncationReason,
+    InsertReport, KVStorage, KnowledgeGraph, MetadataFilter, MirrorLegacyReport, ModelId,
+    TextEmbedder, UnitOfWork, VectorSearchResult, VectorStorage, WorkspaceId,
+    WorkspaceVectorConfig, WorkspaceVectorRegistry, DEFAULT_VECTOR_UPSERT_CHUNK,
 };
 
 // Re-export adapters

@@ -97,6 +97,14 @@ pub async fn eq_search(
         document_ids: Some(s.allowed_ids.clone()),
         ..Default::default()
     });
+    // SPEC-180: chunk-kind filters ride along; a graph workspace refuses them in the service.
+    let document_filter = super::profile_gate::with_kind_filters(document_filter, args);
+    // A workspace without a graph has no entity hits to project.
+    let caps = crate::services::workspace_profile::workspace_capabilities(
+        state,
+        tenant_ctx.workspace_id.as_deref(),
+    )
+    .await;
 
     let full_request = ContextRetrievalRequest {
         query: query.clone(),
@@ -112,7 +120,7 @@ pub async fn eq_search(
         include_lineage: true,
         include_documents: true,
         include_agent_hints: false,
-        include_subgraph: true, // needed to build entity hits; fetch defaults subgraph off
+        include_subgraph: caps.queries_graph, // entity hits need it; fetch defaults it off
     };
 
     let response = retrieve_context(state, tenant_ctx, full_request, llm_override).await?;
@@ -390,8 +398,10 @@ pub fn build_document_filter(args: &Value) -> Option<DocumentFilter> {
         date_to,
         document_pattern: pattern,
         document_ids,
+        ..Default::default()
     };
-    if filter.is_empty() {
+    let filter = super::profile_gate::with_kind_filters(Some(filter), args).unwrap_or_default();
+    if filter.is_empty() && !filter.has_kind_filters() {
         None
     } else {
         Some(filter)

@@ -16,6 +16,10 @@
 'use client';
 
 import { DocumentAccessControl } from '@/components/clearance/document-access-control';
+import {
+  DocumentImageViewer,
+  isImageDocument,
+} from '@/components/documents/document-image-viewer';
 import { DecisionExtractionSection } from '@/components/documents/decision-extraction-section';
 import { StreamingMarkdownRenderer } from '@/components/query/markdown';
 import { Badge } from '@/components/ui/badge';
@@ -58,6 +62,7 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react';
+import { useWorkspaceCapabilities } from '@/hooks/use-workspace-capabilities';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -137,6 +142,7 @@ export function DocumentPreviewPanel({
   isCancelling = false,
 }: DocumentPreviewPanelProps) {
   const { t } = useTranslation();
+  const showsGraph = useWorkspaceCapabilities().shows_graph_ui;
   const [showFullContent, setShowFullContent] = useState(false);
   // Ref to scroll the content card back into view when collapsing (Show Less)
   const contentCardRef = useRef<HTMLDivElement>(null);
@@ -478,6 +484,18 @@ export function DocumentPreviewPanel({
 
       <Separator />
 
+      {/* SPEC-180: an image document stores its file name as content; show the picture. */}
+      {isImageDocument(document) ? (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {t('documents.preview.image', 'Image')}
+          </p>
+          <div className="h-56 overflow-hidden rounded-lg border">
+            <DocumentImageViewer document={document} className="h-full" />
+          </div>
+        </div>
+      ) : null}
+
       {/* Content Preview */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -492,7 +510,7 @@ export function DocumentPreviewPanel({
           )}
         </div>
 
-        <Card className="bg-muted/30" ref={contentCardRef}>
+        <Card className={isImageDocument(document) ? 'hidden' : 'bg-muted/30'} ref={contentCardRef}>
           <CardContent className="p-3">
             {isLoadingContent ? (
               <div className="space-y-2">
@@ -705,7 +723,7 @@ export function DocumentPreviewPanel({
             </Button>
           )}
           
-          {onViewInGraph && (
+          {onViewInGraph && showsGraph && (
             <Button
               variant="outline"
               size="sm"
