@@ -21,13 +21,15 @@ export type SettingsSectionId =
   | "ingestion"
   | "access"
   | "people"
+  | "workspaces"
   | "branding"
   | "org-providers"
   | "secrets"
   | "connections"
   | "providers"
   | "fleet"
-  | "observability";
+  | "observability"
+  | "organizations";
 
 /**
  * Who may open a section.
@@ -147,6 +149,16 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
     keywords: ["people", "members", "invite", "roles", "sso", "seats"],
   },
   {
+    id: "workspaces",
+    scope: "organization",
+    label: "Workspaces",
+    segment: "workspaces",
+    // A list with usage meters and per-row actions needs the wider column.
+    width: "wide",
+    gate: "tenantManage",
+    keywords: ["workspace", "workspaces", "create", "archive", "quota", "plan", "limit"],
+  },
+  {
     id: "branding",
     scope: "organization",
     label: "Branding",
@@ -201,6 +213,15 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
     width: "wide",
     gate: "instanceAdmin",
     keywords: ["fleet", "server defaults", "health", "provider health", "priority", "env", "status"],
+  },
+  {
+    id: "organizations",
+    scope: "deployment",
+    label: "Organizations",
+    segment: "organizations",
+    width: "wide",
+    gate: "instanceAdmin",
+    keywords: ["organizations", "tenants", "customers", "quota", "plan", "create", "delete"],
   },
   {
     id: "observability",

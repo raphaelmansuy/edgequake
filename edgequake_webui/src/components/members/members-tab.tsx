@@ -1,12 +1,20 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { useMemberActions, useMembers } from '@/hooks/use-members';
+import { useGrantActions, useMemberActions, useMembers } from '@/hooks/use-members';
 import type { AccessLinkIssued } from '@/lib/api/edgequake/access-links';
-import type { InvitationIssued, MemberView, OrgRole } from '@/lib/api/edgequake/members';
+import {
+  listGrants,
+  type InvitationIssued,
+  type MemberView,
+  type OrgRole,
+} from '@/lib/api/edgequake/members';
+import { getWorkspaces } from '@/lib/api/edgequake';
+import { useTenantStore } from '@/stores/use-tenant-store';
 import { isForbidden } from '@/lib/members/errors';
 import { viewerCanManage } from '@/lib/members/permissions';
 import { UserPlus } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -35,6 +43,8 @@ export function MembersTab() {
   const filters = useMemberFilters();
   const query = useMembers(filters.params);
   const actions = useMemberActions();
+  // SPEC-181: the workspace grant axis is writable, so the detail sheet edits grants.
+  const grantActions = useGrantActions();
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [issued, setIssued] = useState<InvitationIssued | null>(null);
@@ -44,7 +54,25 @@ export function MembersTab() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const data = query.data;
-  const selected = data?.members.find((m) => m.id === selectedId && m.kind === 'member') ?? null;
+  const selected =
+    data?.members?.find((m) => m.id === selectedId && m.kind === 'member') ?? null;
+
+  // The directory's `grants` summary has no membership id, so real grant rows are fetched for
+  // the open person before the editor can mutate anything.
+  const tenantId = useTenantStore((s) => s.selectedTenantId);
+  const selectedUserId = selected?.user_id ?? null;
+  const grantRows = useQuery({
+    queryKey: ['grants', tenantId, selectedUserId],
+    queryFn: () => listGrants(tenantId as string, { user_id: selectedUserId as string }),
+    enabled: !!tenantId && !!selectedUserId,
+    staleTime: 10_000,
+  });
+  const workspaceOptions = useQuery({
+    queryKey: ['workspaces', tenantId],
+    queryFn: () => getWorkspaces(tenantId as string),
+    enabled: !!tenantId,
+    staleTime: 60_000,
+  });
 
   if (query.isError && isForbidden(query.error)) return <MembersRestricted />;
   if (query.isError && !data) return <MembersError onRetry={() => query.refetch()} />;
@@ -151,7 +179,13 @@ export function MembersTab() {
           setInviteOpen(false);
           setIssued(null);
         }}
-        onSubmit={(email, role) => actions.invite.mutate({ email, role }, { onSuccess: setIssued })}
+        workspaces={(workspaceOptions.data ?? []).map((w) => ({ id: w.id, name: w.name }))}
+        onSubmit={(email, role, workspaceId) =>
+          actions.invite.mutate(
+            { email, role, workspace_id: workspaceId ?? undefined },
+            { onSuccess: setIssued },
+          )
+        }
       />
 
       <ConfirmMemberDialog
@@ -176,6 +210,33 @@ export function MembersTab() {
         onClose={() => setSelectedId(null)}
         onRoleChange={changeRole}
         onAction={onAction}
+        grants={grantRows.data?.map((g) => ({
+          membership_id: g.membership_id,
+          user_id: g.user_id,
+          scope: g.scope,
+          workspace_id: g.workspace_id ?? null,
+          workspace_name: g.workspace_name ?? null,
+          role: g.role,
+          level: g.level,
+          sso_managed: g.sso_managed,
+        }))}
+        workspaces={(workspaceOptions.data ?? []).map((w) => ({ id: w.id, name: w.name }))}
+        grantsBusy={
+          grantActions.create.isPending ||
+          grantActions.change.isPending ||
+          grantActions.remove.isPending
+        }
+        onChangeGrantRole={(membershipId, role) =>
+          grantActions.change.mutate({ membershipId, role })
+        }
+        onRemoveGrant={(membershipId) => grantActions.remove.mutate(membershipId)}
+        onAddGrant={(workspaceId, role) =>
+          grantActions.create.mutate({
+            user_id: selected?.user_id ?? selected?.id ?? "",
+            workspace_id: workspaceId,
+            role,
+          })
+        }
       />
     </div>
   );

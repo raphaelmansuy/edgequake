@@ -90,6 +90,15 @@ export async function getTenant(tenantId: string): Promise<Tenant> {
 export interface CreateTenantRequest {
   /** Tenant display name (required). */
   name: string;
+  /** URL slug. Omitted means it is derived from the name. */
+  slug?: string;
+  /** SPEC-181: who becomes Owner. Omitted means the calling principal. */
+  owner?:
+    | { kind: 'self_principal' }
+    | { kind: 'user_id'; user_id: string }
+    | { kind: 'email'; email: string };
+  /** SPEC-181: the workspace the organization starts with. */
+  workspace?: { name?: string; slug?: string; rag_profile?: 'graph' | 'normal' };
   /** Optional description. */
   description?: string;
   /** Subscription plan (free, basic, pro, enterprise). */
@@ -351,8 +360,72 @@ export async function updateWorkspace(
  *
  * @param workspaceId - Workspace ID to delete
  */
-export async function deleteWorkspace(workspaceId: string): Promise<void> {
-  return api.delete(`/workspaces/${workspaceId}`);
+/**
+ * SPEC-181: deleting a workspace returns a purge receipt (202). Every plane records its
+ * outcome, so a failed object-store delete is a retryable `partial`, not a silent leak.
+ */
+export async function deleteWorkspace(workspaceId: string): Promise<PurgeReceipt> {
+  return api.delete<PurgeReceipt>(`/workspaces/${encodeURIComponent(workspaceId)}`);
+}
+
+/** What a workspace or organization delete would destroy, before it happens. */
+export interface PurgePreview {
+  scope_kind: 'workspace' | 'organization';
+  scope_id: string;
+  name: string;
+  workspaces: number;
+  documents: number;
+  entities: number;
+  relationships: number;
+  vector_rows: number;
+  original_objects: number;
+}
+
+export type PlaneOutcome =
+  | { status: 'done'; count?: number }
+  | { status: 'skipped'; reason: string }
+  | { status: 'failed'; error: string };
+
+export interface PurgeReceipt {
+  receipt_id: string;
+  scope_kind: 'workspace' | 'organization';
+  scope_id: string;
+  tenant_id: string;
+  status: 'running' | 'done' | 'partial' | 'failed';
+  planes: Record<string, PlaneOutcome>;
+  planes_total: number;
+  planes_done: number;
+  started_at: string;
+  finished_at?: string;
+}
+
+export async function getWorkspacePurgePreview(workspaceId: string): Promise<PurgePreview> {
+  return api.get<PurgePreview>(`/workspaces/${encodeURIComponent(workspaceId)}/purge-preview`);
+}
+
+/** Archive a workspace: it leaves the switcher and stops counting toward the plan. */
+export async function archiveWorkspace(
+  workspaceId: string,
+  reason?: string,
+): Promise<Workspace> {
+  return api.post<Workspace>(
+    `/workspaces/${encodeURIComponent(workspaceId)}/archive`,
+    reason ? { reason } : {},
+  );
+}
+
+/** Restore an archived workspace, subject to the plan's workspace limit. */
+export async function restoreWorkspace(workspaceId: string): Promise<Workspace> {
+  return api.post<Workspace>(`/workspaces/${encodeURIComponent(workspaceId)}/restore`, {});
+}
+
+export async function getTenantPurgePreview(tenantId: string): Promise<PurgePreview> {
+  return api.get<PurgePreview>(`/tenants/${encodeURIComponent(tenantId)}/purge-preview`);
+}
+
+/** Delete an organization (platform admin, or organization Owner). Returns a receipt. */
+export async function deleteTenant(tenantId: string): Promise<PurgeReceipt> {
+  return api.delete<PurgeReceipt>(`/tenants/${encodeURIComponent(tenantId)}`);
 }
 
 /**

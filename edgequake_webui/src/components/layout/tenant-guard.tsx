@@ -1,21 +1,20 @@
 'use client';
 
-import { CreateTenantWizard } from '@/components/onboarding/create-tenant-wizard';
-import { CreateWorkspaceWizard } from '@/components/onboarding/create-workspace-wizard';
+import { CreateOrganizationDialog } from '@/components/admin/create-organization-dialog';
+import { CreateWorkspaceDialog } from '@/components/admin/create-workspace-dialog';
+import { useAccess } from '@/lib/access/use-access';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getTenants, getWorkspaces } from '@/lib/api/edgequake';
 import {
-  applyCreatedTenantContext,
-  applyCreatedWorkspaceContext,
-} from '@/lib/onboarding/apply-created-workspace-context';
-import {
   extrasInSameTenant,
   mergeEntitiesById,
 } from '@/lib/tenant/merge-entities-by-id';
+import { useAuthStore } from '@/stores/use-auth-store';
 import { useTenantStore } from '@/stores/use-tenant-store';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Building2, FolderKanban, Loader2, Plus } from 'lucide-react';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -42,6 +41,9 @@ export function TenantGuard({ children }: TenantGuardProps) {
     initializeFromStorage,
   } = useTenantStore();
 
+  // SPEC-181: one access read decides what each empty state offers.
+  const { access } = useAccess();
+  const user = useAuthStore((s) => s.user);
   const [showCreateTenant, setShowCreateTenant] = useState(false);
   const [showCreateWorkspace, setShowCreateWorkspace] = useState(false);
   const [isSettingUpContext, setIsSettingUpContext] = useState(false);
@@ -206,46 +208,72 @@ export function TenantGuard({ children }: TenantGuardProps) {
   }
 
   if (tenantsData && tenantsData.length === 0) {
+    // SPEC-181 LAW-181-12: empty is a drawn state, and it differs by what the caller may do.
+    // A member of an organization whose grant was removed must not be offered a create button
+    // that answers 403, and must not be told the product is empty when it is full.
+    const canCreateOrg = access.canCreate.organization;
     return (
       <>
-        <div className="flex items-center justify-center h-full p-4">
-          <Card className="max-w-md w-full">
-            <CardHeader className="text-center pb-2">
-              <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                <Building2 className="h-6 w-6 text-primary" />
+        <div className="flex h-full items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="pb-2 text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <Building2 className="h-6 w-6 text-muted-foreground" aria-hidden />
               </div>
-              <CardTitle>{t('tenant.welcome', 'Welcome to EdgeQuake')}</CardTitle>
+              <CardTitle>
+                {canCreateOrg
+                  ? t('tenant.welcome', "Create your organization")
+                  : t('tenant.noOrgTitle', "You're not in an organization yet")}
+              </CardTitle>
               <CardDescription>
-                {t(
-                  'tenant.createFirstTenant',
-                  'Create your first tenant to get started. A tenant represents an organization or project.',
-                )}
+                {canCreateOrg
+                  ? t(
+                      'tenant.createFirstTenant',
+                      'An organization holds your workspaces, your people and your plan. You will be its owner.',
+                    )
+                  : t(
+                      'tenant.noOrgBody',
+                      "Ask an owner of the organization you work with to add you, or to send you an invitation link.",
+                    )}
               </CardDescription>
             </CardHeader>
-            <CardContent className="text-center">
-              <Button onClick={() => setShowCreateTenant(true)} data-testid="guard-create-tenant">
-                <Plus className="h-4 w-4 mr-2" />
-                {t('tenant.createTenant', 'Create Tenant')}
-              </Button>
+            <CardContent className="space-y-3 text-center">
+              {canCreateOrg ? (
+                <Button onClick={() => setShowCreateTenant(true)} data-testid="guard-create-tenant">
+                  <Plus className="mr-2 h-4 w-4" aria-hidden />
+                  {t('admin.create.org.title', 'Create organization')}
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const who = user?.email ?? 'me';
+                      void navigator.clipboard?.writeText(
+                        `Hi — please add ${who} to our EdgeQuake organization. Thanks.`,
+                      );
+                      toast.success(t('tenant.copied', 'Request copied'));
+                    }}
+                    data-testid="guard-copy-request"
+                  >
+                    {t('tenant.copyRequest', 'Copy request message')}
+                  </Button>
+                  <p className="text-xs text-muted-foreground" data-testid="guard-signed-in-as">
+                    {user?.email
+                      ? t('tenant.signedInAs', 'Signed in as {{email}}', { email: user.email })
+                      : t('tenant.askAdmin', 'Ask an admin to add you.')}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
-        <CreateTenantWizard
+        <CreateOrganizationDialog
           open={showCreateTenant}
           onOpenChange={setShowCreateTenant}
-          onCreated={(tenant, workspace) => {
+          onCreated={() => {
             setIsSettingUpContext(true);
-            applyCreatedTenantContext(tenant, workspace);
             void queryClient.invalidateQueries({ queryKey: ['tenants'] });
-            void queryClient.invalidateQueries({ queryKey: ['workspaces', tenant.id] });
-            toast.success(t('tenant.createSuccess', 'Tenant created successfully'), {
-              action: {
-                label: t('onboarding.uploadDocuments', 'Upload documents'),
-                onClick: () => {
-                  window.location.href = '/documents';
-                },
-              },
-            });
           }}
         />
       </>
@@ -253,50 +281,66 @@ export function TenantGuard({ children }: TenantGuardProps) {
   }
 
   if (selectedTenantId && workspacesData && workspacesData.length === 0) {
+    const canCreateWs = access.canCreate.workspace;
+    const quotaBlocked = access.reason.workspace === 'workspace_quota_reached';
     return (
       <>
-        <div className="flex items-center justify-center h-full p-4">
-          <Card className="max-w-md w-full">
-            <CardHeader className="text-center pb-2">
-              <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                <FolderKanban className="h-6 w-6 text-primary" />
+        <div className="flex h-full items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="pb-2 text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <FolderKanban className="h-6 w-6 text-muted-foreground" aria-hidden />
               </div>
-              <CardTitle>{t('workspace.createFirst', 'Create a Workspace')}</CardTitle>
+              <CardTitle>
+                {canCreateWs
+                  ? t('workspace.createFirst', 'Create a workspace')
+                  : t('workspace.noAccessTitle', 'No workspace yet')}
+              </CardTitle>
               <CardDescription>
-                {t(
-                  'workspace.createFirstDesc',
-                  'Create your first workspace to start uploading documents and building your knowledge graph.',
-                )}
+                {canCreateWs
+                  ? t(
+                      'workspace.createFirstDesc',
+                      'A workspace holds your documents and the knowledge extracted from them.',
+                    )
+                  : quotaBlocked
+                    ? t(
+                        'workspace.quotaBlocked',
+                        'Your plan allows {{limit}} workspaces. Archive one to free a slot.',
+                        { limit: access.quota.workspaces.limit },
+                      )
+                    : t(
+                        'workspace.noAccessBody',
+                        "You don't have access to a workspace in this organization yet. Ask an owner to add you.",
+                      )}
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
-              <Button
-                onClick={() => setShowCreateWorkspace(true)}
-                data-testid="guard-create-workspace"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                {t('workspace.createWorkspace', 'Create Workspace')}
-              </Button>
+              {canCreateWs ? (
+                <Button
+                  onClick={() => setShowCreateWorkspace(true)}
+                  data-testid="guard-create-workspace"
+                >
+                  <Plus className="mr-2 h-4 w-4" aria-hidden />
+                  {t('workspace.createWorkspace', 'Create workspace')}
+                </Button>
+              ) : quotaBlocked ? (
+                <Button variant="outline" asChild data-testid="guard-archive-workspace">
+                  <Link href="/settings/organization/workspaces?tab=archived">
+                    {t('workspace.archiveOne', 'Archive a workspace')}
+                  </Link>
+                </Button>
+              ) : null}
             </CardContent>
           </Card>
         </div>
-        <CreateWorkspaceWizard
+        <CreateWorkspaceDialog
           open={showCreateWorkspace}
           onOpenChange={setShowCreateWorkspace}
           tenantId={selectedTenantId}
-          onCreated={(workspace) => {
+          onCreated={() => {
             setIsSettingUpContext(true);
-            applyCreatedWorkspaceContext(workspace);
             void queryClient.invalidateQueries({
               queryKey: ['workspaces', selectedTenantId],
-            });
-            toast.success(t('workspace.createSuccess', 'Workspace created successfully'), {
-              action: {
-                label: t('onboarding.uploadDocuments', 'Upload documents'),
-                onClick: () => {
-                  window.location.href = '/documents';
-                },
-              },
             });
           }}
         />

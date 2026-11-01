@@ -57,7 +57,7 @@ test.describe('SPEC-101 create workspace persist', () => {
     expect(payload.chunking_mode).toBe('fixed');
     expect(payload.chunk_token_size).toBe(1200);
 
-    await expect(page.getByTestId('create-workspace-wizard')).toBeHidden({
+    await expect(page.getByTestId('create-workspace-dialog')).toBeHidden({
       timeout: 30_000,
     });
 

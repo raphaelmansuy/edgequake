@@ -15,10 +15,12 @@ import { FleetSection } from "@/components/settings/sections/fleet-section";
 import { GraphSection } from "@/components/settings/sections/graph-section";
 import { IngestionSection } from "@/components/settings/sections/ingestion-section";
 import { ObservabilitySection } from "@/components/settings/sections/observability-section";
+import { OrganizationsSection } from "@/components/settings/sections/organizations-section";
 import { OrganizationProvidersSection } from "@/components/settings/sections/organization-providers-section";
 import { PeopleSection } from "@/components/settings/sections/people-section";
 import { SecretsSection } from "@/components/settings/sections/secrets-section";
 import { WorkspaceModelsSection } from "@/components/settings/sections/workspace-models-section";
+import { WorkspacesSection } from "@/components/settings/sections/workspaces-section";
 import type { SettingsSectionId } from "@/lib/settings/registry";
 import type { ComponentType } from "react";
 
@@ -30,6 +32,7 @@ const SECTION_COMPONENTS: Record<SettingsSectionId, ComponentType> = {
   ingestion: IngestionSection,
   access: AccessSection,
   people: PeopleSection,
+  workspaces: WorkspacesSection,
   branding: BrandingSection,
   "org-providers": OrganizationProvidersSection,
   secrets: SecretsSection,
@@ -37,6 +40,7 @@ const SECTION_COMPONENTS: Record<SettingsSectionId, ComponentType> = {
   providers: DeploymentProvidersSection,
   fleet: FleetSection,
   observability: ObservabilitySection,
+  organizations: OrganizationsSection,
 };
 
 export function SettingsSectionRenderer({ id }: { id: SettingsSectionId; workspaceSlug?: string | null }) {

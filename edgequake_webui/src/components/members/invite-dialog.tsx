@@ -41,6 +41,7 @@ export function InviteDialog({
   viewer,
   busy,
   issued,
+  workspaces = [],
   onSubmit,
   onClose,
 }: {
@@ -48,7 +49,9 @@ export function InviteDialog({
   viewer: MemberViewer;
   busy: boolean;
   issued: InvitationIssued | null;
-  onSubmit: (email: string, role: OrgRole) => void;
+  /** SPEC-181: who may be invited to a single workspace rather than the whole organization. */
+  workspaces?: readonly { id: string; name: string }[];
+  onSubmit: (email: string, role: OrgRole, workspaceId?: string | null) => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
@@ -58,17 +61,20 @@ export function InviteDialog({
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<OrgRole>('member');
   const [touched, setTouched] = useState(false);
+  // `null` = the whole organization. A workspace choice limits the grant to that workspace.
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const valid = EMAIL.test(email.trim());
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setTouched(true);
-    if (valid) onSubmit(email.trim(), role);
+    if (valid) onSubmit(email.trim(), role, workspaceId);
   };
 
   const close = () => {
     setEmail('');
     setRole('member');
+    setWorkspaceId(null);
     setTouched(false);
     onClose();
   };
@@ -108,6 +114,43 @@ export function InviteDialog({
                 </p>
               )}
             </div>
+
+            <fieldset className="space-y-1.5" data-testid="invite-scope">
+              <legend className="text-sm font-medium">{t('members.invite.scope', 'Add to')}</legend>
+              <div role="radiogroup" className="grid gap-2">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={workspaceId === null}
+                  onClick={() => setWorkspaceId(null)}
+                  data-testid="invite-scope-org"
+                  className={
+                    workspaceId === null
+                      ? 'rounded-md border border-primary bg-primary/5 p-2 text-left text-[12.5px] ring-1 ring-primary'
+                      : 'rounded-md border p-2 text-left text-[12.5px] hover:bg-muted/40'
+                  }
+                >
+                  {t('members.invite.scopeOrg', 'The whole organization')}
+                </button>
+                {workspaces.map((w) => (
+                  <button
+                    key={w.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={workspaceId === w.id}
+                    onClick={() => setWorkspaceId(w.id)}
+                    data-testid={`invite-scope-ws-${w.id}`}
+                    className={
+                      workspaceId === w.id
+                        ? 'rounded-md border border-primary bg-primary/5 p-2 text-left text-[12.5px] ring-1 ring-primary'
+                        : 'rounded-md border p-2 text-left text-[12.5px] hover:bg-muted/40'
+                    }
+                  >
+                    {t('members.invite.scopeWs', 'Only {{name}}', { name: w.name })}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
 
             <fieldset className="space-y-1.5">
               <legend className="text-sm font-medium">{t('members.invite.role', 'Role')}</legend>

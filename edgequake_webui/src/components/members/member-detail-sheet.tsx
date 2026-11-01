@@ -1,6 +1,7 @@
 'use client';
 
 import { MemberAccessControl } from '@/components/clearance/member-access-control';
+import { GrantEditor, type GrantRowModel } from '@/components/members/grant-editor';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import type { MemberView, MemberViewer, OrgRole } from '@/lib/api/edgequake/members';
@@ -24,6 +25,21 @@ function Field({ label, children, testId }: { label: string; children: React.Rea
       <dd className="min-w-0">{children}</dd>
     </div>
   );
+}
+
+/** The viewer's rank in this organization: the ceiling for any role they may assign. */
+function viewerLevel(viewer: MemberViewer): number {
+  if (viewer.instance_admin) return 4;
+  switch (viewer.max_assignable_role) {
+    case 'owner':
+      return 4;
+    case 'admin':
+      return 3;
+    case 'member':
+      return 2;
+    default:
+      return 1;
+  }
 }
 
 const fmt = (iso: string | null | undefined, locale: string) =>
@@ -73,12 +89,25 @@ export function MemberDetailSheet({
   viewer,
   onClose,
   onRoleChange,
+  grants,
+  workspaces = [],
+  grantsBusy,
+  onChangeGrantRole,
+  onRemoveGrant,
+  onAddGrant,
   onAction,
 }: {
   member: MemberView | null;
   viewer: MemberViewer;
   onClose: () => void;
   onRoleChange: (m: MemberView, r: OrgRole) => void;
+  /** SPEC-181: grant editing, when the caller may manage this organization's grants. */
+  grants?: GrantRowModel[];
+  workspaces?: readonly { id: string; name: string }[];
+  grantsBusy?: boolean;
+  onChangeGrantRole?: (membershipId: string, role: OrgRole) => void;
+  onRemoveGrant?: (membershipId: string) => void;
+  onAddGrant?: (workspaceId: string | null, role: OrgRole) => void;
   onAction: (a: MemberAction, m: MemberView) => void;
 }) {
   const { t, i18n } = useTranslation();
@@ -113,15 +142,32 @@ export function MemberDetailSheet({
             </SheetHeader>
 
             <dl className="divide-y px-4">
-              <Field label={t('members.columns.role', 'Role')} testId="detail-role">
-                <RoleSelect
-                  value={member.role}
-                  options={roleOptions(viewer)}
-                  lockedReason={lockedReason(roleChangeBlock(viewer, member))}
-                  managedBy={member.role_managed_by}
-                  onChange={(r) => onRoleChange(member, r)}
-                />
-              </Field>
+              {/* SPEC-181: one person, many grants. Fall back to the single-role control when the
+                  caller cannot manage grants, so a member still sees their own role. */}
+              {grants && onChangeGrantRole && onRemoveGrant && onAddGrant ? (
+                <div className="py-3" data-testid="detail-grants">
+                  <GrantEditor
+                    grants={grants}
+                    workspaces={workspaces}
+                    maxLevel={viewerLevel(viewer)}
+                    isLastOwner={member.is_last_owner}
+                    busy={grantsBusy}
+                    onChangeRole={(g, role) => onChangeGrantRole(g.membership_id, role as OrgRole)}
+                    onRemove={(g) => onRemoveGrant(g.membership_id)}
+                    onAdd={(ws, role) => onAddGrant(ws, role as OrgRole)}
+                  />
+                </div>
+              ) : (
+                <Field label={t('members.columns.role', 'Role')} testId="detail-role">
+                  <RoleSelect
+                    value={member.role}
+                    options={roleOptions(viewer)}
+                    lockedReason={lockedReason(roleChangeBlock(viewer, member))}
+                    managedBy={member.role_managed_by}
+                    onChange={(r) => onRoleChange(member, r)}
+                  />
+                </Field>
+              )}
               <Field label={t('members.columns.status', 'Status')}>
                 <MemberStatusBadge status={member.status} />
               </Field>

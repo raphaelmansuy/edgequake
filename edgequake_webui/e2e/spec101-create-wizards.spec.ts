@@ -25,7 +25,7 @@ test.describe('SPEC-101 create wizards', () => {
     await bootstrapDeterministicUiContext(page, request, 'spec101-create');
 
     await openCreateWorkspaceDialog(page);
-    await expect(page.getByTestId('create-workspace-wizard')).toBeVisible();
+    await expect(page.getByTestId('create-workspace-dialog')).toBeVisible();
 
     const name = `ws-spec101-${Date.now()}`;
     const slug = `ws-spec101-${Date.now()}`;
@@ -36,7 +36,7 @@ test.describe('SPEC-101 create wizards', () => {
     await wizardGoUntilStep(page, 'wizard-step-review');
     await page.getByTestId('wizard-finish').click();
 
-    await expect(page.getByTestId('create-workspace-wizard')).toBeHidden({ timeout: 30_000 });
+    await expect(page.getByTestId('create-workspace-dialog')).toBeHidden({ timeout: 30_000 });
     // Must switch into the created workspace (not stay on default).
     await expect(page.getByTestId('context-workspace-label').first()).toHaveAttribute(
       'data-full-name',
@@ -160,7 +160,7 @@ test.describe('SPEC-101 create wizards', () => {
     await wizardGoUntilStep(page, 'wizard-step-review');
     await page.getByTestId('wizard-finish').click();
 
-    await expect(page.getByTestId('create-tenant-wizard')).toBeHidden({ timeout: 30_000 });
+    await expect(page.getByTestId('create-organization-dialog')).toBeHidden({ timeout: 30_000 });
 
     await expect(page.getByTestId('context-tenant-label').first()).toHaveAttribute(
       'data-full-name',

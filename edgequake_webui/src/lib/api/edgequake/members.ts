@@ -41,6 +41,8 @@ export interface MemberView {
   expires_at?: string | null;
   is_you: boolean;
   is_last_owner: boolean;
+  /** SPEC-181: every active grant; `role` above stays the primary one. */
+  grants?: GrantSummary[];
 }
 
 export interface MemberSummary {
@@ -168,3 +170,45 @@ export const acceptInvitation = (
 /** Absolute browser URL of an accept link. */
 export const inviteUrl = (token: string, origin = window.location.origin) =>
   `${origin}/invite/${token}`;
+
+// ── SPEC-181: workspace-scoped grants ───────────────────────────────────────
+
+export interface GrantView {
+  membership_id: string;
+  user_id: string;
+  scope: "organization" | "workspace";
+  workspace_id?: string | null;
+  workspace_name?: string | null;
+  role: OrgRole;
+  level: number;
+  is_active: boolean;
+  sso_managed: boolean;
+  joined_at: string;
+}
+
+/** One grant on a directory row (SPEC-181 `MemberView.grants`). */
+export interface GrantSummary {
+  scope: "organization" | "workspace";
+  workspace_id?: string | null;
+  workspace_name?: string | null;
+  role: OrgRole;
+}
+
+export const listGrants = (tenantId: string, params: { user_id?: string; workspace_id?: string } = {}) => {
+  const qs = new URLSearchParams();
+  if (params.user_id) qs.set("user_id", params.user_id);
+  if (params.workspace_id) qs.set("workspace_id", params.workspace_id);
+  const q = qs.toString();
+  return api.get<GrantView[]>(`${base(tenantId)}/grants${q ? `?${q}` : ""}`);
+};
+
+export const createGrant = (
+  tenantId: string,
+  body: { user_id: string; workspace_id?: string | null; role: OrgRole },
+) => api.post<GrantView>(`${base(tenantId)}/grants`, body);
+
+export const updateGrant = (tenantId: string, membershipId: string, role: OrgRole) =>
+  api.patch<GrantView>(`${base(tenantId)}/grants/${encodeURIComponent(membershipId)}`, { role });
+
+export const deleteGrant = (tenantId: string, membershipId: string) =>
+  api.delete<void>(`${base(tenantId)}/grants/${encodeURIComponent(membershipId)}`);
