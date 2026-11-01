@@ -632,7 +632,7 @@ jobs:
             --output-dir ./coverage
 
       - name: Upload PostgreSQL coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           files: edgequake/coverage/cobertura.xml
           flags: postgres-integration
