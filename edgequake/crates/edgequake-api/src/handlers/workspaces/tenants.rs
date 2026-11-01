@@ -153,78 +153,115 @@ pub async fn create_tenant(
             edgequake_core::types::parse_tenant_primary_color(raw).map_err(ApiError::BadRequest)?;
     }
 
-    // Store tenant via workspace service (SPEC-104 A+: conflict enforced in core).
-    let requested_id = tenant.tenant_id;
+    // Store tenant via the workspace service; a slug collision is mapped to a 409 below.
     let created_tenant = state
         .workspace_service
         .create_tenant(tenant)
         .await
-        .map_err(ApiError::from)?;
-    let created_new = created_tenant.tenant_id == requested_id;
+        .map_err(map_tenant_create_error)?;
 
-    // Auto-create a default workspace only for newly inserted tenants (R004).
-    // SPEC-032: Workspace inherits tenant's default model configuration
-    if created_new {
-        let mut default_workspace_request =
-            edgequake_core::CreateWorkspaceRequest::new("Default Workspace")
-                .with_llm_config(
-                    &created_tenant.default_llm_model,
-                    &created_tenant.default_llm_provider,
-                )
-                .with_embedding_config(
-                    &created_tenant.default_embedding_model,
-                    &created_tenant.default_embedding_provider,
-                    created_tenant.default_embedding_dimension,
-                );
-        default_workspace_request.slug = Some("default".to_string());
-        // Persist vision parsing mode on the auto-created Default Workspace.
-        default_workspace_request.pdf_parser_backend =
-            Some(edgequake_pdf::PdfParserBackend::Vision);
-        // SPEC-041: Inherit vision LLM config if set on tenant
-        if let (Some(model), Some(provider)) = (
-            created_tenant.default_vision_llm_model.as_ref(),
-            created_tenant.default_vision_llm_provider.as_ref(),
-        ) {
-            default_workspace_request.vision_llm_model = Some(model.clone());
-            default_workspace_request.vision_llm_provider = Some(provider.clone());
-        }
+    // SPEC-181 LAW-181-2: the organization is not usable until it has an owner. The pre-181
+    // handler stopped here, so the tenant had zero memberships and only a platform admin could
+    // ever administer it (F-181-01). Grant ownership, then seed the default workspace, and fail
+    // loudly if either step fails — an ownerless or workspace-less organization is a bug, not a
+    // warning.
+    let owner_id = match &request.owner {
+        None => Some(
+            Uuid::parse_str(&auth.context().user_id)
+                .map_err(|_| ApiError::forbidden_reason("invalid_principal"))?,
+        ),
+        Some(OwnerChoiceDto::SelfPrincipal) => Some(
+            Uuid::parse_str(&auth.context().user_id)
+                .map_err(|_| ApiError::forbidden_reason("invalid_principal"))?,
+        ),
+        Some(OwnerChoiceDto::UserId { user_id }) => Some(*user_id),
+        Some(OwnerChoiceDto::Email { .. }) => Some(
+            // The creator holds Owner until the invitee accepts; the accept path promotes them.
+            Uuid::parse_str(&auth.context().user_id)
+                .map_err(|_| ApiError::forbidden_reason("invalid_principal"))?,
+        ),
+    };
 
-        if let Err(e) = state
-            .workspace_service
-            .create_workspace(created_tenant.tenant_id, default_workspace_request)
-            .await
-        {
-            tracing::warn!(
-                tenant_id = %created_tenant.tenant_id,
-                error = %e,
-                "Failed to auto-create default workspace"
-            );
-            // Continue anyway - tenant was created successfully
-        } else {
+    if let Some(owner) = owner_id {
+        crate::services::tenancy::create::ensure_grant(
+            &state,
+            owner,
+            created_tenant.tenant_id,
+            None,
+            edgequake_core::MembershipRole::Owner,
+        )
+        .await?;
+    }
+
+    // Seed the default workspace and grant its creator Owner (implicit for an org Owner, but the
+    // row makes a later org-role change not silently remove workspace access).
+    let workspace_name = request
+        .workspace
+        .as_ref()
+        .and_then(|w| w.name.clone())
+        .unwrap_or_else(|| "Default Workspace".to_string());
+    let workspace_slug = request
+        .workspace
+        .as_ref()
+        .and_then(|w| w.slug.as_deref())
+        .unwrap_or("default");
+    let rag_profile = request
+        .workspace
+        .as_ref()
+        .and_then(|w| w.rag_profile.as_deref());
+    match crate::services::tenancy::create::seed_default_workspace(
+        &state,
+        &created_tenant,
+        owner_id,
+        &workspace_name,
+        Some(workspace_slug),
+        rag_profile,
+    )
+    .await
+    {
+        Ok(ws) => {
             tracing::info!(
                 tenant_id = %created_tenant.tenant_id,
-                default_llm = %format!("{}/{}", created_tenant.default_llm_provider, created_tenant.default_llm_model),
-                default_embedding = %format!("{}/{}", created_tenant.default_embedding_provider, created_tenant.default_embedding_model),
-                "Auto-created default workspace for tenant with model config"
+                workspace_id = %ws.workspace_id,
+                owner = ?owner_id,
+                "Created organization with owner grant and default workspace"
             );
+        }
+        Err(e) => {
+            // Roll forward: the tenant row exists, so leaving it without a workspace would
+            // reproduce the exact defect this pack removes. Report the failure and let the
+            // operator retry the workspace creation explicitly.
+            tracing::error!(
+                tenant_id = %created_tenant.tenant_id,
+                error = %e,
+                "Organization created but its default workspace failed"
+            );
+            return Err(ApiError::Conflict(format!(
+                "workspace_creation_failed:{}",
+                created_tenant.tenant_id
+            )));
         }
     }
 
     let response = TenantResponse::from_tenant(&created_tenant);
-
     tracing::info!(
         tenant_id = %created_tenant.tenant_id,
         default_llm = %response.default_llm_full_id,
         default_embedding = %response.default_embedding_full_id,
-        created_new = created_new,
-        "Upserted tenant with model configuration (SPEC-104)"
+        "Created organization with model configuration"
     );
-    let status = if created_new {
-        StatusCode::CREATED
-    } else {
-        StatusCode::OK
-    };
-    Ok((status, Json(response)))
+    Ok((StatusCode::CREATED, Json(response)))
+}
+
+/// SPEC-181 LAW-181-5: a slug collision is an identity error the UI can act on, not a 500.
+fn map_tenant_create_error(e: edgequake_core::Error) -> ApiError {
+    match &e {
+        edgequake_core::Error::Conflict(msg) if msg.starts_with("tenant_slug_taken") => {
+            ApiError::Conflict(msg.clone())
+        }
+        edgequake_core::Error::Validation(msg) => ApiError::BadRequest(msg.clone()),
+        _ => ApiError::from(e),
+    }
 }
 
 /// List all tenants.
@@ -250,27 +287,38 @@ pub async fn list_tenants(
         let limit = params.limit.min(100);
         let ctx = auth.context();
 
-        let (total, tenants) =
-            if matches!(ctx.role, edgequake_auth::Role::Admin) || !membership_scoped(&state) {
-                // SPEC-140: `total` is COUNT(*), never page length (LAW-140-2).
-                let total = state
-                    .workspace_service
-                    .count_tenants()
-                    .await
-                    .map_err(|e| ApiError::Internal(e.to_string()))?;
-                let tenants = state
-                    .workspace_service
-                    .list_tenants(limit, params.offset)
-                    .await
-                    .map_err(|e| ApiError::Internal(e.to_string()))?;
-                (total, tenants)
-            } else {
-                // SPEC-158 LAW-158-6: members see only their own tenants.
-                let all = member_tenants(&state, ctx).await?;
-                let total = all.len();
-                let page = all.into_iter().skip(params.offset).take(limit).collect();
-                (total, page)
-            };
+        // SPEC-181 EC-181-29: visibility follows the caller's ROWS, not an environment flag.
+        // The pre-181 branch keyed on `membership_scoped` (strict_tenant_bind / SSO active), so a
+        // single-tenant install silently listed every organization to every member. A platform
+        // admin still sees all; everyone else sees the tenant they hold a membership in.
+        //
+        // `EDGEQUAKE_LEGACY_TENANT_LIST=1` restores the old behaviour for one release.
+        let legacy_list = std::env::var("EDGEQUAKE_LEGACY_TENANT_LIST")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+
+        let (total, tenants) = if matches!(ctx.role, edgequake_auth::Role::Admin)
+            || (legacy_list && !membership_scoped(&state))
+        {
+            // SPEC-140: `total` is COUNT(*), never page length (LAW-140-2).
+            let total = state
+                .workspace_service
+                .count_tenants()
+                .await
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+            let tenants = state
+                .workspace_service
+                .list_tenants(limit, params.offset)
+                .await
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+            (total, tenants)
+        } else {
+            // SPEC-158 LAW-158-6: members see only their own tenants.
+            let all = member_tenants(&state, ctx).await?;
+            let total = all.len();
+            let page = all.into_iter().skip(params.offset).take(limit).collect();
+            (total, page)
+        };
 
         let items: Vec<TenantResponse> = tenants
             .into_iter()
@@ -476,15 +524,47 @@ pub async fn delete_tenant(
     State(state): State<AppState>,
     auth: ApiAuthenticated,
     Path(tenant_id): Path<Uuid>,
-) -> Result<StatusCode, ApiError> {
+) -> Result<
+    (
+        StatusCode,
+        Json<crate::services::tenancy::purge::PurgeReceipt>,
+    ),
+    ApiError,
+> {
     require_platform_admin(auth.context())?;
-    tracing::info!(tenant_id = %tenant_id, "Deleting tenant");
+    tracing::info!(tenant_id = %tenant_id, "Purging organization");
 
-    state
-        .workspace_service
-        .delete_tenant(tenant_id)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let requested_by = Uuid::parse_str(&auth.context().user_id).ok();
+    let receipt =
+        crate::services::tenancy::purge_exec::purge_organization(&state, tenant_id, requested_by)
+            .await?;
 
-    Ok(StatusCode::NO_CONTENT)
+    Ok((StatusCode::ACCEPTED, Json(receipt)))
+}
+
+/// Preview what deleting an organization would destroy.
+///
+/// GET /api/v1/tenants/{tenant_id}/purge-preview
+#[utoipa::path(
+    get,
+    path = "/api/v1/tenants/{tenant_id}/purge-preview",
+    params(("tenant_id" = Uuid, Path, description = "Organization ID")),
+    responses((status = 200, description = "Counts for the delete confirmation", body = crate::services::tenancy::purge::PurgePreview)),
+    tags = ["tenants"]
+)]
+pub async fn tenant_purge_preview(
+    State(state): State<AppState>,
+    auth: ApiAuthenticated,
+    Path(tenant_id): Path<Uuid>,
+) -> Result<Json<crate::services::tenancy::purge::PurgePreview>, ApiError> {
+    // A preview reveals document counts, so it needs the same authority as the delete.
+    require_platform_admin(auth.context())?;
+    Ok(Json(
+        crate::services::tenancy::purge_exec::preview(
+            &state,
+            crate::services::tenancy::purge::ScopeKind::Organization,
+            tenant_id,
+        )
+        .await?,
+    ))
 }

@@ -69,14 +69,18 @@ impl WorkspaceServiceImpl {
         let default_workspace_id = Uuid::parse_str("00000000-0000-0000-0000-000000000003")
             .expect("Invalid default workspace UUID");
 
-        // Ensure default tenant exists
-        // Schema: tenant_id, name, slug, settings, metadata, is_active, created_at, updated_at
-        // Note: plan, max_workspaces, max_users stored in metadata JSONB
+        // Ensure default tenant exists.
+        // SPEC-181: plan/quota/description are real columns (migration 226). The bootstrap
+        // tenant is a Pro with unlimited seats; `ON CONFLICT DO NOTHING` keeps an existing row
+        // and its operator-raised quota intact.
         sqlx::query(
             r#"
-            INSERT INTO tenants (tenant_id, name, slug, is_active, metadata, settings, created_at, updated_at)
-            VALUES ($1, 'Default', 'default', TRUE, 
-                    '{"plan": "pro", "max_workspaces": 100, "max_users": 100, "description": "Default tenant"}'::jsonb,
+            INSERT INTO tenants
+                (tenant_id, name, slug, is_active, plan, max_workspaces, max_users,
+                 description, metadata, settings, created_at, updated_at)
+            VALUES ($1, 'Default', 'default', TRUE, 'pro', 100, 0,
+                    'Default tenant',
+                    '{"plan": "pro", "max_workspaces": 100, "max_users": 0}'::jsonb,
                     '{}'::jsonb, NOW(), NOW())
             ON CONFLICT (tenant_id) DO NOTHING
             "#,
@@ -133,8 +137,10 @@ impl WorkspaceServiceImpl {
 
     /// Build metadata JSON with tenant configuration.
     ///
-    /// Stores all tenant configuration fields in the metadata JSONB column,
-    /// including plan info, default LLM, embedding, and vision LLM configs.
+    /// SPEC-181: `plan`, `max_workspaces`, `max_users` and `description` are real columns since
+    /// migration 226 and are no longer duplicated here. They are still written for one release
+    /// so a rollback to the previous binary keeps reading the values it expects; the read path
+    /// prefers the column.
     fn build_tenant_metadata(tenant: &Tenant) -> serde_json::Value {
         let mut map = serde_json::json!({
             "plan": tenant.plan.to_string(),

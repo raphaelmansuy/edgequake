@@ -45,6 +45,17 @@ pub fn invitation_view(i: &Invitation) -> MemberView {
         expires_at: Some(i.expires_at.to_rfc3339()),
         is_you: false,
         is_last_owner: false,
+        // A pending invitation is one grant by definition.
+        grants: vec![super::types::GrantSummary {
+            scope: if i.workspace_id.is_some() {
+                "workspace".into()
+            } else {
+                "organization".into()
+            },
+            workspace_id: i.workspace_id.map(|w| w.to_string()),
+            workspace_name: None,
+            role: i.role.to_string(),
+        }],
     }
 }
 
@@ -148,6 +159,9 @@ pub async fn create_invitation(
 
     let actor = actor_for(&state, ctx, tenant_id).await?;
     check_assign(&actor, MembershipRole::Readonly, role, false)?;
+    // SPEC-181 EC-181-24: the invited workspace must belong to this organization, or an
+    // invitation could grant access to a sibling tenant's workspace.
+    super::directory::grant_scope_ok(&state, tenant_id, body.workspace_id).await?;
     assert_can_invite(&state, tenant_id, tenant.max_users, &email).await?;
 
     let token = new_token();

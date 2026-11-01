@@ -86,6 +86,7 @@ pub mod lineage;
 pub mod lineage_types;
 pub mod llm_defaults;
 pub mod mcp;
+pub mod me_access;
 pub mod me_settings_access;
 pub mod members;
 pub mod metrics;

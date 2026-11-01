@@ -1,14 +1,20 @@
-//! Role & permission catalog (SPEC-169) — the single source of truth the WebUI renders.
+//! Role & permission catalog (SPEC-169 / SPEC-181) — the single source of truth the WebUI
+//! renders.
 //!
-//! Every capability row is a predicate over [`MembershipRole`], the same predicates the
-//! request-authorization layer enforces (`can_write`, `can_manage_users`,
-//! `can_manage_workspaces`, `can_delete_tenant`). The matrix therefore cannot drift from
-//! enforcement, and the UI hard-codes no permission table (DRY).
+//! SPEC-181 moved the capability table into [`crate::services::capabilities`], which owns the
+//! predicates the handlers call. This module keeps the *role* metadata (labels, levels,
+//! descriptions) and the shape the members screen consumes, so the wire contract of
+//! `GET /roles` is unchanged apart from two additive fields (`axis`, `min_role`).
 
 use edgequake_auth::{RbacService, Role};
 use edgequake_core::MembershipRole;
 use serde::Serialize;
 use utoipa::ToSchema;
+
+use crate::services::capabilities::capability_infos;
+
+/// Re-exported so `openapi.rs` can name the schema in the same module it always did.
+pub use crate::services::capabilities::CapabilityInfo;
 
 /// Organization roles, lowest privilege first (matrix column order).
 pub const ORGANIZATION_ROLES: [MembershipRole; 4] = [
@@ -42,72 +48,13 @@ pub struct InstanceRoleInfo {
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct CapabilityInfo {
-    pub id: String,
-    pub group: String,
-    pub label: String,
-    /// Organization role ids that hold this capability.
-    pub roles: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct RoleCatalog {
     pub organization_roles: Vec<OrganizationRoleInfo>,
     pub instance_roles: Vec<InstanceRoleInfo>,
+    /// One row per capability, carrying `axis` so a workspace capability is never drawn under
+    /// the organization columns.
     pub capabilities: Vec<CapabilityInfo>,
 }
-
-struct CapabilityDef {
-    id: &'static str,
-    group: &'static str,
-    label: &'static str,
-    granted: fn(MembershipRole) -> bool,
-}
-
-const CAPABILITIES: [CapabilityDef; 7] = [
-    CapabilityDef {
-        id: "knowledge.read",
-        group: "Knowledge",
-        label: "View documents, the knowledge graph and answers",
-        granted: |_| true,
-    },
-    CapabilityDef {
-        id: "knowledge.query",
-        group: "Knowledge",
-        label: "Run queries and chat with the knowledge base",
-        granted: |_| true,
-    },
-    CapabilityDef {
-        id: "knowledge.write",
-        group: "Knowledge",
-        label: "Upload, edit and delete documents, entities and relationships",
-        granted: |r| r.can_write(),
-    },
-    CapabilityDef {
-        id: "workspace.manage",
-        group: "Organization",
-        label: "Create, configure and delete workspaces",
-        granted: |r| r.can_manage_workspaces(),
-    },
-    CapabilityDef {
-        id: "members.manage",
-        group: "Organization",
-        label: "Invite members, change roles and remove people",
-        granted: |r| r.can_manage_users(),
-    },
-    CapabilityDef {
-        id: "members.grant_owner",
-        group: "Organization",
-        label: "Grant or revoke the Owner role",
-        granted: |r| r == MembershipRole::Owner,
-    },
-    CapabilityDef {
-        id: "tenant.delete",
-        group: "Organization",
-        label: "Delete the organization",
-        granted: |r| r.can_delete_tenant(),
-    },
-];
 
 /// Product label for an organization role id.
 pub fn organization_role_label(role: MembershipRole) -> &'static str {
@@ -171,26 +118,14 @@ pub fn build_role_catalog(rbac: &RbacService) -> RoleCatalog {
                 permission_count: rbac.role_permissions(r).len(),
             })
             .collect(),
-        capabilities: CAPABILITIES
-            .iter()
-            .map(|c| CapabilityInfo {
-                id: c.id.to_string(),
-                group: c.group.to_string(),
-                label: c.label.to_string(),
-                roles: ORGANIZATION_ROLES
-                    .iter()
-                    .rev()
-                    .filter(|r| (c.granted)(**r))
-                    .map(|r| r.to_string())
-                    .collect(),
-            })
-            .collect(),
+        capabilities: capability_infos(),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::capabilities::Capability;
 
     fn catalog() -> RoleCatalog {
         build_role_catalog(&RbacService::new())
@@ -219,15 +154,21 @@ mod tests {
     fn capability_matrix_mirrors_enforcement_predicates() {
         let c = catalog();
         assert_eq!(
-            holders(&c, "knowledge.write"),
+            holders(&c, "workspace.content.write"),
             ["owner", "admin", "member"],
             "viewers never write"
         );
-        assert_eq!(holders(&c, "members.manage"), ["owner", "admin"]);
-        assert_eq!(holders(&c, "workspace.manage"), ["owner", "admin"]);
-        assert_eq!(holders(&c, "members.grant_owner"), ["owner"]);
-        assert_eq!(holders(&c, "tenant.delete"), ["owner"]);
-        assert_eq!(holders(&c, "knowledge.read").len(), 4);
+        assert_eq!(
+            holders(&c, "organization.members.manage"),
+            ["owner", "admin"]
+        );
+        assert_eq!(
+            holders(&c, "organization.workspaces.create"),
+            ["owner", "admin"]
+        );
+        assert_eq!(holders(&c, "organization.grant_owner"), ["owner"]);
+        assert_eq!(holders(&c, "organization.delete"), ["owner"]);
+        assert_eq!(holders(&c, "workspace.read").len(), 4);
     }
 
     #[test]
@@ -249,5 +190,22 @@ mod tests {
             .map(|r| r.permission_count)
             .collect();
         assert!(counts[0] > counts[1] && counts[1] >= counts[2]);
+    }
+
+    #[test]
+    fn every_catalog_capability_is_reachable_from_the_enum() {
+        // Guards against a hand-written row that names a capability the handlers cannot decide.
+        let c = catalog();
+        for cap in &c.capabilities {
+            assert!(
+                Capability::parse(&cap.id).is_some(),
+                "{} is not a known capability",
+                cap.id
+            );
+        }
+        assert_eq!(
+            c.capabilities.len(),
+            crate::services::capabilities::ALL_CAPABILITIES.len()
+        );
     }
 }

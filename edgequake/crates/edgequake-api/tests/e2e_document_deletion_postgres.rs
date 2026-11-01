@@ -372,6 +372,8 @@ async fn seed_test_workspace(state: &AppState, tenant_id: Uuid, workspace_id: Uu
             rag_profile: Default::default(),
             embedding_modalities: Default::default(),
             fts_regconfig: Default::default(),
+            archived_at: None,
+            archived_by: None,
         })
         .await
         .expect("seed test workspace");

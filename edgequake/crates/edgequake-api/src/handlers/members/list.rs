@@ -187,6 +187,7 @@ mod tests {
             expires_at: None,
             is_you: false,
             is_last_owner: false,
+            grants: vec![],
         }
     }
 

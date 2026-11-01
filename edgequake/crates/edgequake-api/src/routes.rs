@@ -416,6 +416,11 @@ fn api_v1_routes(state: AppState) -> Router<AppState> {
         )
         .route("/tenants/{tenant_id}", put(handlers::update_tenant))
         .route("/tenants/{tenant_id}", delete(handlers::delete_tenant))
+        // SPEC-181: what an organization delete would destroy, before it happens.
+        .route(
+            "/tenants/{tenant_id}/purge-preview",
+            get(handlers::tenant_purge_preview),
+        )
         // SPEC-169: organization members + invitations
         .route(
             "/tenants/{tenant_id}/members",
@@ -428,6 +433,15 @@ fn api_v1_routes(state: AppState) -> Router<AppState> {
         .route(
             "/tenants/{tenant_id}/members/{user_id}/access-links",
             post(handlers::access_links::issue_access_link),
+        )
+        // SPEC-181 LAW-181-10: the workspace grant axis, writable.
+        .route(
+            "/tenants/{tenant_id}/grants",
+            get(handlers::members::list_grants).post(handlers::members::create_grant),
+        )
+        .route(
+            "/tenants/{tenant_id}/grants/{membership_id}",
+            patch(handlers::members::update_grant).delete(handlers::members::delete_grant),
         )
         .route(
             "/tenants/{tenant_id}/invitations",
@@ -506,6 +520,20 @@ fn api_v1_routes(state: AppState) -> Router<AppState> {
         .route(
             "/workspaces/{workspace_id}",
             delete(handlers::delete_workspace),
+        )
+        // SPEC-181: what a delete would destroy, before it happens.
+        .route(
+            "/workspaces/{workspace_id}/purge-preview",
+            get(handlers::purge_preview),
+        )
+        // SPEC-181: archiving frees a plan slot without deleting data.
+        .route(
+            "/workspaces/{workspace_id}/archive",
+            post(handlers::archive_workspace),
+        )
+        .route(
+            "/workspaces/{workspace_id}/restore",
+            post(handlers::restore_workspace),
         )
         .route(
             "/workspaces/{workspace_id}/stats",
@@ -899,6 +927,8 @@ fn api_v1_routes(state: AppState) -> Router<AppState> {
         // Effective configuration with full resolution chain (explainability)
         .route("/config/effective", get(handlers::get_effective_config))
         .route("/me/settings-access", get(handlers::get_settings_access))
+        // SPEC-181: the one call every surface reads for rights, capabilities and quota.
+        .route("/me/access", get(handlers::me_access::get_me_access))
         // Models Configuration API (SPEC-032 OODA 66-70)
         .route("/models/search", get(handlers::search_models))
         .route(

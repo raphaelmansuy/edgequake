@@ -196,9 +196,59 @@ pub async fn bind_request(state: &AppState, request: &mut Request) -> Result<(),
     // Platform admin has no per-tenant membership row for sentinel orgs
     // (System Default Tenant). The role is the grant; the scope must still exist
     // and the URL workspace must still match the authorized header.
+    //
+    // SPEC-181: the archive/restore routes must reach an *archived* workspace (it is inactive
+    // by definition), so they skip the "workspace is active" part of scope binding and rely on
+    // their own `require_workspace_settings` guard.
+    let lifecycle_route = {
+        let path = request_path(request);
+        // Archive is idempotent-ish (it 409s on a second call) but must reach a workspace that a
+        // concurrent request just archived, so it shares the same binding exemption as restore.
+        path.starts_with("/api/v1/workspaces")
+            && (path.ends_with("/restore") || path.ends_with("/archive"))
+    };
     let role = if auth.role == Role::Admin {
-        require_active_scope(state, ctx.tenant_id.as_deref(), ctx.workspace_id.as_deref()).await?;
+        if lifecycle_route {
+            // The tenant must still be live; the workspace itself may be archived.
+            let tenant = parse_scope(
+                ctx.tenant_id.as_deref(),
+                crate::middleware::default_tenant_uuid(),
+            )?;
+            let active = state
+                .workspace_service
+                .get_tenant(tenant)
+                .await
+                .map_err(|e| ApiError::Internal(e.to_string()))?
+                .is_some_and(|t| t.is_active);
+            if !active {
+                return Err(ApiError::forbidden_reason(
+                    "No active membership for tenant/workspace scope",
+                ));
+            }
+        } else {
+            require_active_scope(state, ctx.tenant_id.as_deref(), ctx.workspace_id.as_deref())
+                .await?;
+        }
         MembershipRole::Owner
+    } else if lifecycle_route {
+        // The caller's grant is on the archived workspace, so resolve it without the active check.
+        let user = Uuid::parse_str(&auth.user_id).map_err(|_| ApiError::unauthorized())?;
+        let ws = parse_scope(
+            ctx.workspace_id.as_deref(),
+            crate::middleware::default_workspace_uuid(),
+        )?;
+        state
+            .workspace_service
+            .get_user_memberships(user)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?
+            .into_iter()
+            .filter(|m| m.is_active && m.can_access_workspace(&ws))
+            .map(|m| m.role)
+            .max_by_key(MembershipRole::level)
+            .ok_or_else(|| {
+                ApiError::forbidden_reason("No active membership for tenant/workspace scope")
+            })?
     } else {
         membership_role(
             state,

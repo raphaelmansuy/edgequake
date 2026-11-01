@@ -84,6 +84,22 @@ pub struct MemberView {
     pub expires_at: Option<String>,
     pub is_you: bool,
     pub is_last_owner: bool,
+    /// SPEC-181: every active grant this person holds, organization first. `role` above stays the
+    /// *primary* grant for clients that predate this field.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub grants: Vec<GrantSummary>,
+}
+
+/// One grant on the directory row.
+#[derive(Debug, Clone, Serialize, ToSchema, PartialEq, Eq)]
+pub struct GrantSummary {
+    /// `organization` or `workspace`.
+    pub scope: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace_name: Option<String>,
+    pub role: String,
 }
 
 /// Facets over the whole directory (independent of the active filter).

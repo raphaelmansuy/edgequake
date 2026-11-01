@@ -127,6 +127,15 @@ pub async fn load_people(
         links.entry(i.user_id).or_default().push(i);
     }
     let providers = provider_index(state);
+    // Workspace names for the grant summaries on each row (SPEC-181).
+    let workspace_names: HashMap<Uuid, String> = state
+        .workspace_service
+        .list_workspaces(tenant_id)
+        .await
+        .map_err(internal)?
+        .into_iter()
+        .map(|w| (w.workspace_id, w.name))
+        .collect();
 
     let mut rows = Vec::with_capacity(by_user.len());
     for (user_id, grants) in &by_user {
@@ -139,6 +148,8 @@ pub async fn load_people(
         };
         rows.push(member_view(MemberFacts {
             membership,
+            grants,
+            workspace_names: &workspace_names,
             record,
             identities: links.get(user_id).map_or(&[][..], Vec::as_slice),
             providers: &providers,
@@ -206,4 +217,30 @@ pub(crate) async fn save_user_record(
 /// Parse a path/user id into a UUID (400 on garbage).
 pub fn parse_user_id(raw: &str) -> Result<Uuid, ApiError> {
     Uuid::parse_str(raw).map_err(|_| ApiError::BadRequest(format!("Invalid user id: {raw}")))
+}
+
+/// Reject a grant whose workspace is not in this organization (SPEC-181 EC-181-24).
+///
+/// Without this, a caller allowed to grant on the organization could attach a grant to a
+/// workspace UUID belonging to another tenant, and the rank check would still pass because it
+/// only looks at roles.
+pub async fn grant_scope_ok(
+    state: &AppState,
+    tenant_id: Uuid,
+    workspace_id: Option<Uuid>,
+) -> Result<(), ApiError> {
+    let Some(ws) = workspace_id else {
+        return Ok(());
+    };
+    match state
+        .workspace_service
+        .get_workspace(ws)
+        .await
+        .map_err(internal)?
+    {
+        Some(w) if w.tenant_id == tenant_id => Ok(()),
+        _ => Err(ApiError::BadRequest(
+            "grant_scope_mismatch: workspace is not in this organization".into(),
+        )),
+    }
 }

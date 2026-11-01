@@ -154,7 +154,9 @@ pub fn scope_for(
 
 /// Strongest role among active memberships in `tenant` that match `workspace`.
 /// `None` means tenant-wide rows only (workspace_id is null).
-fn strongest_role(
+///
+/// SPEC-181: `pub(crate)` so `me/access` reuses the one grant algebra instead of restating it.
+pub(crate) fn strongest_role(
     memberships: &[Membership],
     tenant: Uuid,
     workspace: Option<Uuid>,
