@@ -152,7 +152,11 @@ export function buildScalarApiReferenceConfiguration(
     baseServerURL: serverBaseUrl,
     agent: { disabled: true },
     defaultHttpClient: {
-      targetKey: 'javascript',
+      // `js`, not `javascript`: Scalar's snippet target union has always keyed the
+      // JavaScript client as `js` (1.62 maps `js` to the `javascript` icon). Scalar 1.76
+      // dropped `javascript` from the declared union outright, so the old value both
+      // mismatched what was rendered and would have blocked any future upgrade.
+      targetKey: 'js',
       clientKey: 'fetch',
     },
     ...(authentication ? { authentication } : {}),
