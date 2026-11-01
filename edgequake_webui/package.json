@@ -161,7 +161,7 @@
       "source-map-js": ">=1.2.2",
       "zod": ">=4.6.6",
       "baseline-browser-mapping": ">=2.11.0",
-      "@ai-sdk/provider-utils": ">=4.0.33",
+      "@ai-sdk/provider-utils": ">=4.0.33 <5",
       "@vue/server-renderer": ">=3.5.42"
     }
   }
