@@ -18,7 +18,10 @@ use crate::types::{Membership, Tenant, Workspace};
 use super::WorkspaceServiceImpl;
 
 /// Tenant row from PostgreSQL.
-/// The actual schema uses metadata JSONB for plan, max_workspaces, max_users, description.
+///
+/// SPEC-181: `plan`, `max_workspaces`, `max_users` and `description` are real columns as of
+/// migration 226. The `metadata` fallbacks below exist only so a row written by a pre-226
+/// binary still reads correctly; a post-226 row always has the columns set.
 #[cfg(feature = "postgres")]
 #[derive(sqlx::FromRow)]
 pub(crate) struct TenantRow {
@@ -29,32 +32,50 @@ pub(crate) struct TenantRow {
     pub(crate) metadata: serde_json::Value,
     created_at: chrono::DateTime<chrono::Utc>,
     updated_at: chrono::DateTime<chrono::Utc>,
+    plan: Option<String>,
+    description: Option<String>,
+    pub(crate) max_workspaces: Option<i32>,
+    max_users: Option<i32>,
+    archived_at: Option<chrono::DateTime<chrono::Utc>>,
+    archived_by: Option<Uuid>,
 }
 
 #[cfg(feature = "postgres")]
 impl TenantRow {
     pub(crate) fn into_tenant(self) -> Tenant {
-        // Extract values from metadata JSONB
+        // SPEC-181: column first, metadata as the migration fallback, then the plan default.
         let plan_str = self
-            .metadata
-            .get("plan")
-            .and_then(|v| v.as_str())
+            .plan
+            .as_deref()
+            .or_else(|| self.metadata.get("plan").and_then(|v| v.as_str()))
             .unwrap_or("free");
+        let plan = WorkspaceServiceImpl::parse_plan(plan_str);
         let max_workspaces = self
-            .metadata
-            .get("max_workspaces")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(5) as usize;
+            .max_workspaces
+            .map(|v| v as usize)
+            .or_else(|| {
+                self.metadata
+                    .get("max_workspaces")
+                    .and_then(|v| v.as_u64())
+                    .map(|v| v as usize)
+            })
+            .unwrap_or_else(|| plan.default_max_workspaces());
         let max_users = self
-            .metadata
-            .get("max_users")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(10) as usize;
-        let description = self
-            .metadata
-            .get("description")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
+            .max_users
+            .map(|v| v as usize)
+            .or_else(|| {
+                self.metadata
+                    .get("max_users")
+                    .and_then(|v| v.as_u64())
+                    .map(|v| v as usize)
+            })
+            .unwrap_or_else(|| plan.default_max_users());
+        let description = self.description.or_else(|| {
+            self.metadata
+                .get("description")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+        });
 
         // SPEC-032: Extract default LLM config from metadata.
         // WHY: Use env-aware defaults (same as Workspace::default_llm_config)
@@ -131,13 +152,15 @@ impl TenantRow {
             name: self.name,
             slug: self.slug.unwrap_or_default(),
             description,
-            plan: WorkspaceServiceImpl::parse_plan(plan_str),
+            plan,
             is_active: self.is_active,
             max_workspaces,
             max_users,
             created_at: self.created_at,
             updated_at: self.updated_at,
             metadata: HashMap::new(),
+            archived_at: self.archived_at,
+            archived_by: self.archived_by,
             default_llm_model,
             default_llm_provider,
             default_embedding_model,
@@ -169,6 +192,9 @@ pub(crate) struct WorkspaceRow {
     rag_profile: String,
     embedding_modalities: String,
     fts_regconfig: String,
+    // SPEC-181 (migration 226).
+    archived_at: Option<chrono::DateTime<chrono::Utc>>,
+    archived_by: Option<Uuid>,
 }
 
 #[cfg(feature = "postgres")]
@@ -249,6 +275,8 @@ impl WorkspaceRow {
             created_at: self.created_at,
             updated_at: self.updated_at,
             metadata,
+            archived_at: self.archived_at,
+            archived_by: self.archived_by,
             llm_model,
             llm_provider,
             embedding_model,

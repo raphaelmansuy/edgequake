@@ -38,6 +38,8 @@ async fn seed_workspace(service: &InMemoryWorkspaceService, workspace_id: Uuid, 
         rag_profile: Default::default(),
         embedding_modalities: Default::default(),
         fts_regconfig: Default::default(),
+        archived_at: None,
+        archived_by: None,
     };
     service.insert_workspace(ws).await.expect("insert ws");
 }

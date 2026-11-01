@@ -16,7 +16,7 @@ const OFFER: WizardFixtureOptions = {
   },
 };
 
-const wizard = (page: Page) => page.getByTestId("create-workspace-wizard");
+const wizard = (page: Page) => page.getByTestId("create-workspace-dialog");
 
 async function toRetrievalStep(page: Page, options = OFFER) {
   const recorder = await openCreateWizard(page, options);

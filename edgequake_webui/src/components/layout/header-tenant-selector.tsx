@@ -4,13 +4,14 @@ import {
   ContextSelectorPopover,
   ContextTriggerChip,
 } from '@/components/layout/context-selector';
-import { CreateTenantWizard } from '@/components/onboarding/create-tenant-wizard';
-import { CreateWorkspaceWizard } from '@/components/onboarding/create-workspace-wizard';
+import { CreateOrganizationDialog } from '@/components/admin/create-organization-dialog';
+import { CreateWorkspaceDialog } from '@/components/admin/create-workspace-dialog';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { useAccess } from '@/lib/access/use-access';
 import { getTenants, getWorkspaces } from '@/lib/api/edgequake';
 import {
   applyCreatedTenantContext,
@@ -42,6 +43,8 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const router = useRouter();
+  // SPEC-181 LAW-181-3: the switcher offers only what the server will accept.
+  const { access } = useAccess();
 
   const syncCreatedContextUrl = useCallback(
     (
@@ -249,6 +252,11 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
             searchResetKey={selectorOpen ? 'open' : 'closed'}
             onTenantSelect={handleTenantSelect}
             onWorkspaceSelect={handleWorkspaceSelect}
+            canCreateTenant={access.canCreate.organization}
+            canCreateWorkspace={access.canCreate.workspace}
+            quotaBlockedWorkspace={access.reason.workspace === 'workspace_quota_reached'}
+            workspaceQuota={access.quota.workspaces}
+            workspaceRoles={Object.fromEntries(access.workspaces.map((w) => [w.id, w.role]))}
             onCreateTenant={() => {
               setSelectorOpen(false);
               setShowCreateTenant(true);
@@ -261,39 +269,33 @@ export function HeaderTenantSelector({ className }: HeaderTenantSelectorProps) {
         </PopoverContent>
       </Popover>
 
-      <CreateTenantWizard
+      {/* SPEC-181 LAW-181-15: one dialog per intent, owned here and opened by every surface.
+          The dialog owns the API sequence and the confirmation; this surface only keeps the
+          URL in step with the new selection. */}
+      <CreateOrganizationDialog
         open={showCreateTenant}
         onOpenChange={setShowCreateTenant}
-        onCreated={(tenant, workspace) => {
-          applyCreatedTenantContext(tenant, workspace, syncCreatedContextUrl);
+        onCreated={(_tenantId, workspaceSlug) => {
           void queryClient.invalidateQueries({ queryKey: ['tenants'] });
-          void queryClient.invalidateQueries({ queryKey: ['workspaces', tenant.id] });
-          toast.success(t('tenant.createSuccess', 'Tenant created successfully'), {
-            action: {
-              label: t('onboarding.uploadDocuments', 'Upload documents'),
-              onClick: () => {
-                window.location.href = '/documents';
-              },
-            },
-          });
+          if (workspaceSlug) {
+            const workspace = useTenantStore.getState().workspaces[0];
+            const tenant = useTenantStore
+              .getState()
+              .tenants.find((te) => te.id === useTenantStore.getState().selectedTenantId);
+            if (workspace) syncCreatedContextUrl(workspace, tenant);
+          }
         }}
       />
 
-      <CreateWorkspaceWizard
+      <CreateWorkspaceDialog
         open={showCreateWorkspace}
         onOpenChange={setShowCreateWorkspace}
         tenantId={selectedTenantId}
-        onCreated={(workspace) => {
-          applyCreatedWorkspaceContext(workspace, syncCreatedContextUrl);
+        onCreated={(workspaceId, slug) => {
           void queryClient.invalidateQueries({ queryKey: ['workspaces', selectedTenantId] });
-          toast.success(t('workspace.createSuccess', 'Workspace created successfully'), {
-            action: {
-              label: t('onboarding.uploadDocuments', 'Upload documents'),
-              onClick: () => {
-                window.location.href = '/documents';
-              },
-            },
-          });
+          const workspace = { id: workspaceId, name: slug, slug };
+          const tenant = tenants.find((te) => te.id === selectedTenantId);
+          syncCreatedContextUrl(workspace, tenant);
         }}
       />
     </>

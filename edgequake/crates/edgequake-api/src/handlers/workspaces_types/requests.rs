@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+use uuid::Uuid;
 
 /// Typed edge DTO (SPEC-114b) — mirrors `edgequake_core::type_list::RelationEdge`.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
@@ -61,6 +62,38 @@ pub fn relation_edges_to_core(
 /// Models can be specified as `model_name` or `provider/model_name`:
 /// - `"gemma3:12b"` - auto-detects provider as "ollama"
 /// - `"ollama/gemma3:12b"` - explicit provider
+
+// Who holds the Owner grant of a newly created organization (SPEC-181).
+//
+// `self_principal` is the common case. `user_id` names an existing account. `email` is the
+// enterprise onboarding path: the platform admin creates the organization for a customer's IT
+// lead, keeps Owner until the invitation is accepted, then the accept path promotes the invitee
+// and demotes the creator to Admin — one transaction, recorded in the audit row.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum OwnerChoiceDto {
+    /// The calling principal.
+    SelfPrincipal,
+    /// An existing account.
+    UserId { user_id: Uuid },
+    /// An address with no account yet.
+    Email { email: String },
+}
+
+/// The workspace an organization starts with.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct WorkspaceSeedDto {
+    /// Display name. Defaults to `Default Workspace`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// URL slug. Defaults to `default`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slug: Option<String>,
+    /// SPEC-180: `graph` (default) or `normal`. Immutable after create.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rag_profile: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CreateTenantRequest {
     /// Tenant name.
@@ -71,6 +104,15 @@ pub struct CreateTenantRequest {
     pub description: Option<String>,
     /// Plan type (free, basic, pro, enterprise).
     pub plan: Option<String>,
+
+    // === SPEC-181: ownership and the default workspace ===
+    /// Who becomes the organization Owner. Omitted means the calling principal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<OwnerChoiceDto>,
+
+    /// Seed workspace. Omitted means `Default Workspace` at slug `default`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace: Option<WorkspaceSeedDto>,
 
     // === Default LLM Configuration (SPEC-032) ===
     /// Default LLM model for new workspaces (e.g., "gemma3:12b", "gpt-4o-mini").

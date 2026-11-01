@@ -49,6 +49,7 @@ pub fn workspace_to_response(workspace: &Workspace, tenant: Option<&Tenant>) -> 
         slug: workspace.slug.clone(),
         description: workspace.description.clone(),
         is_active: workspace.is_active,
+        archived_at: workspace.archived_at.map(|t| t.to_rfc3339()),
         max_documents: workspace.max_documents(),
         llm_model: workspace.llm_model.clone(),
         llm_provider: workspace.llm_provider.clone(),

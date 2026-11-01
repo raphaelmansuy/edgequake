@@ -40,6 +40,8 @@ fn workspace_with_roles() -> Workspace {
         rag_profile: Default::default(),
         embedding_modalities: Default::default(),
         fts_regconfig: Default::default(),
+        archived_at: None,
+        archived_by: None,
     }
 }
 

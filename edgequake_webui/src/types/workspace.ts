@@ -24,6 +24,16 @@ export interface Tenant {
   is_active?: boolean;
   /** Maximum workspaces allowed for this tenant. */
   max_workspaces?: number;
+  /** Maximum people allowed. `0` means unlimited (SPEC-181). */
+  max_users?: number;
+  /** Workspaces that count against the plan; archived ones do not (SPEC-181). */
+  workspaces_used?: number;
+  /** Distinct active members (SPEC-181). */
+  members_used?: number;
+  /** The caller's effective role in this organization (SPEC-181). */
+  my_role?: string | null;
+  /** When the organization was archived; absent while live (SPEC-181). */
+  archived_at?: string | null;
   /**
    * Tenant brand color as canonical `#rrggbb`. `null`/absent = EdgeQuake default accent.
    * Drives the primary accent for every member of the tenant (WebUI theme).
@@ -112,6 +122,8 @@ export interface Workspace {
   description?: string;
   /** Whether the workspace is active. */
   is_active?: boolean;
+  /** SPEC-181: when the workspace was archived; absent while live. Archived stops quota. */
+  archived_at?: string | null;
   /** Maximum documents allowed. */
   max_documents?: number;
   /** Number of documents (from stats, may not be returned inline). */

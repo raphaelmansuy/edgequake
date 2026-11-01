@@ -42,7 +42,8 @@ impl WorkspaceServiceImpl {
         // Fetch tenant with row lock
         let row: Option<TenantRow> = sqlx::query_as(
             r#"
-            SELECT tenant_id, name, slug, is_active, metadata, created_at, updated_at
+            SELECT tenant_id, name, slug, is_active, metadata, created_at, updated_at,
+                   plan, description, max_workspaces, max_users, archived_at, archived_by
             FROM tenants
             WHERE tenant_id = $1
             FOR UPDATE
@@ -55,11 +56,18 @@ impl WorkspaceServiceImpl {
 
         let tenant_row =
             row.ok_or_else(|| Error::not_found(format!("Tenant {} not found", tenant_id)))?;
+        // SPEC-181: the quota is a real column now; metadata is only a rollback fallback.
         let previous_max = tenant_row
-            .metadata
-            .get("max_workspaces")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as usize;
+            .max_workspaces
+            .map(|v| v as usize)
+            .or_else(|| {
+                tenant_row
+                    .metadata
+                    .get("max_workspaces")
+                    .and_then(|v| v.as_u64())
+                    .map(|v| v as usize)
+            })
+            .unwrap_or(0);
 
         // Count current workspaces within the transaction
         let workspace_count: i64 =
@@ -80,17 +88,19 @@ impl WorkspaceServiceImpl {
             )));
         }
 
-        // Update max_workspaces in the metadata JSONB directly
+        // SPEC-181: write the real column (the read path and the insert trigger both use it);
+        // mirror into metadata for one release so a binary rollback still sees a consistent value.
         sqlx::query(
             r#"
             UPDATE tenants
-            SET metadata = jsonb_set(metadata, '{max_workspaces}', $2::text::jsonb),
+            SET max_workspaces = $2,
+                metadata = jsonb_set(metadata, '{max_workspaces}', to_jsonb($2::int)),
                 updated_at = NOW()
             WHERE tenant_id = $1
             "#,
         )
         .bind(tenant_id)
-        .bind(new_max_workspaces.to_string())
+        .bind(new_max_workspaces as i32)
         .execute(&mut *tx)
         .await
         .map_err(|e| Error::internal(format!("Failed to update tenant quota: {}", e)))?;

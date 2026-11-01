@@ -58,13 +58,13 @@ test.describe('SPEC-101 UX capture QC', () => {
       await page.getByTestId('wizard-workspace-name').fill(`cap-ws-${vp.name}`);
       await wizardGoNext(page);
       await assertModelsStepQc(page);
-      await assertDialogWithinViewport(page, 'create-workspace-wizard');
+      await assertDialogWithinViewport(page, 'create-workspace-dialog');
       await captureWizard(page, `after-create-workspace-models-${vp.name}.png`);
 
       await wizardGoUntilStep(page, 'wizard-step-review');
       await expect(page.getByTestId('wizard-step-review')).toBeVisible();
       await expect(page.getByTestId('wizard-review-workspace-edit')).toBeVisible();
-      await assertDialogWithinViewport(page, 'create-workspace-wizard');
+      await assertDialogWithinViewport(page, 'create-workspace-dialog');
       await captureWizard(page, `after-create-workspace-review-${vp.name}.png`);
     });
 
@@ -76,14 +76,14 @@ test.describe('SPEC-101 UX capture QC', () => {
       await page.getByTestId('wizard-tenant-name').fill(`Cap Tenant ${vp.name}`);
       await wizardGoNext(page); // models
       await assertModelsStepQc(page);
-      await assertDialogWithinViewport(page, 'create-tenant-wizard');
+      await assertDialogWithinViewport(page, 'create-organization-dialog');
       await captureWizard(page, `after-create-tenant-models-${vp.name}.png`);
 
       await wizardGoUntilStep(page, 'wizard-step-workspace-basics');
       await page.getByTestId('wizard-workspace-name').fill(`Cap WS ${vp.name}`);
       await wizardGoUntilStep(page, 'wizard-step-review');
       await expect(page.getByTestId('wizard-step-review')).toBeVisible();
-      await assertDialogWithinViewport(page, 'create-tenant-wizard');
+      await assertDialogWithinViewport(page, 'create-organization-dialog');
       await captureWizard(page, `after-create-tenant-review-${vp.name}.png`);
     });
   }

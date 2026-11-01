@@ -3325,6 +3325,18 @@ test-e2e-full: dev-bg test-e2e-lint ## Run full E2E suite (requires make dev-bg 
 		SPEC013_BACKEND_URL="$(BACKEND_URL)" E2E_LIVE_STACK=1 PLAYWRIGHT_BASE_URL="$(FRONTEND_URL)" \
 		pnpm exec playwright test --project=chromium --reporter=line
 
+# SPEC-181: admin (tenancy, grants, access, purge) — hermetic UI suite + PostgreSQL contract tests.
+# The UI suite is hermetic (no backend); the Rust tests need PostgreSQL (EDGEQUAKE_SPEC181_PG_URL
+# or DATABASE_URL) and are skipped when neither is set, matching the other PostgreSQL suites.
+test-e2e-spec181:
+	@echo "$(BLUE)SPEC-181 → cross-reference validator$(RESET)"
+	@python3 specs/181-admin/scripts/validate-cross-ref.py specs/181-admin
+	@echo "$(BLUE)SPEC-181 → hermetic UI suite (screenshots → specs/181-admin/e2e/screenshots)$(RESET)"
+	@cd $(FRONTEND_DIR) && PLAYWRIGHT_SKIP_STACK_CHECK=1 SPEC181_ROUND=$${SPEC181_ROUND:-ci} \
+		pnpm exec playwright test e2e/spec181 --project=mock-api --reporter=line
+	@echo "$(BLUE)SPEC-181 → tenancy contract tests (PostgreSQL)$(RESET)"
+	@cargo test -p edgequake-api --features postgres --test e2e_spec181_tenancy
+
 # SPEC-122: bulk ingest measurement harness (LAW-122-5). Does not raise concurrency.
 # Usage: make measure-bulk-ingest ARM=D N=5
 # Optional: BASE_URL WORKSPACE_ID TIMEOUT_S EDGEQUAKE_TOKEN

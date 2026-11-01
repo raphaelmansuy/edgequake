@@ -8,7 +8,7 @@ import { applyTheme, setViewport, shotLocator } from "./helpers/shots";
 import type { WizardFixtureOptions } from "./helpers/wizard-fixture";
 import { nextUntil, openCreateWizard, openReconfigureWizard } from "./helpers/wizard-open";
 
-const createDialog = (page: Page) => page.getByTestId("create-workspace-wizard");
+const createDialog = (page: Page) => page.getByTestId("create-workspace-dialog");
 const editDialog = (page: Page) => page.getByTestId("reconfigure-workspace-wizard");
 
 /** Mistral is offered next to OpenAI; its embedding model has no registered vector size. */

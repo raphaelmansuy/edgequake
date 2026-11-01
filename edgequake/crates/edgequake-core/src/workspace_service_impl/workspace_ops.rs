@@ -40,18 +40,25 @@ impl WorkspaceServiceImpl {
             .await?
             .ok_or_else(|| Error::not_found(format!("Tenant {} not found", tenant_id)))?;
 
-        // Check workspace limit
-        let current_count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM workspaces WHERE tenant_id = $1")
-                .bind(tenant_id)
-                .fetch_one(&self.pool)
-                .await
-                .map_err(|e| Error::internal(format!("Failed to count workspaces: {}", e)))?;
+        // SPEC-181: count only live workspaces, matching the trigger and `me/access`. Counting
+        // archived rows here would deny a create that the archive slot was freed for.
+        let current_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM workspaces WHERE tenant_id = $1 AND archived_at IS NULL",
+        )
+        .bind(tenant_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| Error::internal(format!("Failed to count workspaces: {}", e)))?;
 
+        // SPEC-181 LAW-181-5: quota is a conflict the caller can resolve by archiving, not a
+        // validation error. This pre-check exists to give a specific message on the common path;
+        // the authoritative check is the `trg_workspace_quota_guard` trigger in migration 226,
+        // which serializes concurrent inserts. Both must answer the same reason code, or the UI
+        // cannot decide between "absent" and "disabled with the fix".
         if current_count as usize >= tenant.max_workspaces {
-            return Err(Error::validation(format!(
-                "Tenant has reached maximum workspace limit ({})",
-                tenant.max_workspaces
+            return Err(Error::conflict(format!(
+                "workspace_quota_reached: {} of {}",
+                current_count, tenant.max_workspaces
             )));
         }
 
@@ -294,7 +301,7 @@ impl WorkspaceServiceImpl {
         .bind(workspace.fts_regconfig.as_str())
         .execute(&self.pool)
         .await
-        .map_err(|e| Error::internal(format!("Failed to create workspace: {}", e)))?;
+        .map_err(Self::map_workspace_insert_error)?;
 
         tracing::info!(
             workspace_id = %workspace.workspace_id,
@@ -306,6 +313,32 @@ impl WorkspaceServiceImpl {
         );
 
         Ok(workspace)
+    }
+
+    /// Translate a workspace insert failure into a conflict the API can name (SPEC-181 LAW-181-5).
+    ///
+    /// Migration 226 installs `trg_workspace_quota_guard`, which raises `workspace_quota_reached`
+    /// with SQLSTATE `check_violation`. Without this mapping the caller saw
+    /// `400 Bad request: Internal error: … workspace_quota_reached: 2 of 2`, which is neither a
+    /// conflict nor machine-readable, so the UI could not offer "archive a workspace".
+    fn map_workspace_insert_error(e: sqlx::Error) -> Error {
+        if let sqlx::Error::Database(db) = &e {
+            let msg = db.message();
+            if msg.contains("workspace_quota_reached") {
+                return Error::conflict(format!(
+                    "workspace_quota_reached: {}",
+                    msg.split("workspace_quota_reached:")
+                        .nth(1)
+                        .unwrap_or("")
+                        .trim()
+                ));
+            }
+            if db.code().as_deref() == Some("23505") {
+                // workspaces_slug_unique (tenant_id, slug)
+                return Error::conflict("workspace_slug_taken");
+            }
+        }
+        Error::internal(format!("Failed to create workspace: {}", e))
     }
 
     pub(super) async fn pg_insert_workspace(&self, workspace: Workspace) -> Result<Workspace> {
@@ -358,7 +391,7 @@ impl WorkspaceServiceImpl {
         let row: Option<WorkspaceRow> = sqlx::query_as(
             r#"
             SELECT workspace_id, tenant_id, name, slug, description, is_active, metadata, created_at, updated_at,
-                   rag_profile, embedding_modalities, fts_regconfig
+                   rag_profile, embedding_modalities, fts_regconfig, archived_at, archived_by
             FROM workspaces
             WHERE workspace_id = $1
             "#,
@@ -390,7 +423,7 @@ impl WorkspaceServiceImpl {
         let row: Option<WorkspaceRow> = sqlx::query_as(
             r#"
             SELECT workspace_id, tenant_id, name, slug, description, is_active, metadata, created_at, updated_at,
-                   rag_profile, embedding_modalities, fts_regconfig
+                   rag_profile, embedding_modalities, fts_regconfig, archived_at, archived_by
             FROM workspaces
             WHERE tenant_id = $1 AND slug = $2
             "#,
@@ -440,6 +473,14 @@ impl WorkspaceServiceImpl {
         }
         if let Some(is_active) = request.is_active {
             workspace.is_active = is_active;
+        }
+        // SPEC-181: archiving is an update, so restore and archive share one write path.
+        if let Some(archived_at) = request.archived_at {
+            workspace.archived_at = archived_at;
+            workspace.is_active = archived_at.is_none();
+        }
+        if request.archived_by.is_some() {
+            workspace.archived_by = request.archived_by;
         }
         if let Some(max_docs) = request.max_documents {
             workspace
@@ -582,9 +623,9 @@ impl WorkspaceServiceImpl {
         // Store all config in metadata JSONB column (database schema uses metadata, not separate columns)
         sqlx::query(
             r#"
-            UPDATE workspaces 
+            UPDATE workspaces
             SET name = $2, description = $3, is_active = $4, metadata = $5,
-                updated_at = NOW()
+                archived_at = $6, archived_by = $7, updated_at = NOW()
             WHERE workspace_id = $1
             "#,
         )
@@ -593,6 +634,8 @@ impl WorkspaceServiceImpl {
         .bind(&workspace.description)
         .bind(workspace.is_active)
         .bind(serde_json::json!(workspace.metadata))
+        .bind(workspace.archived_at)
+        .bind(workspace.archived_by)
         .execute(&self.pool)
         .await
         .map_err(|e| Error::internal(format!("Failed to update workspace: {}", e)))?;
@@ -629,7 +672,7 @@ impl WorkspaceServiceImpl {
         let rows: Vec<WorkspaceRow> = sqlx::query_as(
             r#"
             SELECT workspace_id, tenant_id, name, slug, description, is_active, metadata, created_at, updated_at,
-                   rag_profile, embedding_modalities, fts_regconfig
+                   rag_profile, embedding_modalities, fts_regconfig, archived_at, archived_by
             FROM workspaces
             WHERE tenant_id = $1
             ORDER BY created_at DESC, workspace_id DESC

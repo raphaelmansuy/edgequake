@@ -14,6 +14,8 @@ pub mod auth_memory_store;
 pub mod auth_validation;
 pub mod cancel_facade;
 pub mod cancel_retract;
+/// SPEC-181: the capability catalog every authorization decision and the UI matrix read.
+pub mod capabilities;
 pub mod chunk_kind_filter;
 pub mod clearance;
 #[cfg(feature = "postgres")]
@@ -142,6 +144,8 @@ pub mod summary_role;
 pub mod task_cancel;
 pub mod task_document_sync;
 pub mod task_scope;
+/// SPEC-181: tenancy creation, slugs, quota and purge.
+pub mod tenancy;
 pub mod tenant_guard;
 pub mod tenant_isolation;
 pub mod text_insert_content;

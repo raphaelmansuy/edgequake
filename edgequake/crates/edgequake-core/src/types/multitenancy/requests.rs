@@ -395,6 +395,11 @@ pub struct UpdateWorkspaceRequest {
     pub description: Option<String>,
     /// Whether the workspace is active.
     pub is_active: Option<bool>,
+    /// SPEC-181: set to archive (a timestamp) or clear to restore (`Some(None)`).
+    /// `None` leaves the current value untouched.
+    pub archived_at: Option<Option<chrono::DateTime<chrono::Utc>>>,
+    /// SPEC-181: who archived it.
+    pub archived_by: Option<Uuid>,
     /// Max documents quota.
     pub max_documents: Option<usize>,
     /// New LLM model for entity extraction (optional).

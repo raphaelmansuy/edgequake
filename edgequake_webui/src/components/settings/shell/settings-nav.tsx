@@ -19,7 +19,7 @@ import {
 } from "@/lib/settings/registry";
 import type { SettingsAccess } from "@/lib/settings/access";
 import type { Workspace } from "@/types";
-import { Activity, Cpu, FileText, HardDrive, KeyRound, Layers, Network, Paintbrush, Palette, Plug, Server, ShieldCheck, Users } from "lucide-react";
+import { Activity, Building2, Cpu, FileText, FolderKanban, HardDrive, KeyRound, Layers, Network, Paintbrush, Palette, Plug, Server, ShieldCheck, Users } from "lucide-react";
 import Link from "next/link";
 import { useId, type KeyboardEvent, type ComponentType } from "react";
 
@@ -31,6 +31,7 @@ const ICONS: Record<SettingsSectionId, ComponentType<{ className?: string }>> = 
   ingestion: FileText,
   access: ShieldCheck,
   people: Users,
+  workspaces: FolderKanban,
   branding: Paintbrush,
   "org-providers": Layers,
   secrets: KeyRound,
@@ -38,6 +39,7 @@ const ICONS: Record<SettingsSectionId, ComponentType<{ className?: string }>> = 
   providers: Layers,
   fleet: Server,
   observability: Activity,
+  organizations: Building2,
 };
 
 export function SettingsNav({

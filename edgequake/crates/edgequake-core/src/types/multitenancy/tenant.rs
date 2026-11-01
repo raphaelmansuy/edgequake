@@ -50,6 +50,15 @@ pub struct Tenant {
     /// Custom metadata.
     pub metadata: HashMap<String, serde_json::Value>,
 
+    /// SPEC-181: when the organization was archived. Archived organizations no longer grant
+    /// access to any non-platform caller and stop counting toward an operator's active count.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub archived_at: Option<chrono::DateTime<chrono::Utc>>,
+
+    /// SPEC-181: who archived it, for the audit trail shown in the organizations list.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub archived_by: Option<Uuid>,
+
     // === Model Configuration (SPEC-032) ===
     /// Default LLM model for new workspaces (e.g., "gemma3:12b", "gpt-4o-mini").
     pub default_llm_model: String,
@@ -101,19 +110,25 @@ impl Tenant {
         let (default_llm_model, default_llm_provider) = Workspace::default_llm_config();
         let (default_embedding_model, default_embedding_provider, default_embedding_dimension) =
             Workspace::default_embedding_config();
+        // SPEC-181: the quota defaults are the Free plan's, stated once. They used to be
+        // hard-coded 5/10 here while `TenantPlan::Free` said 10/3, so a tenant created
+        // without an explicit plan got a limit the plan it claimed to be did not have.
+        let plan = TenantPlan::Free;
 
         Self {
             tenant_id: Uuid::new_v4(),
             name: name.into(),
             slug: slug.into(),
             description: None,
-            plan: TenantPlan::Free,
-            max_workspaces: 5,
-            max_users: 10,
+            plan,
+            max_workspaces: plan.default_max_workspaces(),
+            max_users: plan.default_max_users(),
             is_active: true,
             created_at: now,
             updated_at: now,
             metadata: HashMap::new(),
+            archived_at: None,
+            archived_by: None,
             default_llm_model,
             default_llm_provider,
             default_embedding_model,
@@ -133,6 +148,22 @@ impl Tenant {
         self.max_workspaces = plan.default_max_workspaces();
         self.max_users = plan.default_max_users();
         self
+    }
+
+    /// SPEC-181: override the plan's quota (an operator-raised limit).
+    ///
+    /// Kept separate from [`Self::with_plan`] so a plan change and a quota grant stay distinct
+    /// ideas: the plan picks the default, the operator may raise it, and `max_users == 0` means
+    /// unlimited.
+    pub fn with_quota(mut self, max_workspaces: usize, max_users: usize) -> Self {
+        self.max_workspaces = max_workspaces;
+        self.max_users = max_users;
+        self
+    }
+
+    /// SPEC-181: `true` when the tenant carries unlimited seats (`max_users == 0`).
+    pub fn has_unlimited_seats(&self) -> bool {
+        self.max_users == 0
     }
 
     /// Set the description.
@@ -271,6 +302,17 @@ pub enum TenantPlan {
 }
 
 impl TenantPlan {
+    /// Wire id (`free`, `basic`, `pro`, `enterprise`). This is the `subscription_plans.id`
+    /// value and the `tenants.plan` column value, so it must stay lowercase and stable.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TenantPlan::Free => "free",
+            TenantPlan::Basic => "basic",
+            TenantPlan::Pro => "pro",
+            TenantPlan::Enterprise => "enterprise",
+        }
+    }
+
     /// Get the default max workspaces for this plan.
     ///
     /// SPEC-028: Updated to support 500 workspaces by default for Pro/Enterprise.
@@ -285,12 +327,15 @@ impl TenantPlan {
     }
 
     /// Get the default max users for this plan.
+    ///
+    /// SPEC-181: `0` means unlimited, matching `subscription_plans.max_users`. Enterprise used
+    /// to return `500`, which contradicted the catalog row for the same plan.
     pub fn default_max_users(&self) -> usize {
         match self {
             TenantPlan::Free => 3,
             TenantPlan::Basic => 10,
             TenantPlan::Pro => 50,
-            TenantPlan::Enterprise => 500,
+            TenantPlan::Enterprise => 0,
         }
     }
 

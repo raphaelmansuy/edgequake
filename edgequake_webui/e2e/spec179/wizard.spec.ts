@@ -15,7 +15,7 @@ async function openWizard(page: Page, options: WizardFixtureOptions = {}, role: 
   return recorder;
 }
 
-const wizard = (page: Page) => page.getByTestId("create-workspace-wizard");
+const wizard = (page: Page) => page.getByTestId("create-workspace-dialog");
 
 test.describe("SPEC-179 create workspace wizard @spec179", () => {
   test.beforeEach(({}, info) => info.setTimeout(120_000));

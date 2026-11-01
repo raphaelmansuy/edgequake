@@ -37,7 +37,10 @@ pub async fn visible_workspace_page(
                 .map_err(internal)?
                 .into_iter()
                 .filter(|ws| {
+                    // SPEC-181: an archived workspace leaves the visible catalog; `Archived`
+                    // on the Workspaces page is served by that page's own query.
                     ws.is_active
+                        && ws.archived_at.is_none()
                         && memberships.iter().any(|m| {
                             m.tenant_id == tenant_id && m.can_access_workspace(&ws.workspace_id)
                         })

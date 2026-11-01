@@ -11,10 +11,8 @@ use super::helpers::{
 use edgequake_audit::{AuditEventType, AuditResult};
 
 use crate::error::ApiError;
-use crate::handlers::documents::storage_helpers::purge_workspace_tasks;
 use crate::handlers::workspaces_types::*;
 use crate::middleware::TenantContext;
-use crate::services::document_metadata_scan::plan_workspace_document_kv_deletion;
 use crate::services::record_compliance_event;
 use crate::state::AppState;
 use edgequake_pdf::PdfParserBackend;
@@ -189,6 +187,10 @@ pub async fn create_workspace(
         .create_workspace(tenant_id, create_request)
         .await
         .map_err(|e| {
+            // SPEC-181 LAW-181-5: quota and slug are conflicts the UI acts on, not bad requests.
+            if let edgequake_core::Error::Conflict(msg) = &e {
+                return ApiError::Conflict(msg.clone());
+            }
             crate::error::profile::parse_tagged_profile_error(&e.to_string())
                 .unwrap_or_else(|| ApiError::BadRequest(e.to_string()))
         })?;
@@ -495,6 +497,10 @@ pub async fn update_workspace(
         name: request.name,
         description: request.description,
         is_active: request.is_active,
+        // Archive state is owned by POST …/archive and …/restore, never by PUT, so a settings
+        // edit can never silently un-archive a workspace.
+        archived_at: None,
+        archived_by: None,
         max_documents: request.max_documents,
         llm_model: request.llm_model,
         llm_provider,
@@ -582,16 +588,21 @@ pub async fn update_workspace(
 /// # Enforces
 ///
 /// - **BR0821**: Workspace deletion cascades to all resources
+/// Delete a workspace and cascade delete all associated data.
 ///
-/// # Cascade Order
+/// # Implements
 ///
-/// ```text
-/// 1. Clear vector storage (embeddings)
-/// 2. Clear graph storage (entities/relationships)
-/// 3. Delete document metadata and content from KV storage
-/// 4. Evict workspace from vector registry cache
-/// 5. Delete workspace record from database
-/// ```
+/// - **UC0304**: Delete Workspace
+/// - **SPEC-181 LAW-181-7**: one purge implementation for every scope
+///
+/// # Enforces
+///
+/// - **BR0821**: Workspace deletion cascades to all resources
+///
+/// The nine planes are executed and recorded by
+/// [`crate::services::tenancy::purge_exec::purge_workspace`], which the organization delete
+/// path calls once per workspace. Returns 202 with a receipt so the caller can watch progress
+/// and retry a plane that failed (for example an object-store outage).
 ///
 /// DELETE /api/v1/workspaces/{workspace_id}
 #[utoipa::path(
@@ -601,7 +612,7 @@ pub async fn update_workspace(
         ("workspace_id" = Uuid, Path, description = "Workspace ID")
     ),
     responses(
-        (status = 204, description = "Workspace deleted with cascade"),
+        (status = 202, description = "Purge started; the receipt reports every plane", body = crate::services::tenancy::purge::PurgeReceipt),
         (status = 404, description = "Workspace not found"),
     ),
     tags = ["workspaces"]
@@ -610,172 +621,125 @@ pub async fn delete_workspace(
     State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
     tenant_ctx: TenantContext,
-) -> Result<StatusCode, ApiError> {
+) -> Result<
+    (
+        StatusCode,
+        Json<crate::services::tenancy::purge::PurgeReceipt>,
+    ),
+    ApiError,
+> {
     // BR0201: verify workspace belongs to requesting tenant before cascade delete
     verify_workspace_tenant_access(&state, workspace_id, &tenant_ctx).await?;
 
-    tracing::info!(workspace_id = %workspace_id, "Starting workspace cascade delete");
+    let requested_by = tenant_ctx
+        .user_id
+        .as_deref()
+        .and_then(|u| Uuid::parse_str(u).ok());
+    let receipt =
+        crate::services::tenancy::purge_exec::purge_workspace(&state, workspace_id, requested_by)
+            .await?;
 
-    let workspace_id_str = workspace_id.to_string();
-    // Cancel in-flight workspace tasks. Finished rows stay until the workspace
-    // FK ON DELETE CASCADE drops them with the tenant object (issue #386).
-    let tasks_deleted = purge_workspace_tasks(&state, workspace_id).await;
+    Ok((StatusCode::ACCEPTED, Json(receipt)))
+}
 
-    // 1. Clear vector storage for this workspace
-    // WHY: Remove all embeddings (chunks + entities) before deleting workspace
-    let vectors_cleared = match state
-        .storage
-        .vector_storage
-        .clear_workspace(&workspace_id)
-        .await
-    {
-        Ok(count) => {
-            tracing::info!(workspace_id = %workspace_id, vectors_cleared = count, "Cleared vector storage");
-            count
-        }
-        Err(e) => {
-            tracing::warn!(workspace_id = %workspace_id, error = %e, "Failed to clear vector storage (continuing)");
-            0
-        }
-    };
+/// Preview what a delete would destroy, so the confirmation dialog can state the counts.
+///
+/// GET /api/v1/workspaces/{workspace_id}/purge-preview
+#[utoipa::path(
+    get,
+    path = "/api/v1/workspaces/{workspace_id}/purge-preview",
+    params(("workspace_id" = Uuid, Path, description = "Workspace ID")),
+    responses((status = 200, description = "Counts for the delete confirmation", body = crate::services::tenancy::purge::PurgePreview)),
+    tags = ["workspaces"]
+)]
+pub async fn purge_preview(
+    State(state): State<AppState>,
+    Path(workspace_id): Path<Uuid>,
+    tenant_ctx: TenantContext,
+) -> Result<Json<crate::services::tenancy::purge::PurgePreview>, ApiError> {
+    verify_workspace_tenant_access(&state, workspace_id, &tenant_ctx).await?;
+    Ok(Json(
+        crate::services::tenancy::purge_exec::preview(
+            &state,
+            crate::services::tenancy::purge::ScopeKind::Workspace,
+            workspace_id,
+        )
+        .await?,
+    ))
+}
 
-    // 2. Clear graph storage for this workspace (entities and relationships)
-    // WHY: Remove all knowledge graph nodes and edges
-    let (nodes_cleared, edges_cleared) = match state
-        .storage
-        .graph_storage
-        .clear_workspace(&workspace_id)
-        .await
-    {
-        Ok((nodes, edges)) => {
-            tracing::info!(
-                workspace_id = %workspace_id,
-                nodes_cleared = nodes,
-                edges_cleared = edges,
-                "Cleared graph storage"
-            );
-            (nodes, edges)
-        }
-        Err(e) => {
-            tracing::warn!(workspace_id = %workspace_id, error = %e, "Failed to clear graph storage (continuing)");
-            (0, 0)
-        }
-    };
+// ===========================================================================
+// SPEC-181: archive / restore
+// ===========================================================================
 
-    // 3. Delete all documents belonging to this workspace from KV storage
-    // WHY: Remove document metadata, content, and chunk data via metadata SSOT
-    // (suffix scan + per-doc chunk prefix — avoids full `keys()` universe scan).
-    let (documents_deleted, chunks_deleted) = match plan_workspace_document_kv_deletion(
-        state.storage.kv_storage.as_ref(),
-        state.optional_pg_pool(),
-        &workspace_id_str,
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+pub struct ArchiveWorkspaceRequest {
+    /// Why it was archived, recorded for the members list and the audit row.
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+/// Archive a workspace: it leaves the switcher and stops counting toward the plan.
+///
+/// Data is kept; `POST …/restore` reverses it subject to quota.
+///
+/// POST /api/v1/workspaces/{workspace_id}/archive
+#[utoipa::path(
+    post,
+    path = "/api/v1/workspaces/{workspace_id}/archive",
+    params(("workspace_id" = Uuid, Path, description = "Workspace ID")),
+    request_body = ArchiveWorkspaceRequest,
+    responses(
+        (status = 200, description = "Workspace archived", body = WorkspaceResponse),
+        (status = 404, description = "Workspace not found"),
+        (status = 409, description = "Already archived"),
+    ),
+    tags = ["workspaces"]
+)]
+pub async fn archive_workspace(
+    State(state): State<AppState>,
+    Path(workspace_id): Path<Uuid>,
+    tenant_ctx: TenantContext,
+    auth: crate::handlers::auth::ApiAuthenticated,
+    body: Option<Json<ArchiveWorkspaceRequest>>,
+) -> Result<Json<WorkspaceResponse>, ApiError> {
+    verify_workspace_tenant_access(&state, workspace_id, &tenant_ctx).await?;
+    let tenant_id = tenant_ctx
+        .tenant_id_uuid()
+        .ok_or_else(|| ApiError::BadRequest("Missing tenant scope".into()))?;
+    // Archiving changes whether the workspace counts toward the plan, so it is a settings write.
+    super::tenant_access::require_workspace_settings(
+        &state,
+        auth.context(),
+        tenant_id,
+        workspace_id,
     )
-    .await
-    {
-        Ok(plan) => {
-            if !plan.keys.is_empty() {
-                if let Err(e) = state.storage.kv_storage.delete(&plan.keys).await {
-                    tracing::warn!(
-                        workspace_id = %workspace_id,
-                        error = %e,
-                        keys_count = plan.keys.len(),
-                        "Failed to delete some KV storage keys"
-                    );
-                }
-            }
-            tracing::info!(
-                workspace_id = %workspace_id,
-                documents_deleted = plan.documents,
-                chunks_deleted = plan.chunks,
-                "Cleared KV storage"
-            );
-            (plan.documents, plan.chunks)
-        }
-        Err(e) => {
-            tracing::warn!(
-                workspace_id = %workspace_id,
-                error = %e,
-                "Failed to plan workspace document KV deletion"
-            );
-            (0, 0)
-        }
-    };
+    .await?;
 
-    // 3a. SPEC-160: decision cache and review rows follow the workspace (EC-160-37).
-    crate::services::decision_cleanup::purge_decision_workspace(&state, &workspace_id_str).await;
-
-    // 3b. Delete workspace-scoped PDF rows so duplicate detection and document
-    // listings cannot surface stale uploads after the workspace is gone.
-    let pdfs_deleted = {
-        #[cfg(feature = "postgres")]
-        {
-            use edgequake_storage::ListPdfFilter;
-
-            let mut deleted = 0usize;
-            if let Some(ref pdf_storage) = state.storage.pdf_storage {
-                let filter = ListPdfFilter {
-                    workspace_id: Some(workspace_id),
-                    processing_status: None,
-                    page: Some(1),
-                    page_size: Some(10_000),
-                    ..Default::default()
-                };
-
-                if let Ok(pdf_list) = pdf_storage.list_pdfs(filter).await {
-                    for pdf in pdf_list.items {
-                        if pdf_storage.delete_pdf(&pdf.pdf_id).await.is_ok() {
-                            deleted += 1;
-                        }
-                    }
-                }
-            }
-            deleted
-        }
-        #[cfg(not(feature = "postgres"))]
-        {
-            0usize
-        }
-    };
-
-    // 4. Evict workspace from vector registry cache
-    // WHY: Ensure cached storage instances are cleaned up
-    state.storage.vector_registry.evict(&workspace_id).await;
-
-    // 4b. Drop the per-workspace vector table (SPEC-054 / GitHub #297).
-    // WHY: evict() only removes the in-memory cache entry. Without dropping the
-    // physical table, workspace delete leaves an orphan `eq_..._ws_{id}_vectors`
-    // table that accumulates on disk and can interfere with re-creation.
-    if let Err(e) = state
-        .storage
-        .vector_registry
-        .drop_workspace_table(&workspace_id)
+    let current = state
+        .workspace_service
+        .get_workspace(workspace_id)
         .await
-    {
-        tracing::warn!(
-            workspace_id = %workspace_id,
-            error = %e,
-            "Failed to drop workspace vector table (orphan may remain — benign)"
-        );
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound(format!("Workspace {workspace_id} not found")))?;
+    if current.archived_at.is_some() {
+        return Err(ApiError::Conflict("scope_inactive:already_archived".into()));
     }
 
-    // 5. Finally delete the workspace record from database
-    state
+    let actor = tenant_ctx
+        .user_id
+        .as_deref()
+        .and_then(|u| Uuid::parse_str(u).ok());
+    let request = edgequake_core::UpdateWorkspaceRequest {
+        archived_at: Some(Some(chrono::Utc::now())),
+        archived_by: actor,
+        ..Default::default()
+    };
+    let updated = state
         .workspace_service
-        .delete_workspace(workspace_id)
+        .update_workspace(workspace_id, request)
         .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
-
-    tracing::info!(
-        workspace_id = %workspace_id,
-        tasks_deleted = tasks_deleted,
-        vectors_cleared = vectors_cleared,
-        nodes_cleared = nodes_cleared,
-        edges_cleared = edges_cleared,
-        documents_deleted = documents_deleted,
-        chunks_deleted = chunks_deleted,
-        pdfs_deleted = pdfs_deleted,
-        "Workspace cascade delete completed"
-    );
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
     record_compliance_event(
         &state,
@@ -784,12 +748,102 @@ pub async fn delete_workspace(
             .clone()
             .unwrap_or_else(|| "default".to_string()),
         AuditEventType::WorkspaceAccess,
-        "delete_workspace",
+        "archive_workspace",
         AuditResult::Success,
-        Some(workspace_id_str),
+        Some(workspace_id.to_string()),
         tenant_ctx.user_id.clone(),
-        None,
+        body.and_then(|b| b.reason.clone())
+            .map(|r| ("reason".to_string(), r)),
     );
 
-    Ok(StatusCode::NO_CONTENT)
+    let tenant = state
+        .workspace_service
+        .get_tenant(updated.tenant_id)
+        .await
+        .ok()
+        .flatten();
+    Ok(Json(workspace_to_response_with_tenant(
+        &updated,
+        tenant.as_ref(),
+    )))
+}
+
+/// Restore an archived workspace, subject to the plan's workspace limit.
+///
+/// POST /api/v1/workspaces/{workspace_id}/restore
+#[utoipa::path(
+    post,
+    path = "/api/v1/workspaces/{workspace_id}/restore",
+    params(("workspace_id" = Uuid, Path, description = "Workspace ID")),
+    responses(
+        (status = 200, description = "Workspace restored", body = WorkspaceResponse),
+        (status = 404, description = "Workspace not found"),
+        (status = 409, description = "Plan is full"),
+    ),
+    tags = ["workspaces"]
+)]
+pub async fn restore_workspace(
+    State(state): State<AppState>,
+    Path(workspace_id): Path<Uuid>,
+    tenant_ctx: TenantContext,
+    auth: crate::handlers::auth::ApiAuthenticated,
+) -> Result<Json<WorkspaceResponse>, ApiError> {
+    verify_workspace_tenant_access(&state, workspace_id, &tenant_ctx).await?;
+    let tenant_id = tenant_ctx
+        .tenant_id_uuid()
+        .ok_or_else(|| ApiError::BadRequest("Missing tenant scope".into()))?;
+    super::tenant_access::require_workspace_settings(
+        &state,
+        auth.context(),
+        tenant_id,
+        workspace_id,
+    )
+    .await?;
+
+    let current = state
+        .workspace_service
+        .get_workspace(workspace_id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound(format!("Workspace {workspace_id} not found")))?;
+    if current.archived_at.is_none() {
+        return Err(ApiError::Conflict("scope_active:not_archived".into()));
+    }
+
+    // A restore consumes a slot, so it must respect the plan exactly like a create.
+    let tenant = state
+        .workspace_service
+        .get_tenant(current.tenant_id)
+        .await
+        .ok()
+        .flatten()
+        .ok_or_else(|| ApiError::NotFound("Organization not found".into()))?;
+    let live = state
+        .workspace_service
+        .count_workspaces(current.tenant_id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    if tenant.max_workspaces > 0 && live >= tenant.max_workspaces {
+        return Err(ApiError::Conflict(format!(
+            "workspace_quota_reached: {live} of {}",
+            tenant.max_workspaces
+        )));
+    }
+
+    let request = edgequake_core::UpdateWorkspaceRequest {
+        archived_at: Some(None),
+        archived_by: None,
+        is_active: Some(true),
+        ..Default::default()
+    };
+    let updated = state
+        .workspace_service
+        .update_workspace(workspace_id, request)
+        .await
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
+    Ok(Json(workspace_to_response_with_tenant(
+        &updated,
+        Some(&tenant),
+    )))
 }

@@ -261,6 +261,8 @@ mod tests {
             rag_profile: Default::default(),
             embedding_modalities: Default::default(),
             fts_regconfig: Default::default(),
+            archived_at: None,
+            archived_by: None,
         }
     }
 

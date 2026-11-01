@@ -12,8 +12,12 @@ import {
   removeMember,
   resendInvitation,
   revokeInvitation,
+  createGrant,
+  deleteGrant,
+  updateGrant,
   updateMember,
   type MemberListParams,
+  type OrgRole,
   type RoleCatalog,
   type UpdateMemberBody,
 } from '@/lib/api/edgequake/members';
@@ -119,4 +123,49 @@ export function useMemberActions() {
   });
 
   return { update, remove, invite, resend, revoke, issueLink };
+}
+
+/**
+ * SPEC-181 — grant mutations.
+ *
+ * One hook per operation, all invalidating the same directory key, so the table and the open
+ * editor cannot disagree after a change.
+ */
+export function useGrantActions() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const tenantId = useTenantStore((s) => s.selectedTenantId) as string;
+  const fail = useFailureToast();
+  const refresh = () => qc.invalidateQueries({ queryKey: membersKey(tenantId) });
+
+  const create = useMutation({
+    mutationFn: (body: { user_id: string; workspace_id?: string | null; role: OrgRole }) =>
+      createGrant(tenantId, body),
+    onSuccess: () => {
+      toast.success(t('members.toasts.grantAdded', 'Grant added'));
+      return refresh();
+    },
+    onError: (e) => fail(e, 'members.toasts.grantFailed', 'Could not add the grant'),
+  });
+
+  const change = useMutation({
+    mutationFn: ({ membershipId, role }: { membershipId: string; role: OrgRole }) =>
+      updateGrant(tenantId, membershipId, role),
+    onSuccess: () => {
+      toast.success(t('members.toasts.grantUpdated', 'Grant updated'));
+      return refresh();
+    },
+    onError: (e) => fail(e, 'members.toasts.grantFailed', 'Could not update the grant'),
+  });
+
+  const remove = useMutation({
+    mutationFn: (membershipId: string) => deleteGrant(tenantId, membershipId),
+    onSuccess: () => {
+      toast.success(t('members.toasts.grantRemoved', 'Grant removed'));
+      return refresh();
+    },
+    onError: (e) => fail(e, 'members.toasts.grantFailed', 'Could not remove the grant'),
+  });
+
+  return { create, change, remove };
 }

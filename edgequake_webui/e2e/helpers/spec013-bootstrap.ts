@@ -83,14 +83,14 @@ export async function openCreateWorkspaceDialog(page: Page): Promise<void> {
   } else {
     await page.getByRole('option', { name: /new workspace|create new workspace/i }).click();
   }
-  await page.getByTestId('create-workspace-wizard').waitFor({ state: 'visible', timeout: 10_000 });
+  await page.getByTestId('create-workspace-dialog').waitFor({ state: 'visible', timeout: 10_000 });
 }
 
 /** Open header Create Tenant wizard. SPEC-101. */
 export async function openCreateTenantDialog(page: Page): Promise<void> {
   await openWorkspaceSelectorMenu(page);
   await page.getByTestId('header-create-tenant').click();
-  await page.getByTestId('create-tenant-wizard').waitFor({ state: 'visible', timeout: 10_000 });
+  await page.getByTestId('create-organization-dialog').waitFor({ state: 'visible', timeout: 10_000 });
 }
 
 /** Advance the SPEC-101 wizard one step. */

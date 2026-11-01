@@ -41,6 +41,8 @@ mod tests {
     #[test]
     fn test_create_tenant_request_serialization() {
         let req = CreateTenantRequest {
+            owner: None,
+            workspace: None,
             primary_color: None,
             name: "Acme Corp".to_string(),
             slug: Some("acme".to_string()),
@@ -191,6 +193,11 @@ mod tests {
             plan: "free".to_string(),
             is_active: true,
             max_workspaces: 10, // SPEC-028: Updated to reflect new Free tier limit
+            max_users: 3,
+            workspaces_used: 1,
+            members_used: 1,
+            my_role: None,
+            archived_at: None,
             default_llm_model: "gemma4:latest".to_string(),
             default_llm_provider: "ollama".to_string(),
             default_llm_full_id: "ollama/gemma4:latest".to_string(),
@@ -223,6 +230,7 @@ mod tests {
             slug: "test".to_string(),
             description: Some("A test workspace".to_string()),
             is_active: true,
+            archived_at: None,
             max_documents: Some(100),
             // SPEC-032: LLM configuration
             llm_model: "gemma4:latest".to_string(),

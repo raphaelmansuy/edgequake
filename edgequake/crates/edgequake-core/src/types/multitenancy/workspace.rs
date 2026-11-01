@@ -116,6 +116,15 @@ pub struct Workspace {
     /// Custom metadata including quotas.
     pub metadata: HashMap<String, serde_json::Value>,
 
+    /// SPEC-181: when the workspace was archived. Archived workspaces stop counting toward the
+    /// organization's plan and leave the switcher, but keep their data and are restorable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub archived_at: Option<chrono::DateTime<chrono::Utc>>,
+
+    /// SPEC-181: who archived it, for the audit trail.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub archived_by: Option<Uuid>,
+
     // === LLM Configuration (SPEC-032) ===
     /// LLM model name (e.g., "gemma3:12b", "gpt-4o-mini").
     /// Used for knowledge graph generation, summarization, entity extraction.
@@ -192,6 +201,8 @@ impl Workspace {
             created_at: now,
             updated_at: now,
             metadata: HashMap::new(),
+            archived_at: None,
+            archived_by: None,
             llm_model,
             llm_provider,
             embedding_model,

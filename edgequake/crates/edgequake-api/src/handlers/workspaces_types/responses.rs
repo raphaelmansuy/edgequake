@@ -24,6 +24,20 @@ pub struct TenantResponse {
     /// Maximum workspaces allowed.
     pub max_workspaces: usize,
 
+    // === SPEC-181: quota accounting and caller context ===
+    /// Maximum people allowed. `0` means unlimited.
+    pub max_users: usize,
+    /// Workspaces that count against the plan (archived ones do not).
+    pub workspaces_used: usize,
+    /// Distinct active members.
+    pub members_used: usize,
+    /// The caller's effective role in this organization, when they hold a grant.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub my_role: Option<String>,
+    /// When the organization was archived; `null` while live.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub archived_at: Option<String>,
+
     // === Default LLM Configuration (SPEC-032) ===
     /// Default LLM model for new workspaces.
     pub default_llm_model: String,
@@ -74,6 +88,10 @@ impl TenantResponse {
     ///
     /// WHY: five handlers used to rebuild this struct by hand, so a new tenant field
     /// had to be remembered in each copy. Mapping in one place keeps them in lockstep.
+    ///
+    /// SPEC-181 usage counters default to `0`: a caller that has not loaded the counts (for
+    /// example the single-tenant `GET /tenants/{id}`) must not report a fabricated number.
+    /// Use [`Self::with_usage`] where the counts were computed.
     pub fn from_tenant(tenant: &edgequake_core::Tenant) -> Self {
         Self {
             id: tenant.tenant_id,
@@ -82,6 +100,11 @@ impl TenantResponse {
             plan: format!("{}", tenant.plan),
             is_active: tenant.is_active,
             max_workspaces: tenant.max_workspaces,
+            max_users: tenant.max_users,
+            workspaces_used: 0,
+            members_used: 0,
+            my_role: None,
+            archived_at: tenant.archived_at.map(|t| t.to_rfc3339()),
             default_llm_model: tenant.default_llm_model.clone(),
             default_llm_provider: tenant.default_llm_provider.clone(),
             default_llm_full_id: format!(
@@ -104,6 +127,22 @@ impl TenantResponse {
             updated_at: tenant.updated_at.to_rfc3339(),
         }
     }
+
+    /// Attach the quota counters and the caller's role (SPEC-181).
+    ///
+    /// Separate from [`Self::from_tenant`] because the counts are a second query: a caller that
+    /// only needs identity (a `PUT` echo, a nested workspace response) must not pay for them.
+    pub fn with_usage(mut self, workspaces_used: usize, members_used: usize) -> Self {
+        self.workspaces_used = workspaces_used;
+        self.members_used = members_used;
+        self
+    }
+
+    /// Attach the caller's effective role in this organization.
+    pub fn with_my_role(mut self, role: Option<&str>) -> Self {
+        self.my_role = role.map(str::to_string);
+        self
+    }
 }
 
 /// Workspace response DTO.
@@ -123,6 +162,9 @@ pub struct WorkspaceResponse {
     pub description: Option<String>,
     /// Whether the workspace is active.
     pub is_active: bool,
+    /// SPEC-181: when it was archived; `null` while live. Archived stops counting toward the plan.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub archived_at: Option<String>,
     /// Maximum documents allowed.
     pub max_documents: Option<usize>,
 

@@ -117,3 +117,37 @@ pub async fn member_tenants(
     tenants.sort_by_key(|t| t.created_at);
     Ok(tenants)
 }
+
+/// Require `workspace.settings.manage` on one workspace (SPEC-181).
+///
+/// Used by archive/restore. An organization manager inherits it, a workspace Admin holds it only
+/// on their own workspace, a Member never holds it. A platform admin passes as support.
+pub async fn require_workspace_settings(
+    state: &AppState,
+    ctx: &RequestAuthContext,
+    tenant_id: Uuid,
+    workspace_id: Uuid,
+) -> Result<(), ApiError> {
+    if is_platform_admin(ctx) {
+        return Ok(());
+    }
+    let user = Uuid::parse_str(&ctx.user_id).map_err(|_| ApiError::unauthorized())?;
+    let memberships = state
+        .workspace_service
+        .get_user_memberships(user)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let role = memberships
+        .into_iter()
+        .filter(|m| m.is_active && m.applies_to(tenant_id, Some(workspace_id)))
+        .map(|m| m.role)
+        .max_by_key(edgequake_core::MembershipRole::level);
+    if role.is_some_and(|r| r.can_manage_workspaces()) {
+        return Ok(());
+    }
+    Err(ApiError::forbidden_reason(
+        crate::services::capabilities::required_reason(
+            crate::services::capabilities::Capability::WorkspaceSettingsManage,
+        ),
+    ))
+}

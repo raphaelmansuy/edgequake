@@ -75,6 +75,10 @@ pub(crate) fn member_status(record: &UserRecord) -> MemberStatus {
 
 pub struct MemberFacts<'a> {
     pub membership: &'a Membership,
+    /// Every active grant for this person in the organization (SPEC-181).
+    pub grants: &'a [&'a Membership],
+    /// Workspace id → display name, for the grant summaries.
+    pub workspace_names: &'a HashMap<Uuid, String>,
     pub(crate) record: &'a UserRecord,
     pub identities: &'a [&'a FederatedIdentityRecord],
     pub providers: &'a ProviderIndex,
@@ -102,6 +106,32 @@ pub fn member_view(f: MemberFacts<'_>) -> MemberView {
         expires_at: None,
         is_you: f.record.user_id == f.viewer_id,
         is_last_owner: f.last_owner == Uuid::parse_str(&f.record.user_id).ok(),
+        // Organization grant first, then workspaces by name: the order the editor renders.
+        grants: {
+            let mut rows: Vec<super::types::GrantSummary> = f
+                .grants
+                .iter()
+                .map(|g| super::types::GrantSummary {
+                    scope: if g.workspace_id.is_some() {
+                        "workspace".into()
+                    } else {
+                        "organization".into()
+                    },
+                    workspace_id: g.workspace_id.map(|w| w.to_string()),
+                    workspace_name: g
+                        .workspace_id
+                        .and_then(|w| f.workspace_names.get(&w).cloned()),
+                    role: g.role.to_string(),
+                })
+                .collect();
+            rows.sort_by(|a, b| {
+                // Organization rows sort first, then by workspace name.
+                a.scope
+                    .cmp(&b.scope)
+                    .then_with(|| a.workspace_name.cmp(&b.workspace_name))
+            });
+            rows
+        },
     }
 }
 

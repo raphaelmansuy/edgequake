@@ -31,6 +31,14 @@ export interface ContextSelectorPopoverProps {
   onWorkspaceSelect: (workspaceId: string) => void;
   onCreateTenant: () => void;
   onCreateWorkspace: () => void;
+  /** SPEC-181 LAW-181-3: a create row is rendered only when the server would accept it. */
+  canCreateTenant?: boolean;
+  canCreateWorkspace?: boolean;
+  /** At the plan limit the row stays, disabled, with the fix. */
+  quotaBlockedWorkspace?: boolean;
+  workspaceQuota?: { used: number; limit: number };
+  /** Effective role per workspace id, shown as a chip so "what am I here?" needs no page load. */
+  workspaceRoles?: Record<string, string>;
 }
 
 /**
@@ -50,6 +58,11 @@ export function ContextSelectorPopover({
   onWorkspaceSelect,
   onCreateTenant,
   onCreateWorkspace,
+  canCreateTenant = false,
+  canCreateWorkspace = false,
+  quotaBlockedWorkspace = false,
+  workspaceQuota,
+  workspaceRoles,
 }: ContextSelectorPopoverProps) {
   const { t } = useTranslation();
   const workspacesRef = useRef<HTMLDivElement>(null);
@@ -106,14 +119,16 @@ export function ContextSelectorPopover({
                 </CommandItem>
               );
             })}
-            <CommandItem
-              value="create-organization"
-              onSelect={onCreateTenant}
-              data-testid="header-create-tenant"
-            >
-              <Plus className="mr-2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-              {t('tenant.createNew', 'New Organization')}
-            </CommandItem>
+            {canCreateTenant ? (
+              <CommandItem
+                value="create-organization"
+                onSelect={onCreateTenant}
+                data-testid="header-create-tenant"
+              >
+                <Plus className="mr-2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                {t('tenant.createNew', 'New organization')}
+              </CommandItem>
+            ) : null}
           </CommandGroup>
         </div>
 
@@ -176,20 +191,48 @@ export function ContextSelectorPopover({
                           </div>
                         ) : null}
                       </div>
+                      {workspaceRoles?.[workspace.id] ? (
+                        <span
+                          className="ml-2 shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10.5px] font-medium capitalize text-muted-foreground"
+                          data-testid={`workspace-role-${workspace.slug ?? workspace.id}`}
+                        >
+                          {workspaceRoles[workspace.id]}
+                        </span>
+                      ) : null}
                       {selected ? (
                         <Check className="ml-2 h-4 w-4 shrink-0 text-primary" />
                       ) : null}
                     </CommandItem>
                   );
                 })}
-                <CommandItem
-                  value="create-workspace"
-                  onSelect={onCreateWorkspace}
-                  data-testid="header-create-workspace"
-                >
-                  <Plus className="mr-2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                  {t('workspace.createNew', 'New Workspace')}
-                </CommandItem>
+                {canCreateWorkspace ? (
+                  <CommandItem
+                    value="create-workspace"
+                    onSelect={onCreateWorkspace}
+                    data-testid="header-create-workspace"
+                  >
+                    <Plus className="mr-2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    {t('workspace.createNew', 'New workspace')}
+                  </CommandItem>
+                ) : quotaBlockedWorkspace ? (
+                  <div
+                    className="px-3 py-2 text-xs text-amber-700 dark:text-amber-400"
+                    data-testid="header-create-workspace-blocked"
+                  >
+                    {t(
+                      'workspace.quotaBlocked',
+                      'Your plan allows {{limit}} workspaces. Archive one to free a slot.',
+                      { limit: workspaceQuota?.limit ?? 0 },
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    className="px-3 py-2 text-xs text-muted-foreground"
+                    data-testid="header-create-workspace-hint"
+                  >
+                    {t('workspace.askAdmin', 'Ask an admin to create a workspace.')}
+                  </div>
+                )}
               </CommandGroup>
             </div>
           </>
