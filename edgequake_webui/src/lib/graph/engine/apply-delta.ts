@@ -2,19 +2,25 @@ import type { GraphEdge, GraphNode } from "@/types";
 import { degreeTotal } from "@/types/graph";
 import { getGraphEdgeKeyFromEdge } from "@/lib/graph/ids";
 import { formatEntityLabel } from "@/lib/graph/label-utils";
+import { assignPairCurvatures, undirectedPairKey } from "./edge-curvature";
 import type Graph from "graphology";
 import type { GraphDelta } from "./types";
 
 /**
  * A lone edge between two nodes is drawn straight ("arrow") — curving every edge
  * turns hubs into unreadable hairballs. Parallel / reverse edges use the curved
- * program with an increasing bend so they stay distinguishable.
+ * program so they stay distinguishable.
  * NB: `@sigma/edge-curve` renders nothing at curvature 0, hence two programs.
  */
 export const STRAIGHT_EDGE_TYPE = "arrow";
 export const CURVED_EDGE_TYPE = "curvedArrow";
-const PARALLEL_CURVATURE_BASE = 0.25;
-const PARALLEL_CURVATURE_STEP = 0.2;
+
+/**
+ * Bow applied to a self-loop (a relationship from an entity to itself).
+ * A self-loop has no chord to bend along, so it is given a fixed pronounced
+ * curvature; the curved program then draws a visible loop instead of nothing.
+ */
+export const SELF_LOOP_CURVATURE = 0.8;
 
 export function resolveEdgeKey(
   edge: Pick<GraphEdge, "id" | "source" | "target" | "relationship_type">,
@@ -108,12 +114,18 @@ export function applyDelta(
     if (!edge.source || !edge.target) continue;
     if (!graph.hasNode(edge.source) || !graph.hasNode(edge.target)) continue;
     const edgeId = resolveEdgeKey(edge);
+    const isSelfLoop = edge.source === edge.target;
     const edgeAttrs = {
       label: edge.relationship_type,
       forceLabel: ctx.showEdgeLabels,
       size: Math.max(1, Math.min((edge.weight ?? 1) * 2, 5)),
       color: ctx.edgeColor,
-      type: STRAIGHT_EDGE_TYPE,
+      // WHY self-loops need the curved program: a self-loop has zero chord
+      // length, so the straight arrow program has nothing to draw and the edge
+      // silently disappears. Bending it produces the visible loop an ER diagram
+      // would show for a reflexive relationship.
+      type: isSelfLoop ? CURVED_EDGE_TYPE : STRAIGHT_EDGE_TYPE,
+      ...(isSelfLoop ? { curvature: SELF_LOOP_CURVATURE } : {}),
       relationshipType: edge.relationship_type,
     };
 
@@ -139,30 +151,43 @@ export function applyDelta(
 /** Spread parallel edges by curvature without pulling WebGL into unit tests. */
 export function refreshParallelCurvature(graph: Graph): void {
   if (graph.size === 0) return;
-  const pairIndex = new Map<string, number>();
+
+  // Group edges by UNDIRECTED pair. Antiparallel edges (A→B and B→A) belong to
+  // the same fan: they must bow to opposite sides, and their magnitudes must be
+  // balanced, otherwise the pair reads as one thick arc plus one stray curve.
+  //
+  // Self-loops are excluded: they have no chord and already carry their own
+  // fixed curvature from `applyDelta`.
+  const pairs = new Map<string, Array<{ edge: string; source: string; target: string }>>();
   graph.forEachEdge((edge, _attrs, source, target) => {
-    const key = source < target ? `${source}::${target}` : `${target}::${source}`;
-    const idx = pairIndex.get(key) ?? 0;
-    pairIndex.set(key, idx + 1);
-    graph.setEdgeAttribute(edge, "parallelIndex", idx);
+    if (source === target) return;
+    const key = undirectedPairKey(source, target);
+    const bucket = pairs.get(key);
+    if (bucket) bucket.push({ edge, source, target });
+    else pairs.set(key, [{ edge, source, target }]);
   });
-  graph.forEachEdge((edge, attrs, source, target) => {
-    const key = source < target ? `${source}::${target}` : `${target}::${source}`;
-    const max = (pairIndex.get(key) ?? 1) - 1;
-    graph.setEdgeAttribute(edge, "parallelMaxIndex", max);
-    const idx = typeof attrs.parallelIndex === "number" ? attrs.parallelIndex : 0;
-    if (max === 0) {
+
+  for (const bucket of pairs.values()) {
+    // Deterministic order: the same graph must always paint identically.
+    bucket.sort((a, b) => (a.edge < b.edge ? -1 : a.edge > b.edge ? 1 : 0));
+
+    if (bucket.length === 1) {
+      const { edge } = bucket[0]!;
       graph.setEdgeAttribute(edge, "type", STRAIGHT_EDGE_TYPE);
       graph.removeEdgeAttribute(edge, "curvature");
-      return;
+      graph.setEdgeAttribute(edge, "parallelIndex", 0);
+      graph.setEdgeAttribute(edge, "parallelMaxIndex", 0);
+      continue;
     }
-    graph.setEdgeAttribute(edge, "type", CURVED_EDGE_TYPE);
-    graph.setEdgeAttribute(
-      edge,
-      "curvature",
-      PARALLEL_CURVATURE_BASE + idx * PARALLEL_CURVATURE_STEP,
-    );
-  });
+
+    const curvatures = assignPairCurvatures(bucket);
+    bucket.forEach(({ edge }, index) => {
+      graph.setEdgeAttribute(edge, "type", CURVED_EDGE_TYPE);
+      graph.setEdgeAttribute(edge, "curvature", curvatures[index]!);
+      graph.setEdgeAttribute(edge, "parallelIndex", index);
+      graph.setEdgeAttribute(edge, "parallelMaxIndex", bucket.length - 1);
+    });
+  }
 }
 
 /**
