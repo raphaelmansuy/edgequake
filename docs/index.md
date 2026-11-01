@@ -4,7 +4,7 @@ description: Documentation for EdgeQuake, the Graph-RAG framework built in Rust.
 template: splash
 hero:
   title: EdgeQuake Documentation
-  tagline: Install, run, and operate EdgeQuake. Current release is v0.38.3.
+  tagline: Install, run, and operate EdgeQuake. Current release is v0.39.0.
   actions:
     - text: Get Started
       link: /docs/getting-started/
@@ -15,7 +15,7 @@ hero:
       variant: minimal
 ---
 
-> **Released: v0.38.3** (schema 224) · Contract: [OpenAPI snapshot](../edgequake_webui/openapi/openapi.snapshot.json) · Ops: [Ingestion cancel and fairness](ingestion-cancel-and-fairness.md)
+> **Released: v0.39.0** (schema 226) · Contract: [OpenAPI snapshot](../edgequake_webui/openapi/openapi.snapshot.json) · Ops: [Ingestion cancel and fairness](ingestion-cancel-and-fairness.md)
 
 EdgeQuake turns your documents into a knowledge graph and answers questions from it. It is written in Rust and stores everything in PostgreSQL. These pages are for developers and operators.
 
