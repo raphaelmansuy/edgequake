@@ -33,18 +33,32 @@
 #   - LM Studio: gemma-3n-e4b-it (LLM), text-embedding-nomic-embed-text-v1.5 (embedding)
 
 [defaults]
-llm_provider = "openai"              # Default LLM provider
-llm_model = "gpt-4.1-mini"          # Default LLM model (OpenAI GPT-4.1 Mini — 1M ctx, vision, cost-effective)
-embedding_provider = "openai"        # Default embedding provider
-embedding_model = "text-embedding-3-small"  # Default embedding model (1536 dimensions)
-vision_provider = "openai"           # Default vision LLM provider (for PDF page rendering)
-vision_model = "gpt-4o"              # Default vision LLM model (OpenAI GPT-4o — established multimodal)
+# Verified against https://developers.openai.com/api/docs/models (November 2026).
+#
+# GPT-6 is OpenAI's current family: Astra (flagship), Sol (balanced), Terra (fast/vision),
+# Luna (cheapest). Luna is the default here because a knowledge-graph ingest pipeline makes
+# very many small, structured calls, and it is the tier built for that.
+#
+# `text-embedding-3-small` is still the current OpenAI embedding model: it was listed in an
+# April 2026 deprecation email that OpenAI publicly retracted. Keep the dimension at 1536.
+#
+# NOTE: only `llm_*` and `embedding_*` are read by `DefaultsConfig`. Vision is NOT configured
+# here -- it resolves per workspace, then tenant, then falls back to the LLM pair. Earlier
+# revisions of this file carried `vision_provider`/`vision_model` keys, which parsed but were
+# ignored: they looked like configuration and did nothing. Do not add them back.
+llm_provider = "openai"
+llm_model = "gpt-6-luna"
+embedding_provider = "openai"
+embedding_model = "text-embedding-3-small"  # 1536 dimensions
 
 # =============================================================================
 # OPENAI PROVIDER
 # =============================================================================
 # Production-grade OpenAI API integration
 # Requires: OPENAI_API_KEY environment variable
+#
+# Model list verified November 2026 against https://developers.openai.com/api/docs/models
+# Current family: GPT-6 (Astra / Sol / Terra / Luna). GPT-5.6 and GPT-5.5 remain served.
 
 [[providers]]
 name = "openai"
@@ -58,13 +72,187 @@ description = "OpenAI GPT models - Production-grade LLMs with excellent instruct
 
 # --- OpenAI LLM Models ---
 
+# --- GPT-6 Series (Current flagship family, November 2026) ---
+# 1.05M context, 128K max output, reasoning effort none/low/medium/high/xhigh/max.
+
+[[providers.models]]
+name = "gpt-6-astra"
+display_name = "GPT-6 Astra"
+model_type = "llm"
+description = "OpenAI's most capable model for the most demanding reasoning, coding and professional work"
+deprecated = false
+tags = ["latest", "flagship", "reasoning", "coding"]
+
+[providers.models.capabilities]
+context_length = 1050000
+max_output_tokens = 128000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.010
+output_per_1k = 0.050
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gpt-6.1-sol"
+display_name = "GPT-6.1 Sol"
+model_type = "llm"
+description = "Near-Astra performance for complex work at a lower cost — the balanced default"
+deprecated = false
+tags = ["latest", "recommended", "balanced", "reasoning", "coding"]
+
+[providers.models.capabilities]
+context_length = 1050000
+max_output_tokens = 128000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.002
+output_per_1k = 0.010
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gpt-6.1-terra"
+display_name = "GPT-6.1 Terra"
+model_type = "llm"
+description = "Fast and efficient for visual reasoning, computer use and natural writing"
+deprecated = false
+tags = ["vision", "fast", "writing"]
+
+[providers.models.capabilities]
+context_length = 1050000
+max_output_tokens = 128000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.001
+output_per_1k = 0.005
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gpt-6-luna"
+display_name = "GPT-6 Luna"
+model_type = "llm"
+description = "Most efficient model for focused, high-volume tasks — the ingest default"
+deprecated = false
+tags = ["recommended", "cost-effective", "fast", "high-volume"]
+
+[providers.models.capabilities]
+context_length = 1050000
+max_output_tokens = 128000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0001
+output_per_1k = 0.0005
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# --- GPT-5.6 Series (previous family, Jul 2026; still served) ---
+
+[[providers.models]]
+name = "gpt-5.6-sol"
+display_name = "GPT-5.6 Sol"
+model_type = "llm"
+description = "Previous-generation flagship for complex professional work"
+deprecated = false
+tags = ["reasoning", "coding"]
+
+[providers.models.capabilities]
+context_length = 1050000
+max_output_tokens = 128000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.004
+output_per_1k = 0.020
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gpt-5.6-terra"
+display_name = "GPT-5.6 Terra"
+model_type = "llm"
+description = "Balance of intelligence and cost for vision work"
+deprecated = false
+tags = ["vision"]
+
+[providers.models.capabilities]
+context_length = 1050000
+max_output_tokens = 128000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.001
+output_per_1k = 0.005
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gpt-5.6-luna"
+display_name = "GPT-5.6 Luna"
+model_type = "llm"
+description = "Efficient previous-generation model for high-volume workloads"
+deprecated = false
+tags = ["cost-effective", "fast"]
+
+[providers.models.capabilities]
+context_length = 1050000
+max_output_tokens = 128000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0001
+output_per_1k = 0.0005
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
 [[providers.models]]
 name = "gpt-4o"
 display_name = "GPT-4o"
 model_type = "llm"
-description = "Most capable multimodal model, excellent for complex reasoning and vision tasks"
-deprecated = false
-tags = ["recommended", "multimodal", "reasoning"]
+description = "Legacy multimodal model, superseded by GPT-6 Terra"
+deprecated = true
+replacement = "gpt-6.1-terra"
+tags = ["legacy", "multimodal"]
 
 [providers.models.capabilities]
 context_length = 128000
@@ -1770,12 +1958,109 @@ description = "Anthropic Claude models - Excellent for analysis and long-form co
 # Verified from: https://docs.anthropic.com/en/docs/models-overview
 
 [[providers.models]]
+name = "claude-opus-5-5"
+display_name = "Claude Opus 5.5"
+model_type = "llm"
+description = "Anthropic's flagship for long-running agentic coding and knowledge work (1M context, 128K output; released Sep 2026)"
+deprecated = false
+tags = ["flagship", "reasoning", "latest", "agentic", "recommended"]
+
+[providers.models.capabilities]
+context_length = 1000000
+max_output_tokens = 128000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.004
+output_per_1k = 0.020
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "claude-fable-5-1"
+display_name = "Claude Fable 5.1"
+model_type = "llm"
+description = "Anthropic's most capable widely released model for demanding reasoning and long-horizon agentic work"
+deprecated = false
+tags = ["flagship", "reasoning", "agentic"]
+
+[providers.models.capabilities]
+context_length = 1000000
+max_output_tokens = 128000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.010
+output_per_1k = 0.050
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "claude-sonnet-5-5"
+display_name = "Claude Sonnet 5.5"
+model_type = "llm"
+description = "Best combination of speed and intelligence; 30%+ faster than Sonnet 5 at up to 30% lower cost"
+deprecated = false
+tags = ["recommended", "balanced", "fast", "coding"]
+
+[providers.models.capabilities]
+context_length = 1000000
+max_output_tokens = 128000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.002
+output_per_1k = 0.010
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "claude-haiku-5-5"
+display_name = "Claude Haiku 5.5"
+model_type = "llm"
+description = "Fastest small model for high-volume classification, extraction and routing (released Oct 2026)"
+deprecated = false
+tags = ["fast", "cost-effective", "high-volume"]
+
+[providers.models.capabilities]
+context_length = 1000000
+max_output_tokens = 128000
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0001
+output_per_1k = 0.0005
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
 name = "claude-opus-4-8"
 display_name = "Claude Opus 4.8"
 model_type = "llm"
-description = "Anthropic's most capable model — exceptional intelligence for complex reasoning, agentic coding, and analysis (1M context, 128K output)"
-deprecated = false
-tags = ["flagship", "reasoning", "latest", "agentic"]
+description = "Previous-generation Opus; superseded by Claude Opus 5.5"
+deprecated = true
+replacement = "claude-opus-5-5"
+tags = ["legacy"]
 
 [providers.models.capabilities]
 context_length = 1000000
@@ -1981,12 +2266,36 @@ description = "xAI Grok models - High-performance reasoning and real-time knowle
 # Aliases: grok-4.3-latest, grok-latest, grok-4, grok-4-latest, grok-4-0709, grok-4-1-fast, grok-3, grok-3-mini
 
 [[providers.models]]
+name = "grok-4.7"
+display_name = "Grok 4.7"
+model_type = "llm"
+description = "xAI's flagship for code, agentic tool calling and knowledge work (500k context; released Sep 2026)"
+deprecated = false
+tags = ["latest", "flagship", "agentic", "coding", "recommended"]
+
+[providers.models.capabilities]
+context_length = 500000
+max_output_tokens = 131072
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.002
+output_per_1k = 0.006
+embedding_per_1k = 0.0
+
+[[providers.models]]
 name = "grok-4.3"
 display_name = "Grok 4.3"
 model_type = "llm"
-description = "xAI's most advanced flagship model — industry-leading non-hallucination rate, agentic tool calling, and instruction following (1M context)"
-deprecated = false
-tags = ["latest", "flagship", "agentic", "recommended"]
+description = "Previous-generation flagship; 1M context, superseded by Grok 4.7"
+deprecated = true
+replacement = "grok-4.7"
+tags = ["legacy"]
 
 [providers.models.capabilities]
 context_length = 1000000
@@ -2262,12 +2571,62 @@ description = "Google Gemini models - Multimodal AI with massive context windows
 # Verified from: https://ai.google.dev/gemini-api/docs/models
 
 [[providers.models]]
-name = "gemini-3.5-flash"
-display_name = "Gemini 3.5 Flash"
+name = "gemini-4-argon"
+display_name = "Gemini 4 Argon"
 model_type = "llm"
-description = "Google's frontier model for sustained performance on agentic and coding tasks (1M context, stable May 2026)"
+description = "Google's most capable model for complex coding, agentic, math and science tasks (GA Oct 2026, 1M context)"
 deprecated = false
-tags = ["latest", "flagship", "agentic", "coding", "recommended"]
+tags = ["latest", "flagship", "reasoning", "coding", "agentic", "recommended"]
+
+[providers.models.capabilities]
+context_length = 1048576
+max_output_tokens = 131072
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+# Introductory price through Nov 30 2026; $4/$20 per 1M after Dec 1 2026.
+input_per_1k = 0.002
+output_per_1k = 0.010
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gemini-3.8-flash"
+display_name = "Gemini 3.8 Flash"
+model_type = "llm"
+description = "Google's current Flash tier: fast, low-latency, high-volume (replaced 3.7 Flash)"
+deprecated = false
+tags = ["fast", "cost-effective", "recommended"]
+
+[providers.models.capabilities]
+context_length = 1048576
+max_output_tokens = 65536
+supports_vision = true
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0001
+output_per_1k = 0.0004
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+[[providers.models]]
+name = "gemini-3.5-flash"
+display_name = "Gemini 3.5 Flash (legacy)"
+model_type = "llm"
+description = "Superseded by Gemini 4 Argon and Gemini 3.8 Flash; kept for existing workspace pins"
+deprecated = true
+replacement = "gemini-4-argon"
+tags = ["legacy"]
 
 [providers.models.capabilities]
 context_length = 1048576
@@ -2382,17 +2741,17 @@ embedding_per_1k = 0.0
 image_per_unit = 0.0
 
 [[providers.models]]
-name = "gemini-embedding-001"
-display_name = "Gemini Embedding"
+name = "gemini-embedding-2"
+display_name = "Gemini Embedding 2"
 model_type = "embedding"
-description = "Google's latest text embedding model (3072 dimensions)"
+description = "Google's multimodal embedding model: text, image, video, audio and PDF into one space (GA Apr 2026, 128-3072 dims)"
 deprecated = false
-tags = ["recommended", "embedding"]
+tags = ["recommended", "embedding", "multimodal"]
 
 [providers.models.capabilities]
 context_length = 8192
 max_output_tokens = 0
-supports_vision = false
+supports_vision = true
 supports_function_calling = false
 supports_json_mode = false
 supports_streaming = false
