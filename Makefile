@@ -3324,9 +3324,19 @@ test-e2e-full: dev-bg test-e2e-lint ## Run full E2E suite (requires make dev-bg 
 		SPEC013_BACKEND_URL="$(BACKEND_URL)" E2E_LIVE_STACK=1 PLAYWRIGHT_BASE_URL="$(FRONTEND_URL)" \
 		pnpm exec playwright test --project=chromium --reporter=line
 
+# SPEC-180: Normal RAG (retrieval profile, chunks-only UI, image search) — hermetic UI suite.
+# Added because nothing ran these specs: when SPEC-181 replaced the create wizard, three
+# wizard specs timed out instead of failing, and no gate noticed.
+.PHONY: test-e2e-spec180
+test-e2e-spec180:
+	@echo "$(BLUE)SPEC-180 → hermetic UI suite (screenshots → specs/180-normal-rag/e2e/screenshots)$(RESET)"
+	@cd $(FRONTEND_DIR) && PLAYWRIGHT_SKIP_STACK_CHECK=1 SPEC180_ROUND=$${SPEC180_ROUND:-ci} \
+		pnpm exec playwright test e2e/spec180 --project=mock-api --reporter=line
+
 # SPEC-181: admin (tenancy, grants, access, purge) — hermetic UI suite + PostgreSQL contract tests.
 # The UI suite is hermetic (no backend); the Rust tests need PostgreSQL (EDGEQUAKE_SPEC181_PG_URL
 # or DATABASE_URL) and are skipped when neither is set, matching the other PostgreSQL suites.
+.PHONY: test-e2e-spec181
 test-e2e-spec181:
 	@echo "$(BLUE)SPEC-181 → cross-reference validator$(RESET)"
 	@python3 specs/181-admin/scripts/validate-cross-ref.py specs/181-admin
