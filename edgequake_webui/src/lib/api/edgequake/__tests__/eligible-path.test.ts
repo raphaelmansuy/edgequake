@@ -21,11 +21,15 @@ describe("eligibleModelsPath (EC-178-15)", () => {
 
   it("create and onboarding pickers pass tenant scope", () => {
     const root = join(here, "../../../../..");
-    for (const rel of ["components/onboarding/steps/model-defaults-step.tsx"]) {
-      const src = readFileSync(join(root, "src", rel), "utf8");
-      expect(src, rel).toContain("tenantId ? 'tenant' : 'deployment'");
-      expect(src, rel).toContain("choiceScope={pickerScope}");
-    }
+    const rel = "components/onboarding/steps/model-defaults-step.tsx";
+    const src = readFileSync(join(root, "src", rel), "utf8");
+    // The scope is derived once from the tenant presence, then forwarded to every picker in the
+    // step. Assert the derivation and the forwarding, not one exact JSX spelling: the prop was
+    // renamed (`choiceScope={pickerScope}` -> `offerScope`/`pickerScope={pickerScope}`) and a
+    // literal match turned a correct refactor into a red suite.
+    expect(src, rel).toContain("tenantId ? 'tenant' : 'deployment'");
+    expect(src, rel).toMatch(/(offerScope|choiceScope)=\{pickerScope\}/);
+    expect(src, rel).toContain("pickerScope={pickerScope}");
   });
 });
 

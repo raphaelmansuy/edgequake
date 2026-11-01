@@ -66,41 +66,15 @@ export {
 } from "./backend-readiness";
 
 // === Custom error classes =============================================
-
-export class ApiRequestError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-    public code?: string,
-    public details?: Record<string, unknown>,
-  ) {
-    super(message);
-    this.name = "ApiRequestError";
-  }
-
-  static fromResponse(error: ApiError): ApiRequestError {
-    return new ApiRequestError(
-      error.message,
-      error.status,
-      error.code,
-      error.details,
-    );
-  }
-}
-
-export class AuthError extends ApiRequestError {
-  constructor(message: string = "Authentication required") {
-    super(message, 401, "AUTH_REQUIRED");
-    this.name = "AuthError";
-  }
-}
-
-export class NetworkError extends Error {
-  constructor(message: string = "Network request failed") {
-    super(message);
-    this.name = "NetworkError";
-  }
-}
+// Defined in `./errors` (SPEC-017 split) and re-exported so every existing
+// `import { ApiRequestError } from "@/lib/api/client"` keeps working.
+export {
+  ApiRequestError,
+  AuthError,
+  NetworkError,
+  TimeoutError,
+} from "./errors";
+import { ApiRequestError, AuthError, NetworkError, TimeoutError } from "./errors";
 
 // === Shared options + logging =========================================
 
@@ -133,14 +107,6 @@ export interface ApiClientOptions extends RequestInit {
   timeoutMs?: number;
   /** Do not send X-Tenant-ID. Fleet provider creates are deployment-scoped. */
   omitTenant?: boolean;
-}
-
-/** Request aborted because the client-side deadline elapsed. */
-export class TimeoutError extends ApiRequestError {
-  constructor(message = "Request timed out") {
-    super(message, 504, "timeout");
-    this.name = "TimeoutError";
-  }
 }
 
 function isAbortTimeoutError(error: unknown): boolean {
@@ -446,88 +412,18 @@ export async function apiClient<T>(
   }
 }
 
-/**
- * Single-flight slot for refresh (rotate-on-use — concurrent POSTs cause reuse logout).
- * Cleared in `finally` so a failure never sticks.
- */
-let refreshInFlight: Promise<RestoredAccessSession | null> | null = null;
-
-async function redeemRefreshCookieOnce(): Promise<RestoredAccessSession | null> {
-  try {
-    const response = await fetch(`${getRuntimeApiBaseUrl()}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({}),
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = (await response.json()) as {
-      access_token?: string;
-      refresh_token?: string;
-      expires_in?: number;
-    };
-    if (!data.access_token) {
-      return null;
-    }
-    const expires_in =
-      typeof data.expires_in === "number" && data.expires_in > 0
-        ? data.expires_in
-        : 900;
-    const session: RestoredAccessSession = {
-      access_token: data.access_token,
-      expires_in,
-    };
-    applyRestoredAccessSession(session);
-    return session;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Redeem `eq_refresh` (hard refresh / soft-expiry / 401 retry).
- *
- * Coalesces concurrent callers onto one network round-trip. Does not clear
- * tokens or dispatch logout — callers decide. AuthGuard uses this before
- * redirecting to `/login`; the 401 retry path clears on failure.
- */
-export async function restoreSessionFromRefreshCookie(): Promise<RestoredAccessSession | null> {
-  if (!refreshInFlight) {
-    refreshInFlight = redeemRefreshCookieOnce().finally(() => {
-      refreshInFlight = null;
-    });
-  }
-  return refreshInFlight;
-}
-
-/**
- * Shared refresh for apiClient + multipart (SPEC-154).
- * On failure: clear memory tokens and notify AuthGuard.
- */
-export async function refreshAccessToken(): Promise<boolean> {
-  const restored = await restoreSessionFromRefreshCookie();
-  if (!restored) {
-    clearTokens();
-    dispatchAuthFailure();
-    return false;
-  }
-  return true;
-}
+// === Session refresh =================================================
+// Lives in `./session-refresh` (SPEC-017 split); re-exported for existing callers.
+export {
+  dispatchAuthFailure,
+  refreshAccessToken,
+  restoreSessionFromRefreshCookie,
+} from "./session-refresh";
+import { dispatchAuthFailure, refreshAccessToken } from "./session-refresh";
 
 /** Token refresh — used by the main client on 401 (SPEC-154: HttpOnly cookie). */
 async function tryRefreshToken(): Promise<boolean> {
   return refreshAccessToken();
-}
-
-/** Dispatch a browser event so AuthGuard can react to permanent auth failures. */
-export function dispatchAuthFailure(): void {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event("auth:logout-required"));
-  }
 }
 
 // === Convenience methods ==============================================
