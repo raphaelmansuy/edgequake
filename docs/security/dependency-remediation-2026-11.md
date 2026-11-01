@@ -1,3 +1,8 @@
+---
+title: "Dependency remediation — November 2026"
+description: "How 243 Dependabot advisories fell to 3 low, including a real KaTeX XSS sink, and what remains unfixed and why."
+---
+
 # Security remediation — dependency advisories
 
 **Date:** 2026-11-01
