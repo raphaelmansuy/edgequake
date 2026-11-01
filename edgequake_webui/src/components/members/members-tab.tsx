@@ -179,7 +179,7 @@ export function MembersTab() {
           setInviteOpen(false);
           setIssued(null);
         }}
-        workspaces={(workspaceOptions.data ?? []).map((w) => ({ id: w.id, name: w.name }))}
+        workspaces={(Array.isArray(workspaceOptions.data) ? workspaceOptions.data : []).map((w) => ({ id: w.id, name: w.name }))}
         onSubmit={(email, role, workspaceId) =>
           actions.invite.mutate(
             { email, role, workspace_id: workspaceId ?? undefined },
@@ -210,7 +210,11 @@ export function MembersTab() {
         onClose={() => setSelectedId(null)}
         onRoleChange={changeRole}
         onAction={onAction}
-        grants={grantRows.data?.map((g) => ({
+        // `Array.isArray` rather than an optional-chained map: a 200 that carries an object
+        // instead of a list (a proxy error body, or the e2e hermetic guard's JSON) made the
+        // whole members page throw and lose the directory. A missing grant list is not a
+        // reason to lose the page; the editor simply opens with no rows.
+        grants={(Array.isArray(grantRows.data) ? grantRows.data : []).map((g) => ({
           membership_id: g.membership_id,
           user_id: g.user_id,
           scope: g.scope,
@@ -220,7 +224,7 @@ export function MembersTab() {
           level: g.level,
           sso_managed: g.sso_managed,
         }))}
-        workspaces={(workspaceOptions.data ?? []).map((w) => ({ id: w.id, name: w.name }))}
+        workspaces={(Array.isArray(workspaceOptions.data) ? workspaceOptions.data : []).map((w) => ({ id: w.id, name: w.name }))}
         grantsBusy={
           grantActions.create.isPending ||
           grantActions.change.isPending ||
