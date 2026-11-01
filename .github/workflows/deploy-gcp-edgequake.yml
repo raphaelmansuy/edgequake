@@ -109,7 +109,7 @@ jobs:
           workload_identity_provider: ${{ vars.EDGEQUAKE_GCP_WIF_PROVIDER }}
           service_account: ${{ vars.EDGEQUAKE_GCP_DEPLOY_SA }}
 
-      - uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@v3
 
       - name: Sync overlay and install release
         env:
