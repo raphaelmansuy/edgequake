@@ -14,4 +14,23 @@ describe("renderKatexToHtml", () => {
     expect(html).toBeTruthy();
     expect(html).toContain("katex-display");
   });
+
+  // Security regression gate: math arrives from document chunks, model answers and pasted
+  // queries, so it is untrusted input. With `trust: true` KaTeX honours \href and emits a live
+  // `javascript:` link (verified against the pinned KaTeX); this test fails if that returns.
+  it("never emits a javascript: href from untrusted math", () => {
+    const html = renderKatexToHtml(
+      "\\href{javascript:alert(document.cookie)}{click}",
+      false,
+    );
+    expect(html ?? "").not.toMatch(/href="javascript:/i);
+  });
+
+  it("never emits an image URL from untrusted math", () => {
+    const html = renderKatexToHtml(
+      "\\includegraphics{https://attacker.example/pixel.png}",
+      false,
+    );
+    expect(html ?? "").not.toMatch(/src="https:\/\/attacker\.example/i);
+  });
 });
