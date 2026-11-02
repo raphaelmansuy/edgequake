@@ -116,6 +116,17 @@ pub fn prepared_record(id: Uuid, payload: serde_json::Value) -> PreparedRecord {
     }
 }
 
+/// Seed an organization, one workspace in it, and a valid owner.
+///
+/// SPEC-181 migration 226 adds `trg_org_keeps_an_owner`, which refuses any change that would
+/// leave a live organization with no active tenant-wide `owner`. A fixture that inserted a
+/// tenant and workspaces but no membership produced exactly that state, so the first statement
+/// that touched `memberships` afterwards failed inside the trigger:
+///
+///     organization_requires_owner: <tenant> would have no owner
+///
+/// The owner is a real `users` row because `memberships.user_id` is a foreign key, and it gets
+/// no password hash: it never signs in, it only satisfies the invariant the schema now enforces.
 pub async fn seed_scope(pool: &sqlx::PgPool, tenant_id: Uuid, workspace_id: Uuid, label: &str) {
     let suffix = tenant_id.as_simple().to_string();
     sqlx::query(
@@ -138,6 +149,29 @@ pub async fn seed_scope(pool: &sqlx::PgPool, tenant_id: Uuid, workspace_id: Uuid
     .execute(pool)
     .await
     .expect("seed workspace");
+    let owner = Uuid::new_v4();
+    let owner_name = format!("pa-owner-{owner}");
+    sqlx::query(
+        "INSERT INTO users(user_id, tenant_id, username, email, role, is_active) \
+         VALUES($1, $2, $3, $4, 'user', true)",
+    )
+    .bind(owner)
+    .bind(edgequake_api::middleware::default_tenant_uuid())
+    .bind(&owner_name)
+    .bind(format!("{owner_name}@example.test"))
+    .execute(pool)
+    .await
+    .expect("seed scope owner user");
+    sqlx::query(
+        "INSERT INTO memberships(membership_id, tenant_id, workspace_id, user_id, role, is_active) \
+         VALUES($1, $2, NULL, $3, 'owner', true) ON CONFLICT DO NOTHING",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant_id)
+    .bind(owner)
+    .execute(pool)
+    .await
+    .expect("seed scope owner membership");
     sqlx::query("UPDATE workspaces SET metadata = metadata || jsonb_build_object('embedding_dimension', $2::int, 'embedding_provider', 'mock', 'embedding_model', $3::text, 'llm_provider', 'mock', 'llm_model', 'mock-model') WHERE workspace_id = $1")
         .bind(workspace_id).bind(EMBED_DIM as i32).bind(EMBED_MODEL)
         .execute(pool).await.expect("explicit mock workspace configuration");

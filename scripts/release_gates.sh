@@ -31,6 +31,15 @@ echo "== rustfmt =="
 echo "== workspace clippy =="
 (cd "$EQ" && cargo clippy --workspace --lib --locked -- -D warnings)
 
+# WHY this step exists: `--workspace` builds the *default* feature set. A module behind an
+# optional feature is not compiled at all, so it cannot break, rot, or report a missing struct
+# field here. v0.39.0 shipped a release whose `External provider tenancy contracts` job failed
+# to compile because SPEC-180 added a field to `MetadataFilter` and the Qdrant adapter (feature
+# `qdrant`) still constructed it by hand — invisible to every default-feature build, including
+# this gate and the release workflow's own quality job.
+echo "== optional-feature clippy (code that default builds cannot see) =="
+(cd "$EQ" && cargo clippy -p edgequake-storage --features qdrant,neo4j,sqlite --lib --locked -- -D warnings)
+
 if [[ "${RELEASE_SKIP_PER_CRATE_CLIPPY:-}" == "1" ]]; then
   echo "== per-crate clippy =="
   echo "skipped (RELEASE_SKIP_PER_CRATE_CLIPPY=1 — workspace clippy is SSOT)"
