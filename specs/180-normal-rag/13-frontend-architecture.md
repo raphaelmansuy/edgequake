@@ -22,7 +22,7 @@ This is the DRY rule: the capability object is the SPEC-160 extraction view, rep
 
 | Component | Action |
 |-----------|--------|
-| `steps/workspace-retrieval-step.tsx` | New. Radios. Uses constants and i18n. |
+| ~~`steps/workspace-retrieval-step.tsx`~~ | Removed in v0.39.0. SPEC-181 replaced the create wizard with a three-decision dialog, so the profile radios live in `components/admin/create-workspace-dialog.tsx` and the image probe in `steps/model-defaults-step.tsx`. |
 | `steps/review-step.tsx` | Renders the retrieval lines from the draft. |
 | `steps/workspace-extraction-step.tsx` | Unchanged. Not mounted when the draft is normal. |
 | `workspace/workspace-retrieval-card.tsx` | New read-only card. |

@@ -1865,7 +1865,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake"
-version = "0.38.4"
+version = "0.39.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1896,7 +1896,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-api"
-version = "0.38.4"
+version = "0.39.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -1925,7 +1925,7 @@ dependencies = [
  "hex",
  "hmac 0.12.1",
  "image",
- "jsonwebtoken",
+ "jsonwebtoken 10.4.0",
  "lazy_static",
  "md5",
  "openidconnect",
@@ -1957,7 +1957,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-audit"
-version = "0.38.4"
+version = "0.39.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1973,13 +1973,13 @@ dependencies = [
 
 [[package]]
 name = "edgequake-auth"
-version = "0.38.4"
+version = "0.39.0"
 dependencies = [
  "argon2",
  "async-trait",
  "axum",
  "chrono",
- "jsonwebtoken",
+ "jsonwebtoken 10.4.0",
  "rand 0.8.6",
  "serde",
  "serde_json",
@@ -1991,7 +1991,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-core"
-version = "0.38.4"
+version = "0.39.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2018,7 +2018,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-fake-llm"
-version = "0.38.4"
+version = "0.39.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -2033,9 +2033,9 @@ dependencies = [
 
 [[package]]
 name = "edgequake-llm"
-version = "0.10.9"
+version = "0.10.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da4c830cf0e5d601146292b3ca6eacc6e2d800f14e781cbb51cf2ba3ad27ff9b"
+checksum = "979e3a4d4d9529e55f8dc98f8037384f5e37fe9b299d17043289cbc574c90cb3"
 dependencies = [
  "anyhow",
  "async-openai",
@@ -2050,6 +2050,7 @@ dependencies = [
  "dirs",
  "dotenvy",
  "futures",
+ "jsonwebtoken 9.3.1",
  "opentelemetry",
  "reqwest 0.12.28",
  "reqwest-eventsource",
@@ -2070,7 +2071,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-migrate-manifest"
-version = "0.38.4"
+version = "0.39.0"
 dependencies = [
  "serde",
  "sha2 0.10.9",
@@ -2080,7 +2081,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-observability"
-version = "0.38.4"
+version = "0.39.0"
 dependencies = [
  "futures",
  "http 1.4.2",
@@ -2101,7 +2102,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-pdf"
-version = "0.38.4"
+version = "0.39.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -2149,7 +2150,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-pipeline"
-version = "0.38.4"
+version = "0.39.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -2180,7 +2181,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-query"
-version = "0.38.4"
+version = "0.39.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2206,7 +2207,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-rate-limiter"
-version = "0.38.4"
+version = "0.39.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2226,7 +2227,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-secrets"
-version = "0.38.4"
+version = "0.39.0"
 dependencies = [
  "aes-gcm",
  "async-trait",
@@ -2243,7 +2244,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-storage"
-version = "0.38.4"
+version = "0.39.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -2275,7 +2276,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-storage-contracts"
-version = "0.38.4"
+version = "0.39.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2288,7 +2289,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-tasks"
-version = "0.38.4"
+version = "0.39.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3488,6 +3489,21 @@ dependencies = [
 
 [[package]]
 name = "jsonwebtoken"
+version = "9.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a87cc7a48537badeae96744432de36f4be2b4a34a05a5ef32e9dd8a1c169dde"
+dependencies = [
+ "base64 0.22.1",
+ "js-sys",
+ "pem",
+ "ring",
+ "serde",
+ "serde_json",
+ "simple_asn1",
+]
+
+[[package]]
+name = "jsonwebtoken"
 version = "10.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eba32bfb4ffdeaca3e34431072faf01745c9b26d25504aa7a6cf5684334fc4fc"
@@ -4379,7 +4395,7 @@ dependencies = [
  "console_error_panic_hook",
  "console_log",
  "image",
- "itertools 0.14.0",
+ "itertools 0.15.0",
  "js-sys",
  "libloading",
  "log",

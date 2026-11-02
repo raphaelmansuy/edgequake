@@ -9,7 +9,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "0.38.4"
+    "version": "0.39.0"
   },
   "servers": [
     {
@@ -4293,8 +4293,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "reprocess_failed",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "reprocess_failed"
       }
     },
     "/api/v1/documents/scan": {
@@ -7337,6 +7337,61 @@
         ]
       }
     },
+    "/api/v1/me/access": {
+      "get": {
+        "tags": [
+          "Access"
+        ],
+        "summary": "`GET /api/v1/me/access?tenant_id=&workspace_id=`",
+        "operationId": "get_me_access",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "description": "Organization to inspect; defaults to the caller's default",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "description": "Workspace to include when it is not listed",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's grants, capabilities and quota",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeAccessResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
     "/api/v1/me/settings-access": {
       "get": {
         "tags": [
@@ -9957,6 +10012,250 @@
         ]
       }
     },
+    "/api/v1/tenants/{tenant_id}/grants": {
+      "get": {
+        "tags": [
+          "Members"
+        ],
+        "summary": "`GET /api/v1/tenants/{tenant_id}/grants`",
+        "operationId": "list_grants",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "description": "Organization id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "description": "Only this person's grants",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "description": "Only grants on this workspace",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Grants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GrantView"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Members"
+        ],
+        "summary": "`POST /api/v1/tenants/{tenant_id}/grants`",
+        "operationId": "create_grant",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "description": "Organization id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGrantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Grant created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Scope does not belong to this organization"
+          },
+          "409": {
+            "description": "The person already holds this grant"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/tenants/{tenant_id}/grants/{membership_id}": {
+      "delete": {
+        "tags": [
+          "Members"
+        ],
+        "summary": "`DELETE /api/v1/tenants/{tenant_id}/grants/{membership_id}`",
+        "operationId": "delete_grant",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "description": "Organization id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "membership_id",
+            "in": "path",
+            "description": "Grant id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Grant removed"
+          },
+          "409": {
+            "description": "Would orphan the organization"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Members"
+        ],
+        "summary": "`PATCH /api/v1/tenants/{tenant_id}/grants/{membership_id}`",
+        "operationId": "update_grant",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "description": "Organization id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "membership_id",
+            "in": "path",
+            "description": "Grant id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGrantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Grant updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantView"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Would orphan the organization"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
     "/api/v1/tenants/{tenant_id}/invitations": {
       "post": {
         "tags": [
@@ -10718,6 +11017,52 @@
         ]
       }
     },
+    "/api/v1/tenants/{tenant_id}/purge-preview": {
+      "get": {
+        "tags": [
+          "tenants"
+        ],
+        "summary": "Preview what deleting an organization would destroy.",
+        "description": "GET /api/v1/tenants/{tenant_id}/purge-preview",
+        "operationId": "tenant_purge_preview",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "description": "Organization ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Counts for the delete confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurgePreview"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
     "/api/v1/tenants/{tenant_id}/workspaces": {
       "get": {
         "tags": [
@@ -11321,7 +11666,7 @@
           "workspaces"
         ],
         "summary": "Delete a workspace and cascade delete all associated data.",
-        "description": "# Implements\n\n- **UC0304**: Delete Workspace\n- **SPEC-028**: Workspace cascade delete\n\n# Enforces\n\n- **BR0821**: Workspace deletion cascades to all resources\n\n# Cascade Order\n\n```text\n1. Clear vector storage (embeddings)\n2. Clear graph storage (entities/relationships)\n3. Delete document metadata and content from KV storage\n4. Evict workspace from vector registry cache\n5. Delete workspace record from database\n```\n\nDELETE /api/v1/workspaces/{workspace_id}",
+        "description": "# Implements\n\n- **UC0304**: Delete Workspace\n- **SPEC-028**: Workspace cascade delete\n\n# Enforces\n\n- **BR0821**: Workspace deletion cascades to all resources\nDelete a workspace and cascade delete all associated data.\n\n# Implements\n\n- **UC0304**: Delete Workspace\n- **SPEC-181 LAW-181-7**: one purge implementation for every scope\n\n# Enforces\n\n- **BR0821**: Workspace deletion cascades to all resources\n\nThe nine planes are executed and recorded by\n[`crate::services::tenancy::purge_exec::purge_workspace`], which the organization delete\npath calls once per workspace. Returns 202 with a receipt so the caller can watch progress\nand retry a plane that failed (for example an object-store outage).\n\nDELETE /api/v1/workspaces/{workspace_id}",
         "operationId": "delete_workspace",
         "parameters": [
           {
@@ -11336,11 +11681,80 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": "Workspace deleted with cascade"
+          "202": {
+            "description": "Purge started; the receipt reports every plane",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurgeReceipt"
+                }
+              }
+            }
           },
           "404": {
             "description": "Workspace not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/archive": {
+      "post": {
+        "tags": [
+          "workspaces"
+        ],
+        "summary": "Archive a workspace: it leaves the switcher and stops counting toward the plan.",
+        "description": "Data is kept; `POST …/restore` reverses it subject to quota.\n\nPOST /api/v1/workspaces/{workspace_id}/archive",
+        "operationId": "archive_workspace",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveWorkspaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Workspace archived",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found"
+          },
+          "409": {
+            "description": "Already archived"
           }
         },
         "security": [
@@ -12539,6 +12953,52 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/purge-preview": {
+      "get": {
+        "tags": [
+          "workspaces"
+        ],
+        "summary": "Preview what a delete would destroy, so the confirmation dialog can state the counts.",
+        "description": "GET /api/v1/workspaces/{workspace_id}/purge-preview",
+        "operationId": "purge_preview",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Counts for the delete confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurgePreview"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/rebuild-embeddings": {
       "post": {
         "tags": [
@@ -12609,8 +13069,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "rebuild_embeddings",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "rebuild_embeddings"
       }
     },
     "/api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph": {
@@ -12759,6 +13219,58 @@
         ],
         "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
         "x-edgequake-v2-job-type": "reprocess_all"
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/restore": {
+      "post": {
+        "tags": [
+          "workspaces"
+        ],
+        "summary": "Restore an archived workspace, subject to the plan's workspace limit.",
+        "description": "POST /api/v1/workspaces/{workspace_id}/restore",
+        "operationId": "restore_workspace",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "description": "Workspace ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace restored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found"
+          },
+          "409": {
+            "description": "Plan is full"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": [],
+            "tenant_id": [],
+            "workspace_id": []
+          },
+          {
+            "api_key": [],
+            "tenant_id": [],
+            "workspace_id": []
+          }
+        ]
       }
     },
     "/api/v1/workspaces/{workspace_id}/stats": {
@@ -13390,8 +13902,8 @@
             "description": "Track not found for this workspace"
           }
         },
-        "x-edgequake-transport": "websocket",
-        "x-edgequake-upgrade": "RFC6455"
+        "x-edgequake-upgrade": "RFC6455",
+        "x-edgequake-transport": "websocket"
       }
     }
   },
@@ -13873,6 +14385,21 @@
           "scopes": []
         }
       },
+      "ArchiveWorkspaceRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it was archived, recorded for the members list and the audit row."
+          }
+        },
+        "example": {
+          "reason": {}
+        }
+      },
       "AssignRolesRequest": {
         "type": "object",
         "required": [
@@ -14240,6 +14767,29 @@
           "total_files": {}
         }
       },
+      "Budget": {
+        "type": "object",
+        "description": "One budget: how much of a plan limit is consumed.",
+        "required": [
+          "used",
+          "limit"
+        ],
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "`0` means unlimited.",
+            "minimum": 0
+          },
+          "used": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "example": {
+          "limit": {},
+          "used": {}
+        }
+      },
       "BudgetInfo": {
         "type": "object",
         "description": "Budget information.",
@@ -14470,13 +15020,18 @@
       },
       "CapabilityInfo": {
         "type": "object",
+        "description": "A capability row as the roles matrix and the access payload render it.",
         "required": [
           "id",
+          "axis",
           "group",
           "label",
           "roles"
         ],
         "properties": {
+          "axis": {
+            "type": "string"
+          },
           "group": {
             "type": "string"
           },
@@ -14486,18 +15041,27 @@
           "label": {
             "type": "string"
           },
+          "min_role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Minimum role id on this axis; absent for platform capabilities."
+          },
           "roles": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Organization role ids that hold this capability."
+            "description": "Organization/workspace roles that hold it, highest privilege first."
           }
         },
         "example": {
+          "axis": {},
           "group": {},
           "id": {},
           "label": {},
+          "min_role": {},
           "roles": []
         }
       },
@@ -17428,6 +17992,36 @@
           "parent_id": {}
         }
       },
+      "CreateGrantRequest": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "`owner`, `admin`, `member`, `readonly`."
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspace_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Omit for an organization grant."
+          }
+        },
+        "example": {
+          "role": {},
+          "user_id": {},
+          "workspace_id": {}
+        }
+      },
       "CreateInvitationRequest": {
         "type": "object",
         "required": [
@@ -17513,6 +18107,47 @@
         "example": {
           "role": "user",
           "content": "What is EdgeQuake?"
+        }
+      },
+      "CreatePermissions": {
+        "type": "object",
+        "required": [
+          "organization",
+          "workspace"
+        ],
+        "properties": {
+          "organization": {
+            "type": "boolean"
+          },
+          "workspace": {
+            "type": "boolean"
+          }
+        },
+        "example": {
+          "organization": {},
+          "workspace": {}
+        }
+      },
+      "CreateReason": {
+        "type": "object",
+        "description": "Why a create action is unavailable, so the UI can choose *absent* (role) versus *disabled\nwith a fix* (quota). `None` when the action is available.",
+        "properties": {
+          "organization": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workspace": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "example": {
+          "organization": {},
+          "workspace": {}
         }
       },
       "CreateRelationshipRequest": {
@@ -17630,7 +18265,6 @@
       },
       "CreateTenantRequest": {
         "type": "object",
-        "description": "Request to create a new tenant.\n\n## Model Configuration (SPEC-032)\n\nWhen creating a tenant, you can specify default LLM and embedding models\nthat will be inherited by all new workspaces within this tenant.\n\n**LLM Examples (for knowledge graph generation, summarization):**\n- OpenAI: `\"gpt-4o-mini\"`, `\"gpt-4o\"`\n- Ollama: `\"gemma3:12b\"`, `\"llama3.2\"`\n- LM Studio: `\"gemma-3n-e4b-it-mlxmodel\"`\n\n**Embedding Examples:**\n- OpenAI: `\"text-embedding-3-small\"` (1536 dims), `\"text-embedding-3-large\"` (3072 dims)\n- Ollama: `\"embeddinggemma:latest\"` (768 dims), `\"nomic-embed-text\"` (768 dims)\n- LM Studio: `\"nomic-ai/nomic-embed-text-v1.5\"` (768 dims)\n\n**Model ID Format:**\nModels can be specified as `model_name` or `provider/model_name`:\n- `\"gemma3:12b\"` - auto-detects provider as \"ollama\"\n- `\"ollama/gemma3:12b\"` - explicit provider",
         "required": [
           "name"
         ],
@@ -17703,6 +18337,17 @@
             "type": "string",
             "description": "Tenant name."
           },
+          "owner": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OwnerChoiceDto",
+                "description": "Who becomes the organization Owner. Omitted means the calling principal."
+              }
+            ]
+          },
           "plan": {
             "type": [
               "string",
@@ -17723,6 +18368,17 @@
               "null"
             ],
             "description": "URL-friendly slug (auto-generated if not provided)."
+          },
+          "workspace": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkspaceSeedDto",
+                "description": "Seed workspace. Omitted means `Default Workspace` at slug `default`."
+              }
+            ]
           }
         },
         "example": {
@@ -18375,6 +19031,20 @@
         "example": {
           "deleted": {},
           "message": {}
+        }
+      },
+      "DeletePermissions": {
+        "type": "object",
+        "required": [
+          "organization"
+        ],
+        "properties": {
+          "organization": {
+            "type": "boolean"
+          }
+        },
+        "example": {
+          "organization": {}
         }
       },
       "DeleteRelationshipResponse": {
@@ -21530,6 +22200,109 @@
           "relationship": {}
         }
       },
+      "GrantSummary": {
+        "type": "object",
+        "description": "One grant on the directory row.",
+        "required": [
+          "scope",
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "description": "`organization` or `workspace`."
+          },
+          "workspace_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workspace_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "example": {
+          "role": {},
+          "scope": {},
+          "workspace_id": {},
+          "workspace_name": {}
+        }
+      },
+      "GrantView": {
+        "type": "object",
+        "description": "One grant, as the grant editor renders it.",
+        "required": [
+          "membership_id",
+          "user_id",
+          "scope",
+          "role",
+          "level",
+          "is_active",
+          "sso_managed",
+          "joined_at"
+        ],
+        "properties": {
+          "is_active": {
+            "type": "boolean"
+          },
+          "joined_at": {
+            "type": "string"
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "membership_id": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "description": "`organization` or `workspace`."
+          },
+          "sso_managed": {
+            "type": "boolean",
+            "description": "`true` when an IdP owns the role and a manual edit would pin it."
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workspace_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "example": {
+          "is_active": {},
+          "joined_at": {},
+          "level": {},
+          "membership_id": {},
+          "role": {},
+          "scope": {},
+          "sso_managed": {},
+          "user_id": {},
+          "workspace_id": {},
+          "workspace_name": {}
+        }
+      },
       "GraphCommunitiesResponse": {
         "type": "object",
         "description": "Response for `GET /graph/communities`.",
@@ -24440,6 +25213,66 @@
           "params": {}
         }
       },
+      "MeAccessResponse": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "platform",
+          "workspaces",
+          "quota",
+          "can_create",
+          "can_delete",
+          "reason"
+        ],
+        "properties": {
+          "can_create": {
+            "$ref": "#/components/schemas/CreatePermissions"
+          },
+          "can_delete": {
+            "$ref": "#/components/schemas/DeletePermissions"
+          },
+          "organization": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OrganizationAccess",
+                "description": "`None` when the caller holds no organization grant and no platform grant."
+              }
+            ]
+          },
+          "platform": {
+            "$ref": "#/components/schemas/PlatformAccess"
+          },
+          "quota": {
+            "$ref": "#/components/schemas/QuotaAccess"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/CreateReason"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "workspaces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceAccess"
+            },
+            "description": "Only workspaces the caller can read."
+          }
+        },
+        "example": {
+          "can_create": {},
+          "can_delete": {},
+          "organization": {},
+          "platform": {},
+          "quota": {},
+          "reason": {},
+          "user_id": {},
+          "workspaces": []
+        }
+      },
       "MemberKind": {
         "type": "string",
         "description": "Whether a directory row is a person or a pending invitation.",
@@ -24671,6 +25504,13 @@
               "null"
             ]
           },
+          "grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GrantSummary"
+            },
+            "description": "SPEC-181: every active grant this person holds, organization first. `role` above stays the\n*primary* grant for clients that predate this field."
+          },
           "id": {
             "type": "string",
             "description": "Stable row id: the user id, or the invitation id for invitations."
@@ -24749,6 +25589,7 @@
         "example": {
           "email": {},
           "expires_at": {},
+          "grants": [],
           "id": {},
           "instance_role": {},
           "invited_by": {},
@@ -26885,6 +27726,65 @@
           "task_queue": {}
         }
       },
+      "OrganizationAccess": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "level",
+          "is_active",
+          "is_archived",
+          "capabilities"
+        ],
+        "properties": {
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "is_archived": {
+            "type": "boolean",
+            "description": "`true` when the organization is archived: it grants nothing and must be restored first."
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Effective organization role. `None` for a person whose only grants are workspace-scoped."
+          },
+          "slug": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "capabilities": [],
+          "id": {},
+          "is_active": {},
+          "is_archived": {},
+          "level": {},
+          "name": {},
+          "role": {},
+          "slug": {}
+        }
+      },
       "OrganizationRoleInfo": {
         "type": "object",
         "required": [
@@ -26918,6 +27818,65 @@
           "label": {},
           "level": {}
         }
+      },
+      "OwnerChoiceDto": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "The calling principal.",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "self_principal"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "An existing account.",
+            "required": [
+              "user_id",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "user_id"
+                ]
+              },
+              "user_id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "An address with no account yet.",
+            "required": [
+              "email",
+              "kind"
+            ],
+            "properties": {
+              "email": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "email"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Request to create a new tenant.\n\n## Model Configuration (SPEC-032)\n\nWhen creating a tenant, you can specify default LLM and embedding models\nthat will be inherited by all new workspaces within this tenant.\n\n**LLM Examples (for knowledge graph generation, summarization):**\n- OpenAI: `\"gpt-4o-mini\"`, `\"gpt-4o\"`\n- Ollama: `\"gemma3:12b\"`, `\"llama3.2\"`\n- LM Studio: `\"gemma-3n-e4b-it-mlxmodel\"`\n\n**Embedding Examples:**\n- OpenAI: `\"text-embedding-3-small\"` (1536 dims), `\"text-embedding-3-large\"` (3072 dims)\n- Ollama: `\"embeddinggemma:latest\"` (768 dims), `\"nomic-embed-text\"` (768 dims)\n- LM Studio: `\"nomic-ai/nomic-embed-text-v1.5\"` (768 dims)\n\n**Model ID Format:**\nModels can be specified as `model_name` or `provider/model_name`:\n- `\"gemma3:12b\"` - auto-detects provider as \"ollama\"\n- `\"ollama/gemma3:12b\"` - explicit provider"
       },
       "PageHealth": {
         "type": "object",
@@ -28879,6 +29838,96 @@
         ],
         "example": {}
       },
+      "PlaneOutcome": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "count": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64",
+                "minimum": 0
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "done"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "reason",
+              "status"
+            ],
+            "properties": {
+              "reason": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "skipped"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "error",
+              "status"
+            ],
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "failed"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Outcome of one plane."
+      },
+      "PlatformAccess": {
+        "type": "object",
+        "required": [
+          "role",
+          "admin",
+          "capabilities"
+        ],
+        "properties": {
+          "admin": {
+            "type": "boolean"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "admin": {},
+          "capabilities": [],
+          "role": {}
+        }
+      },
       "PolicyRowDto": {
         "type": "object",
         "description": "One policy row on the wire. `enabled` defaults to true.",
@@ -29821,6 +30870,142 @@
         "example": {
           "embedding": {},
           "llm": {}
+        }
+      },
+      "PurgePreview": {
+        "type": "object",
+        "description": "The human-readable counts a delete confirmation shows before anything is destroyed.",
+        "required": [
+          "scope_kind",
+          "scope_id",
+          "name",
+          "workspaces",
+          "documents",
+          "entities",
+          "relationships",
+          "vector_rows",
+          "original_objects"
+        ],
+        "properties": {
+          "documents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "entities": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "original_objects": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "relationships": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "scope_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scope_kind": {
+            "type": "string"
+          },
+          "vector_rows": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "workspaces": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "example": {
+          "documents": {},
+          "entities": {},
+          "name": {},
+          "original_objects": {},
+          "relationships": {},
+          "scope_id": {},
+          "scope_kind": {},
+          "vector_rows": {},
+          "workspaces": {}
+        }
+      },
+      "PurgeReceipt": {
+        "type": "object",
+        "description": "The ledger for one destructive operation.",
+        "required": [
+          "receipt_id",
+          "scope_kind",
+          "scope_id",
+          "tenant_id",
+          "status",
+          "planes",
+          "planes_total",
+          "planes_done",
+          "started_at"
+        ],
+        "properties": {
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "planes": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PlaneOutcome"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "planes_done": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "planes_total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "receipt_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scope_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scope_kind": {
+            "$ref": "#/components/schemas/ScopeKind"
+          },
+          "started_at": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "`running` | `done` | `partial` | `failed`"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "example": {
+          "finished_at": {},
+          "planes": {},
+          "planes_done": {},
+          "planes_total": {},
+          "receipt_id": {},
+          "scope_id": {},
+          "scope_kind": {},
+          "started_at": {},
+          "status": {},
+          "tenant_id": {}
         }
       },
       "PutConnectionModelsRequest": {
@@ -31107,6 +32292,25 @@
           "throughput_per_minute": {},
           "timestamp": {},
           "worker_utilization": {}
+        }
+      },
+      "QuotaAccess": {
+        "type": "object",
+        "required": [
+          "workspaces",
+          "seats"
+        ],
+        "properties": {
+          "seats": {
+            "$ref": "#/components/schemas/Budget"
+          },
+          "workspaces": {
+            "$ref": "#/components/schemas/Budget"
+          }
+        },
+        "example": {
+          "seats": {},
+          "workspaces": {}
         }
       },
       "RagProfileFieldsDto": {
@@ -32795,7 +33999,8 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CapabilityInfo"
-            }
+            },
+            "description": "One row per capability, carrying `axis` so a workspace capability is never drawn under\nthe organization columns."
           },
           "instance_roles": {
             "type": "array",
@@ -33356,6 +34561,15 @@
           "postgres_capabilities": {},
           "source_ids_indexes": {}
         }
+      },
+      "ScopeKind": {
+        "type": "string",
+        "description": "What is being destroyed.",
+        "enum": [
+          "workspace",
+          "organization"
+        ],
+        "example": {}
       },
       "SearchLabelsQuery": {
         "type": "object",
@@ -35513,6 +36727,9 @@
           "plan",
           "is_active",
           "max_workspaces",
+          "max_users",
+          "workspaces_used",
+          "members_used",
           "default_llm_model",
           "default_llm_provider",
           "default_llm_full_id",
@@ -35524,6 +36741,13 @@
           "updated_at"
         ],
         "properties": {
+          "archived_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the organization was archived; `null` while live."
+          },
           "created_at": {
             "type": "string",
             "description": "Creation timestamp."
@@ -35587,10 +36811,27 @@
             "type": "boolean",
             "description": "Whether the tenant is active."
           },
+          "max_users": {
+            "type": "integer",
+            "description": "Maximum people allowed. `0` means unlimited.",
+            "minimum": 0
+          },
           "max_workspaces": {
             "type": "integer",
             "description": "Maximum workspaces allowed.",
             "minimum": 0
+          },
+          "members_used": {
+            "type": "integer",
+            "description": "Distinct active members.",
+            "minimum": 0
+          },
+          "my_role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The caller's effective role in this organization, when they hold a grant."
           },
           "name": {
             "type": "string",
@@ -35625,9 +36866,15 @@
           "updated_at": {
             "type": "string",
             "description": "Last update timestamp."
+          },
+          "workspaces_used": {
+            "type": "integer",
+            "description": "Workspaces that count against the plan (archived ones do not).",
+            "minimum": 0
           }
         },
         "example": {
+          "archived_at": {},
           "created_at": {},
           "default_embedding_dimension": {},
           "default_embedding_full_id": {},
@@ -35641,13 +36888,17 @@
           "default_vision_llm_provider": {},
           "id": {},
           "is_active": {},
+          "max_users": {},
           "max_workspaces": {},
+          "members_used": {},
+          "my_role": {},
           "name": {},
           "pdf_parser_backend": {},
           "plan": {},
           "primary_color": {},
           "slug": {},
-          "updated_at": {}
+          "updated_at": {},
+          "workspaces_used": {}
         }
       },
       "TokenForm": {
@@ -36023,6 +37274,20 @@
           "name": {},
           "parent_id": {},
           "position": {}
+        }
+      },
+      "UpdateGrantRequest": {
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "role": {}
         }
       },
       "UpdateInjectionRequest": {
@@ -37207,6 +38472,58 @@
           "withdrawn": {}
         }
       },
+      "WorkspaceAccess": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "role",
+          "level",
+          "inherited",
+          "capabilities"
+        ],
+        "properties": {
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inherited": {
+            "type": "boolean",
+            "description": "`true` when the role comes from the organization grant rather than a workspace row."
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "description": "Effective role, after the organization's implicit grant."
+          },
+          "slug": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "capabilities": [],
+          "id": {},
+          "inherited": {},
+          "level": {},
+          "name": {},
+          "role": {},
+          "slug": {}
+        }
+      },
       "WorkspaceCostSummaryResponse": {
         "type": "object",
         "description": "Workspace cost summary response.",
@@ -37387,6 +38704,13 @@
               "updated_at"
             ],
             "properties": {
+              "archived_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "SPEC-181: when it was archived; `null` while live. Archived stops counting toward the plan."
+              },
               "chunk_overlap_token_size": {
                 "type": [
                   "integer",
@@ -37742,6 +39066,38 @@
         ],
         "description": "Workspace response DTO.\n\nIncludes full model configuration (SPEC-032) for transparency."
       },
+      "WorkspaceSeedDto": {
+        "type": "object",
+        "description": "The workspace an organization starts with.",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Display name. Defaults to `Default Workspace`."
+          },
+          "rag_profile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SPEC-180: `graph` (default) or `normal`. Immutable after create."
+          },
+          "slug": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "URL slug. Defaults to `default`."
+          }
+        },
+        "example": {
+          "name": {},
+          "rag_profile": {},
+          "slug": {}
+        }
+      },
       "WorkspaceStatsResponse": {
         "type": "object",
         "description": "Workspace statistics response.\n\nWHY embedding_count: Mission requirement to track embeddings per workspace.\nWHY entity_type_count: Dashboard EntityTypes KPI was very slow because the\nfrontend fetched ALL graph nodes just to count unique types. This field\ndelivers the count from a single Cypher aggregate query (<1ms vs 2-5s).",
@@ -37969,7 +39325,7 @@
     "asyncapi": "2.6.0",
     "info": {
       "title": "EdgeQuake WebSocket Progress",
-      "version": "0.38.4",
+      "version": "0.39.0",
       "description": "Real-time pipeline and document processing progress over WebSocket (RFC 6455). SPEC-149: clients subscribe to owned track_ids on the global channel; events use a tagged {type,data} envelope."
     },
     "defaultContentType": "application/json",

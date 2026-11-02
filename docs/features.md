@@ -3,7 +3,7 @@ title: 'EdgeQuake Feature Registry'
 description: "Feature registry (FEAT IDs) for EdgeQuake product capabilities."
 ---
 
-> **Product: v0.36.0** · Contract: [`openapi.snapshot.json`](../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](ingestion-cancel-and-fairness.md) · [What’s new](whats-new.md)
+> **Product: v0.39.0** · Contract: [`openapi.snapshot.json`](../edgequake_webui/openapi/openapi.snapshot.json) · Spec ops: [Ingestion cancel & fairness](ingestion-cancel-and-fairness.md) · [What’s new](whats-new.md)
 
 # EdgeQuake Feature Registry
 

@@ -68,4 +68,52 @@ grep -q '/usr/local/bin/tesseract' "$DOCKERFILE" \
 # Parse-only check (no compile) — same failure mode as the Docker builder stage.
 (cd "$EQ" && cargo metadata --format-version 1 --no-deps >/dev/null)
 
-echo "Docker API context OK (benches/examples present, dockerignore + Dockerfile aligned)"
+# Every `include!` a build script performs must resolve inside the image context.
+#
+# WHY: `crates/edgequake-api/build.rs` does `include!("../../build_meta.rs")`. The
+# Dockerfile copies crates/, src/, benches/, examples/ and models.toml — but not that
+# file — so both arches failed at ~250s with "couldn't find file `build_meta.rs`"
+# while every local `cargo build` passed, because the file is on disk here. v0.38.4
+# never hit it: the include landed afterwards, in the same commit that created it.
+#
+# `cargo metadata` cannot see this, so check the include targets directly.
+python3 - "$ROOT" "$DOCKERFILE" <<'PY'
+import os, pathlib, re, sys
+
+root, dockerfile = sys.argv[1], sys.argv[2]
+eq = os.path.join(root, "edgequake")
+copy_srcs = set()
+for line in pathlib.Path(dockerfile).read_text().splitlines():
+    m = re.match(r"^\s*COPY\s+(?:--\S+\s+)*(\S+)\s+(\S+)\s*$", line, re.IGNORECASE)
+    if m:
+        copy_srcs.add(m.group(1))
+
+problems = []
+pat = re.compile(r'include!\(\s*"([^"]+\.rs)"\s*\)')
+for script in pathlib.Path(eq).rglob("build.rs"):
+    text = script.read_text(errors="ignore")
+    for target in pat.findall(text):
+        resolved = os.path.normpath(os.path.join(script.parent, target))
+        rel = os.path.relpath(resolved, root)
+        if not os.path.isfile(resolved):
+            problems.append(f'{script} includes "{target}" but {rel} does not exist')
+            continue
+        # The Docker context is the repo root; a COPY of this repo-relative path (or of
+        # any directory containing it) puts the file in the image.
+        covered = any(
+            rel == src or rel.startswith(src.rstrip("/") + "/")
+            for src in copy_srcs
+        )
+        if not covered:
+            problems.append(
+                f'{script} includes "{target}" ({rel}) but the Dockerfile never COPYs it '
+                f'— the image build fails with "couldn\'t find file"'
+            )
+
+if problems:
+    for p in problems:
+        print(f"ERROR: {p}", file=sys.stderr)
+    sys.exit(1)
+PY
+
+echo "Docker API context OK (benches/examples + build-script includes present, dockerignore + Dockerfile aligned)"

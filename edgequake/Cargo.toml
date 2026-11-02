@@ -121,7 +121,7 @@ name = "graphrag_bench"
 harness = false
 
 [workspace.package]
-version = "0.38.4"
+version = "0.39.0"
 edition = "2021"
 rust-version = "1.95"
 license = "Apache-2.0"
@@ -203,7 +203,7 @@ edgequake-pdf = { path = "crates/edgequake-pdf" }
 # SPEC-126: provider KV / prompt-cache (prompt_cache_key + Anthropic cache_control).
 # SPEC-131: omit-temperature / Responses API (crates.io 0.10.8+).
 # 0.10.9: GPT-6 / Claude 5.5 / Gemini 3.8 / Grok 4.7 registry + Azure Foundry URL.
-edgequake-llm = "0.10.9"
+edgequake-llm = "0.10.10"
 edgequake-pipeline = { path = "crates/edgequake-pipeline" }
 edgequake-query = { path = "crates/edgequake-query" }
 edgequake-storage = { path = "crates/edgequake-storage" }

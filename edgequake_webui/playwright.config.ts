@@ -62,8 +62,22 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   timeout: isLiveStack ? 120_000 : 30_000,
   // Single worker when driving a dev server avoids Next.js dev crashes under load.
+  // WHY the explicit `PLAYWRIGHT_SKIP_STACK_CHECK` / `startWebServer` terms: the previous
+  // expression only counted `isLiveStack`, `customBaseUrl` and `startWebServer`, so the
+  // common local case — `PLAYWRIGHT_SKIP_STACK_CHECK=1` with a dev server *already*
+  // listening on 3010 — resolved to `startWebServer: false` and fell through to Playwright's
+  // default of one worker per CPU. That ran the whole suite against a single Next dev server
+  // at full parallelism: 366 timeouts and 1.3 h instead of a few minutes, and each timeout
+  // then multiplied by `retries`. Reusing a dev server must still mean one worker.
   workers:
-    process.env.CI ? 2 : isLiveStack || customBaseUrl || startWebServer ? 1 : undefined,
+    process.env.CI
+      ? 2
+      : isLiveStack ||
+          customBaseUrl ||
+          startWebServer ||
+          process.env.PLAYWRIGHT_SKIP_STACK_CHECK === "1"
+        ? 1
+        : undefined,
   reporter: [["html", { open: "never" }], ["list"]],
   use: sharedUse,
 

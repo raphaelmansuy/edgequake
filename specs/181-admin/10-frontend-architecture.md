@@ -291,7 +291,7 @@ mutating hook, so the effective rate is bounded by user actions, not by polling.
 | `create-workspace-wizard.tsx` (292 lines) | deleted | same |
 | `steps/model-defaults-step.tsx` | reused inside the drawer | unchanged component, new host |
 | `steps/workspace-basics-step.tsx` | reused | name/slug fields |
-| `steps/workspace-retrieval-step.tsx` | reused | the retrieval radios |
+| ~~`steps/workspace-retrieval-step.tsx`~~ | removed | the create dialog owns the retrieval radios; the image probe stays in `steps/model-defaults-step.tsx` |
 | `steps/{chunking,extract-budget,extraction,document-parsing}-step.tsx` | reused in the drawer | |
 | `steps/admin-credentials-step.tsx` | kept | first-run only |
 | `steps/review-step.tsx` | kept for first-run | the short dialogs use [W-05](09-ux-ui-spec.md#w-05-confirmation-after-create) instead of a review step |

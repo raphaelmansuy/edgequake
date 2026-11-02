@@ -1014,17 +1014,31 @@ fn spec054_workspace_vector_registry_has_drop_workspace_table() {
     );
 }
 
-/// SPEC-054 / GitHub #297: delete_workspace handler must call drop_workspace_table.
+/// SPEC-054 / GitHub #297: the workspace delete path must reach
+/// `drop_workspace_table`, so no physical vector table is orphaned.
 ///
-/// Source contract: the delete_workspace handler must call drop_workspace_table
-/// after evicting the workspace from the cache.
+/// Source contract, walked as a call chain rather than a single file. SPEC-181
+/// moved the cascade out of the handler into
+/// [`crate::services::tenancy::purge_exec::purge_workspace`], so asserting that
+/// `workspace_crud.rs` mentions the symbol would pass or fail for the wrong
+/// reason the next time the cascade moves. What the bug is about is that the
+/// table gets dropped, not where the line lives.
 #[test]
 fn spec054_delete_workspace_calls_drop_workspace_table() {
-    let src = include_str!("../src/handlers/workspaces/workspace_crud.rs");
+    const HANDLER: &str = include_str!("../src/handlers/workspaces/workspace_crud.rs");
+    const PURGE: &str = include_str!("../src/services/tenancy/purge_exec.rs");
+
     assert!(
-        src.contains("drop_workspace_table"),
-        "delete_workspace must call vector_registry.drop_workspace_table (SPEC-054 / GitHub #297). \
-         Without this, the physical PostgreSQL vector table remains as an orphan after workspace delete."
+        HANDLER.contains("purge_workspace"),
+        "delete_workspace must hand the cascade to purge_workspace (SPEC-181 LAW-181-7: one \
+         purge implementation for every scope). If the handler deletes on its own again, the \
+         organization delete path and the workspace delete path drift apart."
+    );
+    assert!(
+        PURGE.contains("drop_workspace_table"),
+        "purge_workspace must call vector_registry.drop_workspace_table (SPEC-054 / GitHub #297). \
+         Without this, the physical PostgreSQL vector table remains as an orphan after workspace \
+         delete."
     );
 }
 

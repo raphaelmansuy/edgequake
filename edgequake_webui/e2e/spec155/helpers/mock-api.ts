@@ -3,6 +3,8 @@
  * Extends the SPEC-017 tenant seed pattern with full surface coverage.
  */
 import type { Page } from "@playwright/test";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { mockHermeticModelOffer } from "../../helpers/hermetic-models";
 import { installHermeticGuard, SEED_PATH } from "./mock-hermetic";
 import {
@@ -11,6 +13,29 @@ import {
   toKnowledgeGraphResponse,
   type FixtureGraph,
 } from "../../../src/lib/fixtures/graph";
+
+/**
+ * The product version the mocked `/health` reports.
+ *
+ * Read from the repo `VERSION` rather than hard-coded: this used to say `0.28.5`, so every
+ * screenshot taken on this fixture showed `API v0.28.5` beside a correct `UI v0.39.0`, and a
+ * reader reviewing a release could not tell whether the header was broken or the mock was
+ * stale. Deriving it keeps the two halves of that header in agreement forever.
+ *
+ * The file is located by walking up from this module, because the same constant is imported
+ * from two runtimes with different working directories (Playwright and Vitest).
+ */
+function findRepoVersion(): string {
+  let dir = __dirname;
+  for (let i = 0; i < 8; i += 1) {
+    const candidate = resolve(dir, "VERSION");
+    if (existsSync(candidate)) return readFileSync(candidate, "utf8").trim();
+    dir = resolve(dir, "..");
+  }
+  throw new Error(`Could not locate the repo VERSION file above ${__dirname}`);
+}
+
+export const MOCK_PRODUCT_VERSION: string = findRepoVersion();
 
 export const SPEC155_TENANT = {
   id: "spec155-tenant-001",
@@ -226,7 +251,7 @@ export async function mockSpec155Api(
     route.fulfill(
       json({
         status: "healthy",
-        version: "0.28.5",
+        version: MOCK_PRODUCT_VERSION,
         storage_mode: "postgresql",
         workspace_id: SPEC155_WORKSPACE.id,
         components: {
@@ -240,7 +265,7 @@ export async function mockSpec155Api(
     ),
   );
   await page.route("**/api/health**", (route) =>
-    route.fulfill(json({ status: "healthy", version: "0.28.5" })),
+    route.fulfill(json({ status: "healthy", version: MOCK_PRODUCT_VERSION })),
   );
   await page.route("**/live", (route) => route.fulfill({ status: 200, body: "OK" }));
   await page.route("**/ready", (route) => route.fulfill({ status: 200, body: "OK" }));

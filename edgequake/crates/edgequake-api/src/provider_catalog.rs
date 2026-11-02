@@ -226,4 +226,58 @@ mod tests {
             );
         }
     }
+
+    /// Every declared default must name a model the catalog actually contains.
+    ///
+    /// This is the gate for a real defect: `models.toml` declared `llm_model = "gpt-4.1-mini"`
+    /// while the Makefile defaulted to `gpt-5-nano`, which was absent from the catalog
+    /// entirely, and `gpt-4.1-nano` pointed `replacement` at a model that did not exist. The
+    /// first-run wizard therefore rendered model ids the deployment could not resolve.
+    #[test]
+    fn declared_defaults_and_replacements_resolve() {
+        let config = embedded_models_catalog();
+        let by_provider: std::collections::HashMap<&str, std::collections::HashSet<&str>> = config
+            .providers
+            .iter()
+            .map(|p| {
+                (
+                    p.name.as_str(),
+                    p.models.iter().map(|m| m.name.as_str()).collect(),
+                )
+            })
+            .collect();
+
+        let d = &config.defaults;
+        // `DefaultsConfig` carries only llm + embedding. The `[defaults].vision_*` keys in
+        // models.toml are inert: vision resolves through the workspace/tenant ladder, then
+        // falls back to the LLM pair. Keep this list to the two fields the type actually has,
+        // or the test silently stops covering what it claims.
+        for (role, provider, model) in [
+            ("llm", &d.llm_provider, &d.llm_model),
+            ("embedding", &d.embedding_provider, &d.embedding_model),
+        ] {
+            let known = by_provider.get(provider.as_str()).unwrap_or_else(|| {
+                panic!("default {role} provider '{provider}' is not a provider in models.toml")
+            });
+            assert!(
+                known.contains(model.as_str()),
+                "default {role} model '{provider}/{model}' is not declared under that provider"
+            );
+        }
+
+        for provider in &config.providers {
+            let names: std::collections::HashSet<&str> =
+                provider.models.iter().map(|m| m.name.as_str()).collect();
+            for model in &provider.models {
+                if let Some(replacement) = model.replacement.as_deref() {
+                    assert!(
+                        names.contains(replacement),
+                        "{}: model '{}' points replacement at '{replacement}', which does not exist",
+                        provider.name,
+                        model.name
+                    );
+                }
+            }
+        }
+    }
 }

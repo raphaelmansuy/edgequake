@@ -1,3 +1,8 @@
+---
+title: "Dependency remediation — November 2026"
+description: "How 243 Dependabot advisories fell to 3 low, including a real KaTeX XSS sink, and what remains unfixed and why."
+---
+
 # Security remediation — dependency advisories
 
 **Date:** 2026-11-01
@@ -110,9 +115,61 @@ edgequake (rust)  fmt clean, 1848 lib tests passed
 Pre-existing and unrelated, verified by stashing this work: `e2e/spec157` fails 29/33 on both
 Next 16.3.3 and 16.4.3.
 
+## Addendum — the release that shipped this work (v0.39.0)
+
+Two corrections found while cutting v0.39.0. Both are recorded here because the sections above
+were written from the alert list and from a test run, and neither caught them.
+
+### The `>=4.0.33` override crossed a major and broke the app
+
+The `@ai-sdk/provider-utils` override was written as `>=4.0.33`, with no ceiling. pnpm read that
+literally and resolved **5.0.72**. `@ai-sdk/gateway@3.0.13` — reached through `ai@6` inside
+`@scalar/api-reference`, which is the in-app API explorer — pins `provider-utils` at `^4.0.5` and
+imports `createProviderToolFactoryWithOutputSchema`. That export exists in 4.0.5 and 4.0.63 and
+does not exist in 5.0.72, so **every** page failed with a Next.js "Build Error: Export
+createProviderToolFactoryWithOutputSchema doesn't exist in target module".
+
+This was already broken on `edgequake-main`; its lockfile binds `gateway@3.0.13` to
+`provider-utils@5.0.72`. It stayed invisible because the two `test-quality-gates` runs after the
+security merge were **cancelled**, so no green build contradicted it, and the local e2e gate
+retried into 366 timeouts that read as flakiness rather than as a single build failure.
+
+The fix bounds the override to `>=4.0.33 <5`. Audit numbers are unchanged by it: `--prod` is the
+same single low advisory, and the dev-inclusive count is the same 26 as `main`. A `>=` override
+without a ceiling is the lesson — it silently crosses majors.
+
+### The 1 low is KaTeX, and it is in the path this pack already closed
+
+`pnpm audit --prod` for `edgequake_webui` reports exactly one advisory: `katex`, "existing
+prototype pollution can bypass `trust` restrictions". The KaTeX fix above set `trust: false`, so
+the bypass has no sink to reach. The remaining upstream fix is a `katex` bump that `mermaid` owns;
+pinning it is tracked, not urgent.
+
+Dev-only advisories remain at 26 (13 high, 12 moderate, 1 low) across `brace-expansion`,
+`browserslist`, `js-yaml`, `undici` (via `jsdom`), `ajv`, `minimatch`, `@humanfs/node`, `vitest`
+and `@vitest/mocker`. None ship: they are the test runner, the bundler and its glob machinery.
+
+### Verification at v0.39.0
+
+```text
+edgequake_webui   vitest  2235 passed (265 files)
+edgequake_webui   tsc     clean (tsconfig.release.json)
+edgequake_webui   next build  clean, all routes emitted
+edgequake_webui   pnpm audit --prod   1 low (katex)
+edgequake (rust)  make release-gates  passed (fmt, clippy per crate, 1849 lib tests, proofs,
+                                      version parity, OpenAPI parity, checksums, epochs, schema docs)
+edgequake (rust)  e2e_spec181_tenancy 10 passed
+edgequake (webui) e2e/spec180 19 passed   e2e/spec181 23 passed
+website           astro build: 238 pages
+```
+
 ## Lesson
 
 The alert list overstates the risk and understates the real one. Two of the three genuine issues
 here — `trust: true`, and the 576-line module — were invisible to Dependabot. Reading the actual
 call sites found more than the severity badges did, and testing the "obvious" Mermaid finding
 prevented a pointless breaking change.
+
+The addendum adds a third instance of the same pattern: the override that *fixed* an advisory
+broke the build, and no alert could have said so. A dependency override is a claim about an
+interval; write the interval, not a lower bound.

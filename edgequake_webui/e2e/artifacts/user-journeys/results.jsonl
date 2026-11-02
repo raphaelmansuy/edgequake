@@ -1,0 +1,19 @@
+{"journey":"login","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"sso callback","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"provider health","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"tenant and workspace","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"dashboard","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"upload pdf and markdown","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"processing","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"document view","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"query","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"knowledge graph","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"lineage","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"knowledge injection","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"workspace admin","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"pipeline monitor","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"costs","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"api explorer","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"settings","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"workspace deeplink","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}
+{"journey":"documents library","status":"skipped","durationMs":0,"pdf":"legacy/edgequake-pdf/test-data/scottish_smes.pdf","markdown":"edgequake/crates/edgequake-query/tests/fixtures/EF-extract-208.md"}

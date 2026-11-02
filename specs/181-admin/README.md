@@ -1,9 +1,9 @@
 # SPEC-181 — Admin: creating organizations and workspaces, and who may do what
 
-> **Status:** Proposed. Nothing implemented yet.
-> **Product pin:** EdgeQuake v0.38.3. Migration file head is
+> **Status:** Shipped in **v0.39.0**. Migration **226** is in the manifest; `make test-e2e-spec181`
+> runs the 10 PostgreSQL contract tests, 23 Playwright tests and the cross-reference validator.
+> **Product pin:** EdgeQuake v0.39.0 ships this pack. Migration file head at authoring time was
 > [225_spec180_normal_rag.sql](../../edgequake/migrations/225_spec180_normal_rag.sql).
-> This pack reserves migration **226**.
 > **Scope:** Two creation flows (a Tenant, called *organization* in the UI; a Workspace),
 > the navigation that reaches them, and the RBAC × ABAC model that decides who may run
 > them. Every screen is re-cut to the calm, dense, warm-paper language of

@@ -399,10 +399,15 @@ DEV_EDGEQUAKE_DEV_MODE := $(if $(filter false,$(DEV_AUTH_ENABLED)),true,false)
 # OODA-09: Auto-configure providers based on OPENAI_API_KEY presence.
 # WHY: User sets OPENAI_API_KEY but system still uses Ollama defaults.
 # This ensures correct provider selection when API key is available.
+#
+# Every one of these is `?=`, so a developer can override any of them without editing the
+# Makefile, e.g. `EDGEQUAKE_DEFAULT_LLM_MODEL=gpt-6.1-sol make dev`. Verified November 2026:
+# GPT-6 is OpenAI's current family; Gemini 4 Argon and Claude 5.5 are the other flagships.
 ifdef OPENAI_API_KEY
-  # Use OpenAI as default when API key is set
+  # Use OpenAI as default when API key is set. GPT-6 Luna: cheapest current tier, and a
+  # knowledge-graph ingest makes very many small structured calls.
   EDGEQUAKE_DEFAULT_LLM_PROVIDER ?= openai
-  EDGEQUAKE_DEFAULT_LLM_MODEL ?= gpt-5-nano
+  EDGEQUAKE_DEFAULT_LLM_MODEL ?= gpt-6-luna
   EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER ?= openai
   EDGEQUAKE_DEFAULT_EMBEDDING_MODEL ?= text-embedding-3-small
   EDGEQUAKE_DEFAULT_EMBEDDING_DIMENSION ?= 1536
@@ -914,12 +919,9 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🚀 Starting EdgeQuake Development Stack$(RESET)"
 	@echo "$(YELLOW)→ Previous app processes killed; starting fresh$(RESET)"
-	@# OODA-09: Dynamically select provider based on OPENAI_API_KEY
-	@if [ -n "$$OPENAI_API_KEY" ]; then \
-		echo "$(BOLD)$(YELLOW)📝 Using OpenAI provider (OPENAI_API_KEY detected)$(RESET)"; \
-	else \
-		echo "$(BOLD)$(YELLOW)📝 Using Ollama as default LLM provider$(RESET)"; \
-	fi
+	@# SPEC-181: one detector for every provider key, not just OpenAI. See
+	@# scripts/dev_provider_detect.sh for the precedence list.
+	@bash "$(ROOT_DIR)/scripts/dev_provider_detect.sh" --explain >/dev/null
 	@echo ""
 	@echo "$(YELLOW)→ Ensuring PostgreSQL availability (profile: $(EQ_POSTGRES_PROFILE))...$(RESET)"
 	@$(MAKE) db-start --no-print-directory
@@ -979,11 +981,16 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 	sleep 0.3; \
 	echo "$(YELLOW)→ Starting backend on port $$BACKEND_PORT (DATABASE_URL port: $$(printf '%s' $$_EFF_DB_URL | sed -E 's|.*:([0-9]+)/.*|\1|'))...$(RESET)"; \
 	$(APPLY_LANGFUSE_ENV_EFFECTIVE); \
+	_DETECT="$$(bash "$(ROOT_DIR)/scripts/dev_provider_detect.sh")"; \
+	_DETECTED_PROVIDER="$${_DETECT%% *}"; \
+	_DETECTED_MODEL="$$(echo "$$_DETECT" | cut -d' ' -f2)"; \
 	if [ -n "$$OPENAI_API_KEY" ]; then \
 		(cd $(BACKEND_DIR) && \
 			PORT="$$BACKEND_PORT" \
 			DATABASE_URL="$$_EFF_DB_URL" \
 			OPENAI_API_KEY="$$OPENAI_API_KEY" \
+			EDGEQUAKE_LLM_PROVIDER="$$_DETECTED_PROVIDER" \
+			EDGEQUAKE_LLM_MODEL="$$_DETECTED_MODEL" \
 			EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
 		GOOGLE_CLOUD_PROJECT="$${GOOGLE_CLOUD_PROJECT:-}" \
 		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
@@ -1010,6 +1017,8 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 		(cd $(BACKEND_DIR) && \
 			PORT="$$BACKEND_PORT" \
 			DATABASE_URL="$$_EFF_DB_URL" \
+			EDGEQUAKE_LLM_PROVIDER="$$_DETECTED_PROVIDER" \
+			EDGEQUAKE_LLM_MODEL="$$_DETECTED_MODEL" \
 			EDGEQUAKE_DEV_MODE="$(DEV_EDGEQUAKE_DEV_MODE)" \
 		GOOGLE_CLOUD_PROJECT="$${GOOGLE_CLOUD_PROJECT:-}" \
 		EDGEQUAKE_AUTH_ENABLED="$(DEV_AUTH_ENABLED)" \
@@ -1022,9 +1031,9 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 		EDGEQUAKE_MM_PASS_B_TIMEOUT_SECS="$(EDGEQUAKE_MM_PASS_B_TIMEOUT_SECS)" \
 		EDGEQUAKE_MM_PASS_B_PAGE_TIMEOUT_SECS="$(EDGEQUAKE_MM_PASS_B_PAGE_TIMEOUT_SECS)" \
 		EDGEQUAKE_MM_IMAGE_CONCURRENCY="$(EDGEQUAKE_MM_IMAGE_CONCURRENCY)" \
-		OLLAMA_HOST="http://localhost:11434" \
-			OLLAMA_MODEL="gemma4:latest" \
-			OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest" \
+		OLLAMA_HOST="$${OLLAMA_HOST:-http://localhost:11434}" \
+			OLLAMA_MODEL="$${OLLAMA_MODEL:-$(EDGEQUAKE_DEFAULT_LLM_MODEL)}" \
+			OLLAMA_EMBEDDING_MODEL="$${OLLAMA_EMBEDDING_MODEL:-$(EDGEQUAKE_DEFAULT_EMBEDDING_MODEL)}" \
 			OLLAMA_CONTEXT_LENGTH="$${OLLAMA_CONTEXT_LENGTH:-8192}" \
 			EDGEQUAKE_ORIGINAL_STORE="$(ORIGINAL_STORE_MODE)" \
 			EDGEQUAKE_ORIGINAL_STORE_URL="$(ORIGINAL_STORE_URL)" \
@@ -1210,11 +1219,7 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND wit
 	@echo ""
 	@echo "$(BOLD)$(BLUE)🤖 Starting EdgeQuake in Background Mode (Agentic)$(RESET)"
 	@echo "$(YELLOW)→ Incremental startup: healthy services are reused; Docker is touched only when needed$(RESET)"
-	@if [ -n "$$OPENAI_API_KEY" ]; then \
-		echo "$(BOLD)$(YELLOW)📝 Using OpenAI provider$(RESET)"; \
-	else \
-		echo "$(BOLD)$(YELLOW)📝 Using Ollama as default LLM provider$(RESET)"; \
-	fi
+	@bash "$(ROOT_DIR)/scripts/dev_provider_detect.sh" --explain >/dev/null
 	@echo ""
 	@if curl -fsS "$(BACKEND_URL)/health" >/dev/null 2>&1 && curl -fsS "$(FRONTEND_URL)" 2>/dev/null | grep -qi 'EdgeQuake'; then \
 		echo "$(YELLOW)→ Existing EdgeQuake services detected; continuing with reuse checks$(RESET)"; \
@@ -1289,17 +1294,11 @@ dev-bg: check-deps check-ports ## Start full development stack in BACKGROUND wit
 	else \
 		echo "  $(BLUE)Auth$(RESET): disabled (default local mode)"; \
 	fi
-	@if [ -n "$$OPENAI_API_KEY" ]; then \
-		echo "  $(BLUE)LLM Provider$(RESET): openai (gpt-5-nano)"; \
-		echo "  $(BLUE)Embedding$(RESET): openai (text-embedding-3-small, 1536d)"; \
-	elif [ -n "$(MISTRAL_API_KEY)" ]; then \
-		echo "  $(BLUE)LLM Provider$(RESET): mistral (mistral-large-latest)"; \
-		echo "  $(BLUE)Embedding$(RESET): mistral (mistral-embed, 1024d)"; \
-		echo "  $(BLUE)Vision$(RESET): mistral (mistral-large-latest)"; \
-	else \
-		echo "  $(BLUE)LLM Provider$(RESET): ollama (gemma4:latest)"; \
-		echo "  $(BLUE)Embedding$(RESET): ollama (embeddinggemma:latest, 768d)"; \
-	fi
+	@_PV="$$(bash "$(ROOT_DIR)/scripts/dev_provider_detect.sh")"; \
+	_P="$${_PV%% *}"; \
+	_M="$$(echo "$$_PV" | cut -d' ' -f2)"; \
+	echo "  $(BLUE)LLM Provider$(RESET): $$_P ($$_M)"; \
+	echo "  $(BLUE)Embedding$(RESET): $$(echo $${EDGEQUAKE_DEFAULT_EMBEDDING_PROVIDER:-$$_P}) ($$(echo $${EDGEQUAKE_DEFAULT_EMBEDDING_MODEL:-$(EDGEQUAKE_DEFAULT_EMBEDDING_MODEL)}))"
 	@if [ "$(WITH_LANGFUSE)" = "1" ]; then \
 		echo "  $(BLUE)Langfuse$(RESET): $(LANGFUSE_UI_URL)  (login: dev@example.com / edgequake-local-dev)"; \
 	fi
@@ -1571,9 +1570,9 @@ backend-dev: db-wait ## Run backend in development mode with PostgreSQL (uses .e
 		EDGEQUAKE_VISION_PROVIDER="$(EDGEQUAKE_VISION_PROVIDER)" \
 		EDGEQUAKE_VISION_MODEL="$(EDGEQUAKE_VISION_MODEL)" \
 		VLM_PROCESS_ENABLE="$(VLM_PROCESS_ENABLE)" \
-		OLLAMA_HOST="http://localhost:11434" \
-		OLLAMA_MODEL="gemma4:latest" \
-		OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest" \
+		OLLAMA_HOST="$${OLLAMA_HOST:-http://localhost:11434}" \
+		OLLAMA_MODEL="$${OLLAMA_MODEL:-$(EDGEQUAKE_DEFAULT_LLM_MODEL)}" \
+		OLLAMA_EMBEDDING_MODEL="$${OLLAMA_EMBEDDING_MODEL:-$(EDGEQUAKE_DEFAULT_EMBEDDING_MODEL)}" \
 		OLLAMA_CONTEXT_LENGTH="$${OLLAMA_CONTEXT_LENGTH:-8192}" \
 		_run_server
 
@@ -1606,9 +1605,9 @@ backend-db: db-wait ## Run backend with PostgreSQL storage (uses .env configurat
 		EDGEQUAKE_VISION_PROVIDER="$(EDGEQUAKE_VISION_PROVIDER)" \
 		EDGEQUAKE_VISION_MODEL="$(EDGEQUAKE_VISION_MODEL)" \
 		VLM_PROCESS_ENABLE="$(VLM_PROCESS_ENABLE)" \
-		OLLAMA_HOST="http://localhost:11434" \
-		OLLAMA_MODEL="gemma4:latest" \
-		OLLAMA_EMBEDDING_MODEL="embeddinggemma:latest" \
+		OLLAMA_HOST="$${OLLAMA_HOST:-http://localhost:11434}" \
+		OLLAMA_MODEL="$${OLLAMA_MODEL:-$(EDGEQUAKE_DEFAULT_LLM_MODEL)}" \
+		OLLAMA_EMBEDDING_MODEL="$${OLLAMA_EMBEDDING_MODEL:-$(EDGEQUAKE_DEFAULT_EMBEDDING_MODEL)}" \
 		OLLAMA_CONTEXT_LENGTH="$${OLLAMA_CONTEXT_LENGTH:-8192}" \
 		_run_server
 
@@ -1757,10 +1756,10 @@ backend-bg: sync-dev-ports db-wait ## Run backend in background with PostgreSQL 
 		printf '%s\n' "export EDGEQUAKE_ORIGINAL_STORE_ALLOW_HTTP=\"$(ORIGINAL_STORE_ALLOW_HTTP)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_ORIGINAL_STORE_PATH_STYLE=\"$(ORIGINAL_STORE_PATH_STYLE)\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "[ -f /tmp/edgequake-minio.env ] && set -a && . /tmp/edgequake-minio.env && set +a" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"ollama\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export OLLAMA_HOST=\"http://localhost:11434\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export OLLAMA_MODEL=\"gemma4:latest\"" >> /tmp/edgequake-start.sh; \
-		printf '%s\n' "export OLLAMA_EMBEDDING_MODEL=\"embeddinggemma:latest\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export EDGEQUAKE_LLM_PROVIDER=\"$${EDGEQUAKE_LLM_PROVIDER:-ollama}\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export OLLAMA_HOST=\"$${OLLAMA_HOST:-http://localhost:11434}\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export OLLAMA_MODEL=\"$${OLLAMA_MODEL:-$(EDGEQUAKE_DEFAULT_LLM_MODEL)}\"" >> /tmp/edgequake-start.sh; \
+		printf '%s\n' "export OLLAMA_EMBEDDING_MODEL=\"$${OLLAMA_EMBEDDING_MODEL:-$(EDGEQUAKE_DEFAULT_EMBEDDING_MODEL)}\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export OLLAMA_CONTEXT_LENGTH=\"$${OLLAMA_CONTEXT_LENGTH:-8192}\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "export EDGEQUAKE_ALLOWED_PROVIDERS=\"*\"" >> /tmp/edgequake-start.sh; \
 		printf '%s\n' "$$_RUN" >> /tmp/edgequake-start.sh; \
@@ -3325,9 +3324,19 @@ test-e2e-full: dev-bg test-e2e-lint ## Run full E2E suite (requires make dev-bg 
 		SPEC013_BACKEND_URL="$(BACKEND_URL)" E2E_LIVE_STACK=1 PLAYWRIGHT_BASE_URL="$(FRONTEND_URL)" \
 		pnpm exec playwright test --project=chromium --reporter=line
 
+# SPEC-180: Normal RAG (retrieval profile, chunks-only UI, image search) — hermetic UI suite.
+# Added because nothing ran these specs: when SPEC-181 replaced the create wizard, three
+# wizard specs timed out instead of failing, and no gate noticed.
+.PHONY: test-e2e-spec180
+test-e2e-spec180:
+	@echo "$(BLUE)SPEC-180 → hermetic UI suite (screenshots → specs/180-normal-rag/e2e/screenshots)$(RESET)"
+	@cd $(FRONTEND_DIR) && PLAYWRIGHT_SKIP_STACK_CHECK=1 SPEC180_ROUND=$${SPEC180_ROUND:-ci} \
+		pnpm exec playwright test e2e/spec180 --project=mock-api --reporter=line
+
 # SPEC-181: admin (tenancy, grants, access, purge) — hermetic UI suite + PostgreSQL contract tests.
 # The UI suite is hermetic (no backend); the Rust tests need PostgreSQL (EDGEQUAKE_SPEC181_PG_URL
 # or DATABASE_URL) and are skipped when neither is set, matching the other PostgreSQL suites.
+.PHONY: test-e2e-spec181
 test-e2e-spec181:
 	@echo "$(BLUE)SPEC-181 → cross-reference validator$(RESET)"
 	@python3 specs/181-admin/scripts/validate-cross-ref.py specs/181-admin

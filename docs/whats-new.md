@@ -3,7 +3,7 @@ title: "What's new"
 description: "Per-release highlights moved out of the README."
 ---
 
-This page lists the highlights of each release from v0.38.3 back to v0.24.0, newest first. Most entries name the schema number, so you can plan a database migration before you upgrade. For the full change list, see the [CHANGELOG](CHANGELOG.md), and for the upgrade steps, see the linked upgrade guide. A plain-English [picture tour](https://edgequake.com/tutorial/) of the UI is on the marketing site.
+This page lists the highlights of each release from v0.39.0 back to v0.24.0, newest first. Most entries name the schema number, so you can plan a database migration before you upgrade. For the full change list, see the [CHANGELOG](CHANGELOG.md), and for the upgrade steps, see the linked upgrade guide. A plain-English [picture tour](https://edgequake.com/tutorial/) of the UI is on the marketing site.
 
 ## Schema train at a glance
 
@@ -33,11 +33,28 @@ timeline
     v0.38.1 : 224
     v0.38.2 : 224 pinned
     v0.38.3 : 224 pinned
+    v0.38.4 : 224 pinned
+    v0.39.0 : 226
 ```
 
-The timeline shows the schema number each release leaves the database at, from v0.23.0 through v0.38.3.
+The timeline shows the schema number each release leaves the database at, from v0.23.0 through v0.39.0.
 
 Run `edgequake migrate` when you move to a release with a higher number. The [upgrading guide](operations/upgrading.md) covers the steps.
+
+### What's new in 0.39.0
+
+Normal RAG workspaces (SPEC-180) and a rebuilt admin surface (SPEC-181). Schema moves **224 → 226**. Upgrade from 0.38.4 runs migrations **225** and **226**. Both are expand-only, so the migration may run ahead of the image bump. Restart replicas after migrate.
+
+- A workspace can be created as `normal`: chunks, dense embeddings and BM25, with no knowledge graph and no chat model at ingest. The profile is permanent. Graph endpoints answer `409` and graph-only modes answer `422`. A multimodal embedding model lets it index images and search by image.
+- Creating an organization now grants the creator an owner membership. Before, the row existed with nobody able to administer it. A trigger refuses removing the last owner.
+- Deleting an organization purges all nine storage planes. Before, three were purged and six orphaned.
+- Quota has one source of truth. Four columns disagreed; `trg_workspace_quota_guard` enforces the plan limit on write.
+- The eight-step create wizards are replaced by two three-decision dialogs. A capability catalog backs a single `GET /me/access`, and navigation renders only what that answer allows.
+- `make dev` no longer forces Ollama. An exported `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` or `XAI_API_KEY` now wins, because `scripts/dev_provider_detect.sh` resolves the provider once and the banner reads the same answer.
+- KaTeX `trust: true` is gone, closing a `javascript:` link injection. Dependency advisories fall from **243 to 3 low**.
+- SPEC-001 Acc was not re-scored. SPEC-180 adds a workspace profile rather than changing mix retrieval. The pack [`medical-mid-20261024T031725Z`](../specs/001-benchmark/e2e/artifacts/history/medical-mid-20261024T031725Z/) stays the valid score: EdgeQuake **0.8084** vs LightRAG **0.7681**, a statistical tie. EdgeQuake does not claim a win.
+
+Upgrade: **[upgrade-to-0.39.0.md](operations/upgrade-to-0.39.0.md)** · changelog: [CHANGELOG.md](CHANGELOG.md).
 
 ### What's new in 0.38.3
 

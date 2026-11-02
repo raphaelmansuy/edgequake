@@ -4,8 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.39.0] — 2026-11-01
+
+Minor on v0.38.4. Schema moves **224 → 226**. An upgrade from 0.38.4 applies two `expand`
+migrations: [`docs/operations/upgrade-to-0.39.0.md`](docs/operations/upgrade-to-0.39.0.md).
+
+**CD:** GHCR `edgequake`, `edgequake-frontend`, `edgequake-postgres` (`0.39.0`, `-pg16`, `-pg17`, `-pg18`), and `edgequake-keycloak` on tag `v0.39.0`.
+
+**SPEC-001 Acc:** not re-scored on this cut. SPEC-180 adds a workspace profile rather than changing mix retrieval. The latest valid medical-mid n=200 pack remains
+[`medical-mid-20261024T031725Z`](specs/001-benchmark/e2e/artifacts/history/medical-mid-20261024T031725Z/)
+(`valid: true`). EdgeQuake **0.8084**, LightRAG **0.7681**, delta **+0.0403**
+(95% bootstrap CI [-0.0241, +0.1036], n_paired 72). The interval includes 0,
+so this is a statistical tie. EdgeQuake does not claim a win.
+
 ### Added
 
+- **Admin: two three-decision creation flows and one answer for authority (SPEC-181).** The eight-step wizards collapse into a dialog that asks three questions and then does the work: for an organization, its name, its plan and its first owner; for a workspace, its organization, its retrieval profile and its first admin. A capability catalog of fifteen capabilities across three axes backs a single `GET /me/access` probe, and the navigation renders only the actions that answer allows. Platform Admin gains a grant editor, archive and restore, and a tenancy service. Migration **226** adds `subscription_plans`, real quota columns in place of four disagreeing sources, the archive columns and `scope_purge_receipts`, plus `trg_workspace_quota_guard` and `trg_org_keeps_an_owner`. Purge now reaches all nine storage planes, not three. `make test-e2e-spec181` runs 10 PostgreSQL contract tests, 23 Playwright tests and the cross-reference validator.
 - **Normal retrieval: query rewrite and near-duplicate suppression.** A Normal question is rewritten before the dense and BM25 legs (`EDGEQUAKE_NORMAL_QUERY_REWRITE`, default on). A timeout, an error, or a completion that would poison retrieval keeps the original question, and the extra call is `stats.llm_calls`. After rerank, MMR drops near-copy chunks (`EDGEQUAKE_NORMAL_MMR`, default on; `EDGEQUAKE_NORMAL_MMR_LAMBDA`, default 0.7). A chunk with no vector is kept. The hermetic hybrid report is `target/spec180-normal-hybrid.json`; the live number remains `make bench`.
 - **SPEC-180 Normal RAG.** A workspace can be created as `normal`: chunks, dense embeddings and BM25, no knowledge graph and no chat model at ingest. The choice is permanent. A normal workspace can embed images with a multimodal embedding model (`text,image`), filter by document kind, and search by image (`query_image` on chat and query). Graph-only modes answer `422`, graph endpoints answer `409`. The WebUI adds the retrieval step to the create wizard, a retrieval card, a Chunks column, kind chips, search by image with a thumbnail grid of matching images, and no-graph states. MCP search honours the same filters and profile. Migration **225** adds the profile columns (expand). New env vars: `EDGEQUAKE_NORMAL_DENSE_WEIGHT`, `EDGEQUAKE_NORMAL_BM25_WEIGHT`.
 
@@ -16,6 +30,27 @@ All notable changes to this project will be documented in this file.
   Next disabled, instead of failing on the last wizard step. The answer is cached five
   minutes and create/update/rebuild enforce the same probe.
 - **Gemini multimodal embedding is active in dev.** The Vertex auth probe now accepts the active `gcloud` account (the same source the `gemini-embedding-2` client uses), so a broken ADC file no longer hides Vertex. `make backend-bg` pins `EDGEQUAKE_MODELS_CONFIG` to the repo `models.toml`, so a stale `~/.edgequake/models.toml` cannot hide `vertexai/gemini-embedding-2`. Live check: `specs/180-normal-rag/e2e/live_gemini_e2e.py`.
+
+### Changed
+
+- **`edgequake-llm` 0.10.10 adds Vertex AI through Application Default Credentials.** No `GOOGLE_APPLICATION_CREDENTIALS` file is needed; the client accepts the active `gcloud` account, the same source `gemini-embedding-2` already used. Published to crates.io on this cut.
+- **`make dev` resolves the provider instead of assuming Ollama.** The Makefile exported `OLLAMA_HOST` unconditionally, and `ProviderFactory::from_env` reads it before any cloud key, so an exported `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` or `XAI_API_KEY` was ignored and the stack ran on Ollama. `scripts/dev_provider_detect.sh` now owns the precedence — explicit `EDGEQUAKE_LLM_PROVIDER`, then OpenAI, Anthropic, Gemini, xAI, Mistral, then Ollama — rejects a key that is set but blank, and drives the status banner from the same answer the backend receives.
+- **Model catalog refreshed to November 2026.** Adds the GPT-6 family (`gpt-6-astra`, `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`) and GPT-5.6 Sol/Terra/Luna, Claude Opus/Sonnet/Haiku 5.5 and Fable 5.1, Gemini 4 Argon and 3.8 Flash, and Grok 4.7. The default OpenAI chat model moves to `gpt-6-luna`. `text-embedding-3-small` stays current. A `declared_defaults_and_replacements_resolve` test keeps every default and every replacement pointing at a declared model.
+- **One label renderer for straight and curved graph edges.** `EdgeCurvedArrowProgram` ships its own `drawLabel`, and sigma prefers a program's renderer over `defaultDrawEdgeLabel`, so curved edges silently painted labels in a different style from straight ones. Both curve programs now go through `createEdgeCurveProgram` with the themed renderer.
+
+### Fixed
+
+- Creating an organization left it with no member, so nobody could administer it. The create path now grants the creator an owner membership, and `trg_org_keeps_an_owner` refuses removing the last one.
+- Deleting an organization purged three of nine storage planes and orphaned the rest. Purge now reaches every plane and records a receipt.
+- Workspace quota had four sources of truth. Migration 226 collapses them, and `trg_workspace_quota_guard` enforces the plan limit on write.
+- `gpt-4.1-nano` declared its `replacement` as `gpt-5.6-luna`, which is not in the catalog. It now points at the real `gpt-6-luna`.
+- `[defaults]` carried `vision_provider` and `vision_model` keys that `DefaultsConfig` never deserialized, so setting them did nothing. Removed rather than left as a trap.
+
+### Security
+
+- **KaTeX `trust: true` removed.** The render options let `\href{javascript:alert(1)}` emit a live `javascript:` link. `trust` is now `false`, with two regression tests in `src/components/query/markdown/__tests__/KatexMath.test.ts`. Mermaid `securityLevel: 'loose'` was investigated and is **not** vulnerable: v11 sanitizes regardless.
+- Dependency advisories fall from **243 to 3 low**. `next` 16.3.3 → 16.4.3, `dompurify` → 3.4.17, `axios` → 1.20, `mermaid` → 11.16.1, `katex` → 0.19.1. `mcp` 54 → 1; `sdks/typescript` 12 → 1; `sdks/python`, `sdks/rust`, `sdks/java`, `sdks/kotlin`, `tools/bench047` and `edgequake-website` → 0. Details in [`docs/security/dependency-remediation-2026-11.md`](docs/security/dependency-remediation-2026-11.md).
+- Not fixed: `zip` 2.4.2 (critical). `edgeparse-core` pins `2.2` and the fix ships only in 9.0.5; the crate is used write-only for DOCX.
 
 ## [0.38.4] — 2026-10-29
 

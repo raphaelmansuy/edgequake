@@ -10,11 +10,12 @@ import {
   drawNodeHoverWithCard,
   drawNodeLabelWithBackground,
 } from "@/lib/graph/sigma-renderers";
-import { EdgeCurvedArrowProgram, createEdgeCurveProgram } from "@sigma/edge-curve";
+import { createEdgeCurveProgram } from "@sigma/edge-curve";
 import { NodeBorderProgram } from "@sigma/node-border";
 import { MultiGraph } from "graphology";
 import Sigma from "sigma";
 import { EdgeArrowProgram } from "sigma/rendering";
+import { DEFAULT_EDGE_ARROW_HEAD_PROGRAM_OPTIONS } from "sigma/rendering";
 import { animateNodes } from "sigma/utils";
 import { applyDelta, diffToDelta, type ApplyDeltaContext } from "./apply-delta";
 import { sigmaContainerBox } from "./container-box";
@@ -648,8 +649,22 @@ export class GraphEngine {
         nodeProgramClasses: { border: NodeBorderProgram },
         edgeProgramClasses: {
           arrow: EdgeArrowProgram,
-          curvedArrow: EdgeCurvedArrowProgram,
-          curved: createEdgeCurveProgram(),
+          // WHY `createEdgeCurveProgram({ drawLabel })` instead of the
+          // ready-made `EdgeCurvedArrowProgram`: sigma picks a program's own
+          // `drawLabel` over `settings.defaultDrawEdgeLabel`, so the stock
+          // curved program silently replaced our themed label renderer with its
+          // built-in one. Curved and straight edges therefore painted labels in
+          // two different styles. Passing our renderer keeps every edge label
+          // identical.
+          curvedArrow: createEdgeCurveProgram({
+            arrowHead: DEFAULT_EDGE_ARROW_HEAD_PROGRAM_OPTIONS,
+            drawLabel: drawEdgeLabelWithBackground,
+          }),
+          // Straight-arrow companion for the `curved` slot (kept so any future
+          // curvature-0 edge still has a program that draws labels).
+          curved: createEdgeCurveProgram({
+            drawLabel: drawEdgeLabelWithBackground,
+          }),
         },
         minCameraRatio: 0.05,
         maxCameraRatio: 10,

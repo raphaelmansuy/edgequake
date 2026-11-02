@@ -1,9 +1,9 @@
 # SPEC-180 — Normal RAG workspace
 
-> **Status:** Specification. No code in this pack.
-> **Product pin:** EdgeQuake v0.38.3. Migration file head before this pack is
+> **Status:** Shipped in **v0.39.0**. Migration **225** is in the manifest and the CHANGELOG
+> carries the feature under `[0.39.0]`.
+> **Product pin:** EdgeQuake v0.39.0 ships this pack. Migration file head before this pack was
 > [224_spec179_provider_refresh.sql](../../edgequake/migrations/224_spec179_provider_refresh.sql).
-> This pack reserves migration **225**.
 > **Scope:** A workspace created as **Normal RAG** stores chunks, dense embeddings,
 > and a BM25 lexical index. It does not build a knowledge graph. The same workspace
 > can embed text and images in one vector space when the embedding model is

@@ -2626,6 +2626,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/me/access?tenant_id=&workspace_id=` */
+        get: operations["get_me_access"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/settings-access": {
         parameters: {
             query?: never;
@@ -3576,6 +3593,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenants/{tenant_id}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/tenants/{tenant_id}/grants` */
+        get: operations["list_grants"];
+        put?: never;
+        /** `POST /api/v1/tenants/{tenant_id}/grants` */
+        post: operations["create_grant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/grants/{membership_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** `DELETE /api/v1/tenants/{tenant_id}/grants/{membership_id}` */
+        delete: operations["delete_grant"];
+        options?: never;
+        head?: never;
+        /** `PATCH /api/v1/tenants/{tenant_id}/grants/{membership_id}` */
+        patch: operations["update_grant"];
+        trace?: never;
+    };
     "/api/v1/tenants/{tenant_id}/invitations": {
         parameters: {
             query?: never;
@@ -3736,6 +3789,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tenants/{tenant_id}/purge-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview what deleting an organization would destroy.
+         * @description GET /api/v1/tenants/{tenant_id}/purge-preview
+         */
+        get: operations["tenant_purge_preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenants/{tenant_id}/workspaces": {
         parameters: {
             query?: never;
@@ -3866,20 +3939,47 @@ export interface paths {
          *     # Enforces
          *
          *     - **BR0821**: Workspace deletion cascades to all resources
+         *     Delete a workspace and cascade delete all associated data.
          *
-         *     # Cascade Order
+         *     # Implements
          *
-         *     ```text
-         *     1. Clear vector storage (embeddings)
-         *     2. Clear graph storage (entities/relationships)
-         *     3. Delete document metadata and content from KV storage
-         *     4. Evict workspace from vector registry cache
-         *     5. Delete workspace record from database
-         *     ```
+         *     - **UC0304**: Delete Workspace
+         *     - **SPEC-181 LAW-181-7**: one purge implementation for every scope
+         *
+         *     # Enforces
+         *
+         *     - **BR0821**: Workspace deletion cascades to all resources
+         *
+         *     The nine planes are executed and recorded by
+         *     [`crate::services::tenancy::purge_exec::purge_workspace`], which the organization delete
+         *     path calls once per workspace. Returns 202 with a receipt so the caller can watch progress
+         *     and retry a plane that failed (for example an object-store outage).
          *
          *     DELETE /api/v1/workspaces/{workspace_id}
          */
         delete: operations["delete_workspace"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive a workspace: it leaves the switcher and stops counting toward the plan.
+         * @description Data is kept; `POST …/restore` reverses it subject to quota.
+         *
+         *     POST /api/v1/workspaces/{workspace_id}/archive
+         */
+        post: operations["archive_workspace"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -4170,6 +4270,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/purge-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview what a delete would destroy, so the confirmation dialog can state the counts.
+         * @description GET /api/v1/workspaces/{workspace_id}/purge-preview
+         */
+        get: operations["purge_preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/rebuild-embeddings": {
         parameters: {
             query?: never;
@@ -4260,6 +4380,26 @@ export interface paths {
          *     - Bulk re-processing for quality improvements
          */
         post: operations["reprocess_all_documents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore an archived workspace, subject to the plan's workspace limit.
+         * @description POST /api/v1/workspaces/{workspace_id}/restore
+         */
+        post: operations["restore_workspace"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4791,6 +4931,15 @@ export interface components {
         };
         /**
          * @example {
+         *       "reason": {}
+         *     }
+         */
+        ArchiveWorkspaceRequest: {
+            /** @description Why it was archived, recorded for the members list and the audit row. */
+            reason?: string | null;
+        };
+        /**
+         * @example {
          *       "role_ids": []
          *     }
          */
@@ -4990,6 +5139,18 @@ export interface components {
             total_files: number;
         };
         /**
+         * @description One budget: how much of a plan limit is consumed.
+         * @example {
+         *       "limit": {},
+         *       "used": {}
+         *     }
+         */
+        Budget: {
+            /** @description `0` means unlimited. */
+            limit: number;
+            used: number;
+        };
+        /**
          * @description Budget information.
          * @example {
          *       "alert_threshold": {},
@@ -5127,18 +5288,24 @@ export interface components {
             status: string;
         };
         /**
+         * @description A capability row as the roles matrix and the access payload render it.
          * @example {
+         *       "axis": {},
          *       "group": {},
          *       "id": {},
          *       "label": {},
+         *       "min_role": {},
          *       "roles": []
          *     }
          */
         CapabilityInfo: {
+            axis: string;
             group: string;
             id: string;
             label: string;
-            /** @description Organization role ids that hold this capability. */
+            /** @description Minimum role id on this axis; absent for platform capabilities. */
+            min_role?: string | null;
+            /** @description Organization/workspace roles that hold it, highest privilege first. */
             roles: string[];
         };
         /**
@@ -6489,6 +6656,24 @@ export interface components {
         };
         /**
          * @example {
+         *       "role": {},
+         *       "user_id": {},
+         *       "workspace_id": {}
+         *     }
+         */
+        CreateGrantRequest: {
+            /** @description `owner`, `admin`, `member`, `readonly`. */
+            role: string;
+            /** Format: uuid */
+            user_id: string;
+            /**
+             * Format: uuid
+             * @description Omit for an organization grant.
+             */
+            workspace_id?: string | null;
+        };
+        /**
+         * @example {
          *       "email": {},
          *       "role": {},
          *       "workspace_id": {}
@@ -6538,6 +6723,28 @@ export interface components {
             role: string;
             /** @description Whether to stream response. */
             stream?: boolean;
+        };
+        /**
+         * @example {
+         *       "organization": {},
+         *       "workspace": {}
+         *     }
+         */
+        CreatePermissions: {
+            organization: boolean;
+            workspace: boolean;
+        };
+        /**
+         * @description Why a create action is unavailable, so the UI can choose *absent* (role) versus *disabled
+         *     with a fix* (quota). `None` when the action is available.
+         * @example {
+         *       "organization": {},
+         *       "workspace": {}
+         *     }
+         */
+        CreateReason: {
+            organization?: string | null;
+            workspace?: string | null;
         };
         /**
          * @description Create relationship request.
@@ -6604,27 +6811,6 @@ export interface components {
             value: string;
         };
         /**
-         * @description Request to create a new tenant.
-         *
-         *     ## Model Configuration (SPEC-032)
-         *
-         *     When creating a tenant, you can specify default LLM and embedding models
-         *     that will be inherited by all new workspaces within this tenant.
-         *
-         *     **LLM Examples (for knowledge graph generation, summarization):**
-         *     - OpenAI: `"gpt-4o-mini"`, `"gpt-4o"`
-         *     - Ollama: `"gemma3:12b"`, `"llama3.2"`
-         *     - LM Studio: `"gemma-3n-e4b-it-mlxmodel"`
-         *
-         *     **Embedding Examples:**
-         *     - OpenAI: `"text-embedding-3-small"` (1536 dims), `"text-embedding-3-large"` (3072 dims)
-         *     - Ollama: `"embeddinggemma:latest"` (768 dims), `"nomic-embed-text"` (768 dims)
-         *     - LM Studio: `"nomic-ai/nomic-embed-text-v1.5"` (768 dims)
-         *
-         *     **Model ID Format:**
-         *     Models can be specified as `model_name` or `provider/model_name`:
-         *     - `"gemma3:12b"` - auto-detects provider as "ollama"
-         *     - `"ollama/gemma3:12b"` - explicit provider
          * @example {
          *       "name": "Acme Corp",
          *       "slug": "acme"
@@ -6679,12 +6865,14 @@ export interface components {
             description?: string | null;
             /** @description Tenant name. */
             name: string;
+            owner?: null | components["schemas"]["OwnerChoiceDto"];
             /** @description Plan type (free, basic, pro, enterprise). */
             plan?: string | null;
             /** @description Tenant brand color (`#RRGGBB` / `#RGB`). Omit or `none` for the EdgeQuake default. */
             primary_color?: string | null;
             /** @description URL-friendly slug (auto-generated if not provided). */
             slug?: string | null;
+            workspace?: null | components["schemas"]["WorkspaceSeedDto"];
         };
         /**
          * @description Create user request.
@@ -7046,6 +7234,14 @@ export interface components {
             deleted: boolean;
             /** @description Message. */
             message: string;
+        };
+        /**
+         * @example {
+         *       "organization": {}
+         *     }
+         */
+        DeletePermissions: {
+            organization: boolean;
         };
         /**
          * @description Delete relationship response.
@@ -8591,6 +8787,52 @@ export interface components {
             relationship: components["schemas"]["RelationshipResponse"];
         };
         /**
+         * @description One grant on the directory row.
+         * @example {
+         *       "role": {},
+         *       "scope": {},
+         *       "workspace_id": {},
+         *       "workspace_name": {}
+         *     }
+         */
+        GrantSummary: {
+            role: string;
+            /** @description `organization` or `workspace`. */
+            scope: string;
+            workspace_id?: string | null;
+            workspace_name?: string | null;
+        };
+        /**
+         * @description One grant, as the grant editor renders it.
+         * @example {
+         *       "is_active": {},
+         *       "joined_at": {},
+         *       "level": {},
+         *       "membership_id": {},
+         *       "role": {},
+         *       "scope": {},
+         *       "sso_managed": {},
+         *       "user_id": {},
+         *       "workspace_id": {},
+         *       "workspace_name": {}
+         *     }
+         */
+        GrantView: {
+            is_active: boolean;
+            joined_at: string;
+            /** Format: int32 */
+            level: number;
+            membership_id: string;
+            role: string;
+            /** @description `organization` or `workspace`. */
+            scope: string;
+            /** @description `true` when an IdP owns the role and a manual edit would pin it. */
+            sso_managed: boolean;
+            user_id: string;
+            workspace_id?: string | null;
+            workspace_name?: string | null;
+        };
+        /**
          * @description Response for `GET /graph/communities`.
          * @example {
          *       "communities": []
@@ -10036,6 +10278,29 @@ export interface components {
             params?: unknown;
         };
         /**
+         * @example {
+         *       "can_create": {},
+         *       "can_delete": {},
+         *       "organization": {},
+         *       "platform": {},
+         *       "quota": {},
+         *       "reason": {},
+         *       "user_id": {},
+         *       "workspaces": []
+         *     }
+         */
+        MeAccessResponse: {
+            can_create: components["schemas"]["CreatePermissions"];
+            can_delete: components["schemas"]["DeletePermissions"];
+            organization?: null | components["schemas"]["OrganizationAccess"];
+            platform: components["schemas"]["PlatformAccess"];
+            quota: components["schemas"]["QuotaAccess"];
+            reason: components["schemas"]["CreateReason"];
+            user_id: string;
+            /** @description Only workspaces the caller can read. */
+            workspaces: components["schemas"]["WorkspaceAccess"][];
+        };
+        /**
          * @description Whether a directory row is a person or a pending invitation.
          * @example {}
          * @enum {string}
@@ -10134,6 +10399,7 @@ export interface components {
          * @example {
          *       "email": {},
          *       "expires_at": {},
+         *       "grants": [],
          *       "id": {},
          *       "instance_role": {},
          *       "invited_by": {},
@@ -10154,6 +10420,11 @@ export interface components {
         MemberView: {
             email: string;
             expires_at?: string | null;
+            /**
+             * @description SPEC-181: every active grant this person holds, organization first. `role` above stays the
+             *     *primary* grant for clients that predate this field.
+             */
+            grants?: components["schemas"]["GrantSummary"][];
             /** @description Stable row id: the user id, or the invitation id for invitations. */
             id: string;
             /** @description Instance role id (`admin`, `user`, `readonly`); only present for people. */
@@ -11293,6 +11564,32 @@ export interface components {
         };
         /**
          * @example {
+         *       "capabilities": [],
+         *       "id": {},
+         *       "is_active": {},
+         *       "is_archived": {},
+         *       "level": {},
+         *       "name": {},
+         *       "role": {},
+         *       "slug": {}
+         *     }
+         */
+        OrganizationAccess: {
+            capabilities: string[];
+            /** Format: uuid */
+            id: string;
+            is_active: boolean;
+            /** @description `true` when the organization is archived: it grants nothing and must be restored first. */
+            is_archived: boolean;
+            /** Format: int32 */
+            level: number;
+            name: string;
+            /** @description Effective organization role. `None` for a person whose only grants are workspace-scoped. */
+            role?: string | null;
+            slug: string;
+        };
+        /**
+         * @example {
          *       "description": {},
          *       "id": {},
          *       "label": {},
@@ -11310,6 +11607,42 @@ export interface components {
              * @description Privilege rank (1 = lowest); a manager can only assign roles at or below their own.
              */
             level: number;
+        };
+        /**
+         * @description Request to create a new tenant.
+         *
+         *     ## Model Configuration (SPEC-032)
+         *
+         *     When creating a tenant, you can specify default LLM and embedding models
+         *     that will be inherited by all new workspaces within this tenant.
+         *
+         *     **LLM Examples (for knowledge graph generation, summarization):**
+         *     - OpenAI: `"gpt-4o-mini"`, `"gpt-4o"`
+         *     - Ollama: `"gemma3:12b"`, `"llama3.2"`
+         *     - LM Studio: `"gemma-3n-e4b-it-mlxmodel"`
+         *
+         *     **Embedding Examples:**
+         *     - OpenAI: `"text-embedding-3-small"` (1536 dims), `"text-embedding-3-large"` (3072 dims)
+         *     - Ollama: `"embeddinggemma:latest"` (768 dims), `"nomic-embed-text"` (768 dims)
+         *     - LM Studio: `"nomic-ai/nomic-embed-text-v1.5"` (768 dims)
+         *
+         *     **Model ID Format:**
+         *     Models can be specified as `model_name` or `provider/model_name`:
+         *     - `"gemma3:12b"` - auto-detects provider as "ollama"
+         *     - `"ollama/gemma3:12b"` - explicit provider
+         */
+        OwnerChoiceDto: {
+            /** @enum {string} */
+            kind: "self_principal";
+        } | {
+            /** @enum {string} */
+            kind: "user_id";
+            /** Format: uuid */
+            user_id: string;
+        } | {
+            email: string;
+            /** @enum {string} */
+            kind: "email";
         };
         /**
          * @description One page's health across stages.
@@ -12319,6 +12652,33 @@ export interface components {
          * @enum {string}
          */
         PipelinePhase: "upload" | "pdf_conversion" | "chunking" | "embedding" | "extraction" | "graph_storage";
+        /** @description Outcome of one plane. */
+        PlaneOutcome: {
+            /** Format: int64 */
+            count?: number | null;
+            /** @enum {string} */
+            status: "done";
+        } | {
+            reason: string;
+            /** @enum {string} */
+            status: "skipped";
+        } | {
+            error: string;
+            /** @enum {string} */
+            status: "failed";
+        };
+        /**
+         * @example {
+         *       "admin": {},
+         *       "capabilities": [],
+         *       "role": {}
+         *     }
+         */
+        PlatformAccess: {
+            admin: boolean;
+            capabilities: string[];
+            role: string;
+        };
         /**
          * @description One policy row on the wire. `enabled` defaults to true.
          * @example {
@@ -12754,6 +13114,65 @@ export interface components {
             embedding: components["schemas"]["EmbeddingProviderHealth"];
             /** @description LLM provider details. */
             llm: components["schemas"]["LlmProviderHealth"];
+        };
+        /**
+         * @description The human-readable counts a delete confirmation shows before anything is destroyed.
+         * @example {
+         *       "documents": {},
+         *       "entities": {},
+         *       "name": {},
+         *       "original_objects": {},
+         *       "relationships": {},
+         *       "scope_id": {},
+         *       "scope_kind": {},
+         *       "vector_rows": {},
+         *       "workspaces": {}
+         *     }
+         */
+        PurgePreview: {
+            documents: number;
+            entities: number;
+            name: string;
+            original_objects: number;
+            relationships: number;
+            /** Format: uuid */
+            scope_id: string;
+            scope_kind: string;
+            vector_rows: number;
+            workspaces: number;
+        };
+        /**
+         * @description The ledger for one destructive operation.
+         * @example {
+         *       "finished_at": {},
+         *       "planes": {},
+         *       "planes_done": {},
+         *       "planes_total": {},
+         *       "receipt_id": {},
+         *       "scope_id": {},
+         *       "scope_kind": {},
+         *       "started_at": {},
+         *       "status": {},
+         *       "tenant_id": {}
+         *     }
+         */
+        PurgeReceipt: {
+            finished_at?: string | null;
+            planes: {
+                [key: string]: components["schemas"]["PlaneOutcome"];
+            };
+            planes_done: number;
+            planes_total: number;
+            /** Format: uuid */
+            receipt_id: string;
+            /** Format: uuid */
+            scope_id: string;
+            scope_kind: components["schemas"]["ScopeKind"];
+            started_at: string;
+            /** @description `running` | `done` | `partial` | `failed` */
+            status: string;
+            /** Format: uuid */
+            tenant_id: string;
         };
         /**
          * @example {
@@ -13437,6 +13856,16 @@ export interface components {
              * @description Worker utilization percentage (0-100).
              */
             worker_utilization: number;
+        };
+        /**
+         * @example {
+         *       "seats": {},
+         *       "workspaces": {}
+         *     }
+         */
+        QuotaAccess: {
+            seats: components["schemas"]["Budget"];
+            workspaces: components["schemas"]["Budget"];
         };
         /**
          * @description Request fragment. Every field is optional. On create, absent means the default.
@@ -14337,6 +14766,10 @@ export interface components {
          *     }
          */
         RoleCatalog: {
+            /**
+             * @description One row per capability, carrying `axis` so a workspace capability is never drawn under
+             *     the organization columns.
+             */
             capabilities: components["schemas"]["CapabilityInfo"][];
             instance_roles: components["schemas"]["InstanceRoleInfo"][];
             organization_roles: components["schemas"]["OrganizationRoleInfo"][];
@@ -14591,6 +15024,12 @@ export interface components {
             postgres_capabilities?: null | components["schemas"]["PostgresCapabilityHealth"];
             source_ids_indexes?: null | components["schemas"]["SourceIdsIndexHealth"];
         };
+        /**
+         * @description What is being destroyed.
+         * @example {}
+         * @enum {string}
+         */
+        ScopeKind: "workspace" | "organization";
         /**
          * @description Search labels query.
          * @example {
@@ -15642,6 +16081,7 @@ export interface components {
          *
          *     Includes default model configuration (SPEC-032) for new workspaces.
          * @example {
+         *       "archived_at": {},
          *       "created_at": {},
          *       "default_embedding_dimension": {},
          *       "default_embedding_full_id": {},
@@ -15655,16 +16095,22 @@ export interface components {
          *       "default_vision_llm_provider": {},
          *       "id": {},
          *       "is_active": {},
+         *       "max_users": {},
          *       "max_workspaces": {},
+         *       "members_used": {},
+         *       "my_role": {},
          *       "name": {},
          *       "pdf_parser_backend": {},
          *       "plan": {},
          *       "primary_color": {},
          *       "slug": {},
-         *       "updated_at": {}
+         *       "updated_at": {},
+         *       "workspaces_used": {}
          *     }
          */
         TenantResponse: {
+            /** @description When the organization was archived; `null` while live. */
+            archived_at?: string | null;
             /** @description Creation timestamp. */
             created_at: string;
             /** @description Default embedding dimension for new workspaces. */
@@ -15700,8 +16146,14 @@ export interface components {
             id: string;
             /** @description Whether the tenant is active. */
             is_active: boolean;
+            /** @description Maximum people allowed. `0` means unlimited. */
+            max_users: number;
             /** @description Maximum workspaces allowed. */
             max_workspaces: number;
+            /** @description Distinct active members. */
+            members_used: number;
+            /** @description The caller's effective role in this organization, when they hold a grant. */
+            my_role?: string | null;
             /** @description Tenant name. */
             name: string;
             pdf_parser_backend?: null | components["schemas"]["PdfParserBackendName"];
@@ -15713,6 +16165,8 @@ export interface components {
             slug: string;
             /** @description Last update timestamp. */
             updated_at: string;
+            /** @description Workspaces that count against the plan (archived ones do not). */
+            workspaces_used: number;
         };
         /**
          * @example {
@@ -15899,6 +16353,14 @@ export interface components {
              * @description New position.
              */
             position?: number | null;
+        };
+        /**
+         * @example {
+         *       "role": {}
+         *     }
+         */
+        UpdateGrantRequest: {
+            role: string;
         };
         /**
          * @description Request body for updating an existing injection entry.
@@ -16429,6 +16891,30 @@ export interface components {
             withdrawn: boolean;
         };
         /**
+         * @example {
+         *       "capabilities": [],
+         *       "id": {},
+         *       "inherited": {},
+         *       "level": {},
+         *       "name": {},
+         *       "role": {},
+         *       "slug": {}
+         *     }
+         */
+        WorkspaceAccess: {
+            capabilities: string[];
+            /** Format: uuid */
+            id: string;
+            /** @description `true` when the role comes from the organization grant rather than a workspace row. */
+            inherited: boolean;
+            /** Format: int32 */
+            level: number;
+            name: string;
+            /** @description Effective role, after the organization's implicit grant. */
+            role: string;
+            slug: string;
+        };
+        /**
          * @description Workspace cost summary response.
          * @example {
          *       "average_cost_per_document": {},
@@ -16505,6 +16991,8 @@ export interface components {
          *     Includes full model configuration (SPEC-032) for transparency.
          */
         WorkspaceResponse: components["schemas"]["ExtractionModeView"] & components["schemas"]["RagProfileView"] & {
+            /** @description SPEC-181: when it was archived; `null` while live. Archived stops counting toward the plan. */
+            archived_at?: string | null;
             /** Format: int32 */
             chunk_overlap_token_size?: number | null;
             /** Format: int32 */
@@ -16617,6 +17105,22 @@ export interface components {
             vision_llm_provider?: string | null;
             vision_llm_resolution_source?: string | null;
             vision_page_system_prompt?: string | null;
+        };
+        /**
+         * @description The workspace an organization starts with.
+         * @example {
+         *       "name": {},
+         *       "rag_profile": {},
+         *       "slug": {}
+         *     }
+         */
+        WorkspaceSeedDto: {
+            /** @description Display name. Defaults to `Default Workspace`. */
+            name?: string | null;
+            /** @description SPEC-180: `graph` (default) or `normal`. Immutable after create. */
+            rag_profile?: string | null;
+            /** @description URL slug. Defaults to `default`. */
+            slug?: string | null;
         };
         /**
          * @description Workspace statistics response.
@@ -21518,6 +22022,31 @@ export interface operations {
             };
         };
     };
+    get_me_access: {
+        parameters: {
+            query?: {
+                /** @description Organization to inspect; defaults to the caller's default */
+                tenant_id?: string;
+                /** @description Workspace to include when it is not listed */
+                workspace_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's grants, capabilities and quota */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeAccessResponse"];
+                };
+            };
+        };
+    };
     get_settings_access: {
         parameters: {
             query?: {
@@ -23056,6 +23585,141 @@ export interface operations {
             };
         };
     };
+    list_grants: {
+        parameters: {
+            query?: {
+                /** @description Only this person's grants */
+                user_id?: string;
+                /** @description Only grants on this workspace */
+                workspace_id?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Organization id */
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Grants */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantView"][];
+                };
+            };
+        };
+    };
+    create_grant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization id */
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateGrantRequest"];
+            };
+        };
+        responses: {
+            /** @description Grant created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantView"];
+                };
+            };
+            /** @description Scope does not belong to this organization */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The person already holds this grant */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_grant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization id */
+                tenant_id: string;
+                /** @description Grant id */
+                membership_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Grant removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Would orphan the organization */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_grant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization id */
+                tenant_id: string;
+                /** @description Grant id */
+                membership_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateGrantRequest"];
+            };
+        };
+        responses: {
+            /** @description Grant updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantView"];
+                };
+            };
+            /** @description Would orphan the organization */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     create_invitation: {
         parameters: {
             query?: never;
@@ -23525,6 +24189,29 @@ export interface operations {
             };
         };
     };
+    tenant_purge_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization ID */
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Counts for the delete confirmation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurgePreview"];
+                };
+            };
+        };
+    };
     list_workspaces: {
         parameters: {
             query?: {
@@ -23936,15 +24623,58 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Workspace deleted with cascade */
-            204: {
+            /** @description Purge started; the receipt reports every plane */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurgeReceipt"];
+                };
+            };
+            /** @description Workspace not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
+        };
+    };
+    archive_workspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace ID */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArchiveWorkspaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Workspace archived */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceResponse"];
+                };
+            };
             /** @description Workspace not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Already archived */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -24634,6 +25364,29 @@ export interface operations {
             };
         };
     };
+    purge_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace ID */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Counts for the delete confirmation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurgePreview"];
+                };
+            };
+        };
+    };
     rebuild_embeddings: {
         parameters: {
             query?: never;
@@ -24777,6 +25530,43 @@ export interface operations {
             };
             /** @description Workspace not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    restore_workspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Workspace ID */
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Workspace restored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceResponse"];
+                };
+            };
+            /** @description Workspace not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Plan is full */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

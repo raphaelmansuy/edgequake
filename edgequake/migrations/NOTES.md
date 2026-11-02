@@ -3,7 +3,7 @@
 > **IMMUTABILITY RULE**: All `.sql` files in this directory are checksum-locked  
 > (`checksums.lock`). Never edit an existing `.sql` migration file.  
 > New schema changes must be new numbered migration files.
-> Schema train head: migration **225** (`225_spec180_normal_rag.sql`).
+> Schema train head: migration **226** (`226_spec181_admin.sql`; **225** is `225_spec180_normal_rag.sql`).
 
 ---
 

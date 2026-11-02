@@ -6,11 +6,12 @@
 # v0.38.0 owns schema 219. v0.38.1 owns schema 224.
 # v0.38.2 and v0.38.3 serve that same migration set, and v0.38.4 does too.
 # (SPEC-174 clearance through SPEC-179 provider refresh).
+# v0.39.0 owns schema 226 (SPEC-180 Normal RAG, SPEC-181 admin).
 
 [unreleased]
-hash = "73af5a1576afcbd3"
-max = 224
-files = 222
+hash = "81651e73037b6344"
+max = 226
+files = 224
 
 [[epoch]]
 tag = "v0.2.0"
@@ -375,3 +376,12 @@ replay = true
 # hash 73af5a1576afcbd3 (222 numbered migration files)
 # v0.38.3 and v0.38.4 serve this same set. Their tags are covered by this hash
 # until a later cut adds its own row.
+
+[[epoch]]
+tag = "v0.39.0"
+mode = "image"
+pg_majors = [16,17,18]
+key = true
+replay = true
+# max mig 226 (SPEC-180 normal RAG profile, SPEC-181 admin; migrations 225–226)
+# hash 81651e73037b6344 (224 numbered migration files)

@@ -6,6 +6,7 @@
  * edges so a selection's links stay visible through dense overlapping discs.
  */
 import type Sigma from "sigma";
+import { edgeCurveGeometry } from "./edge-curve-geometry";
 
 export const FOCUS_EDGES_LAYER_ID = "focusEdges";
 
@@ -128,21 +129,18 @@ export function bindFocusEdgeOverlay(
         sigma.scaleSize(typeof display.size === "number" ? display.size : 2),
       );
 
-      const dx = tVp.x - sVp.x;
-      const dy = tVp.y - sVp.y;
-      const len = Math.hypot(dx, dy);
-      if (len < 1) continue;
-
-      const ux = dx / len;
-      const uy = dy / len;
-      const startX = sVp.x + ux * sourceSize;
-      const startY = sVp.y + uy * sourceSize;
-      const endX = tVp.x - ux * (targetSize + thickness);
-      const endY = tVp.y - uy * (targetSize + thickness);
-
       const curvatureRaw = graph.getEdgeAttribute(edge, "curvature");
       const curvature =
         typeof curvatureRaw === "number" ? curvatureRaw : undefined;
+
+      const geometry = edgeCurveGeometry(
+        { x: sVp.x, y: sVp.y },
+        { x: tVp.x, y: tVp.y },
+        sourceSize,
+        targetSize + thickness,
+        curvature,
+      );
+      if (!geometry) continue;
 
       ctx.strokeStyle = stroke;
       ctx.fillStyle = stroke;
@@ -151,23 +149,25 @@ export function bindFocusEdgeOverlay(
       ctx.lineJoin = "round";
 
       ctx.beginPath();
-      ctx.moveTo(startX, startY);
-      let tipAngle = Math.atan2(dy, dx);
-      if (typeof curvature === "number" && Math.abs(curvature) > 1e-4) {
-        const midX = (startX + endX) / 2;
-        const midY = (startY + endY) / 2;
-        const chord = Math.hypot(endX - startX, endY - startY) || 1;
-        const nx = -(endY - startY) / chord;
-        const ny = (endX - startX) / chord;
-        const cx = midX + nx * curvature * chord * 0.5;
-        const cy = midY + ny * curvature * chord * 0.5;
-        ctx.quadraticCurveTo(cx, cy, endX, endY);
-        tipAngle = Math.atan2(endY - cy, endX - cx);
+      ctx.moveTo(geometry.start.x, geometry.start.y);
+      if (geometry.control) {
+        ctx.quadraticCurveTo(
+          geometry.control.x,
+          geometry.control.y,
+          geometry.end.x,
+          geometry.end.y,
+        );
       } else {
-        ctx.lineTo(endX, endY);
+        ctx.lineTo(geometry.end.x, geometry.end.y);
       }
       ctx.stroke();
-      drawArrowHead(ctx, endX, endY, tipAngle, Math.max(6, thickness * 2.2));
+      drawArrowHead(
+        ctx,
+        geometry.end.x,
+        geometry.end.y,
+        geometry.tipAngle,
+        Math.max(6, thickness * 2.2),
+      );
     }
   };
 
