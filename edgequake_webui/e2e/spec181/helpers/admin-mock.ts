@@ -52,6 +52,8 @@ export interface AdminMockOptions {
   noWorkspaces?: boolean;
   /** Force a specific failure on the next create. */
   failCreate?: "quota" | "slug" | "server";
+  /** The model offer the create dialog reads. Defaults to two providers with three roles each. */
+  modelOffer?: AdminModelOffer;
   theme?: "light" | "dark";
 }
 
@@ -196,6 +198,65 @@ const PLAN_QUOTA: Record<string, { max_workspaces: number; max_users: number }> 
   enterprise: { max_workspaces: 500, max_users: 0 },
 };
 
+/** The model offer the create dialog's pickers read. Two providers, so a change is visible. */
+export interface AdminModelOffer {
+  /** Pairs the organization may use. Empty means "no provider is offered". */
+  models?: {
+    provider: string;
+    model: string;
+    dimension?: number;
+    vision?: boolean;
+    /**
+     * Offered for `extract` only, not for `query`/`summary`/`keyword`. A real shape: a model
+     * good enough to extract but not to answer. The Extract picker lists it, and the wizard's
+     * chat-family judgement then refuses it — which is what the dialog must surface.
+     */
+    extractOnly?: boolean;
+  }[];
+}
+
+const DEFAULT_OFFER: NonNullable<AdminModelOffer["models"]> = [
+  // The dialog's inherited vision resolves to the LLM pair, so both must be offered for VLM.
+  { provider: "openai", model: "gpt-5-nano", vision: true },
+  { provider: "openai", model: "gpt-6-luna", vision: true },
+  { provider: "openai", model: "gpt-6-mini" },
+  { provider: "ollama", model: "gemma3:12b", vision: true },
+  { provider: "openai", model: "text-embedding-3-small", dimension: 1536 },
+  { provider: "ollama", model: "embeddinggemma:latest", dimension: 768 },
+];
+
+/**
+ * `GET /models/eligible` for the create dialog.
+ *
+ * Registering the generic `GET /api/v1/models` mock also matches `/models/eligible`, so a
+ * specific route has to win. The answer mirrors the real DTO (`EligibleModelDto`), because the
+ * dialog's row summaries and the pickers both read those fields.
+ */
+async function mockCreateDialogOffer(page: Page, offer: AdminModelOffer): Promise<void> {
+  const models = offer.models ?? DEFAULT_OFFER;
+  await page.route("**/api/v1/models/eligible**", async (route: Route) => {
+    const usage = new URL(route.request().url()).searchParams.get("usage") ?? "query";
+    const offered = models
+      .filter((m) =>
+        usage === "embedding" ? m.dimension !== undefined : m.dimension === undefined,
+      )
+      .filter((m) => (usage === "vlm" ? m.vision === true : true))
+      .filter((m) => (m.extractOnly === true ? usage === "extract" : true))
+      .map((m) => ({
+        provider: m.provider,
+        provider_display_name: m.provider === "openai" ? "OpenAI" : "Ollama",
+        model: m.model,
+        display_name: m.model,
+        supports_vision: m.vision === true,
+        supports_streaming: usage !== "embedding",
+        embedding_dimension: m.dimension ?? null,
+      }));
+    await route.fulfill(
+      json({ usage, scope: "tenant", policy_mode: "unconstrained", models: offered }),
+    );
+  });
+}
+
 /**
  * Install the mock. Returns the live state so a test can assert what the UI actually sent.
  */
@@ -213,6 +274,9 @@ export async function prepareAdminPage(
   } else {
     await prepareSpec168Page(page, { theme: opts.theme, empty: opts.noWorkspaces });
   }
+
+  // After the SPEC-168 layer, so `/models/eligible` beats its generic `/models` route.
+  await mockCreateDialogOffer(page, opts.modelOffer ?? {});
 
   const state: AdminMockState = {
     organizations: opts.noOrganizations

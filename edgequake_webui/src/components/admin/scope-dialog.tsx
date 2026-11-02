@@ -59,6 +59,12 @@ export interface ScopeDialogProps {
   /** A confirmation card has nothing to cancel; the only exit is the primary action. */
   hideCancel?: boolean;
   onFinish: () => void;
+  /**
+   * First refusal for Escape, before the discard prompt. A dialog with collapsible rows (the
+   * create-workspace models section) closes the open row instead of throwing the draft away.
+   * Return `true` when the Escape was consumed.
+   */
+  onEscape?: () => boolean;
   testId: string;
 }
 
@@ -77,6 +83,7 @@ export function ScopeDialog({
   isDirty = false,
   hideCancel = false,
   onFinish,
+  onEscape,
   testId,
 }: ScopeDialogProps) {
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -132,6 +139,11 @@ export function ScopeDialog({
             }
           }}
           onEscapeKeyDown={(e) => {
+            // A row that is open is the closest thing on screen; close it, do not discard.
+            if (onEscape?.()) {
+              e.preventDefault();
+              return;
+            }
             if (isDirty) {
               e.preventDefault();
               setConfirmDiscard(true);

@@ -13,6 +13,7 @@
 import { ChoiceCard, ScopeDialog } from "@/components/admin/scope-dialog";
 import { MeterRow } from "@/components/admin/primitives";
 import { TuneLater } from "@/components/admin/tune-later";
+import { WorkspaceModelsPanel } from "@/components/admin/workspace-models-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +25,17 @@ import {
   useCreateWorkspace,
 } from "@/hooks/use-create-scope";
 import { useInheritedModelDefaults } from "@/hooks/use-inherited-model-defaults";
+import { useWizardEligibility } from "@/hooks/use-wizard-eligibility";
+import {
+  blockedModelSentence,
+  emptyModelDraft,
+  hasAnyPick,
+  inheritedRoles,
+  refusedPickedRoles,
+  toModelPayload,
+  type ModelRole,
+  type WorkspaceModelDraft,
+} from "@/lib/admin/workspace-model-draft";
 import { useTenantStore } from "@/stores/use-tenant-store";
 import type { CreateWorkspaceRequest } from "@/types";
 import { slugifyName } from "@/lib/onboarding/slug";
@@ -59,6 +71,8 @@ export function CreateWorkspaceDialog({
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [retrieval, setRetrieval] = useState<Retrieval>("graph");
+  const [models, setModels] = useState<WorkspaceModelDraft>(emptyModelDraft);
+  const [openRole, setOpenRole] = useState<ModelRole | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [advanced, setAdvanced] = useState<Record<string, string>>({});
   const [error, setError] = useState<{ kind: string; message: string } | null>(null);
@@ -73,22 +87,78 @@ export function CreateWorkspaceDialog({
     () => slugifyName(slug || name),
     [slug, name],
   );
+  const ladder = useMemo(
+    () =>
+      inheritedRoles({
+        defaultLlmProvider: inherited.defaultLlmProvider,
+        defaultLlmModel: inherited.defaultLlmModel,
+        defaultEmbeddingProvider: inherited.defaultEmbeddingProvider,
+        defaultEmbeddingModel: inherited.defaultEmbeddingModel,
+        defaultEmbeddingDimension: inherited.defaultEmbeddingDimension,
+        defaultVisionProvider: inherited.defaultVisionProvider,
+        defaultVisionModel: inherited.defaultVisionModel,
+      }),
+    [
+      inherited.defaultLlmProvider,
+      inherited.defaultLlmModel,
+      inherited.defaultEmbeddingProvider,
+      inherited.defaultEmbeddingModel,
+      inherited.defaultEmbeddingDimension,
+      inherited.defaultVisionProvider,
+      inherited.defaultVisionModel,
+    ],
+  );
+
+  /**
+   * Judged by the same hook the wizards use, against the offer for the tenant this workspace
+   * will belong to. Inheritance is judged too: an organization default that is no longer offered
+   * has to be visible here, not discovered as a 422 after pressing Create.
+   */
+  const eligibility = useWizardEligibility({
+    scope: target ? "tenant" : "deployment",
+    id: target,
+    useDefaults: models.source === "inherit",
+    inherited: {
+      defaultLlmProvider: inherited.defaultLlmProvider,
+      defaultLlmModel: inherited.defaultLlmModel,
+      defaultEmbeddingProvider: inherited.defaultEmbeddingProvider,
+      defaultEmbeddingModel: inherited.defaultEmbeddingModel,
+      defaultVisionProvider: inherited.defaultVisionProvider,
+      defaultVisionModel: inherited.defaultVisionModel,
+    },
+    llm: models.llm as { provider?: string; model?: string } | undefined,
+    embedding: models.embedding as
+      | { provider?: string; model?: string; dimension?: number }
+      | undefined,
+    vision: models.vision as { provider?: string; model?: string } | undefined,
+  });
+  const modelBlocked = refusedPickedRoles(eligibility.verdicts, models);
   const trimmed = name.trim();
-  const canFinish = trimmed.length > 0 && !create.isPending;
   const quota = access.quota.workspaces;
   const quotaBlocked = access.reason.workspace === "workspace_quota_reached";
   const orgName = access.organization?.name ?? "your organization";
+  /**
+   * Two different questions, deliberately:
+   * - `ready` is what the footer shows, so a refusal is stated beside the button it disables.
+   * - `canFinish` also needs a name, but a missing name must stay an *attempt* that then explains
+   *   itself, not an inert button beside a hint nobody asked for (LAW-181-14).
+   */
+  const ready = !quotaBlocked && modelBlocked.length === 0;
+  const canFinish = trimmed.length > 0 && !create.isPending && modelBlocked.length === 0;
 
+  const quotaReason = `Your plan allows ${quota.limit} workspaces. Archive one you no longer need, or ask your platform admin to raise the limit.`;
   const blockedReason = quotaBlocked
-    ? `Your plan allows ${quota.limit} workspaces. Archive one you no longer need, or ask your platform admin to raise the limit.`
-    : !trimmed && attempted
-      ? "Give the workspace a name."
+    ? quotaReason
+    : modelBlocked.length > 0
+      ? blockedModelSentence(modelBlocked)
       : null;
 
   const reset = () => {
     setName("");
     setSlug("");
     setRetrieval("graph");
+    setModels(emptyModelDraft());
+    setOpenRole(null);
     setAdvanced({});
     setAdvancedOpen(false);
     setError(null);
@@ -116,6 +186,7 @@ export function CreateWorkspaceDialog({
         rag_profile: retrieval,
         // Only send what the operator actually chose; an absent field stays inherited (LAW-123-8).
         ...toIngestPayload(advanced),
+        ...toModelPayload(models),
       },
       {
         onSuccess: ({ tenant, workspace }) => {
@@ -141,12 +212,18 @@ export function CreateWorkspaceDialog({
       title="Create a workspace"
       lead="Workspaces keep documents and knowledge apart."
       quota={{ label: "Workspaces", used: quota.used, limit: quota.limit }}
-      canFinish={quotaBlocked ? false : true}
+      canFinish={ready}
       blockedReason={blockedReason}
       busy={create.isPending}
       finishLabel="Create workspace"
-      isDirty={trimmed.length > 0 || advancedCount > 0}
+      isDirty={trimmed.length > 0 || advancedCount > 0 || hasAnyPick(models) || models.source === "choose"}
       onFinish={finish}
+      onEscape={() => {
+        // Collapse the open model row first; a second Escape then asks to discard.
+        if (!openRole) return false;
+        setOpenRole(null);
+        return true;
+      }}
       testId="create-workspace-dialog"
     >
       <div className="space-y-5">
@@ -198,39 +275,19 @@ export function CreateWorkspaceDialog({
           </div>
         </div>
 
-        {/* 3 — Models. Inheritance printed, not assumed. */}
-        <div className="space-y-1.5">
-          <Label className="text-[13px] font-medium">Models</Label>
-          <div className="rounded-lg border bg-muted/30 p-3">
-            <p className="text-[12.5px] font-medium text-foreground">Inherit from {orgName}</p>
-            <dl className="mt-1.5 space-y-1">
-              <ModelLine
-                label="Extract"
-                value={
-                  inherited.isLoading
-                    ? "loading…"
-                    : joinId(inherited.defaultLlmProvider, inherited.defaultLlmModel)
-                }
-              />
-              <ModelLine
-                label="Embed"
-                value={
-                  inherited.isLoading
-                    ? "loading…"
-                    : joinId(inherited.defaultEmbeddingProvider, inherited.defaultEmbeddingModel)
-                }
-              />
-              <ModelLine
-                label="Vision"
-                value={
-                  inherited.isLoading
-                    ? "loading…"
-                    : joinId(inherited.defaultVisionProvider, inherited.defaultVisionModel)
-                }
-              />
-            </dl>
-          </div>
-        </div>
+        {/* 3 — Models. Inheritance stays the default and stays printed; a change is now possible. */}
+        <WorkspaceModelsPanel
+          draft={models}
+          onChange={setModels}
+          tenantId={target ?? null}
+          orgName={orgName}
+          isLoading={inherited.isLoading}
+          ladder={ladder}
+          verdicts={eligibility.verdicts}
+          openRole={openRole}
+          onOpenRoleChange={setOpenRole}
+          canManageProviders={access.organization?.capabilities.has("organization.settings.manage") ?? false}
+        />
 
         {/* Tune later — everything the 8-step wizard asked for, collapsed. */}
         <TuneLater
@@ -318,33 +375,4 @@ function parsePdfBackend(
     default:
       return undefined;
   }
-}
-
-/** `provider/model`, or `not set` when either side is absent. */
-function joinId(provider?: string, model?: string): string {
-  return provider && model ? `${provider}/${model}` : "not set";
-}
-
-/**
- * One inherited model line.
- *
- * Rendered as `Extract   openai/gpt-5-nano`, with "not set" *as the value* rather than a
- * separate "Not set ·" prefix. The earlier version reused `InheritLine`, which printed
- * "Not set · openai/gpt-5-nano" — reading as a contradiction (found in round-01 screenshots).
- */
-function ModelLine({ label, value }: { label: string; value: string }) {
-  const unset = value === "not set" || value.length === 0;
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="w-[4.25rem] shrink-0 text-[12px] text-muted-foreground">{label}</dt>
-      <dd
-        className={cn(
-          "min-w-0 flex-1 truncate text-right font-mono text-[11.5px]",
-          unset ? "text-muted-foreground" : "text-foreground",
-        )}
-      >
-        {unset ? "not set" : value}
-      </dd>
-    </div>
-  );
 }

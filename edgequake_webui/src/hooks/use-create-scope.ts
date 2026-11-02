@@ -110,18 +110,54 @@ export type CreateFailureKind =
   | 'models'
   | 'server';
 
+/**
+ * The reason codes the create routes can return, per `specs/178-…/08-api-contract.md` and
+ * `model_policy_enforcement`. The server sends these in the body's `code` field (`ApiError::Coded`
+ * serialises `{ kind, code, message, status }`), so reading `code` is the contract; scraping the
+ * prose is a fallback for transports that lose the body.
+ */
+const MODEL_REASON_CODES = new Set([
+  'model_not_eligible',
+  'capability_mismatch',
+  'model_pair_incomplete',
+  'embedding_dimension_mismatch',
+  'embedding_not_multimodal',
+  'usage_locked',
+]);
+
 export function classifyCreateFailure(error: unknown): {
   kind: CreateFailureKind;
   message: string;
 } {
   const message = error instanceof Error ? error.message : String(error);
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? String((error as { code?: unknown }).code ?? '')
+      : '';
+
+  // Structured first: an explicit code cannot be misread, unlike prose.
+  if (code) {
+    if (code === 'workspace_quota_reached') return { kind: 'quota', message };
+    if (code === 'tenant_slug_taken' || code === 'workspace_slug_taken') {
+      return { kind: 'slug', message };
+    }
+    if (code === 'capability_required') return { kind: 'capability', message };
+    if (code === 'scope_inactive') return { kind: 'inactive', message };
+    if (MODEL_REASON_CODES.has(code)) return { kind: 'models', message };
+  }
+
+  // Fallback: the code folded into the message, or a human sentence about the same causes.
   if (/workspace_quota_reached/i.test(message)) return { kind: 'quota', message };
   if (/tenant_slug_taken|workspace_slug_taken/i.test(message)) return { kind: 'slug', message };
   if (/capability_required|Admin role required|owner\/admin membership/i.test(message)) {
     return { kind: 'capability', message };
   }
   if (/scope_inactive|archived/i.test(message)) return { kind: 'inactive', message };
-  if (/models_not_eligible|not_multimodal|embedding/i.test(message)) {
+  if (
+    /models?_not_eligible|not_multimodal|embedding_dimension_mismatch|model_pair_incomplete|usage_locked|not offered to this/i.test(
+      message,
+    )
+  ) {
     return { kind: 'models', message };
   }
   return { kind: 'server', message };

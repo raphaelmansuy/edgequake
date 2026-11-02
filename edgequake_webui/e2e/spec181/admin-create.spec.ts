@@ -128,6 +128,168 @@ test.describe("SPEC-181 create workspace @spec181", () => {
     expect(body.embedding_model).toBeUndefined();
   });
 
+  test("choosing models carries them in one POST", async ({ page }) => {
+    const state = await open(page, { viewer: "owner" });
+    await openSwitcher(page);
+    await page.getByTestId("header-create-workspace").click();
+    await page.getByTestId("create-workspace-name").fill("Contracts");
+
+    // The section is a decision now, not a printed statement.
+    await expect(page.getByTestId("create-workspace-models-inherit")).toBeVisible();
+    await page.getByTestId("create-workspace-models-choose").click();
+    await expect(page.getByTestId("create-workspace-models-row-llm-picker")).toBeVisible();
+
+    // Provider → model, exactly the two-step picker the settings page uses. Choosing a provider
+    // opens the model step on the next frame, and that menu is portaled to the document body.
+    await page.getByTestId("create-workspace-models-row-llm-picker").getByTestId("model-picker-provider-trigger").click();
+    await page.getByTestId("model-picker-provider-option-ollama").click();
+    await page.getByTestId("model-picker-panel-search").waitFor({ state: "visible" });
+    await page.getByTestId("model-picker-option-ollama-gemma3:12b").click();
+
+    // The collapsed row now says the choice belongs to this workspace.
+    await expect(page.getByTestId("create-workspace-models-row-llm")).toContainText("this workspace");
+    await expect(page.getByTestId("create-workspace-models-row-llm")).toContainText("ollama/gemma3:12b");
+    // Choosing collapses the row, so the result is visible instead of the picker that produced it.
+    await expect(page.getByTestId("create-workspace-models-row-llm-picker")).toHaveCount(0);
+    await shotBoth(page, "create-workspace-models-custom");
+
+    await page.getByTestId("create-workspace-dialog-finish").click();
+    await expect(page.getByTestId("create-workspace-dialog")).toBeHidden({ timeout: 20_000 });
+
+    const posts = state.calls.filter((c) => c.method === "POST" && c.path.includes("/workspaces"));
+    expect(posts).toHaveLength(1);
+    const body = posts[0].body as Record<string, unknown>;
+    expect(body.llm_provider).toBe("ollama");
+    expect(body.llm_model).toBe("gemma3:12b");
+    // A role left alone keeps inheriting, so it is absent from the body.
+    expect(body.embedding_model).toBeUndefined();
+    expect(body.vision_llm_model).toBeUndefined();
+  });
+
+  test("a role can be returned to inherited before creating", async ({ page }) => {
+    const state = await open(page, { viewer: "owner" });
+    await openSwitcher(page);
+    await page.getByTestId("header-create-workspace").click();
+    await page.getByTestId("create-workspace-name").fill("Contracts");
+
+    await page.getByTestId("create-workspace-models-choose").click();
+    await page.getByTestId("create-workspace-models-row-llm-picker").getByTestId("model-picker-provider-trigger").click();
+    await page.getByTestId("model-picker-provider-option-ollama").click();
+    await page.getByTestId("model-picker-panel-search").waitFor({ state: "visible" });
+    await page.getByTestId("model-picker-option-ollama-gemma3:12b").click();
+    await expect(page.getByTestId("create-workspace-models-row-llm")).toContainText("this workspace");
+
+    // One-way doors are a defect: the row can go back to the organization default. Picking a
+    // pair collapses the row, so reopen it first.
+    await page.getByTestId("create-workspace-models-row-llm-toggle").click();
+    await page.getByTestId("create-workspace-models-row-llm-clear").click();
+    await expect(page.getByTestId("create-workspace-models-row-llm")).not.toContainText("this workspace");
+
+    await page.getByTestId("create-workspace-dialog-finish").click();
+    await expect(page.getByTestId("create-workspace-dialog")).toBeHidden({ timeout: 20_000 });
+    const body = state.calls.filter((c) => c.method === "POST" && c.path.includes("/workspaces"))[0]
+      .body as Record<string, unknown>;
+    expect(body.llm_model).toBeUndefined();
+  });
+
+  test("an inheriting create still sends no model fields after visiting the rows", async ({ page }) => {
+    const state = await open(page, { viewer: "owner" });
+    await openSwitcher(page);
+    await page.getByTestId("header-create-workspace").click();
+    await page.getByTestId("create-workspace-name").fill("Contracts");
+
+    // Explore the chooser, then go back to the default. Nothing may leak into the body.
+    await page.getByTestId("create-workspace-models-choose").click();
+    await page.getByTestId("create-workspace-models-use-inherited").click();
+    await expect(page.getByTestId("create-workspace-models-rows")).toHaveCount(0);
+
+    await page.getByTestId("create-workspace-dialog-finish").click();
+    await expect(page.getByTestId("create-workspace-dialog")).toBeHidden({ timeout: 20_000 });
+    const body = state.calls.filter((c) => c.method === "POST" && c.path.includes("/workspaces"))[0]
+      .body as Record<string, unknown>;
+    expect(body.llm_model).toBeUndefined();
+    expect(body.llm_provider).toBeUndefined();
+    expect(body.embedding_model).toBeUndefined();
+    expect(body.vision_llm_model).toBeUndefined();
+  });
+
+  test("inherited values are readable in the default card", async ({ page }) => {
+    await open(page, { viewer: "owner" });
+    await openSwitcher(page);
+    await page.getByTestId("header-create-workspace").click();
+    const inherit = page.getByTestId("create-workspace-models-inherit");
+    await expect(inherit).toContainText("Extract");
+    await expect(inherit).toContainText("Embed");
+    await expect(inherit).toContainText("Vision");
+    // The consequence of inheriting is stated, not implied.
+    await expect(inherit).toContainText("reaches this workspace");
+  });
+
+  test("a refused pick names the role and blocks Create only then", async ({ page }) => {
+    // Offered for extraction but not for answering: the picker lists it, the family refuses it.
+    const state = await open(page, {
+      viewer: "owner",
+      modelOffer: {
+        models: [
+          { provider: "openai", model: "gpt-6-luna" },
+          { provider: "ollama", model: "gemma3:12b", extractOnly: true },
+          { provider: "openai", model: "text-embedding-3-small", dimension: 1536 },
+        ],
+      },
+    });
+    await openSwitcher(page);
+    await page.getByTestId("header-create-workspace").click();
+    await page.getByTestId("create-workspace-name").fill("Contracts");
+    await page.getByTestId("create-workspace-models-choose").click();
+
+    await page.getByTestId("create-workspace-models-row-llm-picker").getByTestId("model-picker-provider-trigger").click();
+    await page.getByTestId("model-picker-provider-option-ollama").click();
+    await page.getByTestId("model-picker-panel-search").waitFor({ state: "visible" });
+    await page.getByTestId("model-picker-option-ollama-gemma3:12b").click();
+
+    // The row says what is wrong, and the footer repeats it with the fix.
+    const row = page.getByTestId("create-workspace-models-row-llm");
+    await expect(row).toHaveAttribute("data-refusal", "blocking");
+    await expect(row.getByTestId("create-workspace-models-row-llm-refusal")).toBeVisible();
+    await expect(page.getByTestId("create-workspace-dialog-blocked-reason")).toContainText(
+      "Choose another model for Extract",
+    );
+    await expect(page.getByTestId("create-workspace-dialog-finish")).toBeDisabled();
+    await shotBoth(page, "create-workspace-models-refused");
+
+    // Back to inherited: the refusal disappears with the pick, and Create is usable again.
+    await page.getByTestId("create-workspace-models-row-llm-toggle").click();
+    await page.getByTestId("create-workspace-models-row-llm-clear").click();
+    await expect(page.getByTestId("create-workspace-dialog-blocked-reason")).toBeEmpty();
+    await expect(page.getByTestId("create-workspace-dialog-finish")).toBeEnabled();
+    expect(state.calls.filter((c) => c.method === "POST")).toHaveLength(0);
+  });
+
+  test("an unoffered organization default warns without blocking", async ({ page }) => {
+    // The inherited default is not in the offer. The server still accepts an inheriting create,
+    // so this must be an advisory, never a red row beside an enabled button.
+    await open(page, {
+      viewer: "owner",
+      modelOffer: {
+        models: [
+          { provider: "ollama", model: "gemma3:12b" },
+          { provider: "openai", model: "text-embedding-3-small", dimension: 1536 },
+        ],
+      },
+    });
+    await openSwitcher(page);
+    await page.getByTestId("header-create-workspace").click();
+    await page.getByTestId("create-workspace-name").fill("Contracts");
+
+    await expect(page.getByTestId("create-workspace-models-stale-inherit")).toContainText(
+      "not offered here",
+    );
+    await expect(page.getByTestId("create-workspace-dialog-finish")).toBeEnabled();
+
+    await page.getByTestId("create-workspace-dialog-finish").click();
+    await expect(page.getByTestId("create-workspace-dialog")).toBeHidden({ timeout: 20_000 });
+  });
+
   test("the Tune later drawer prints inherited values", async ({ page }) => {
     await open(page, { viewer: "owner" });
     await openSwitcher(page);
@@ -175,6 +337,16 @@ test.describe("SPEC-181 responsive @spec181", () => {
       await expect(page.getByTestId("create-workspace-dialog-finish")).toBeVisible();
       await shot(page, "create-workspace", { theme: "light", width });
       await shot(page, "create-workspace", { theme: "dark", width });
+
+      // The models section is the one new surface: it must fit and stay operable here too.
+      await page.getByTestId("create-workspace-models-choose").click();
+      await expect(page.getByTestId("create-workspace-models-row-llm-picker")).toBeVisible();
+      const section = await page.getByTestId("create-workspace-models").boundingBox();
+      expect(section, `models section must render at ${width}`).not.toBeNull();
+      expect(section!.width).toBeLessThanOrEqual(width);
+      await shot(page, "create-workspace-models-custom", { theme: "light", width });
+      await shot(page, "create-workspace-models-custom", { theme: "dark", width });
+
       await page.keyboard.press("Escape");
       await page.waitForTimeout(300);
     }

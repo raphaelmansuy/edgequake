@@ -1,0 +1,11 @@
+# Node version for the WebUI.
+#
+# The DOM test environment (`jsdom`) pulls `html-encoding-sniffer@7`, whose `engines` field is
+# `^22.13.0 || >=24.0.0`. Below that floor the package is CommonJS but its dependency
+# `@exodus/bytes` is ESM-only, and only Node >= 22.13 (or >= 24) can `require()` an ES module.
+# On Node 20 the loader throws `ERR_REQUIRE_ESM`, so every `.dom.test.ts(x)` file dies *before*
+# its tests run — 24 files and ~100 tests silently absent, with the suite still reporting the
+# remaining files as passed.
+#
+# Keep this in sync with `engines.node` in package.json.
+22.13.0

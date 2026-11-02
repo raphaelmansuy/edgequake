@@ -40,6 +40,8 @@ interface EmbeddingModelSelectorProps {
   /** Inherited pair. The "use default" link is hidden when this pair is not eligible. */
   inheritPair?: { provider?: string; model?: string };
   choiceScope?: 'workspace' | 'tenant' | 'deployment';
+  /** Explicit scope id; see `LLMModelSelector` (create-workspace targets its own tenant). */
+  scopeId?: string | null;
   /** SPEC-180: list only models that accept images (a `text,image` workspace). */
   imageOnly?: boolean;
 }
@@ -70,12 +72,20 @@ export function EmbeddingModelSelector({
   inheritLabel,
   inheritPair,
   choiceScope = 'workspace',
+  scopeId,
   imageOnly = false,
 }: EmbeddingModelSelectorProps) {
   const { t } = useTranslation();
   const workspaceId = useTenantStore((s) => s.selectedWorkspaceId);
   const tenantId = useTenantStore((s) => s.selectedTenantId);
-  const id = choiceScope === 'tenant' ? tenantId : choiceScope === 'workspace' ? workspaceId : null;
+  const id =
+    scopeId !== undefined
+      ? scopeId
+      : choiceScope === 'tenant'
+        ? tenantId
+        : choiceScope === 'workspace'
+          ? workspaceId
+          : null;
   const { data, isLoading, error, refetch } = useScopedEligibleModels({
     scope: choiceScope,
     id,

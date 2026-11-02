@@ -34,6 +34,19 @@ export interface WizardFixtureOptions {
   /** Create answers this refusal instead of succeeding. */
   refuseCreate?: { status: number; code: string; message: string };
   /**
+   * `GET /me/access` capabilities. The create affordance is gated on
+   * `organization.workspaces.create`, which is *not* implied by `tenant_manage` in the settings
+   * payload — a workspace admin manages a workspace but may not create one. Defaults to an
+   * organization owner who may create workspaces.
+   */
+  canCreateWorkspace?: boolean;
+  /**
+   * Whether the caller may manage the organization offer (`organization.settings.manage`).
+   * `false` models a workspace admin: they can create the workspace but cannot open organization
+   * providers, so the stale-default advisory must name who can.
+   */
+  canManageProviders?: boolean;
+  /**
    * SPEC-180 08 — the deployment's answer to the image embedding probe. `auth` reproduces a
    * project the identity cannot use, which used to surface only at the last wizard step.
    */
@@ -100,6 +113,70 @@ export async function installWizardFixture(page: Page, options: WizardFixtureOpt
     embedding_resolution_source: "tenant",
     vision_llm_resolution_source: "tenant",
   };
+
+  /**
+   * `GET /me/access` — the single rights read the create affordance depends on.
+   *
+   * Without this route the hook fails closed (`NO_ACCESS`) and no create row is rendered at all,
+   * which is the correct behaviour but makes these tests unopenable. The payload mirrors
+   * `Access` in `src/lib/access/use-access.ts`.
+   *
+   * `canManageProviders` models the real grant: only an organization-level manager may open the
+   * provider offer. `workspace_admin` administers one workspace and must be *told* whom to ask —
+   * the same distinction `WizardEligibilityNotice` draws.
+   */
+  await page.route("**/api/v1/me/access**", (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    const canCreate = options.canCreateWorkspace !== false;
+    const managesOrg = options.canManageProviders !== false;
+    const orgCaps = [
+      "organization.read",
+      ...(managesOrg
+        ? ["organization.settings.manage", "organization.members.manage"]
+        : []),
+      ...(canCreate ? ["organization.workspaces.create"] : []),
+    ];
+    return route.fulfill({
+      json: {
+        user_id: "spec179-user",
+        platform: { role: "user", admin: false, capabilities: [] },
+        organization: {
+          id: SPEC155_TENANT.id,
+          name: "SPEC155 Tenant",
+          slug: "spec155-tenant",
+          role: managesOrg ? "owner" : "member",
+          level: managesOrg ? 4 : 2,
+          is_active: true,
+          is_archived: false,
+          capabilities: orgCaps,
+        },
+        workspaces: [
+          {
+            id: SPEC155_WORKSPACE.id,
+            name: "SPEC155 Workspace",
+            slug: "spec155-workspace",
+            role: "admin",
+            level: 3,
+            inherited: true,
+            capabilities: [
+              "workspace.read",
+              "workspace.content.write",
+              "workspace.settings.manage",
+            ],
+          },
+        ],
+        quota: { workspaces: { used: 3, limit: 10 }, seats: { used: 1, limit: 10 } },
+        can_create: { organization: false, workspace: canCreate },
+        can_delete: { organization: false },
+        reason: {
+          organization: null,
+          workspace: canCreate
+            ? null
+            : "capability_required:organization.workspaces.create",
+        },
+      },
+    });
+  });
 
   await page.route(/\/api\/v1\/tenants\/[^/?]+\/?(\?.*)?$/, (route: Route) => {
     if (route.request().method() !== "GET") return route.fallback();

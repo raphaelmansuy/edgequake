@@ -40,6 +40,11 @@ interface LLMModelSelectorProps {
   inheritPair?: { provider?: string; model?: string };
   /** Defaults to the workspace on screen. */
   choiceScope?: 'workspace' | 'tenant' | 'deployment';
+  /**
+   * Explicit scope id. Create-workspace asks the *tenant it was opened for*, which is not
+   * necessarily the tenant in the store yet (a platform admin creating for someone else).
+   */
+  scopeId?: string | null;
   usage?: UsageKey;
 }
 
@@ -70,12 +75,20 @@ export function LLMModelSelector({
   inheritLabel,
   inheritPair,
   choiceScope = 'workspace',
+  scopeId,
   usage,
 }: LLMModelSelectorProps) {
   const workspaceId = useTenantStore((s) => s.selectedWorkspaceId);
   const tenantId = useTenantStore((s) => s.selectedTenantId);
   const resolvedUsage: UsageKey = usage ?? (filterVision ? 'vlm' : 'query');
-  const id = choiceScope === 'tenant' ? tenantId : choiceScope === 'workspace' ? workspaceId : null;
+  const id =
+    scopeId !== undefined
+      ? scopeId
+      : choiceScope === 'tenant'
+        ? tenantId
+        : choiceScope === 'workspace'
+          ? workspaceId
+          : null;
   const { data, isLoading, error, refetch } = useScopedEligibleModels({
     scope: choiceScope,
     id,

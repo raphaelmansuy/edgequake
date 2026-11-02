@@ -29,6 +29,33 @@ const WITH_MISTRAL: WizardFixtureOptions = {
 
 const QWEN_VISION = { provider: "ollama", model: "qwen3", display_name: "Qwen3", supports_vision: true };
 
+/**
+ * The create dialog is three decisions (SPEC-181), not a stepper, so a "create" test names the
+ * workspace and then works the models section in place. These helpers keep that vocabulary in one
+ * spot; the `edit:` tests below still drive the reconfigure *wizard*, which does have steps.
+ */
+const modelsSection = (page: Page) => page.getByTestId("create-workspace-models");
+
+/** Open the create dialog and give it a name, which is the only required field. */
+async function openNamedCreate(page: Page, options: WizardFixtureOptions = {}, name = "Research Notes") {
+  const recorder = await openCreateWizard(page, options);
+  await expect(createDialog(page)).toBeVisible();
+  await page.getByTestId("create-workspace-name").fill(name);
+  return recorder;
+}
+
+/** Choose models and expand one role row. */
+async function openRole(page: Page, role: "llm" | "embedding" | "vision") {
+  if ((await modelsSection(page).getByTestId("create-workspace-models-rows").count()) === 0) {
+    await page.getByTestId("create-workspace-models-choose").click();
+  }
+  const row = page.getByTestId(`create-workspace-models-row-${role}`);
+  if ((await row.getAttribute("data-open")) !== "true") {
+    await row.getByTestId(`create-workspace-models-row-${role}-toggle`).click();
+  }
+  return page.getByTestId(`create-workspace-models-row-${role}-picker`);
+}
+
 async function pickProviderAndModel(picker: ReturnType<Page["locator"]>, page: Page, provider: string, fullId: string) {
   const providerTrigger = picker.getByTestId("model-picker-provider-trigger");
   const providerOption = page.getByTestId(`model-picker-provider-option-${provider}`);
@@ -51,53 +78,47 @@ async function pickProviderAndModel(picker: ReturnType<Page["locator"]>, page: P
     await expect(option).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 15_000 });
   await option.dispatchEvent("click");
-  await expect(modelTrigger).toHaveAttribute("aria-expanded", "false");
+  /**
+   * Assert the menu closed, in the one way both surfaces satisfy.
+   *
+   * The reconfigure wizard keeps its step mounted, so the option list hides. The create dialog
+   * collapses the whole row once a complete pair is chosen, so the option unmounts. Either way the
+   * choice is no longer on offer — which is the fact worth asserting, not one surface's markup.
+   */
+  await expect(async () => {
+    expect(await option.isVisible().catch(() => false)).toBe(false);
+  }).toPass({ timeout: 5_000 });
 }
 
 test.describe("SPEC-179 create and edit workspace, end to end @spec179", () => {
   test.beforeEach(({}, info) => info.setTimeout(150_000));
 
-  test("create: name, defaults, every step, and the request that is sent", async ({ page }) => {
-    const recorder = await openCreateWizard(page);
+  test("create: name, defaults, then one request that inherits", async ({ page }) => {
+    const recorder = await openNamedCreate(page);
     const dialog = createDialog(page);
-    const next = page.getByTestId("wizard-next");
 
-    // Step 1 — a disabled Next always says why.
-    await expect(next).toBeDisabled();
-    await expect(page.getByTestId("wizard-blocked-reason")).toContainText("Enter a workspace name");
-    await expect(page.getByTestId("wizard-workspace-name")).toBeFocused();
-    await shotLocator(page, dialog, "create-01-basics-empty");
-
-    await page.getByTestId("wizard-workspace-name").fill("Research Notes");
-    await expect(page.getByTestId("wizard-workspace-slug-preview")).toContainText("research-notes");
-    await expect(page.getByTestId("wizard-blocked-reason")).toBeEmpty();
+    // The name is the only required decision; Enter submits because the field opts in.
+    await expect(page.getByTestId("create-workspace-name")).toBeFocused();
+    await expect(page.getByTestId("create-workspace-name")).toHaveValue("Research Notes");
     await shotLocator(page, dialog, "create-01-basics-filled");
 
-    // Enter advances, like the button.
-    await page.getByTestId("wizard-workspace-name").press("Enter");
-    await expect(page.getByTestId("wizard-step-models")).toBeVisible();
-
-    // Step 2 — defaults are the selected choice and Next is open.
-    await expect(page.getByTestId("wizard-models-use-defaults")).toHaveAttribute("aria-checked", "true");
-    await expect(page.getByTestId("server-defaults-customize")).toHaveAttribute("aria-checked", "false");
-    await expect(page.getByTestId("server-defaults-embedding")).toContainText("1536 dims");
-    await expect(next).toBeEnabled();
+    // Models default to inheriting, and the inherited pair is printed, not assumed.
+    await expect(page.getByTestId("create-workspace-models-inherit")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await expect(page.getByTestId("create-workspace-models-inherit")).toContainText(
+      "text-embedding-3-small · openai · 1536",
+    );
+    await expect(page.getByTestId("create-workspace-models-stale-inherit")).toHaveCount(0);
     await shotLocator(page, dialog, "create-02-models-defaults");
 
-    const stepShots: Record<string, string> = {
-      "wizard-step-document-parsing": "create-03-parsing",
-      "wizard-step-chunking": "create-04-chunking",
-      "wizard-step-extract-budget": "create-05-budget",
-      "wizard-step-extraction": "create-06-extraction",
-    };
-    for (const [stepId, name] of Object.entries(stepShots)) {
-      await nextUntil(page, stepId);
-      await shotLocator(page, dialog, name);
-    }
-    await nextUntil(page, "wizard-step-review");
-    await shotLocator(page, dialog, "create-07-review");
+    // Everything the old stepper asked for lives in the one drawer.
+    await page.getByTestId("tune-later-toggle").click();
+    await expect(page.getByTestId("tune-later-panel")).toBeVisible();
+    await shotLocator(page, dialog, "create-03-tune-later");
 
-    await page.getByTestId("wizard-finish").click();
+    await page.getByTestId("create-workspace-dialog-finish").click();
     await expect.poll(() => recorder.creates.length).toBe(1);
     const body = recorder.creates[0] as Record<string, unknown>;
     expect(body).toMatchObject({ name: "Research Notes" });
@@ -106,46 +127,49 @@ test.describe("SPEC-179 create and edit workspace, end to end @spec179", () => {
     await expect(dialog).toBeHidden();
   });
 
-  test("create: the stepper jumps back to a finished step and keeps the draft", async ({ page }) => {
-    await openCreateWizard(page);
-    await page.getByTestId("wizard-workspace-name").fill("Draft kept");
-    await page.getByTestId("wizard-next").click();
-    await nextUntil(page, "wizard-step-chunking");
-    await expect(page.getByTestId("wizard-stepper-item-3")).toHaveAttribute("aria-current", "step");
-    await expect(page.getByTestId("wizard-stepper-item-4")).not.toHaveAttribute("aria-current", "step");
-    await page.getByTestId("wizard-stepper-jump-0").click();
-    await expect(page.getByTestId("wizard-workspace-name")).toHaveValue("Draft kept");
-    // Upcoming steps are not clickable.
-    await expect(page.getByTestId("wizard-stepper-jump-5")).toHaveCount(0);
+  test("create: the draft survives closing the models section, and Enter still submits", async ({
+    page,
+  }) => {
+    await openNamedCreate(page, {}, "Draft kept");
+
+    // Working the models section and leaving it costs nothing the operator typed.
+    await page.getByTestId("create-workspace-models-choose").click();
+    await openRole(page, "llm");
+    await page.getByTestId("create-workspace-models-use-inherited").click();
+    await expect(page.getByTestId("create-workspace-models-rows")).toHaveCount(0);
+    await expect(page.getByTestId("create-workspace-name")).toHaveValue("Draft kept");
+
+    // Escape with nothing open asks before discarding, rather than closing silently.
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("create-workspace-dialog-discard")).toBeVisible();
+    await page.getByTestId("create-workspace-dialog-discard-keep").click();
+    await expect(page.getByTestId("create-workspace-name")).toHaveValue("Draft kept");
   });
 
-  test("create: custom Mistral models start from the defaults and Next stays open", async ({ page }) => {
-    const recorder = await openCreateWizard(page, WITH_MISTRAL);
-    const dialog = createDialog(page);
-    await page.getByTestId("wizard-workspace-name").fill("Mistral lab");
-    await page.getByTestId("wizard-next").click();
-    await expect(page.getByTestId("wizard-step-models")).toBeVisible();
+  test("create: custom Mistral models are sent, and an unregistered embed size does not block", async ({
+    page,
+  }) => {
+    const recorder = await openNamedCreate(page, WITH_MISTRAL, "Mistral lab");
 
-    await page.getByTestId("server-defaults-customize").click();
-    await expect(page.getByTestId("wizard-models-advanced")).toBeVisible();
-    await expect(page.getByTestId("server-defaults-customize")).toHaveAttribute("aria-checked", "true");
-    // Seeded from the defaults, so the form is valid before the user touches it.
-    await expect(page.getByTestId("wizard-next")).toBeEnabled();
-    await expect(page.getByTestId("wizard-blocked-reason")).toBeEmpty();
-    await shotLocator(page, dialog, "custom-01-seeded-from-defaults");
+    await openRole(page, "llm");
+    await pickProviderAndModel(
+      page.getByTestId("create-workspace-models-row-llm-picker"),
+      page,
+      "mistral",
+      "mistral/mistral-large-latest",
+    );
+    // mistral-embed carries no discovered size; the known table keeps it selectable.
+    await pickProviderAndModel(
+      await openRole(page, "embedding"),
+      page,
+      "mistral",
+      "mistral/mistral-embed",
+    );
+    await expect(modelsSection(page).getByTestId("create-workspace-models-blocked")).toHaveCount(0);
+    await expect(page.getByTestId("create-workspace-dialog-finish")).toBeEnabled();
+    await shotLocator(page, createDialog(page), "custom-01-mistral-picked");
 
-    const advanced = page.getByTestId("wizard-models-advanced");
-    await pickProviderAndModel(advanced.getByTestId("embedding-model-selector"), page, "mistral", "mistral/mistral-embed");
-    await pickProviderAndModel(advanced.getByTestId("llm-model-selector").first(), page, "mistral", "mistral/mistral-large-latest");
-
-    // mistral-embed carries no discovered size; the known table keeps the wizard open.
-    await expect(page.getByTestId("wizard-eligibility-blocked")).toHaveCount(0);
-    await expect(page.getByTestId("wizard-next")).toBeEnabled();
-    await shotLocator(page, dialog, "custom-02-mistral-picked");
-
-    await nextUntil(page, "wizard-step-review");
-    await shotLocator(page, dialog, "custom-03-review");
-    await page.getByTestId("wizard-finish").click();
+    await page.getByTestId("create-workspace-dialog-finish").click();
     await expect.poll(() => recorder.creates.length).toBe(1);
     expect(recorder.creates[0]).toMatchObject({
       name: "Mistral lab",
@@ -153,57 +177,77 @@ test.describe("SPEC-179 create and edit workspace, end to end @spec179", () => {
       llm_model: "mistral-large-latest",
       embedding_provider: "mistral",
       embedding_model: "mistral-embed",
-      vision_llm_provider: "openai",
     });
+    // Vision was left alone, so it stays inherited and is absent from the body.
+    expect((recorder.creates[0] as Record<string, unknown>).vision_llm_model).toBeUndefined();
   });
 
-  test("create: a refused default is replaced in one click and the pick is sent", async ({ page }) => {
-    const recorder = await openCreateWizard(page, {
-      defaults: {
-        llm: ["openai", "gpt-5-nano"],
-        embedding: ["openai", "text-embedding-3-small", 1536],
-        vision: ["openai", "gpt-5-nano"], // chat-only: not offered as a vision model
+  test("create: a refused pick names the role and is replaced in one place", async ({ page }) => {
+    const recorder = await openNamedCreate(
+      page,
+      {
+        defaults: {
+          llm: ["openai", "gpt-5-nano"],
+          embedding: ["openai", "text-embedding-3-small", 1536],
+          vision: ["openai", "gpt-5-nano"], // chat-only: not offered as a vision model
+        },
+        offered: {
+          chat: [
+            { provider: "openai", model: "gpt-5-nano" },
+            { provider: "openai", model: "gpt-5.2", supports_vision: true },
+          ],
+          vlm: [{ provider: "openai", model: "gpt-5.2", supports_vision: true }],
+        },
       },
-    });
-    const dialog = createDialog(page);
-    await page.getByTestId("wizard-workspace-name").fill("Replace vision");
-    await page.getByTestId("wizard-next").click();
-    await expect(page.getByTestId("wizard-blocked-vision")).toBeVisible();
-    await expect(page.getByTestId("wizard-blocked-reason")).toContainText("Choose another model for: Vision");
+      "Replace vision",
+    );
 
-    await page.getByTestId("wizard-blocked-vision").getByRole("button", { name: "Choose another" }).click();
-    const advanced = page.getByTestId("wizard-models-advanced");
-    await expect(advanced).toBeVisible();
-    await expect(advanced.locator('[data-wizard-model-role="vision"]').getByTestId("model-picker-provider-trigger")).toHaveAttribute("aria-expanded", "true");
-    // LLM and embedding were seeded from the defaults; only the refused role is left to pick.
-    await expect(page.getByTestId("wizard-next")).toBeDisabled();
-    await shotLocator(page, dialog, "custom-04-refused-default-explained");
+    // Inheriting a vision pair the offer does not contain is named, with the fix one click away.
+    await expect(page.getByTestId("create-workspace-models-stale-inherit")).toContainText("Vision");
+    await shotLocator(page, createDialog(page), "custom-02-refused-default-explained");
 
-    await pickProviderAndModel(advanced.getByTestId("llm-model-selector").nth(1), page, "openai", "openai/gpt-5.2");
-    await expect(page.getByTestId("wizard-eligibility-blocked")).toHaveCount(0);
-    await expect(page.getByTestId("wizard-next")).toBeEnabled();
-    await expect(page.getByTestId("wizard-blocked-reason")).toBeEmpty();
+    // Pinning a vision-capable model replaces it, and the refusal goes with the inheritance.
+    await pickProviderAndModel(
+      await openRole(page, "vision"),
+      page,
+      "openai",
+      "openai/gpt-5.2",
+    );
+    await expect(page.getByTestId("create-workspace-models-stale-inherit")).toHaveCount(0);
+    await expect(page.getByTestId("create-workspace-dialog-finish")).toBeEnabled();
 
-    await nextUntil(page, "wizard-step-review");
-    await page.getByTestId("wizard-finish").click();
+    await page.getByTestId("create-workspace-dialog-finish").click();
     await expect.poll(() => recorder.creates.length).toBe(1);
     expect(recorder.creates[0]).toMatchObject({
-      llm_model: "gpt-5-nano",
-      embedding_model: "text-embedding-3-small",
+      name: "Replace vision",
+      vision_llm_provider: "openai",
       vision_llm_model: "gpt-5.2",
     });
+    // LLM and embedding were never touched, so they still inherit.
+    expect((recorder.creates[0] as Record<string, unknown>).llm_model).toBeUndefined();
   });
 
-  test("create: going back to the defaults is one click and restores Next", async ({ page }) => {
-    await openCreateWizard(page);
-    await page.getByTestId("wizard-workspace-name").fill("Round trip");
-    await page.getByTestId("wizard-next").click();
-    await page.getByTestId("server-defaults-customize").click();
-    await expect(page.getByTestId("wizard-models-advanced")).toBeVisible();
-    await page.getByTestId("wizard-models-use-defaults").click();
-    await expect(page.getByTestId("wizard-models-advanced")).toBeHidden();
-    await expect(page.getByTestId("wizard-models-use-defaults")).toHaveAttribute("aria-checked", "true");
-    await expect(page.getByTestId("wizard-next")).toBeEnabled();
+  test("create: going back to the defaults is one click and clears the picks", async ({ page }) => {
+    const recorder = await openNamedCreate(page, {}, "Round trip");
+
+    await page.getByTestId("create-workspace-models-choose").click();
+    await expect(page.getByTestId("create-workspace-models-rows")).toBeVisible();
+    await page.getByTestId("create-workspace-models-use-inherited").click();
+    await expect(page.getByTestId("create-workspace-models-rows")).toHaveCount(0);
+    await expect(page.getByTestId("create-workspace-models-inherit")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await expect(page.getByTestId("create-workspace-dialog-finish")).toBeEnabled();
+
+    await page.getByTestId("create-workspace-dialog-finish").click();
+    await expect.poll(() => recorder.creates.length).toBe(1);
+    // A round trip leaves no trace in the body.
+    expect(
+      Object.keys(recorder.creates[0] as Record<string, unknown>).filter((k) =>
+        /llm_|embedding_|vision_/.test(k),
+      ),
+    ).toEqual([]);
   });
 
   test("edit: opens on the workspace's own pick, and Apply is closed until something changes", async ({ page }) => {
@@ -333,31 +377,33 @@ test.describe("SPEC-179 create and edit workspace, end to end @spec179", () => {
     expect(JSON.stringify(recorder.updates[0])).toContain("mistral-large-latest");
   });
 
-  test("visual matrix: dark desktop and phone frames of the key steps", async ({ page }) => {
-    await openCreateWizard(page);
+  test("visual matrix: dark desktop and phone frames of the key states", async ({ page }) => {
+    await openNamedCreate(page, {}, "Visual QA");
     const dialog = createDialog(page);
-    await page.getByTestId("wizard-workspace-name").fill("Visual QA");
+
     for (const [theme, width] of [["dark", 1440], ["light", 390], ["dark", 390]] as const) {
       await applyTheme(page, theme);
       await setViewport(page, width);
       await shotLocator(page, dialog, "matrix-01-basics", { theme, width });
     }
+
     await applyTheme(page, "light");
     await setViewport(page, 1440);
-    await page.getByTestId("wizard-next").click();
-    await page.getByTestId("server-defaults-customize").click();
+    await page.getByTestId("create-workspace-models-choose").click();
+    await openRole(page, "llm");
     for (const [theme, width] of [["dark", 1440], ["light", 390], ["dark", 390]] as const) {
       await applyTheme(page, theme);
       await setViewport(page, width);
       await shotLocator(page, dialog, "matrix-02-models-custom", { theme, width });
     }
+
     await applyTheme(page, "light");
     await setViewport(page, 1440);
-    await nextUntil(page, "wizard-step-review");
+    await page.getByTestId("tune-later-toggle").click();
     for (const [theme, width] of [["dark", 1440], ["light", 390]] as const) {
       await applyTheme(page, theme);
       await setViewport(page, width);
-      await shotLocator(page, dialog, "matrix-03-review", { theme, width });
+      await shotLocator(page, dialog, "matrix-03-tune-later", { theme, width });
     }
   });
 });
