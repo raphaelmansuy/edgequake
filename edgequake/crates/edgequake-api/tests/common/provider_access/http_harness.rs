@@ -156,7 +156,11 @@ pub async fn seed_scope(pool: &sqlx::PgPool, tenant_id: Uuid, workspace_id: Uuid
          VALUES($1, $2, $3, $4, 'user', true)",
     )
     .bind(owner)
-    .bind(edgequake_api::middleware::default_tenant_uuid())
+    // The owner belongs to the organization under test, not to the fleet default tenant:
+    // `users.tenant_id` is a foreign key, and the default tenant row does not exist in every
+    // database these fixtures run against. This account never signs in — it only satisfies
+    // `trg_org_keeps_an_owner`.
+    .bind(tenant_id)
     .bind(&owner_name)
     .bind(format!("{owner_name}@example.test"))
     .execute(pool)
