@@ -1834,22 +1834,31 @@ frontend-bg: sync-dev-ports ## Start frontend development server in background
 	fi
 	@echo "$(BLUE)Starting frontend in background...$(RESET)"
 	@bash $(FRONTEND_DIR)/scripts/ensure-dev-cache.sh
-	@printf '%s\n' "#!/bin/bash" > /tmp/edgequake-frontend-start.sh
-	@printf '%s\n' "set -a && . \"$(DEV_PORTS_ENV)\" && set +a" >> /tmp/edgequake-frontend-start.sh
-	@printf '%s\n' "cd $(FRONTEND_DIR)" >> /tmp/edgequake-frontend-start.sh
-	@printf '%s\n' "if [ -f .env.local.ports ]; then set -a && . ./.env.local.ports && set +a; fi" >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' '#!/bin/bash' > /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' 'set -a && . "$(DEV_PORTS_ENV)" && set +a' >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' 'cd $(FRONTEND_DIR)' >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' 'if [ -f .env.local.ports ]; then set -a && . ./.env.local.ports && set +a; fi' >> /tmp/edgequake-frontend-start.sh
+	@# Prefer a runnable Node. Login shells often put /usr/local/bin first; an
+	@# Intel Node there fails on Apple Silicon with "Bad CPU type in executable".
+	@printf '%s\n' '_node_ok() { command -v "$1" >/dev/null 2>&1 && "$1" -v >/dev/null 2>&1; }' >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' 'for _dir in "${NVM_BIN:-}" $$HOME/.nvm/versions/node/*/bin /opt/homebrew/bin $$HOME/Library/pnpm $$HOME/.local/share/pnpm; do' >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' '  [ -n "$$_dir" ] || continue' >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' '  if _node_ok "$$_dir/node"; then export PATH="$$_dir:$$PATH"; break; fi' >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' 'done' >> /tmp/edgequake-frontend-start.sh
 	@# Never inherit backend PORT from a shared env — Next binds to PORT.
-	@printf '%s\n' "export PORT=\"$${FRONTEND_PORT:-3010}\"" >> /tmp/edgequake-frontend-start.sh
-	@printf '%s\n' "export EDGEQUAKE_API_URL=\"$${EDGEQUAKE_API_URL:-http://127.0.0.1:8090}\"" >> /tmp/edgequake-frontend-start.sh
-	@printf '%s\n' "export NEXT_PUBLIC_API_URL=\"$${NEXT_PUBLIC_API_URL:-$$EDGEQUAKE_API_URL}\"" >> /tmp/edgequake-frontend-start.sh
-	@printf '%s\n' "export NEXT_PUBLIC_AUTH_ENABLED=\"$(DEV_AUTH_ENABLED)\"" >> /tmp/edgequake-frontend-start.sh
-	@printf '%s\n' "export NEXT_PUBLIC_DISABLE_DEMO_LOGIN=\"$(DEV_DISABLE_DEMO_LOGIN)\"" >> /tmp/edgequake-frontend-start.sh
-	@printf '%s\n' "if command -v pnpm >/dev/null 2>&1; then" >> /tmp/edgequake-frontend-start.sh
-	@printf '%s\n' "  exec pnpm run dev" >> /tmp/edgequake-frontend-start.sh
-	@printf '%s\n' "fi" >> /tmp/edgequake-frontend-start.sh
-	@printf '%s\n' "exec bun run dev" >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' 'export PORT="$${FRONTEND_PORT:-3010}"' >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' 'export EDGEQUAKE_API_URL="$${EDGEQUAKE_API_URL:-http://127.0.0.1:8090}"' >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' 'export NEXT_PUBLIC_API_URL="$${NEXT_PUBLIC_API_URL:-$$EDGEQUAKE_API_URL}"' >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' 'export NEXT_PUBLIC_AUTH_ENABLED="$(DEV_AUTH_ENABLED)"' >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' 'export NEXT_PUBLIC_DISABLE_DEMO_LOGIN="$(DEV_DISABLE_DEMO_LOGIN)"' >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' 'if command -v pnpm >/dev/null 2>&1; then' >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' '  exec pnpm run dev' >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' 'fi' >> /tmp/edgequake-frontend-start.sh
+	@printf '%s\n' 'exec bun run dev' >> /tmp/edgequake-frontend-start.sh
 	@chmod +x /tmp/edgequake-frontend-start.sh
-	@/bin/bash -lc 'nohup /tmp/edgequake-frontend-start.sh > /tmp/edgequake-frontend.log 2>&1 < /dev/null & frontend_pid=$$!; disown "$$frontend_pid"; printf "%s\n" "$$frontend_pid" > /tmp/edgequake-frontend.pid'
+	@# Non-login shell: keep the caller's PATH (nvm/homebrew) instead of macOS
+	@# default /usr/local/bin-first login PATH that may pick a broken Node.
+	@/bin/bash -c 'nohup /tmp/edgequake-frontend-start.sh > /tmp/edgequake-frontend.log 2>&1 < /dev/null & frontend_pid=$$!; disown "$$frontend_pid"; printf "%s\n" "$$frontend_pid" > /tmp/edgequake-frontend.pid'
 	@echo "$(GREEN)✓ Frontend starting in background. Log: /tmp/edgequake-frontend.log$(RESET)"
 
 frontend-build: ## Build frontend for production
