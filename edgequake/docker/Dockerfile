@@ -54,6 +54,12 @@ COPY edgequake/examples/ examples/
 # only include gpt-4o and gpt-4o-mini — the new models are only in models.toml.
 # We copy it into the build layer so Stage 2 can retrieve it via --from=builder.
 COPY edgequake/models.toml models.toml
+# WHY: `crates/edgequake-api/build.rs` and `edgequake/build.rs` both
+# `include!("../../build_meta.rs")` / `include!("build_meta.rs")`. Without this
+# COPY the build script fails with "couldn't find file" and both Docker arches
+# die at ~250s, long after the image layers look healthy. Added after v0.38.4
+# introduced the shared include without adding it to the build context.
+COPY edgequake/build_meta.rs build_meta.rs
 
 # Build release binary with SQLx offline mode (no database needed at build time).
 # pdfium-auto downloads and embeds the correct pdfium binary for TARGETPLATFORM.
