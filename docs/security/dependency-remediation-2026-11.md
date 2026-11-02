@@ -156,12 +156,43 @@ edgequake_webui   vitest  2235 passed (265 files)
 edgequake_webui   tsc     clean (tsconfig.release.json)
 edgequake_webui   next build  clean, all routes emitted
 edgequake_webui   pnpm audit --prod   1 low (katex)
-edgequake (rust)  make release-gates  passed (fmt, clippy per crate, 1849 lib tests, proofs,
-                                      version parity, OpenAPI parity, checksums, epochs, schema docs)
+edgequake (rust)  make release-gates  passed (fmt, clippy per crate + optional features,
+                                      1849 lib tests, proofs, version parity, OpenAPI parity,
+                                      checksums, epochs, schema docs)
+edgequake (rust)  cargo doc -D warnings  clean
+edgequake (rust)  cargo clippy -p edgequake-storage --features qdrant,neo4j,sqlite  clean
 edgequake (rust)  e2e_spec181_tenancy 10 passed
+edgequake (rust)  e2e_dal_provider_composition 2 passed, e2e_tenant_authorization 2 passed
+                  (both on a freshly migrated database)
+edgequake (docker) builder stage compiles: edgequake-api v0.39.0, 6m46s
 edgequake (webui) e2e/spec180 19 passed   e2e/spec181 23 passed
 website           astro build: 238 pages
 ```
+
+Three more defects surfaced only once the tag existed and CI ran on the merge. They are recorded
+here because each one shows how a gate can pass while the thing it guards is broken:
+
+1. **`build_meta.rs` was not in the Docker build context.** Both `build.rs` files `include!` it,
+   but the API Dockerfile copied only `crates/`, `src/`, `benches/`, `examples/` and
+   `models.toml`. Both arches died at ~250s with `couldn't find file`. Every local
+   `cargo build` passed because the file is on disk. `7aa324047` added the include after v0.38.4
+   without touching the Dockerfile, so no release since then could produce an image.
+   `check_docker_api_context.sh` now resolves every `build.rs` `include!` and fails if the target
+   is not `COPY`ed.
+
+2. **rustdoc refused a public doc linking a private item** in `services/capabilities.rs`, and CI
+   builds docs with `-D warnings`. A one-line code-font fix, but it had been red on `main`
+   unnoticed because the docs job is not on the branch anyone watches.
+
+3. **The Qdrant adapter stopped compiling.** SPEC-180 added `kinds` to `MetadataFilter` and the
+   adapter's test constructed the struct by hand. `qdrant` is an optional feature, so
+   `cargo clippy --workspace` never compiled that module — not locally, not in any release gate.
+   Fixed, and `release_gates.sh` now clippies `edgequake-storage` with
+   `qdrant,neo4j,sqlite` so optional-feature code has to compile.
+
+The common thread: **a gate that builds less than ships is not a gate.** Default-feature clippy,
+a Docker context that differs from the working tree, and a docs job on an unwatched branch each
+described a smaller system than the one being released.
 
 ## Lesson
 
