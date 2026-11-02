@@ -76,13 +76,25 @@ export const NO_ACCESS: Access = {
   reason: { organization: 'loading', workspace: 'loading' },
 };
 
-/** Convert the wire arrays into sets once per response, so a render pass is a hash lookup. */
+/**
+ * Convert the wire arrays into sets once per response, so a render pass is a hash lookup.
+ *
+ * WHY the `platform` guard: `GET /me/access` is fetched with `retry: false` and the result is
+ * mapped unconditionally, so any 200 whose body is not the expected shape used to throw
+ * `Cannot read properties of undefined (reading 'role')` inside render and blank the whole
+ * route behind the error boundary. That is not hypothetical — the e2e hermetic guard answers an
+ * unregistered `/api/v1/**` call with `{ error: … }`, which took `/documents` down and with it
+ * every chromium spec that merely opened that page. An unreadable access payload means "no
+ * access", which is what `NO_ACCESS` already says, and it is a state the UI renders.
+ */
 export function toAccess(payload: MeAccessResponse): Access {
+  const platform = payload?.platform;
+  if (!platform) return NO_ACCESS;
   return {
     platform: {
-      role: payload.platform.role,
-      admin: payload.platform.admin,
-      capabilities: new Set(payload.platform.capabilities ?? []),
+      role: platform.role,
+      admin: platform.admin,
+      capabilities: new Set(platform.capabilities ?? []),
     },
     organization: payload.organization
       ? {

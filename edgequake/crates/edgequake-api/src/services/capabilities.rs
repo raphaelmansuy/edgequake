@@ -3,8 +3,13 @@
 //! Every capability is a predicate over the grant that already governs the corresponding
 //! handler, so the matrix the WebUI renders cannot drift from what the API enforces.
 //! [`members::guards`](crate::handlers::members::guards) and
-//! [`workspaces::tenant_access`](crate::handlers::workspaces::tenant_access) both ask this
-//! module, and `spec181_catalog_matches_enforcement` proves the two agree.
+//! `workspaces::tenant_access` both ask this module, and
+//! `spec181_catalog_matches_enforcement` proves the two agree.
+//!
+//! `workspaces::tenant_access` is a `pub(crate)` module, so it is named in plain code font
+//! rather than linked: rustdoc refuses a public doc that links to a private item
+//! (`error: public documentation for ... links to private item`), and this crate builds docs
+//! with `-D warnings`.
 //!
 //! Three axes, never conflated:
 //!
