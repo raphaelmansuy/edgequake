@@ -161,6 +161,21 @@ pub struct MessageSource {
     /// SPEC-135: may exceed `page_start` when a remainder spans pages.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub page_end: Option<u32>,
+    /// Family of the cited document: `pdf`, `image`, `markdown`, `text`, `office`, `other`.
+    ///
+    /// WHY these three are persisted, for the same reason `page_start` above is: the client
+    /// re-renders citations from this stored context after a reload, and it decides "is this
+    /// citation a picture?" from these fields. Dropping them here made the "Matching images"
+    /// grid disappear again for any conversation not streamed live — the live event carried
+    /// the facts, the reloaded one did not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub doc_kind: Option<String>,
+    /// MIME type of the cited document (`image/jpeg`, `application/pdf`, …).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// What the chunk was embedded from: `text` or `image` (SPEC-180).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_modality: Option<String>,
 }
 
 impl MessageSource {
@@ -175,6 +190,9 @@ impl MessageSource {
             source_type: None,
             page_start: None,
             page_end: None,
+            doc_kind: None,
+            mime_type: None,
+            source_modality: None,
         }
     }
 }

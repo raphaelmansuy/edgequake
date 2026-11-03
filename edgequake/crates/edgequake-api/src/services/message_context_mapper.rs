@@ -52,6 +52,11 @@ pub fn message_context_from_subgraph(
                 source_type: Some(s.source_type.clone()),
                 page_start: s.page_start,
                 page_end: s.page_end,
+                // SPEC-180/182: persisted so a reloaded conversation can still tell a
+                // picture citation from a text one. See `MessageSource` for why.
+                doc_kind: s.doc_kind.clone(),
+                mime_type: s.mime_type.clone(),
+                source_modality: s.source_modality.clone(),
             })
             .collect(),
         entities: subgraph
@@ -130,6 +135,9 @@ mod tests {
             entity_type: None,
             degree: None,
             source_chunk_ids: None,
+            doc_kind: None,
+            mime_type: None,
+            source_modality: None,
             page_start,
             page_end: page_start,
         }
@@ -162,6 +170,31 @@ mod tests {
             ctx.sources[0].source_type.as_deref(),
             Some("chunk"),
             "source_type must be persisted for correct filtering in the frontend"
+        );
+    }
+
+    /// SPEC-182: the picture facts survive to the persisted context.
+    ///
+    /// WHY this is the same class of bug as `page_start` above: the client renders citations
+    /// from the *stored* context after a reload, and it decides "is this a picture?" from
+    /// `source_modality`. Dropping the field here made the "Matching images" grid render on
+    /// the live stream and vanish on reload — a defect invisible to any mocked test.
+    #[test]
+    fn picture_facts_are_persisted_in_message_context() {
+        let mut source = make_chunk_source(None);
+        source.file_path = Some("Slices of margherita pizza with fresh basil".to_string());
+        source.doc_kind = Some("image".to_string());
+        source.mime_type = Some("image/jpeg".to_string());
+        source.source_modality = Some("image".to_string());
+
+        let ctx = message_context_from_subgraph(&SubgraphBundle::default(), &[source]);
+
+        assert_eq!(ctx.sources[0].doc_kind.as_deref(), Some("image"));
+        assert_eq!(ctx.sources[0].mime_type.as_deref(), Some("image/jpeg"));
+        assert_eq!(
+            ctx.sources[0].source_modality.as_deref(),
+            Some("image"),
+            "the image grid decides 'is this a citation a picture?' from this field"
         );
     }
 

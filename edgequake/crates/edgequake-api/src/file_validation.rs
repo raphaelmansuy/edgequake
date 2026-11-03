@@ -101,6 +101,46 @@ pub fn sanitize_filename(filename: &str) -> String {
     }
 }
 
+/// Human-readable document title from a client-supplied filename.
+///
+/// WHY this is not `sanitize_filename`: that function protects storage keys, so it must
+/// strip path separators and replace every character outside `[A-Za-z0-9._-]` with `_`.
+/// Applying it to the *title* turned "A beagle with its tongue out.jpg" into
+/// "A_beagle_with_its_tongue_out.jpg", which reads like a filename in the documents list.
+///
+/// This keeps the words, drops the executable extension, collapses whitespace, strips
+/// control characters that would break a JSON list row, and caps the length. It returns
+/// `None` when nothing usable is left, so the caller can fall back to the sanitized name.
+pub fn display_title_from_filename(filename: &str) -> Option<String> {
+    let base = filename
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(filename)
+        .trim();
+    // Drop a trailing extension, but only when it really looks like one. WHY the guards:
+    // `rsplit_once('.')` alone turned "v1.2" into "v1" and left ".jpg" intact (empty head,
+    // so the guard skipped the strip and the dot survived). A version number is a title; a
+    // leading dot is a hidden file, not an extension.
+    let stem = match base.rsplit_once('.') {
+        Some((head, tail))
+            if !head.is_empty() && tail.len() <= 5 && !tail.chars().all(|c| c.is_ascii_digit()) =>
+        {
+            head
+        }
+        _ => base.trim_start_matches('.'),
+    };
+    let cleaned: String = stem
+        .chars()
+        .filter(|c| !c.is_control())
+        .map(|c| if c == '_' { ' ' } else { c })
+        .collect();
+    let collapsed = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+    if collapsed.is_empty() {
+        return None;
+    }
+    Some(collapsed.chars().take(200).collect())
+}
+
 /// Build a clear BadRequest message for extensions rejected on text upload.
 ///
 /// SPEC-121: PDF must use `POST /api/v1/documents/pdf`; Office formats are
@@ -304,6 +344,60 @@ pub fn validate_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_caption_filename_becomes_a_readable_title() {
+        // The regression this function exists for: the sanitizer ran on the title and the
+        // documents list showed "A_beagle_with_its_tongue_out__outdoors".
+        assert_eq!(
+            display_title_from_filename("A beagle with its tongue out, outdoors.jpg").as_deref(),
+            Some("A beagle with its tongue out, outdoors")
+        );
+        assert_eq!(
+            display_title_from_filename("20-beagle-portrait.jpg").as_deref(),
+            Some("20-beagle-portrait")
+        );
+    }
+
+    #[test]
+    fn a_title_keeps_dots_that_are_not_an_extension() {
+        // WHY: "v1.2" and "README" are titles, not extensions. Stripping the last dot group
+        // from every name would silently rename them.
+        assert_eq!(display_title_from_filename("v1.2").as_deref(), Some("v1.2"));
+        assert_eq!(
+            display_title_from_filename("README").as_deref(),
+            Some("README")
+        );
+        assert_eq!(
+            display_title_from_filename("report.final.draft.md").as_deref(),
+            Some("report.final.draft")
+        );
+    }
+
+    #[test]
+    fn a_title_with_no_words_falls_back() {
+        // WHY the dotfile case is asserted as Some("jpg") and not None: the leading dot is
+        // stripped and what remains is a usable word. The caller's fallback (the sanitized
+        // filename) produces exactly the same string, so either path names the document
+        // "jpg" — the guarantee that matters is that a dotfile never yields an empty title.
+        assert_eq!(display_title_from_filename(".jpg").as_deref(), Some("jpg"));
+        // Nothing but separators and control characters: the caller must fall back.
+        assert_eq!(display_title_from_filename("   "), None);
+        assert_eq!(display_title_from_filename("..."), None);
+        assert_eq!(display_title_from_filename("\u{0}\u{1}"), None);
+    }
+
+    #[test]
+    fn underscores_become_spaces_in_a_title_but_never_in_a_storage_key() {
+        assert_eq!(
+            display_title_from_filename("two_cups_of_coffee.jpg").as_deref(),
+            Some("two cups of coffee")
+        );
+        assert_eq!(
+            sanitize_filename("two cups of coffee.jpg"),
+            "two_cups_of_coffee.jpg"
+        );
+    }
 
     #[test]
     fn test_validate_file_size_ok() {

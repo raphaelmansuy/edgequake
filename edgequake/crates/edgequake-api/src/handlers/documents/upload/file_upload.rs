@@ -52,6 +52,7 @@ pub async fn upload_file(
 
     let mut streamed = None;
     let mut multipart_fields = MultipartUploadFields::default();
+    let mut display_title: Option<String> = None;
 
     while let Some(field) = multipart
         .next_field()
@@ -62,9 +63,17 @@ pub async fn upload_file(
         match field_name.as_str() {
             "file" => {
                 // SPEC-083 D-51: stream to temp (not field.bytes() into RAM).
-                let filename = crate::file_validation::sanitize_filename(
-                    field.file_name().unwrap_or("unnamed.txt"),
-                );
+                //
+                // WHY the raw name is kept beside the sanitized one: `sanitize_filename`
+                // exists so the storage key and the on-disk temp file cannot contain path
+                // separators or control characters, but the *document title* is what a
+                // person reads. Running the title through it turned "A beagle with its
+                // tongue out" into "A_beagle_with_its_tongue_out" — a filename, not a
+                // title. The title therefore comes from the unsanitized name, capped, and
+                // falls back to the sanitized one when the client sent nothing usable.
+                let raw_name = field.file_name().unwrap_or("unnamed.txt").to_string();
+                let filename = crate::file_validation::sanitize_filename(&raw_name);
+                display_title = crate::file_validation::display_title_from_filename(&raw_name);
                 streamed = Some(stream_field_to_tempfile(field, filename).await?);
             }
             "metadata"
@@ -109,7 +118,7 @@ pub async fn upload_file(
         &tenant_ctx,
         DocumentAdmissionInput {
             text_content,
-            title: filename.clone(),
+            title: display_title.unwrap_or_else(|| filename.clone()),
             source_type: upload_meta.source_type,
             mime_type: Some(resolved.mime_type),
             raw_byte_size: content.len(),

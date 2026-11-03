@@ -667,6 +667,27 @@ pub struct SourceReference {
     /// @implements SPEC-006: Entity provenance tracking
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_chunk_ids: Option<Vec<String>>,
+
+    /// Family of the cited document: `pdf`, `image`, `markdown`, `text`, `office`, `other`.
+    ///
+    /// WHY this is on the source and not derived by the client: `file_path` carries the
+    /// document *title* (see `resolve_chunk_file_paths`), so it usually has no extension.
+    /// A client that sniffed a suffix to decide "this citation is a picture" therefore
+    /// never matched, and the thumbnail grid that depended on that decision never rendered
+    /// against a real backend. The document kind is already stored, so the server states it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub doc_kind: Option<String>,
+
+    /// MIME type of the cited document (`image/jpeg`, `application/pdf`, …).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+
+    /// What the chunk was embedded from: `text` or `image` (SPEC-180).
+    ///
+    /// The precise form of "this citation is a picture": an image document produces one
+    /// chunk with `source_modality = image`, and that is what retrieval matched on.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_modality: Option<String>,
 }
 
 /// Query statistics.
@@ -851,6 +872,9 @@ mod tests {
             entity_type: None,
             degree: None,
             source_chunk_ids: None,
+            doc_kind: None,
+            mime_type: None,
+            source_modality: None,
             page_start: None,
             page_end: None,
         };
@@ -878,6 +902,9 @@ mod tests {
             entity_type: Some("ORGANIZATION".to_string()),
             degree: Some(5),
             source_chunk_ids: Some(vec!["chunk-1".to_string()]),
+            doc_kind: None,
+            mime_type: None,
+            source_modality: None,
             page_start: None,
             page_end: None,
         };

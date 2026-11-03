@@ -73,6 +73,9 @@ pub fn build_sources_from_context(
                 entity_type: None,
                 degree: None,
                 source_chunk_ids: None,
+                doc_kind: None,
+                mime_type: None,
+                source_modality: None,
             }
         })
         .collect();
@@ -126,6 +129,10 @@ pub fn build_sources_from_context(
             } else {
                 Some(entity.source_chunk_ids.clone())
             },
+            // An entity is not a document: it has no kind, MIME or embedding modality.
+            doc_kind: None,
+            mime_type: None,
+            source_modality: None,
         });
     }
 
@@ -168,6 +175,9 @@ pub fn build_sources_from_context(
             entity_type: None,
             degree: None,
             source_chunk_ids: None,
+            doc_kind: None,
+            mime_type: None,
+            source_modality: None,
         });
     }
 

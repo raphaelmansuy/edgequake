@@ -85,6 +85,9 @@ mod tests {
             entity_type: None,
             degree: None,
             source_chunk_ids: None,
+            doc_kind: None,
+            mime_type: None,
+            source_modality: None,
         }
     }
 
