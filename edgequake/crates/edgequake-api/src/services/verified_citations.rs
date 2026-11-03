@@ -72,6 +72,7 @@ mod tests {
             source_type: "chunk".into(),
             id: "chunk-a".into(),
             score: 0.9,
+            similarity: None,
             rerank_score: None,
             snippet: Some("evidence".into()),
             reference_id: Some(ref_id),

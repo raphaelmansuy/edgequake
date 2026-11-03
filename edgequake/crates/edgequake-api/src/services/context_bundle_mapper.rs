@@ -447,6 +447,7 @@ mod tests {
             id: "c1".into(),
             content: "x".repeat(500),
             score: 0.9,
+            similarity: None,
             document_id: Some("doc1".into()),
             document_name: None,
             token_count: 100,

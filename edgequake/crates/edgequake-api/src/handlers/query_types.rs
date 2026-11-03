@@ -470,6 +470,10 @@ pub struct QueryStreamStats {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub context_truncated: bool,
 
+    /// Chunks the SPEC-184 relevance floor removed (stream mirror of the sync field).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relevance_dropped: Option<usize>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arm_local_ms: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -521,6 +525,7 @@ impl QueryStreamStats {
             llm_model: stats.llm_model,
             context_empty: stats.context_empty,
             context_truncated: stats.context_truncated,
+            relevance_dropped: stats.relevance_dropped,
             arm_local_ms: stats.arm_local_ms,
             arm_global_ms: stats.arm_global_ms,
             arm_naive_ms: stats.arm_naive_ms,
@@ -773,6 +778,14 @@ pub struct QueryStats {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub context_truncated: bool,
 
+    /// Chunks the SPEC-184 relevance floor removed on a normal workspace.
+    ///
+    /// WHY it matters to a client: `context_empty: true` together with this set means the corpus
+    /// *was* searched and nothing cleared the floor — an honest "this workspace has nothing on
+    /// that", which is a different answer from an empty corpus. Absent when the gate did not run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relevance_dropped: Option<usize>,
+
     /// Per-arm wall time for Hybrid/Mix local retrieval (ms).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arm_local_ms: Option<u64>,
@@ -874,6 +887,7 @@ mod tests {
             source_type: "chunk".to_string(),
             id: "chunk_123".to_string(),
             score: 0.95,
+            similarity: None,
             rerank_score: Some(0.98),
             snippet: Some("This is a test snippet".to_string()),
             reference_id: Some(1),
@@ -904,6 +918,7 @@ mod tests {
             source_type: "entity".to_string(),
             id: "ENT_ABC".to_string(),
             score: 0.8,
+            similarity: None,
             rerank_score: None,
             snippet: None,
             reference_id: None,

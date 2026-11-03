@@ -22,6 +22,7 @@ fn chunk_source(
         source_type: "chunk".into(),
         id: chunk_id.into(),
         score: 0.91,
+        similarity: None,
         rerank_score: None,
         snippet: Some("UNIQUE_MARKER_PAGE_4 evidence string".into()),
         reference_id: Some(ref_id),

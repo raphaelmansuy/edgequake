@@ -47,6 +47,7 @@ pub fn from_engine_stats(
         llm_model,
         context_empty: engine.context_empty,
         context_truncated: engine.context_truncated,
+        relevance_dropped: engine.relevance_dropped,
         arm_local_ms: engine.arm_local_ms,
         arm_global_ms: engine.arm_global_ms,
         arm_naive_ms: engine.arm_naive_ms,
@@ -171,5 +172,32 @@ mod tests {
         assert_eq!(stream.arm_naive_ms, sync.arm_naive_ms);
         assert_eq!(stream.arms_gated, sync.arms_gated);
         assert_eq!(stream.query_intent, sync.query_intent);
+        // SPEC-184: the relevance-gate count is mirrored too, so a stream client can tell an
+        // "nothing relevant" answer from an empty corpus exactly as the sync client can.
+        assert_eq!(stream.relevance_dropped, sync.relevance_dropped);
+    }
+
+    #[test]
+    fn the_relevance_count_reaches_the_http_stats() {
+        // The defect this closes was invisible in production: the answer said "no textual
+        // evidence" while twenty pictures sat in the context. A client needs to be able to see
+        // that the floor removed them.
+        let engine = EngineQueryStats {
+            context_empty: true,
+            relevance_dropped: Some(20),
+            ..Default::default()
+        };
+        let ctx = QueryContext::new();
+        let stats = from_engine_stats(&engine, &ctx, None, None);
+        assert!(stats.context_empty);
+        assert_eq!(stats.relevance_dropped, Some(20));
+    }
+
+    #[test]
+    fn a_graph_profile_reports_no_relevance_count() {
+        // `None` distinguishes "the gate did not run" from "the gate removed nothing".
+        let ctx = QueryContext::new();
+        let stats = from_engine_stats(&EngineQueryStats::default(), &ctx, None, None);
+        assert_eq!(stats.relevance_dropped, None);
     }
 }

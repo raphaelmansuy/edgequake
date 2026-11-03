@@ -13,12 +13,16 @@
 pub mod fuse;
 pub mod mmr;
 pub mod plan;
+pub mod relevance;
 pub mod retriever;
 pub mod rewrite;
 pub mod weights;
 
 pub use fuse::{fuse_ranked, FusedHit};
 pub use plan::{NormalQueryPlan, QueryModality};
+pub use relevance::{
+    apply_floor, is_relevant, Candidate, RelevanceGate, MIN_IMAGE_SIMILARITY, MIN_TEXT_SIMILARITY,
+};
 pub use retriever::{NormalOutcome, NormalSearch, NormalTrace};
 pub use weights::NormalWeights;
 
@@ -38,4 +42,8 @@ pub mod meta {
     pub const REWRITE_MS: &str = "normal_rewrite_ms";
     /// LLM calls spent on rewriting. Absorbed into `QueryStats.llm_calls`.
     pub const REWRITE_LLM_CALLS: &str = "normal_rewrite_llm_calls";
+    /// Chunks the SPEC-184 relevance floor removed.
+    pub const RELEVANCE_DROPPED: &str = "normal_relevance_dropped";
+    /// True when the floor removed everything, so the answer had no evidence to work from.
+    pub const RELEVANCE_EMPTIED: &str = "normal_relevance_emptied";
 }

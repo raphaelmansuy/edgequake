@@ -533,6 +533,14 @@ pub struct QueryStats {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub context_truncated: bool,
 
+    /// Chunks the SPEC-184 absolute-relevance floor removed, on a normal workspace.
+    ///
+    /// WHY this is separate from `context_empty`: when this is `Some(n > 0)` and the context is
+    /// empty, the corpus *was* searched and nothing in it was relevant — which is a different
+    /// answer from "no documents matched at all". `None` means the gate never ran.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relevance_dropped: Option<usize>,
+
     /// True when local/global used popular-node graph fallback (OPS-P2.14).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub popular_node_fallback: bool,
@@ -652,6 +660,14 @@ impl QueryStats {
         {
             self.llm_calls = calls;
         }
+        // SPEC-184: how many chunks the absolute-relevance floor removed. `context_empty` alone
+        // cannot distinguish "this corpus has nothing on that" from "retrieval returned nothing",
+        // and those deserve different answers. `None` means the gate did not run (graph profile).
+        self.relevance_dropped = context
+            .metadata
+            .get(crate::normal::meta::RELEVANCE_DROPPED)
+            .and_then(|v| v.as_u64())
+            .map(|n| n as usize);
         self.context_empty = context.chunks.is_empty()
             && context.entities.is_empty()
             && context.relationships.is_empty();

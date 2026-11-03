@@ -345,4 +345,16 @@ fn stamp_trace(context: &mut QueryContext, trace: &crate::normal::NormalTrace) {
         meta::QUERY_MODALITY,
         serde_json::json!(trace.modality.as_str()),
     );
+    // SPEC-184: record what the relevance floor removed, so a caller can tell "this corpus has
+    // nothing on that" apart from "nothing was retrieved" — and say so honestly.
+    put(
+        context,
+        meta::RELEVANCE_DROPPED,
+        serde_json::json!(trace.relevance.dropped),
+    );
+    put(
+        context,
+        meta::RELEVANCE_EMPTIED,
+        serde_json::json!(trace.relevance.emptied()),
+    );
 }

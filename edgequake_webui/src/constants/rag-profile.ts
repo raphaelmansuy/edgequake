@@ -19,8 +19,16 @@ export const FTS_REGCONFIGS = ['english', 'simple', 'french', 'german', 'spanish
 export type FtsRegconfig = (typeof FTS_REGCONFIGS)[number];
 export const DEFAULT_FTS_REGCONFIG: FtsRegconfig = 'english';
 
-/** Document kinds a normal workspace can filter on (wire values of `doc_kinds`). */
-export const DOC_KINDS = ['pdf', 'image', 'markdown', 'text', 'office'] as const;
+/**
+ * Document kinds a normal workspace can filter on (wire values of `doc_kinds`).
+ *
+ * WHY no `office`: LAW-121-8 makes DOCX/XLSX/PPTX a non-goal for v1 — nothing in the ingest path
+ * converts a word-processor file, so the supported product matrix is TXT, MD, JSON, PDF and raster
+ * images, and an `office` chip can only ever filter a workspace down to zero results. The server
+ * still accepts the word (its `DocKind` enum is the storage vocabulary), so adding it back is a
+ * one-line change once an Office adapter exists and converts to Markdown.
+ */
+export const DOC_KINDS = ['pdf', 'image', 'markdown', 'text'] as const;
 export type DocKind = (typeof DOC_KINDS)[number];
 
 /** Read-only booleans the server sends on every workspace (`rag_profile_capabilities`). */

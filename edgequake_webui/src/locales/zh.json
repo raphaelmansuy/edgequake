@@ -988,8 +988,7 @@
       "pdf": "PDF",
       "image": "图片",
       "markdown": "Markdown",
-      "text": "文本",
-      "office": "Office"
+      "text": "文本"
     },
     "searchByImage": {
       "label": "以图搜索",
@@ -999,10 +998,10 @@
     "normalEmptyTitle": "向你的文档提问",
     "normalEmptyDescription": "我会找出能回答问题的段落，引用原文并标明页码。",
     "normalSuggestions": {
-      "0": "手册中关于退款是怎么规定的？",
-      "1": "找出提到截止日期的段落",
-      "2": "哪些文档涉及新员工入职？",
-      "3": "引用关于安全要求的章节"
+      "0": "这个工作区里有哪些文档，各自讲了什么？",
+      "1": "概括这些文档的要点",
+      "2": "哪些页面包含表格和图表？",
+      "3": "这些文档中出现最多的实体有哪些？"
     },
     "normalSubtitle": "就你的文档提问",
     "normalEmptyNoDocs": "尚无文档 — 请上传文档，我会根据其中的段落作答。",
@@ -1018,33 +1017,52 @@
     "normalImagesSubtitle": "按描述或按另一张图片搜索图片",
     "normalImagesSuggestions": {
       "0": "这个工作区里有哪些图片？",
-      "1": "给我看包含人物的图片",
-      "2": "找一张有水域的图片",
-      "3": "我收集了哪些类型的图片？"
+      "1": "这个工作区的图片有什么共同点？",
+      "2": "显示与另一张图片相似的图片",
+      "3": "哪些图片与我的文档相关？"
     },
     "normalMixedEmptyTitle": "搜索你的文档和图片",
     "normalMixedEmptyDescription": "我会根据你上传的文字作答，并按图片所示内容匹配图片。用文字提问、引用段落，或附上一张图片来查找相似的图片。",
     "normalMixedSubtitle": "文档与图片，一次搜索",
     "corpusSuggest": {
       "text": {
-        "topic": "{{topic}} 里关于退款是怎么说的？",
-        "deadlines": "找出提到截止日期的段落",
-        "onboarding": "哪些文档涉及入职流程？"
+        "inventory": "这个工作区里有哪些文档，各自讲了什么？",
+        "summarise": "概括这些文档的要点",
+        "topic": "{{topic}} 在它自己的主题上是怎么说的？",
+        "passage": "找出能回答某个具体问题的段落",
+        "term": "某个特定术语在哪里被提到？",
+        "about": "这份文档讲的是什么？"
       },
       "pdf": {
-        "quote": "引用关于安全要求的章节",
-        "page": "哪一页说明了审批流程？",
-        "summarise": "总结最长的那份文档"
+        "page": "{{topic}} 的哪些页面涵盖了它的主要章节？",
+        "quote": "引用 {{topic}} 中规定规则的章节",
+        "figures": "哪些页面包含表格和图表？",
+        "summarise": "概括最长的文档"
       },
       "image": {
         "list": "这个工作区里有哪些图片？",
-        "water": "找一张有水域的图片",
-        "person": "给我看包含人物的图片"
+        "similar": "显示与 {{topic}} 相似的图片",
+        "common": "这个工作区的图片有什么共同点？",
+        "attach": "找出与我附加的图片相似的图片",
+        "count": "这个工作区里有多少张图片？"
       },
-      "office": {
-        "totals": "表格里关于合计是怎么说的？",
-        "summarise": "总结最新表格中的各行"
+      "graph": {
+        "entity": "关于 {{entity}} 我们知道什么？",
+        "topEntities": "这些文档中出现最多的实体有哪些？",
+        "connection": "{{entity}} 与 {{otherEntity}} 是如何关联的？",
+        "relation": "哪些实体对通过 {{relation}} 相连？",
+        "hub": "哪个实体连接的其他实体最多？",
+        "themes": "这些文档的主要主题是什么？",
+        "clusters": "概括这个知识图谱中的聚类",
+        "entityDocuments": "哪些文档提到了 {{entity}}？",
+        "crossDocument": "哪些主题出现在不止一个文档中？"
       }
+    },
+    "normalMixedSuggestions": {
+      "0": "这个工作区里有哪些文档，各自讲了什么？",
+      "1": "这个工作区里有哪些图片？",
+      "2": "这个工作区的图片有什么共同点？",
+      "3": "概括这些文档的要点"
     }
   },
   "pipeline": {

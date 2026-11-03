@@ -19,3 +19,10 @@ xtask = "run --package xtask --"
 RUST_BACKTRACE = "1"
 # Enable SQLx offline mode for builds without database connection
 SQLX_OFFLINE = "true"
+# WHY 16 MB: several `edgequake-api` tests build a `DocumentTaskProcessor` and await `process` in
+# one future, and that frame exceeds the 2 MB default test-thread stack once a workspace build
+# unifies features. The symptom is a `stack overflow, aborting` in whichever test happens to hit it
+# first, which is order-dependent and reads as a flaky suite rather than a size limit. The Makefile
+# already set this for its own spec targets (`SPEC013_n ?= 16777216`); setting it here makes a bare
+# `cargo test --workspace` behave the same way.
+RUST_MIN_STACK = "16777216"

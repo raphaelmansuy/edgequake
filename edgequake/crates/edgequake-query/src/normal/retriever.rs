@@ -7,6 +7,7 @@ use edgequake_storage::traits::{Bm25Request, MetadataFilter, VectorSearchResult,
 
 use super::fuse::fuse_ranked;
 use super::plan::QueryModality;
+use super::relevance::{apply_floor, is_image_modality, Candidate, RelevanceGate};
 use super::weights::NormalWeights;
 use crate::context::RetrievedChunk;
 use crate::error::Result;
@@ -34,6 +35,8 @@ pub struct NormalTrace {
     /// `postgres_bm25`, `none` (backend keeps no index) or `error` (lexical leg failed).
     pub bm25_backend: &'static str,
     pub modality: QueryModality,
+    /// SPEC-184: what the absolute-relevance floor removed, and whether it emptied the context.
+    pub relevance: RelevanceGate,
 }
 
 /// Fused chunks (best first, at most `2 * max_chunks`) and the trace.
@@ -150,7 +153,9 @@ fn fuse_legs(search: &NormalSearch<'_>, legs: Legs) -> NormalOutcome {
     weights.push(search.weights.bm25);
 
     let keep = search.max_chunks.saturating_mul(2).max(1);
-    let chunks: Vec<RetrievedChunk> = fuse_ranked(&lists, &weights)
+    // Fuse first, so the floor sees the whole candidate set: the relative half of the rule needs
+    // the best match to set the scale for the rest.
+    let ordered: Vec<RetrievedChunk> = fuse_ranked(&lists, &weights)
         .into_iter()
         .filter_map(|hit| {
             let sim = similarity.get(hit.id.as_str()).copied();
@@ -162,12 +167,33 @@ fn fuse_legs(search: &NormalSearch<'_>, legs: Legs) -> NormalOutcome {
         })
         .take(keep)
         .collect();
+
+    // SPEC-184: the floor belongs here, where the cosine is still in hand. `score` is an RRF rank
+    // and cannot be thresholded after fusion; `similarity` can.
+    let candidates: Vec<Candidate> = ordered
+        .iter()
+        .map(|chunk| Candidate {
+            similarity: chunk.similarity,
+            is_image: is_image_modality(
+                chunk.modality.as_deref(),
+                chunk.source_modality.as_deref(),
+            ),
+        })
+        .collect();
+    let (keep_flags, gate) = apply_floor(&candidates);
+    let chunks: Vec<RetrievedChunk> = ordered
+        .into_iter()
+        .zip(keep_flags)
+        .filter_map(|(chunk, keep)| keep.then_some(chunk))
+        .collect();
+
     let trace = NormalTrace {
         dense_hits,
         bm25_hits: legs.bm25.len(),
         fused_hits: chunks.len(),
         bm25_backend: legs.backend,
         modality: modality_of(search),
+        relevance: gate,
     };
     NormalOutcome { chunks, trace }
 }
@@ -373,6 +399,80 @@ mod tests {
         assert_eq!(by_id("lexical").similarity, None);
         // The fused rank is still what orders them.
         assert!(by_id("strong").score > 0.0);
+    }
+
+    /// A picture hit: empty body, `image` modality — the shape the ingest path writes.
+    fn image_hit(id: &str, score: f32) -> VectorSearchResult {
+        VectorSearchResult {
+            id: id.into(),
+            score,
+            metadata: json!({"content": "", "modality": "image"}),
+        }
+    }
+
+    #[tokio::test]
+    async fn the_floor_keeps_an_irrelevant_picture_query_out_of_the_prompt() {
+        // The defect this closes, reproduced: a text query against a picture corpus. Every hit is
+        // noise below the cross-modal floor. Before the gate all four reached the model, which
+        // then had to explain that it could see no text; now the context is empty and the trace
+        // says why.
+        let store: Arc<dyn VectorStorage> = Arc::new(Canned {
+            dense: vec![
+                image_hit("p1", 0.473),
+                image_hit("p2", 0.467),
+                image_hit("p3", 0.466),
+                image_hit("p4", 0.440),
+            ],
+            bm25: None,
+        });
+        let out = retrieve_normal(&store, &search("taxe au giga", &[1.0, 0.0, 0.0]))
+            .await
+            .unwrap();
+        assert!(out.chunks.is_empty(), "no noise may reach the prompt");
+        assert_eq!(out.trace.relevance.dropped, 4);
+        assert_eq!(out.trace.relevance.kept, 0);
+        assert!(out.trace.relevance.emptied());
+    }
+
+    #[tokio::test]
+    async fn a_good_picture_query_keeps_its_matches_and_trims_the_rest() {
+        // "a golden retriever puppy" against the same corpus: the real matches survive, including
+        // the runner-ups a reader would call the same kind of thing.
+        let store: Arc<dyn VectorStorage> = Arc::new(Canned {
+            dense: vec![
+                image_hit("p1", 0.715),
+                image_hit("p2", 0.610),
+                image_hit("p3", 0.569),
+                image_hit("p4", 0.530),
+            ],
+            bm25: None,
+        });
+        let out = retrieve_normal(&store, &search("golden retriever puppy", &[1.0, 0.0, 0.0]))
+            .await
+            .unwrap();
+        let ids: Vec<&str> = out.chunks.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, ["p1", "p2", "p3"], "the bicycle (0.530) is dropped");
+        assert_eq!(out.trace.relevance.dropped, 1);
+        assert!(!out.trace.relevance.emptied());
+    }
+
+    #[tokio::test]
+    async fn an_unmeasured_chunk_is_never_dropped() {
+        // A lexical-only hit carries no cosine. Dropping it would be a regression dressed up as
+        // strictness, so an absent similarity is kept and counted separately.
+        let store: Arc<dyn VectorStorage> = Arc::new(Canned {
+            dense: vec![hit("dense", 0.60, "alpha")],
+            bm25: Some(Ok(Some(vec![hit("lexical", 3.0, "beta")]))),
+        });
+        let out = retrieve_normal(&store, &search("alpha", &[1.0, 0.0, 0.0]))
+            .await
+            .unwrap();
+        let ids: Vec<&str> = out.chunks.iter().map(|c| c.id.as_str()).collect();
+        assert!(
+            ids.contains(&"lexical"),
+            "a lexical hit has no cosine to judge"
+        );
+        assert_eq!(out.trace.relevance.unmeasured_kept, 1);
     }
 
     #[tokio::test]

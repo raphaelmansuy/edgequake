@@ -9,7 +9,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "0.39.1"
+    "version": "0.40.0"
   },
   "servers": [
     {
@@ -5599,8 +5599,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "reanalyze_multimodal"
+        "x-edgequake-v2-job-type": "reanalyze_multimodal",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/documents/{document_id}/retry-chunks": {
@@ -13143,8 +13143,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "rebuild_knowledge_graph",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "rebuild_knowledge_graph"
       }
     },
     "/api/v1/workspaces/{workspace_id}/reprocess-documents": {
@@ -13217,8 +13217,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "reprocess_all"
+        "x-edgequake-v2-job-type": "reprocess_all",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/restore": {
@@ -31673,6 +31673,14 @@
             ],
             "description": "LLM / heuristic query intent (022 P3a Summarize truncation audit)."
           },
+          "relevance_dropped": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Chunks the SPEC-184 relevance floor removed on a normal workspace.\n\nWHY it matters to a client: `context_empty: true` together with this set means the corpus\n*was* searched and nothing cleared the floor — an honest \"this workspace has nothing on\nthat\", which is a different answer from an empty corpus. Absent when the gate did not run.",
+            "minimum": 0
+          },
           "rerank_time_ms": {
             "type": [
               "integer",
@@ -31744,6 +31752,7 @@
           "llm_model": {},
           "llm_provider": {},
           "query_intent": {},
+          "relevance_dropped": {},
           "rerank_time_ms": {},
           "retrieval_time_ms": {},
           "sources_retrieved": {},
@@ -32039,6 +32048,14 @@
             "type": "string",
             "description": "Query mode used (after adaptive selection)."
           },
+          "relevance_dropped": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Chunks the SPEC-184 relevance floor removed (stream mirror of the sync field).",
+            "minimum": 0
+          },
           "rerank_time_ms": {
             "type": [
               "integer",
@@ -32118,6 +32135,7 @@
           "llm_provider": {},
           "query_intent": {},
           "query_mode": {},
+          "relevance_dropped": {},
           "rerank_time_ms": {},
           "retrieval_time_ms": {},
           "sources_retrieved": {},
@@ -35601,7 +35619,15 @@
           "score": {
             "type": "number",
             "format": "float",
-            "description": "Relevance score."
+            "description": "Relevance score.\n\nOn a Normal workspace this is a **reciprocal rank fusion** value, so it encodes ordering\nonly: it is roughly `1/(60+rank)` and a perfect match starts no higher than a wild miss.\nUse `similarity` to judge absolute relevance; use this only to compare positions."
+          },
+          "similarity": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "description": "Absolute similarity to the query (0..1), when one was measured.\n\nSPEC-183: the dense leg computes this and fusion used to throw it away, which left every\nconsumer of `score` unable to tell a strong match from a weak one. `None` means \"not\nmeasured\" (a lexical-only hit, or a conversation stored before this field existed), not\nzero."
           },
           "snippet": {
             "type": [
@@ -35655,6 +35681,7 @@
           "reference_id": {},
           "rerank_score": {},
           "score": {},
+          "similarity": {},
           "snippet": {},
           "source_chunk_ids": [],
           "source_modality": {},
@@ -39357,7 +39384,7 @@
     "asyncapi": "2.6.0",
     "info": {
       "title": "EdgeQuake WebSocket Progress",
-      "version": "0.39.1",
+      "version": "0.40.0",
       "description": "Real-time pipeline and document processing progress over WebSocket (RFC 6455). SPEC-149: clients subscribe to owned track_ids on the global channel; events use a tagged {type,data} envelope."
     },
     "defaultContentType": "application/json",

@@ -988,8 +988,7 @@
       "pdf": "PDFs",
       "image": "Images",
       "markdown": "Markdown",
-      "text": "Text",
-      "office": "Office"
+      "text": "Text"
     },
     "searchByImage": {
       "label": "Search by image",
@@ -999,10 +998,10 @@
     "normalEmptyTitle": "Ask about your documents",
     "normalEmptyDescription": "I find the passages that answer your question, quote them and point to the page.",
     "normalSuggestions": {
-      "0": "What does the handbook say about refunds?",
-      "1": "Find the passage that mentions deadlines",
-      "2": "Which documents cover onboarding?",
-      "3": "Quote the section about security requirements"
+      "0": "Which documents are in this workspace, and what is each about?",
+      "1": "Summarise the key points across these documents",
+      "2": "Which pages hold the tables and figures?",
+      "3": "Which entities appear most often in these documents?"
     },
     "normalSubtitle": "Ask questions about your documents",
     "normalEmptyNoDocs": "No documents yet — upload documents and I will answer from their passages.",
@@ -1018,33 +1017,52 @@
     "normalImagesSubtitle": "Search pictures by description, or by another picture",
     "normalImagesSuggestions": {
       "0": "Which pictures are in this workspace?",
-      "1": "Show me the pictures with a person in them",
-      "2": "Find a picture with a body of water",
-      "3": "What kinds of pictures have I collected?"
+      "1": "What do the pictures in this workspace have in common?",
+      "2": "Show me pictures similar to another picture",
+      "3": "Which pictures relate to my documents?"
     },
     "normalMixedEmptyTitle": "Search your documents and pictures",
     "normalMixedEmptyDescription": "I answer from the text you uploaded and match pictures by what they show. Ask in words, cite a passage, or attach a picture to find similar ones.",
     "normalMixedSubtitle": "Documents and pictures, in one search",
     "corpusSuggest": {
       "text": {
-        "topic": "What does {{topic}} say about refunds?",
-        "deadlines": "Find the passage that mentions deadlines",
-        "onboarding": "Which documents cover onboarding?"
+        "inventory": "Which documents are in this workspace, and what is each about?",
+        "summarise": "Summarise the key points across these documents",
+        "topic": "What does {{topic}} say about its main topic?",
+        "passage": "Find the passage that answers a specific question",
+        "term": "Where is a particular term mentioned?",
+        "about": "What is this document about?"
       },
       "pdf": {
-        "quote": "Quote the section about security requirements",
-        "page": "Which page explains the approval process?",
+        "page": "Which pages of {{topic}} cover its main sections?",
+        "quote": "Quote the section of {{topic}} that sets out the rules",
+        "figures": "Which pages hold the tables and figures?",
         "summarise": "Summarise the longest document"
       },
       "image": {
         "list": "Which pictures are in this workspace?",
-        "water": "Find a picture with a body of water",
-        "person": "Show me the pictures with a person in them"
+        "similar": "Show me pictures similar to {{topic}}",
+        "common": "What do the pictures in this workspace have in common?",
+        "attach": "Find pictures that look like one I attach",
+        "count": "How many pictures does this workspace hold?"
       },
-      "office": {
-        "totals": "What does the spreadsheet say about totals?",
-        "summarise": "Summarise the rows in the latest table"
+      "graph": {
+        "entity": "What do we know about {{entity}}?",
+        "topEntities": "Which entities appear most often in these documents?",
+        "connection": "How is {{entity}} connected to {{otherEntity}}?",
+        "relation": "Which pairs of entities are connected by {{relation}}?",
+        "hub": "Which entity links the most other entities together?",
+        "themes": "What are the main themes across these documents?",
+        "clusters": "Summarise the clusters in this knowledge graph",
+        "entityDocuments": "Which documents mention {{entity}}?",
+        "crossDocument": "Which themes appear in more than one document?"
       }
+    },
+    "normalMixedSuggestions": {
+      "0": "Which documents are in this workspace, and what is each about?",
+      "1": "Which pictures are in this workspace?",
+      "2": "What do the pictures in this workspace have in common?",
+      "3": "Summarise the key points across these documents"
     }
   },
   "pipeline": {

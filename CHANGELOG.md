@@ -4,6 +4,80 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.0] — 2026-11-03
+
+Minor on v0.39.1. Schema stays **226**. No migration: the changes are retrieval policy, an answer
+cleaner, and UI copy. Upgrading needs only a redeploy.
+
+**SPEC-001 Acc:** not re-scored on this cut. The relevance floor changes which chunks reach a
+Normal-workspace prompt, and the Acc pack measures a graph workspace (`mix`). The latest valid
+medical-mid n=200 pack remains
+[`medical-mid-20261024T031725Z`](specs/001-benchmark/e2e/artifacts/history/medical-mid-20261024T031725Z/)
+(`valid: true`), EdgeQuake **0.8084** vs LightRAG **0.7681**, delta **+0.0403**
+(95% bootstrap CI [-0.0241, +0.1036]) — a statistical tie, not a win.
+
+### Added
+
+- **Default questions are now derived from what the corpus can answer (SPEC-184).** The Query
+  empty state composes its four suggestions from three inputs: what kind of workspace it is, how
+  much the corpus holds, and the vocabulary the operator declared. Graph workspaces get one slot
+  per retrieval mechanism (entity, relationship, theme, cross-document) and name **real** entities
+  ranked by degree. A normal workspace gets questions per file family, interleaved so a mixed
+  corpus still shows its minority kind. A suggestion whose template cannot be filled from real
+  data is refused rather than defaulted, so no question invents its own premise.
+- **An absolute relevance floor on Normal retrieval (SPEC-184).** `similarity` (the dense cosine
+  fusion already preserved) is now thresholded before context assembly: `0.48` for a picture — the
+  measured cross-modal noise ceiling the image grid already used — and `0.10` for text, the value
+  the pack already applied to chunks. Pictures additionally face a `0.15` margin against the best
+  match, so a legitimate runner-up survives and noise does not. An unmeasured similarity is kept,
+  never dropped.
+- `QueryStats.relevance_dropped` on the sync and stream responses. `context_empty: true` together
+  with this field means the corpus *was* searched and nothing cleared the floor — an honest "this
+  workspace has nothing on that", which is a different answer from an empty corpus.
+- `RUST_MIN_STACK=16MB` in `edgequake/.cargo/config.toml`, matching what the Makefile already set
+  for its own spec targets.
+
+### Fixed
+
+- **The default workspace kind never reached the corpus rule.** `getQueryEmptyCopy` returned a
+  hardcoded list before any corpus logic ran, so every graph workspace — the product default — was
+  offered four sentences that could not name a single entity it held.
+- **Entity suggestions never rendered at all.** The caller read `{ items }` from
+  `/graph/nodes/search`, which returns `{ nodes }`. The path silently produced nothing, so the
+  empty state fell back to the hardcoded copy on every graph workspace.
+- **A text query against a picture corpus answered from noise.** Image chunks carry no text, so the
+  lexical leg is silent and the dense leg always returns `k` rows at the cross-modal noise floor.
+  All of them reached the prompt while the image grid beside the answer showed only the relevant
+  ones. The answer then explained that it could see no text — correct, and unnecessary.
+- **Fabricated subjects in the empty state.** "refunds", "onboarding", "body of water" and "a
+  person" were invented per workspace, and the topic fallback returned the literal string
+  `"the handbook"`, putting a fabricated authority in front of corpora that have none.
+- **Picture questions were offered on a workspace that could not store pictures.** The kind guard
+  existed but was bypassed by the graph branch above.
+- **The suggestion grid collapsed from four slots to one template.** Entity suggestions replaced
+  the whole list with four copies of "What do we know about X?", so the grid taught one mechanism
+  four times. A pool could also under-fill the 2×2 when it held fewer entries than slots.
+- **A one-document corpus was asked to compare across documents.** "Summarise the key points
+  across these documents" needs more than one; entries that require several documents now wait
+  until the corpus has them.
+- **Cross-workspace suggestion bleed.** The entity query used a workspace-independent cache key, so
+  one workspace's entities could be suggested inside another.
+- **`strip_gold_citation_artifacts` missed a heading that followed text on the same line.**
+  `Answer [1] ### References` kept its reference block, because the scan only matched a heading at
+  the start of a line. A heading is now recognised wherever the `##`..`####` run begins, provided
+  it ends its line — so mid-sentence prose mentioning "### References" is still preserved. This
+  repairs `contract_spec142_verified_citations`, which had been failing.
+- **`edgequake-api`'s lib test target did not compile.** Seventeen test fixtures in
+  `chat/mod.rs`, `source_reference_builder.rs`, `verified_citations.rs`, `query_types.rs`,
+  `context_bundle_mapper.rs` and `message_context_mapper.rs` predated the `similarity` field and
+  never set it. 1740 tests in that target had not been running.
+- **`cargo test --workspace --lib` aborted with a stack overflow**, in whichever
+  `DocumentTaskProcessor` test happened to hit the 2 MB test-thread default first. Feature
+  unification under `--workspace` grows the frame; the same test passed as a single-crate build.
+- **The `Office` filter chip filtered every workspace to zero.** DOCX/XLSX/PPTX are a v1 non-goal
+  (LAW-121-8), so no document can ever match. The chip is gone; the four kinds that remain match
+  the published ingest matrix (TXT, MD, JSON, PDF, images).
+
 ## [0.39.1] — 2026-11-02
 
 Patch on v0.39.0. Schema stays **226**. An upgrade from 0.39.0 applies no migration:

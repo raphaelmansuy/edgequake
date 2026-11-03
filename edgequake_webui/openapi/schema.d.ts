@@ -13477,6 +13477,7 @@ export interface components {
          *       "llm_model": {},
          *       "llm_provider": {},
          *       "query_intent": {},
+         *       "relevance_dropped": {},
          *       "rerank_time_ms": {},
          *       "retrieval_time_ms": {},
          *       "sources_retrieved": {},
@@ -13541,6 +13542,14 @@ export interface components {
             llm_provider?: string | null;
             /** @description LLM / heuristic query intent (022 P3a Summarize truncation audit). */
             query_intent?: string | null;
+            /**
+             * @description Chunks the SPEC-184 relevance floor removed on a normal workspace.
+             *
+             *     WHY it matters to a client: `context_empty: true` together with this set means the corpus
+             *     *was* searched and nothing cleared the floor — an honest "this workspace has nothing on
+             *     that", which is a different answer from an empty corpus. Absent when the gate did not run.
+             */
+            relevance_dropped?: number | null;
             /**
              * Format: int64
              * @description Rerank time in ms (if reranking was applied).
@@ -13635,6 +13644,7 @@ export interface components {
          *       "llm_provider": {},
          *       "query_intent": {},
          *       "query_mode": {},
+         *       "relevance_dropped": {},
          *       "rerank_time_ms": {},
          *       "retrieval_time_ms": {},
          *       "sources_retrieved": {},
@@ -13687,6 +13697,8 @@ export interface components {
             query_intent?: string | null;
             /** @description Query mode used (after adaptive selection). */
             query_mode: string;
+            /** @description Chunks the SPEC-184 relevance floor removed (stream mirror of the sync field). */
+            relevance_dropped?: number | null;
             /**
              * Format: int64
              * @description Rerank time in ms (if reranking was applied).
@@ -15442,6 +15454,7 @@ export interface components {
          *       "reference_id": {},
          *       "rerank_score": {},
          *       "score": {},
+         *       "similarity": {},
          *       "snippet": {},
          *       "source_chunk_ids": [],
          *       "source_modality": {},
@@ -15504,8 +15517,22 @@ export interface components {
             /**
              * Format: float
              * @description Relevance score.
+             *
+             *     On a Normal workspace this is a **reciprocal rank fusion** value, so it encodes ordering
+             *     only: it is roughly `1/(60+rank)` and a perfect match starts no higher than a wild miss.
+             *     Use `similarity` to judge absolute relevance; use this only to compare positions.
              */
             score: number;
+            /**
+             * Format: float
+             * @description Absolute similarity to the query (0..1), when one was measured.
+             *
+             *     SPEC-183: the dense leg computes this and fusion used to throw it away, which left every
+             *     consumer of `score` unable to tell a strong match from a weak one. `None` means "not
+             *     measured" (a lexical-only hit, or a conversation stored before this field existed), not
+             *     zero.
+             */
+            similarity?: number | null;
             /** @description Content snippet. */
             snippet?: string | null;
             /**

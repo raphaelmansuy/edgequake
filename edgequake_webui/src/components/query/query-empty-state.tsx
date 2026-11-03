@@ -14,13 +14,14 @@ import { useQuery } from "@tanstack/react-query";
 
 import {
   SUGGESTION_SLOTS,
+  corpusStateOf,
   getQueryEmptyCopy,
   getQueryEmptySuggestionKeys,
   isChatQueryMode,
-  topicForCorpus,
+  suggestionVarsFor,
+  type SuggestionVars,
 } from "@/lib/query/query-empty-copy";
 import type { QueryMode } from "@/types/query";
-import { apiClient } from "@/lib/api/client";
 import { getWorkspaceStats } from "@/lib/api/edgequake/workspaces";
 import { useWorkspaceCapabilities } from "@/hooks/use-workspace-capabilities";
 import { useQueryEmptyCorpus } from "@/hooks/use-query-empty-corpus";
@@ -32,8 +33,6 @@ export interface QueryEmptyStateProps {
   mode?: QueryMode;
 }
 
-type EntityHit = { name?: string; label?: string; entity_type?: string };
-
 /** Empty query chat state — no gradients (Q04/Q19); corpus-derived suggestions (Q20). */
 export const QueryEmptyState = memo(function QueryEmptyState({
   onSuggestionClick,
@@ -42,10 +41,12 @@ export const QueryEmptyState = memo(function QueryEmptyState({
   const { t } = useTranslation();
   const isChat = isChatQueryMode(mode);
   const { shows_graph_ui: hasGraph } = useWorkspaceCapabilities();
-  // SPEC-183: the suggestions must be questions this corpus can answer. A picture workspace was
-  // being offered "What does the handbook say about refunds?" — unanswerable by construction.
+  // SPEC-183/184: the suggestions must be questions this corpus can answer. A picture workspace was
+  // being offered "What does the handbook say about refunds?" — unanswerable by construction; a
+  // graph workspace was offered four sentences that could not name a single entity it held.
   const corpus = useQueryEmptyCorpus(!isChat);
   const copy = getQueryEmptyCopy(mode, corpus);
+  const corpusState = corpusStateOf(corpus);
 
   const selectedWorkspaceId = useTenantStore((s) => s.selectedWorkspaceId);
 
@@ -56,51 +57,23 @@ export const QueryEmptyState = memo(function QueryEmptyState({
     enabled: !isChat && !!selectedWorkspaceId,
   });
 
-  const { data: topEntities } = useQuery({
-    queryKey: ["empty-top-entities"],
-    queryFn: async () => {
-      try {
-        const res = await apiClient<{ items?: EntityHit[] }>(
-          "/graph/nodes/search?q=&limit=4",
-        );
-        return res.items ?? [];
-      } catch {
-        return [] as EntityHit[];
-      }
-    },
-    staleTime: 60_000,
-    enabled: !isChat && hasGraph,
-  });
-
-  const suggestionIcons = isChat
-    ? [
-        <MessageSquare key="0" className="h-4 w-4" />,
-        <Lightbulb key="1" className="h-4 w-4" />,
-        <Search key="2" className="h-4 w-4" />,
-        <BookOpen key="3" className="h-4 w-4" />,
-      ]
-    : [
-        <Search key="0" className="h-4 w-4" />,
-        <Lightbulb key="1" className="h-4 w-4" />,
-        <GitBranch key="2" className="h-4 w-4" />,
-        <BookOpen key="3" className="h-4 w-4" />,
-      ];
-
-  const corpusSuggestions = useMemo(() => {
-    if (isChat || !topEntities?.length) return null;
-    return topEntities.slice(0, 4).map((e, i) => {
-      const name = e.label || e.name || "";
-      const display = name.replace(/_/g, " ");
-      return {
-        icon: suggestionIcons[i] ?? <Search className="h-4 w-4" />,
-        text: t(
-          "query.corpusSuggestion",
-          "What do we know about {{name}}?",
-          { name: display },
-        ),
-      };
-    });
-  }, [isChat, topEntities, t, suggestionIcons]);
+  const suggestionIcons = useMemo(
+    () =>
+      isChat
+        ? [
+            <MessageSquare key="0" className="h-4 w-4" />,
+            <Lightbulb key="1" className="h-4 w-4" />,
+            <Search key="2" className="h-4 w-4" />,
+            <BookOpen key="3" className="h-4 w-4" />,
+          ]
+        : [
+            <Search key="0" className="h-4 w-4" />,
+            <Lightbulb key="1" className="h-4 w-4" />,
+            <GitBranch key="2" className="h-4 w-4" />,
+            <BookOpen key="3" className="h-4 w-4" />,
+          ],
+    [isChat],
+  );
 
   // SPEC-183: each corpus suggestion carries its own i18n key, so a translated question is not
   // looked up by position in a list whose length now depends on the corpus.
@@ -108,16 +81,23 @@ export const QueryEmptyState = memo(function QueryEmptyState({
     () => getQueryEmptySuggestionKeys(mode, corpus),
     [mode, corpus],
   );
-  // The translated string carries `{{topic}}` too, so it is substituted here as well — the
-  // English fallback alone is not what renders. Without this the screen showed a raw
-  // placeholder, which no test caught because both sides were individually correct.
-  const topic = topicForCorpus(corpus);
-  const suggestions =
-    corpusSuggestions ??
-    copy.suggestions.slice(0, SUGGESTION_SLOTS).map((text, i) => ({
-      icon: suggestionIcons[i] ?? <Search className="h-4 w-4" />,
-      text: t(suggestionKeys[i] ?? `${copy.keys.suggestions}.${i}`, text, { topic }),
-    }));
+  // The translated string carries the template placeholders too, so they are substituted here as
+  // well — the English fallback alone is not what renders. Without this the screen showed a raw
+  // `{{topic}}`, which no test caught because both sides were individually correct.
+  const vars = useMemo<SuggestionVars>(() => suggestionVarsFor(corpus), [corpus]);
+
+  const suggestions = useMemo(
+    () =>
+      copy.suggestions.slice(0, SUGGESTION_SLOTS).map((text, i) => ({
+        icon: suggestionIcons[i] ?? <Search className="h-4 w-4" />,
+        text: t(suggestionKeys[i] ?? `${copy.keys.suggestions}.${i}`, text, vars),
+      })),
+    [copy, suggestionIcons, suggestionKeys, t, vars],
+  );
+
+  // An empty workspace has no answerable question, so the grid is not shown at all: four cards
+  // that each produce a refusal on the first click is the same lie in a different costume.
+  const showSuggestions = Boolean(onSuggestionClick) && suggestions.length > 0 && corpusState !== "empty";
 
   const hasDocs = (stats?.document_count ?? 0) > 0;
   const figures = hasGraph
@@ -185,7 +165,7 @@ export const QueryEmptyState = memo(function QueryEmptyState({
         </p>
       ) : null}
 
-      {onSuggestionClick && (
+      {showSuggestions && (
         <div className="w-full max-w-2xl space-y-3">
           <p className="mb-2 text-center text-sm font-medium text-muted-foreground">
             {t("query.tryAsking", "Try asking:")}
@@ -199,7 +179,7 @@ export const QueryEmptyState = memo(function QueryEmptyState({
               <button
                 key={i}
                 type="button"
-                onClick={() => onSuggestionClick(suggestion.text)}
+                onClick={() => onSuggestionClick?.(suggestion.text)}
                 className="group flex min-h-[60px] items-start gap-3 text-left px-4 py-3 rounded-xl border bg-card hover:bg-muted/50 hover:border-primary/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                 role="listitem"
                 aria-label={suggestion.text}

@@ -988,8 +988,7 @@
       "pdf": "PDF",
       "image": "Images",
       "markdown": "Markdown",
-      "text": "Texte",
-      "office": "Office"
+      "text": "Texte"
     },
     "searchByImage": {
       "label": "Rechercher par image",
@@ -999,10 +998,10 @@
     "normalEmptyTitle": "Interrogez vos documents",
     "normalEmptyDescription": "Je retrouve les passages qui répondent à votre question, je les cite et j'indique la page.",
     "normalSuggestions": {
-      "0": "Que dit le manuel sur les remboursements ?",
-      "1": "Trouve le passage qui mentionne les délais",
-      "2": "Quels documents parlent de l'accueil des nouveaux ?",
-      "3": "Cite la section sur les exigences de sécurité"
+      "0": "Quels documents contient cet espace de travail, et de quoi parle chacun ?",
+      "1": "Résumez les points clés de ces documents",
+      "2": "Quelles pages contiennent les tableaux et les figures ?",
+      "3": "Quelles entités reviennent le plus souvent dans ces documents ?"
     },
     "normalSubtitle": "Posez vos questions sur vos documents",
     "normalEmptyNoDocs": "Aucun document — importez des documents et je répondrai à partir de leurs passages.",
@@ -1018,33 +1017,52 @@
     "normalImagesSubtitle": "Rechercher des images par description, ou par une autre image",
     "normalImagesSuggestions": {
       "0": "Quelles images contient cet espace de travail ?",
-      "1": "Montrez-moi les images où figure une personne",
-      "2": "Trouvez une image avec un plan d’eau",
-      "3": "Quels types d’images ai-je collectés ?"
+      "1": "Qu'ont en commun les images de cet espace de travail ?",
+      "2": "Montrez-moi des images similaires à une autre image",
+      "3": "Quelles images sont liées à mes documents ?"
     },
     "normalMixedEmptyTitle": "Recherchez vos documents et vos images",
     "normalMixedEmptyDescription": "Je réponds à partir du texte que vous avez déposé et je rapproche les images par ce qu’elles montrent. Posez une question, citez un passage, ou joignez une image pour en trouver de similaires.",
     "normalMixedSubtitle": "Documents et images, dans une seule recherche",
     "corpusSuggest": {
       "text": {
-        "topic": "Que dit {{topic}} à propos des remboursements ?",
-        "deadlines": "Trouvez le passage qui mentionne les échéances",
-        "onboarding": "Quels documents traitent de l’intégration ?"
+        "inventory": "Quels documents contient cet espace de travail, et de quoi parle chacun ?",
+        "summarise": "Résumez les points clés de ces documents",
+        "topic": "Que dit {{topic}} sur son sujet principal ?",
+        "passage": "Trouvez le passage qui répond à une question précise",
+        "term": "Où ce terme précis est-il mentionné ?",
+        "about": "De quoi parle ce document ?"
       },
       "pdf": {
-        "quote": "Citez la section sur les exigences de sécurité",
-        "page": "Quelle page explique le processus de validation ?",
+        "page": "Quelles pages de {{topic}} couvrent ses sections principales ?",
+        "quote": "Citez la section de {{topic}} qui énonce les règles",
+        "figures": "Quelles pages contiennent les tableaux et les figures ?",
         "summarise": "Résumez le document le plus long"
       },
       "image": {
         "list": "Quelles images contient cet espace de travail ?",
-        "water": "Trouvez une image avec un plan d’eau",
-        "person": "Montrez-moi les images où figure une personne"
+        "similar": "Montrez-moi des images similaires à {{topic}}",
+        "common": "Qu'ont en commun les images de cet espace de travail ?",
+        "attach": "Trouvez des images semblables à celle que je joins",
+        "count": "Combien d'images cet espace de travail contient-il ?"
       },
-      "office": {
-        "totals": "Que disent les totaux du tableur ?",
-        "summarise": "Résumez les lignes du dernier tableau"
+      "graph": {
+        "entity": "Que savons-nous sur {{entity}} ?",
+        "topEntities": "Quelles entités reviennent le plus souvent dans ces documents ?",
+        "connection": "Quel lien relie {{entity}} à {{otherEntity}} ?",
+        "relation": "Quelles paires d'entités sont reliées par {{relation}} ?",
+        "hub": "Quelle entité relie le plus d'autres entités entre elles ?",
+        "themes": "Quels sont les grands thèmes de ces documents ?",
+        "clusters": "Résumez les groupes de ce graphe de connaissances",
+        "entityDocuments": "Quels documents mentionnent {{entity}} ?",
+        "crossDocument": "Quels thèmes apparaissent dans plus d'un document ?"
       }
+    },
+    "normalMixedSuggestions": {
+      "0": "Quels documents contient cet espace de travail, et de quoi parle chacun ?",
+      "1": "Quelles images contient cet espace de travail ?",
+      "2": "Qu'ont en commun les images de cet espace de travail ?",
+      "3": "Résumez les points clés de ces documents"
     }
   },
   "pipeline": {

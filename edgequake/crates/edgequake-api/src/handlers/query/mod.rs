@@ -258,6 +258,7 @@ mod tests {
             source_type: "chunk".to_string(),
             id: "chunk-1".to_string(),
             score: 0.9,
+            similarity: None,
             rerank_score: None,
             snippet: Some(String::new()),
             reference_id: Some(1),

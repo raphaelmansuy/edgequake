@@ -9,7 +9,6 @@ const KIND_LABELS: Record<DocKind, { key: string; fallback: string }> = {
   image: { key: "query.kinds.image", fallback: "Images" },
   markdown: { key: "query.kinds.markdown", fallback: "Markdown" },
   text: { key: "query.kinds.text", fallback: "Text" },
-  office: { key: "query.kinds.office", fallback: "Office" },
 };
 
 interface KindChipsProps {

@@ -128,6 +128,7 @@ mod tests {
             source_type: "chunk".to_string(),
             id: "doc-1-chunk-0".to_string(),
             score: 0.9,
+            similarity: None,
             rerank_score: None,
             snippet: Some("test content".to_string()),
             reference_id: Some(1),

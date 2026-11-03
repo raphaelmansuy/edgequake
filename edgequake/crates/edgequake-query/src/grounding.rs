@@ -103,28 +103,65 @@ pub fn grounding_instructions_gold_compat() -> &'static str {
   - Grounded arithmetic (W3-arith): if the question asks how many / a headcount / a count of people and the Context explicitly states BOTH (a) a percentage/rate and (b) a sample size N (e.g. "1,503 adults", "n=710") that together determine that count, you MUST compute count = round(percentage/100 × N), answer with that short integer (not the percentage). Worked example: Context has "Not good" = 36% and sample "1,503 adults" → answer 541 (not 36 or 36%). Do NOT invent missing percentages or sample sizes. Do NOT refuse merely because the count is not printed as a literal integer when both operands are present."#
 }
 
+/// Byte offset where a `References` heading block starts, if the answer has one.
+///
+/// Recognises `##`..`####` + `References` (optional trailing colon) that **ends its line**, which
+/// includes the case where answer text precedes it on the same line. A mention that continues with
+/// more words is prose, not a heading, and is not a block start.
+fn references_heading_start(text: &str) -> Option<usize> {
+    let mut offset = 0;
+    for line in text.split_inclusive('\n') {
+        let trimmed = line.trim_end_matches(['\n', '\r']);
+        // Locate every `#` run in the line, so `Answer [1] ### References` is found as well as a
+        // leading `### References`.
+        let mut search_from = 0;
+        while let Some(rel) = trimmed[search_from..].find('#') {
+            let start = search_from + rel;
+            let rest = &trimmed[start..];
+            let hashes = rest.chars().take_while(|c| *c == '#').count();
+            if (2..=4).contains(&hashes) {
+                let rest_after_hashes = &rest[hashes..];
+                // A real heading is separated from its title by a space (`### References`) or is a
+                // bare run at end of line (`###`). Without the space the token is a word like
+                // `###References:` glued to the text, which callers expect to survive as content.
+                let separated = rest_after_hashes.starts_with(char::is_whitespace);
+                let after = rest_after_hashes.trim_start();
+                let title = after.trim_end();
+                let title = title.strip_suffix(':').unwrap_or(title);
+                if separated && title.eq_ignore_ascii_case("References") {
+                    return Some(offset + start);
+                }
+            }
+            search_from = start + hashes.max(1);
+            if search_from >= trimmed.len() {
+                break;
+            }
+        }
+        offset += line.len();
+    }
+    None
+}
+
 /// Strip trailing References heading blocks and inline `[N]` markers for Acc gold F1.
+///
+/// A heading is recognised when a level-2..4 `#` run is followed by `References` **ending the
+/// line** (optionally with a trailing colon). That distinction is the whole rule:
+///
+/// - `### References` at the end of a line opens a reference block → drop it and everything after.
+/// - `Use ### References to name a section.` mentions the phrase *mid-sentence* → keep it, because
+///   it is prose and truncating there would delete the answer.
+///
+/// The previous implementation only looked at the start of a line (`title.starts_with(char::is_whitespace)`),
+/// so a heading that followed answer text on the same line — `Answer [1] ### References` — was not
+/// seen as a heading at all and the block survived.
 pub fn strip_gold_citation_artifacts(answer: &str) -> String {
     let mut text = answer.trim().to_string();
     if text.is_empty() {
         return text;
     }
-    // Drop References section (LR-style or accidental).
-    let mut offset = 0;
-    for line in text.split_inclusive('\n') {
-        let heading = line.trim();
-        let title = heading.trim_start_matches('#');
-        let level = heading.len() - title.len();
-        let title_without_colon = title.trim().strip_suffix(':').unwrap_or(title.trim());
-        if (2..=4).contains(&level)
-            && title.starts_with(char::is_whitespace)
-            && title_without_colon.eq_ignore_ascii_case("References")
-        {
-            text.truncate(offset);
-            text = text.trim_end().to_string();
-            break;
-        }
-        offset += line.len();
+    if let Some(cut) = references_heading_start(&text) {
+        text.truncate(cut);
+        text = text.trim_end().to_string();
     }
     // Remove bracket citation tokens like [1], [16], [N].
     let mut out = String::with_capacity(text.len());
@@ -373,6 +410,34 @@ mod tests {
         assert_eq!(
             grounding_instructions_for(Some("Do NOT append citation markers")),
             grounding_instructions_gold_compat()
+        );
+    }
+
+    /// A heading can follow answer text on the same line and must still terminate the block.
+    ///
+    /// WHY: the old scan only matched a heading at the *start* of a line, so
+    /// `Answer [1] ### References` kept its reference block and the Acc-gold cleaner failed to
+    /// remove it — a defect that lived in a sibling test file and was never visible from here.
+    #[test]
+    fn strip_gold_citations_sees_a_heading_that_follows_text_on_the_same_line() {
+        assert_eq!(
+            strip_gold_citation_artifacts("Answer [1] ### References\nfoo"),
+            "Answer"
+        );
+        // A title followed by more words is prose, so it is kept — for a `##` heading too.
+        // (The contract test's `## REFERENCES` case has no trailing words.)
+        assert_eq!(
+            strip_gold_citation_artifacts("Answer [1] ## REFERENCES"),
+            "Answer"
+        );
+        assert_eq!(
+            strip_gold_citation_artifacts("Answer [1] ## REFERENCES: trailing"),
+            "Answer ## REFERENCES: trailing"
+        );
+        // And the contrast that makes the rule necessary: mid-sentence prose is not a heading.
+        assert_eq!(
+            strip_gold_citation_artifacts("Use ### References to name a section."),
+            "Use ### References to name a section."
         );
     }
 

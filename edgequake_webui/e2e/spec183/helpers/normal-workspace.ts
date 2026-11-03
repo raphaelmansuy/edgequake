@@ -101,24 +101,43 @@ export interface FixtureOptions {
    * workspace can be given images.
    */
   imageModelOffered?: boolean;
+  /**
+   * Add a picture to the corpus.
+   *
+   * WHY separate from `images`: `images` is a *capability* (can this workspace store a picture?),
+   * while this is *contents* (does it hold one?). The empty state branches on contents, so a
+   * workspace that can embed images but holds only text must offer no picture question — a
+   * distinction the fixture previously could not express.
+   */
+  withPicture?: boolean;
 }
 
-const DOCS = [
+const BASE_DOCS: [string, string, number][] = [
   ["captions.json", "application/json", 2],
   ["MANIFEST.md", "text/markdown", 2],
-].map(([name, type, chunks], i) => ({
-  id: `00000000-0000-4000-8000-00000000000${i + 1}`,
-  title: String(name),
-  file_name: String(name),
-  status: "completed",
-  content_type: String(type),
-  size_bytes: 4096 + i * 512,
-  chunk_count: Number(chunks),
-  entity_count: 0,
-  relationship_count: 0,
-  created_at: "2026-11-03T01:37:38Z",
-  updated_at: "2026-11-03T01:37:38Z",
-}));
+];
+
+const PICTURE_DOC: [string, string, number] = ["05-alpine-lake.jpg", "image/jpeg", 1];
+
+/** The corpus this workspace holds: text unless a picture was asked for. */
+function docsFor(options: FixtureOptions) {
+  const rows = options.withPicture ? [...BASE_DOCS, PICTURE_DOC] : BASE_DOCS;
+  return rows.map(([name, type, chunks], i) => ({
+    id: `00000000-0000-4000-8000-00000000000${i + 1}`,
+    // The documents table identifies a row by its file name, so the title keeps the extension.
+    title: String(name),
+    file_name: String(name),
+    status: "completed",
+    content_type: String(type),
+    source_type: String(type).startsWith("image/") ? "image" : null,
+    size_bytes: 4096 + i * 512,
+    chunk_count: Number(chunks),
+    entity_count: 0,
+    relationship_count: 0,
+    created_at: "2026-11-03T01:37:38Z",
+    updated_at: "2026-11-03T01:37:38Z",
+  }));
+}
 
 /** The workspace the page will see: normal, text-only unless `images`. */
 function workspaceBody({ images = false }: FixtureOptions) {
@@ -170,6 +189,7 @@ async function installWorkspace(
   calls: { method: string; path: string; body: unknown }[],
 ) {
   const workspace = workspaceBody(options);
+  const DOCS = docsFor(options);
   await page.route("**/api/v1/tenants/*/workspaces**", (route: Route) => {
     const request = route.request();
     if (request.method() === "POST") {
