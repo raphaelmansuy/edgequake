@@ -144,6 +144,14 @@ pub struct MessageSource {
     pub content: Option<String>,
     /// Relevance score.
     pub score: f32,
+    /// Absolute similarity to the query, when one was measured (SPEC-183).
+    ///
+    /// Persisted for the same reason `doc_kind` is: the image grid gates on it, and a reloaded
+    /// conversation must gate exactly as the live answer did. Absent means "not measured" —
+    /// older conversations, lexical-only hits — and callers must fail open.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub similarity: Option<f32>,
+
     /// Document ID this came from.
     pub document_id: Option<String>,
     /// Source type: "chunk", "entity", or "relationship".
@@ -186,6 +194,7 @@ impl MessageSource {
             title: None,
             content: None,
             score,
+            similarity: None,
             document_id: None,
             source_type: None,
             page_start: None,

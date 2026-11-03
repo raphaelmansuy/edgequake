@@ -13,13 +13,17 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 
 import {
+  SUGGESTION_SLOTS,
   getQueryEmptyCopy,
+  getQueryEmptySuggestionKeys,
   isChatQueryMode,
+  topicForCorpus,
 } from "@/lib/query/query-empty-copy";
 import type { QueryMode } from "@/types/query";
 import { apiClient } from "@/lib/api/client";
 import { getWorkspaceStats } from "@/lib/api/edgequake/workspaces";
 import { useWorkspaceCapabilities } from "@/hooks/use-workspace-capabilities";
+import { useQueryEmptyCorpus } from "@/hooks/use-query-empty-corpus";
 import { useTenantStore } from "@/stores/use-tenant-store";
 
 export interface QueryEmptyStateProps {
@@ -38,7 +42,10 @@ export const QueryEmptyState = memo(function QueryEmptyState({
   const { t } = useTranslation();
   const isChat = isChatQueryMode(mode);
   const { shows_graph_ui: hasGraph } = useWorkspaceCapabilities();
-  const copy = getQueryEmptyCopy(mode, hasGraph);
+  // SPEC-183: the suggestions must be questions this corpus can answer. A picture workspace was
+  // being offered "What does the handbook say about refunds?" — unanswerable by construction.
+  const corpus = useQueryEmptyCorpus(!isChat);
+  const copy = getQueryEmptyCopy(mode, corpus);
 
   const selectedWorkspaceId = useTenantStore((s) => s.selectedWorkspaceId);
 
@@ -95,11 +102,21 @@ export const QueryEmptyState = memo(function QueryEmptyState({
     });
   }, [isChat, topEntities, t, suggestionIcons]);
 
+  // SPEC-183: each corpus suggestion carries its own i18n key, so a translated question is not
+  // looked up by position in a list whose length now depends on the corpus.
+  const suggestionKeys = useMemo(
+    () => getQueryEmptySuggestionKeys(mode, corpus),
+    [mode, corpus],
+  );
+  // The translated string carries `{{topic}}` too, so it is substituted here as well — the
+  // English fallback alone is not what renders. Without this the screen showed a raw
+  // placeholder, which no test caught because both sides were individually correct.
+  const topic = topicForCorpus(corpus);
   const suggestions =
     corpusSuggestions ??
-    copy.suggestions.map((text, i) => ({
+    copy.suggestions.slice(0, SUGGESTION_SLOTS).map((text, i) => ({
       icon: suggestionIcons[i] ?? <Search className="h-4 w-4" />,
-      text: t(`${copy.keys.suggestions}.${i}`, text),
+      text: t(suggestionKeys[i] ?? `${copy.keys.suggestions}.${i}`, text, { topic }),
     }));
 
   const hasDocs = (stats?.document_count ?? 0) > 0;

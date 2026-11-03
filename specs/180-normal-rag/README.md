@@ -50,6 +50,7 @@
 17. [16-e2e-test-matrix.md](16-e2e-test-matrix.md) — One test per EC
 18. [17-cross-ref.md](17-cross-ref.md) — WHY, law, finding, EC, wave, test, lens
 19. Lenses → [`lenses/`](lenses/)
+20. [18-verification.md](18-verification.md) — What was verified, and the defects the audit found
 
 ## Locked decisions
 

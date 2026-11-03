@@ -191,7 +191,10 @@
       "pdfParserEdgeParse": "EdgeParse",
       "pdfParserEdgeParseOcr": "EdgeParse + OCR",
       "pdfParserAuto": "Auto",
-      "settings": "Upload settings"
+      "settings": "Upload settings",
+      "textOnlyTitle": "This workspace stores text only",
+      "textOnlyBody": "Pictures need a workspace created with evidence “Text and images”. That choice is fixed when the workspace is made, so create one there and upload the pictures in it.",
+      "imagesNeedImageWorkspace": "{{count}} picture(s) were not uploaded: this workspace stores text only. Pictures need a workspace created with evidence “Text and images”."
     },
     "duplicateDialog": {
       "titleSingle": "Duplicate document detected",
@@ -1009,6 +1012,39 @@
       "more": "+{{count}} more",
       "unavailable": "No preview",
       "relevance": "Match strength"
+    },
+    "normalImagesEmptyTitle": "Search your pictures",
+    "normalImagesEmptyDescription": "I match pictures by what they show, and text by what it says. Ask in words, or attach a picture to find similar ones.",
+    "normalImagesSubtitle": "Search pictures by description, or by another picture",
+    "normalImagesSuggestions": {
+      "0": "Which pictures are in this workspace?",
+      "1": "Show me the pictures with a person in them",
+      "2": "Find a picture with a body of water",
+      "3": "What kinds of pictures have I collected?"
+    },
+    "normalMixedEmptyTitle": "Search your documents and pictures",
+    "normalMixedEmptyDescription": "I answer from the text you uploaded and match pictures by what they show. Ask in words, cite a passage, or attach a picture to find similar ones.",
+    "normalMixedSubtitle": "Documents and pictures, in one search",
+    "corpusSuggest": {
+      "text": {
+        "topic": "What does {{topic}} say about refunds?",
+        "deadlines": "Find the passage that mentions deadlines",
+        "onboarding": "Which documents cover onboarding?"
+      },
+      "pdf": {
+        "quote": "Quote the section about security requirements",
+        "page": "Which page explains the approval process?",
+        "summarise": "Summarise the longest document"
+      },
+      "image": {
+        "list": "Which pictures are in this workspace?",
+        "water": "Find a picture with a body of water",
+        "person": "Show me the pictures with a person in them"
+      },
+      "office": {
+        "totals": "What does the spreadsheet say about totals?",
+        "summarise": "Summarise the rows in the latest table"
+      }
     }
   },
   "pipeline": {

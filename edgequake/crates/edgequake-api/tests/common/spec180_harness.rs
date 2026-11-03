@@ -41,6 +41,13 @@ pub async fn harness() -> Option<Harness> {
         .ok()?
         .ok()?;
 
+    // WHY: tenant creation adds a membership for `USER_ID`, and `memberships.user_id` is a
+    // foreign key into `users`. A database that was migrated but never booted through
+    // `AppState::ensure_defaults` has no such row, so every create returned 500
+    // `memberships_user_id_fkey` and the whole suite failed on a fixture rather than on a
+    // behaviour. Seeding the row here makes the harness independent of boot order.
+    seed_test_user(&pool).await?;
+
     // A normal workspace must never call the chat model: the double counts every call.
     let mock = super::spec180::CountingProvider::shared();
     edgequake_api::safety_limits::set_test_provider_override(
@@ -69,8 +76,33 @@ pub async fn harness() -> Option<Harness> {
     })
 }
 
-/// A tenant plus a mock-provider workspace of the given profile.
+/// Make sure `USER_ID` exists as a user, so tenant membership can reference it.
 ///
+/// A freshly migrated database has a `users` table and no rows; `AppState` seeds the default
+/// user during `ensure_defaults`, but a test harness that builds Postgres state directly does
+/// not go through that path. Without this row, `POST /api/v1/tenants` fails with
+/// `memberships_user_id_fkey`, which looks like a product bug and is not one.
+async fn seed_test_user(pool: &PgPool) -> Option<()> {
+    let tenant = sqlx::query_scalar::<_, uuid::Uuid>(
+        "SELECT tenant_id FROM public.tenants ORDER BY created_at LIMIT 1",
+    )
+    .fetch_optional(pool)
+    .await
+    .ok()??;
+    sqlx::query(
+        "INSERT INTO public.users (user_id, tenant_id, username, email, password_hash, role, is_active, created_at, updated_at)
+         VALUES ($1, $2, 'spec180_user', 'spec180@edgequake.local', 'not_a_real_hash', 'admin', TRUE, NOW(), NOW())
+         ON CONFLICT (user_id) DO NOTHING",
+    )
+    .bind(uuid::Uuid::parse_str(USER_ID).ok()?)
+    .bind(tenant)
+    .execute(pool)
+    .await
+    .ok()?;
+    Some(())
+}
+
+/// A tenant plus a mock-provider workspace of the given profile.
 /// The workspace is created through the service so its provider pair is `mock`; the API
 /// route judges every explicit pair against the live model catalog, which has no mock.
 /// API-level create rules are covered by `workspace_create_validates_profile_words`.

@@ -188,6 +188,21 @@ pub struct RetrievedChunk {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_modality: Option<String>,
 
+    /// Absolute similarity of this chunk to the query, when one was measured.
+    ///
+    /// WHY this exists: on a Normal workspace `score` is a **reciprocal rank fusion** value, so
+    /// it encodes order and nothing else — a perfect match and a wild miss both begin at
+    /// `1/(60+1)`. Anything downstream that wants to ask "is this rank *good*?" (an image grid
+    /// deciding whether to show a picture at all, a badge claiming confidence) cannot answer it
+    /// from `score`. Fusion used to drop the cosine the dense leg had already computed; it is
+    /// kept here, on the same 0..1 scale the retrieval floor uses, so a caller can judge
+    /// absolute relevance rather than relative position.
+    ///
+    /// `None` means "not measured" (a lexical-only hit, a graph workspace that did not record
+    /// one, or a stored conversation from before this field existed) — never "zero relevance".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub similarity: Option<f32>,
+
     /// Stable citation index for prompt `[N]` and API `reference_id` (SPEC-083 X-20).
     ///
     /// Assigned once before format; never renumbered after reorder.
@@ -214,8 +229,15 @@ impl RetrievedChunk {
             page_end: None,
             modality: None,
             source_modality: None,
+            similarity: None,
             citation_id: None,
         }
+    }
+
+    /// Record the absolute similarity this chunk scored against the query.
+    pub fn with_similarity(mut self, similarity: f32) -> Self {
+        self.similarity = Some(similarity);
+        self
     }
 
     /// Set the human-readable document name (SPEC-142).

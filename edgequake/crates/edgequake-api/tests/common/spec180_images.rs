@@ -42,6 +42,12 @@ pub async fn start_fake_vertex() -> FakeVertex {
     std::env::set_var("GOOGLE_CLOUD_PROJECT", "fake-project");
     std::env::set_var("GOOGLE_ACCESS_TOKEN", "fake-token");
     std::env::remove_var("EDGEQUAKE_SKIP_EMBED_PROBE");
+    // WHY: the image probe is memoised per `(provider, model)` for five minutes, process-wide.
+    // A test that starts this fake, probes successfully, then points at a dead port to assert
+    // `embedding_auth` would read the earlier *success* out of that cache and see 201 instead of
+    // 422 — which is exactly what happened, and it looked like a product defect. Starting a
+    // fresh vendor double means every cached answer from a previous test is stale.
+    edgequake_api::services::embed_capability_probe::forget_all();
     FakeVertex { hits, handle }
 }
 

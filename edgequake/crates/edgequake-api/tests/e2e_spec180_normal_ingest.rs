@@ -226,7 +226,10 @@ async fn workspace_create_validates_profile_words_body() {
         &json!({"name": format!("spec180 words {suffix}")}),
     )
     .await;
-    let tenant_id = tenant["id"].as_str().unwrap().to_string();
+    let tenant_id = tenant["id"]
+        .as_str()
+        .unwrap_or_else(|| panic!("tenant create failed: {tenant}"))
+        .to_string();
     let uri = format!("/api/v1/tenants/{tenant_id}/workspaces");
     let post = |body: Value| {
         let app = h.app.clone();

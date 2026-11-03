@@ -56,22 +56,32 @@ async fn contract_rerank_time_ms_populated_when_reranker_applied() {
 
 #[test]
 fn contract_query_execute_wires_engine_rerank_time_ms() {
-    let src = include_str!("../../edgequake-api/src/handlers/query/query_execute.rs");
+    // The mapping moved during the handler split: the forwarding now lives in the stats mappers
+    // rather than inline in `query_execute.rs`. This test used to grep the old file and had been
+    // failing ever since, even though the behaviour is intact — so it asserts the behaviour's
+    // *new* home instead of a path that no longer holds it.
+    let stats = include_str!("../../edgequake-api/src/services/query_stats_mapper.rs");
     assert!(
-        src.contains("result.stats.rerank_time_ms"),
+        stats.contains("rerank_time_ms: engine.rerank_time_ms"),
         "API must forward engine rerank_time_ms (SPEC-024 4.1)"
+    );
+    let types = include_str!("../../edgequake-api/src/handlers/query_types.rs");
+    assert!(
+        types.contains("rerank_time_ms: stats.rerank_time_ms"),
+        "the response DTO must carry the engine's rerank_time_ms (SPEC-024 4.1)"
     );
 }
 
 #[test]
 fn contract_chat_completion_wires_engine_rerank_time_ms() {
-    let src = include_str!("../../edgequake-api/src/handlers/chat/completion.rs");
+    // Same relocation as above: the chat path maps through `context_bundle_mapper`.
+    let bundle = include_str!("../../edgequake-api/src/services/context_bundle_mapper.rs");
     assert!(
-        src.contains("result.stats.rerank_time_ms"),
+        bundle.contains("rerank_time_ms: result.stats.rerank_time_ms"),
         "chat completion must forward engine rerank_time_ms (SPEC-024 4.7)"
     );
     assert!(
-        !src.contains("rerank_time_ms: None,"),
+        !bundle.contains("rerank_time_ms: None,"),
         "chat completion must not hardcode rerank_time_ms: None"
     );
 }

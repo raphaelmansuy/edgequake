@@ -101,4 +101,26 @@ mod tests {
             assert_eq!(first, fuse_ranked(&[a.clone(), b.clone()], &[1.0, 1.0]));
         }
     }
+
+    #[test]
+    fn every_rrf_score_is_kept_even_when_it_is_far_below_a_similarity_threshold() {
+        // LAW-180-6 / F-180-12 / EC-180-36: an RRF score is a rank signal, not a cosine. With
+        // k = 60 even a first place is 1/61 ≈ 0.0164, so applying `min_score` (default 0.1, the
+        // cosine threshold) after fusion would empty a perfectly good result set. `fuse_ranked`
+        // therefore must not filter, and a deep list position must still come back.
+        let deep: Vec<String> = (0..200).map(|i| format!("c{i}")).collect();
+        let hits = fuse_ranked(std::slice::from_ref(&deep), &[1.0]);
+        assert_eq!(hits.len(), 200, "fusion drops nothing");
+
+        let last = hits.last().expect("at least one hit");
+        assert!(
+            last.score < 0.1,
+            "the tail of a long list scores below the cosine threshold ({}); \
+             filtering it would delete real hits",
+            last.score
+        );
+        assert!(last.score > 0.0, "and it is still a positive rank score");
+        assert_eq!(hits[0].id, "c0");
+        assert_eq!(last.id, "c199");
+    }
 }

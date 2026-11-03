@@ -42,6 +42,10 @@ function mapChunkSources(sources: SourceReference[]): QueryContext["chunks"] {
       doc_kind: s.doc_kind,
       mime_type: s.mime_type,
       source_modality: s.source_modality,
+      // SPEC-183: the absolute similarity, so the image grid can tell a real match from a row
+      // that merely came back in a `top_k` list. Dropping it here is what left the grid showing
+      // twenty pictures for a question none of them answered.
+      similarity: s.similarity,
     }));
 }
 
@@ -142,6 +146,8 @@ export function mapServerMessageContextToQueryContext(
       doc_kind: source.doc_kind,
       mime_type: source.mime_type,
       source_modality: source.source_modality,
+      // SPEC-183: persisted conversations keep the gate meaningful after a reload.
+      similarity: source.similarity,
       // SPEC-155 Q16: parity with live mapChunkSources
       start_line: source.start_line,
       end_line: source.end_line,

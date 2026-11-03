@@ -607,7 +607,20 @@ pub struct SourceReference {
     pub id: String,
 
     /// Relevance score.
+    ///
+    /// On a Normal workspace this is a **reciprocal rank fusion** value, so it encodes ordering
+    /// only: it is roughly `1/(60+rank)` and a perfect match starts no higher than a wild miss.
+    /// Use `similarity` to judge absolute relevance; use this only to compare positions.
     pub score: f32,
+
+    /// Absolute similarity to the query (0..1), when one was measured.
+    ///
+    /// SPEC-183: the dense leg computes this and fusion used to throw it away, which left every
+    /// consumer of `score` unable to tell a strong match from a weak one. `None` means "not
+    /// measured" (a lexical-only hit, or a conversation stored before this field existed), not
+    /// zero.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub similarity: Option<f32>,
 
     /// Rerank score (if reranking was applied).
     #[serde(skip_serializing_if = "Option::is_none")]

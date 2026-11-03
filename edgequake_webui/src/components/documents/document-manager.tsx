@@ -134,6 +134,16 @@ export function DocumentManager() {
   const selectedWorkspace = useSelectedWorkspace();
   // SPEC-180: a normal workspace has no extraction mode; a stale pick is never sent.
   const extractsGraph = useWorkspaceCapabilities().extracts_graph;
+  /**
+   * SPEC-183 — whether this workspace can store a picture, as the server stated it.
+   *
+   * `selectedWorkspace.rag_profile_capabilities` is read directly rather than through
+   * `useWorkspaceCapabilities`, because that helper substitutes the *graph* defaults when the
+   * field is absent. Graph defaults say `embeds_images: false`, which would turn "the server did
+   * not say" into "this workspace refuses pictures" and block uploads on any surface whose
+   * payload predates the field. Absent stays absent, and the dropzone treats it as unknown.
+   */
+  const imageCapability = selectedWorkspace?.rag_profile_capabilities;
 
   // Selected document for preview panel
   // Click-time snapshot; `selectedDocument` below is the live row (SPEC-155).
@@ -451,6 +461,9 @@ export function DocumentManager() {
   const { getRootProps, getInputProps, isDragActive, openFileDialog } = useDocumentDropzone({
     onFilesAccepted: handleFilesAccepted,
     t,
+    // SPEC-183: a picture dropped here would fail server-side with a correct but unactionable
+    // sentence. Refuse it at the edge, naming the workspace shape that accepts it.
+    acceptsImages: imageCapability,
   });
 
   // SPEC-048: clear upload chrome when documents reach terminal state
@@ -800,6 +813,7 @@ export function DocumentManager() {
       }
       quiet={quietDropzone}
       fill
+      acceptsImages={imageCapability}
     />
   );
 

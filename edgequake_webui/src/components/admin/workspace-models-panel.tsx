@@ -50,6 +50,8 @@ export interface WorkspaceModelsPanelProps {
   onOpenRoleChange: (role: ModelRole | null) => void;
   /** Organization admins can open the provider offer from the advisory; everyone else is told who can. */
   canManageProviders?: boolean;
+  /** SPEC-183 — the workspace will store images, so the embedder must read them. */
+  imageEmbeddingOnly?: boolean;
 }
 
 export function WorkspaceModelsPanel({
@@ -63,6 +65,7 @@ export function WorkspaceModelsPanel({
   openRole,
   onOpenRoleChange,
   canManageProviders = false,
+  imageEmbeddingOnly = false,
 }: WorkspaceModelsPanelProps) {
   const count = pickedCount(draft);
   const choosing = draft.source === "choose";
@@ -191,6 +194,7 @@ export function WorkspaceModelsPanel({
                 tenantId={tenantId}
                 inheritLabel={inheritLabelFor(role, ladder)}
                 inheritPair={inheritPairFor(role, ladder)}
+                imageEmbeddingOnly={imageEmbeddingOnly}
               />
             ))}
             <p className="text-[11.5px] leading-snug text-muted-foreground">

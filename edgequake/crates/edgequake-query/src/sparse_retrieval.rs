@@ -178,14 +178,25 @@ pub async fn fuse_vector_and_bm25_chunks(
             &[1.0, 1.25],
             fusion::RRF_K,
         );
+        // SPEC-180 LAW-180-6 / F-180-12 / EC-180-36: an RRF score is a rank signal, not a
+        // similarity. With `k = 60` even a first place scores `1/61 ≈ 0.0164`, so filtering a
+        // fused list by `min_score` (default 0.1, a cosine threshold) discards **every** fused
+        // hit. That is what this line used to do, and it emptied graph queries whenever the BM25
+        // leg produced any candidate: `contract_query_modes::mix_with_skewed_weights…` caught it
+        // as "local-only Mix returns 0 chunks".
+        //
+        // The similarity floor belongs on the *legs*, where the numbers are similarities. The
+        // dense leg already applies it through the vector search, and BM25 has its own ranking.
+        // Applying it again here to fused ranks is the defect LAW-180-6 names.
         fusion::chunks_from_rrf_ranking(&fused, &lookup, max_chunks.saturating_mul(2))
     } else {
+        // Non-RRF (interleave) keeps the raw leg scores, so the floor is meaningful here.
         sparse_ranked
             .into_iter()
             .filter_map(|id| lookup.get(&id).cloned())
+            .filter(|c| c.score >= min_score)
             .collect()
     };
-    chunks.retain(|c| c.score >= min_score);
     chunks.truncate(max_chunks);
 
     (chunks, outcome)
@@ -234,15 +245,46 @@ mod tests {
     }
 
     #[test]
-    fn e2e_min_score_enforced_on_rrf() {
-        // D-39: fused path retains only scores ≥ min_score (filter after RRF).
-        let min_score = 0.5_f32;
-        let mut scores = vec![0.9_f32, 0.4, 0.7, 0.1];
-        scores.retain(|s| *s >= min_score);
-        assert_eq!(scores, vec![0.9, 0.7]);
-        // Source contract: retain happens after RRF in fuse path.
-        let src = include_str!("sparse_retrieval.rs");
-        assert!(src.contains("chunks.retain(|c| c.score >= min_score)"));
-        assert!(src.contains("D-39"));
+    fn rrf_fusion_keeps_every_hit_even_below_the_cosine_floor() {
+        // LAW-180-6 / F-180-12 / EC-180-36, replacing a test that only string-matched its own
+        // source (`include_str!` + `contains`). That test passed whether or not the behaviour was
+        // right, and the line it guarded discarded **every** fused hit: RRF scores sit near
+        // 1/61 ≈ 0.016 while `min_score` defaults to 0.1, a cosine threshold.
+        let vector = [
+            search_hit("a", 0.92),
+            search_hit("b", 0.41),
+            search_hit("c", 0.05),
+        ];
+        let lookup: HashMap<String, RetrievedChunk> = vector
+            .iter()
+            .map(|r| (r.id.clone(), build_chunk_from_result(r)))
+            .collect();
+        let fused = fusion::reciprocal_rank_fusion(
+            &[
+                vec!["a".into(), "b".into(), "c".into()],
+                vec!["c".into(), "b".into()],
+            ],
+            &[1.0, 1.25],
+            fusion::RRF_K,
+        );
+        let chunks = fusion::chunks_from_rrf_ranking(&fused, &lookup, 10);
+
+        assert_eq!(chunks.len(), 3, "fusion must not drop by score: {chunks:?}");
+        // Every fused score is below the default cosine floor — which is precisely why the
+        // floor must never be applied here.
+        assert!(
+            chunks.iter().all(|c| c.score < 0.1),
+            "RRF scores stay in the rank band: {:?}",
+            chunks.iter().map(|c| c.score).collect::<Vec<_>>()
+        );
+    }
+
+    /// A minimal dense hit for the fusion test above.
+    fn search_hit(id: &str, score: f32) -> VectorSearchResult {
+        VectorSearchResult {
+            id: id.to_string(),
+            score,
+            metadata: serde_json::json!({"content": format!("body of {id}")}),
+        }
     }
 }

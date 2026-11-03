@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { calculateConfidence, getConfidenceLabel } from '@/lib/citations/confidence';
+import { calculateAnswerConfidence, getConfidenceLabel } from '@/lib/citations/confidence';
 import { chunksByDocument } from '@/lib/citations/group-passages';
 import type { OnDocumentClick } from '@/lib/citations/types';
 import { useWorkspaceCapabilities } from '@/hooks/use-workspace-capabilities';
@@ -26,6 +26,11 @@ import { KnowledgeTab } from './knowledge-tab';
 
 export interface SourceCitationsProps {
   context: QueryContext;
+  /**
+   * The answer these sources belong to. A refusal must not be labelled "Strong": retrieved
+   * volume is not support, and the badge would contradict the sentence beside it.
+   */
+  answer?: string | null;
   onEntityClick?: (entityId: string) => void;
   onDocumentClick?: OnDocumentClick;
   onExploreGraph?: (entityLabels: string[]) => void;
@@ -37,6 +42,7 @@ export interface SourceCitationsProps {
 
 export function SourceCitations({
   context,
+  answer,
   onEntityClick,
   onDocumentClick,
   onExploreGraph,
@@ -76,7 +82,10 @@ export function SourceCitations({
     [context.chunks],
   );
 
-  const confidence = useMemo(() => calculateConfidence(context), [context]);
+  const confidence = useMemo(
+    () => calculateAnswerConfidence(context, answer),
+    [context, answer],
+  );
   // `null` means there is nothing to judge: show the band for ordering, but never a number.
   const { labelKey, defaultLabel, color: confidenceColor } = getConfidenceLabel(
     confidence ?? 0,
@@ -121,15 +130,23 @@ export function SourceCitations({
             <span className="text-xs font-medium">
               {showsGraph ? `${sourceLabel} · ${topicLabel}` : sourceLabel}
             </span>
-            <span className={`text-xs flex items-center gap-1.5 ${confidenceColor}`}>
-              <ConfidenceDots score={confidence ?? 0} />
-              {/*
-                WHY no percentage: on a normal workspace the chunk `score` is an RRF rank
-                score, so any number derived from it is ~1% even for a perfect match. The
-                band label describes relative ordering and is the honest thing to show.
-              */}
-              <span className="font-semibold">{confidenceLabel}</span>
-            </span>
+            {/*
+              WHY nothing is rendered on a refusal: `calculateAnswerConfidence` returns `null`
+              when the answer declines, so "Strong" never appears beside "insufficient
+              evidence" (found on a 20-image workspace, where breadth was maximal and the
+              answer was a refusal). And why no percentage: on a normal workspace the chunk
+              `score` is an RRF rank score, so any number derived from it is ~1% even for a
+              perfect match. The band label describes relative ordering.
+            */}
+            {confidence === null ? null : (
+              <span
+                className={`text-xs flex items-center gap-1.5 ${confidenceColor}`}
+                data-testid="source-confidence"
+              >
+                <ConfidenceDots score={confidence} />
+                <span className="font-semibold">{confidenceLabel}</span>
+              </span>
+            )}
           </span>
           {isExpanded ? (
             <ChevronUp className="h-4 w-4 ml-2 flex-shrink-0" />

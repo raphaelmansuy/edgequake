@@ -191,7 +191,10 @@
       "pdfParserEdgeParse": "EdgeParse",
       "pdfParserEdgeParseOcr": "EdgeParse + OCR",
       "pdfParserAuto": "Auto",
-      "settings": "上传设置"
+      "settings": "上传设置",
+      "textOnlyTitle": "此工作区只存储文本",
+      "textOnlyBody": "图片需要创建时选择“文本和图片”这一证据类型的工作区。该选择在创建时固定，请新建一个这样的工作区并在其中上传图片。",
+      "imagesNeedImageWorkspace": "{{count}} 张图片未上传：此工作区只存储文本。图片需要创建时选择“文本和图片”这一证据类型的工作区。"
     },
     "duplicateDialog": {
       "titleSingle": "检测到重复文档",
@@ -1009,6 +1012,39 @@
       "more": "另外 {{count}} 张",
       "unavailable": "无预览",
       "relevance": "匹配强度"
+    },
+    "normalImagesEmptyTitle": "搜索你的图片",
+    "normalImagesEmptyDescription": "我按图片所示内容匹配图片，按文字所述内容匹配文字。用文字提问，或附上一张图片来查找相似的图片。",
+    "normalImagesSubtitle": "按描述或按另一张图片搜索图片",
+    "normalImagesSuggestions": {
+      "0": "这个工作区里有哪些图片？",
+      "1": "给我看包含人物的图片",
+      "2": "找一张有水域的图片",
+      "3": "我收集了哪些类型的图片？"
+    },
+    "normalMixedEmptyTitle": "搜索你的文档和图片",
+    "normalMixedEmptyDescription": "我会根据你上传的文字作答，并按图片所示内容匹配图片。用文字提问、引用段落，或附上一张图片来查找相似的图片。",
+    "normalMixedSubtitle": "文档与图片，一次搜索",
+    "corpusSuggest": {
+      "text": {
+        "topic": "{{topic}} 里关于退款是怎么说的？",
+        "deadlines": "找出提到截止日期的段落",
+        "onboarding": "哪些文档涉及入职流程？"
+      },
+      "pdf": {
+        "quote": "引用关于安全要求的章节",
+        "page": "哪一页说明了审批流程？",
+        "summarise": "总结最长的那份文档"
+      },
+      "image": {
+        "list": "这个工作区里有哪些图片？",
+        "water": "找一张有水域的图片",
+        "person": "给我看包含人物的图片"
+      },
+      "office": {
+        "totals": "表格里关于合计是怎么说的？",
+        "summarise": "总结最新表格中的各行"
+      }
     }
   },
   "pipeline": {

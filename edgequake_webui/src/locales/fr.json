@@ -191,7 +191,10 @@
       "pdfParserEdgeParse": "EdgeParse",
       "pdfParserEdgeParseOcr": "EdgeParse + OCR",
       "pdfParserAuto": "Auto",
-      "settings": "Paramètres d'import"
+      "settings": "Paramètres d'import",
+      "textOnlyTitle": "Cet espace de travail ne stocke que du texte",
+      "textOnlyBody": "Les images nécessitent un espace de travail créé avec la preuve « Texte et images ». Ce choix est définitif à la création : créez-en un ainsi, puis envoyez-y les images.",
+      "imagesNeedImageWorkspace": "{{count}} image(s) n’ont pas été envoyées : cet espace de travail ne stocke que du texte. Les images nécessitent un espace de travail créé avec la preuve « Texte et images »."
     },
     "duplicateDialog": {
       "titleSingle": "Document doublon détecté",
@@ -1009,6 +1012,39 @@
       "more": "+{{count}} de plus",
       "unavailable": "Aucun aperçu",
       "relevance": "Force de correspondance"
+    },
+    "normalImagesEmptyTitle": "Recherchez vos images",
+    "normalImagesEmptyDescription": "Je rapproche les images par ce qu’elles montrent, et le texte par ce qu’il dit. Posez votre question en mots, ou joignez une image pour en trouver de similaires.",
+    "normalImagesSubtitle": "Rechercher des images par description, ou par une autre image",
+    "normalImagesSuggestions": {
+      "0": "Quelles images contient cet espace de travail ?",
+      "1": "Montrez-moi les images où figure une personne",
+      "2": "Trouvez une image avec un plan d’eau",
+      "3": "Quels types d’images ai-je collectés ?"
+    },
+    "normalMixedEmptyTitle": "Recherchez vos documents et vos images",
+    "normalMixedEmptyDescription": "Je réponds à partir du texte que vous avez déposé et je rapproche les images par ce qu’elles montrent. Posez une question, citez un passage, ou joignez une image pour en trouver de similaires.",
+    "normalMixedSubtitle": "Documents et images, dans une seule recherche",
+    "corpusSuggest": {
+      "text": {
+        "topic": "Que dit {{topic}} à propos des remboursements ?",
+        "deadlines": "Trouvez le passage qui mentionne les échéances",
+        "onboarding": "Quels documents traitent de l’intégration ?"
+      },
+      "pdf": {
+        "quote": "Citez la section sur les exigences de sécurité",
+        "page": "Quelle page explique le processus de validation ?",
+        "summarise": "Résumez le document le plus long"
+      },
+      "image": {
+        "list": "Quelles images contient cet espace de travail ?",
+        "water": "Trouvez une image avec un plan d’eau",
+        "person": "Montrez-moi les images où figure une personne"
+      },
+      "office": {
+        "totals": "Que disent les totaux du tableur ?",
+        "summarise": "Résumez les lignes du dernier tableau"
+      }
     }
   },
   "pipeline": {

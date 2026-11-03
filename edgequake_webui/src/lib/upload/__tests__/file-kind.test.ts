@@ -6,6 +6,7 @@ import {
   isMarkdownUploadFile,
   isPdfUploadFile,
   sourceTypeFromFileName,
+  splitByImageCapability,
 } from "../file-kind";
 
 function file(name: string, type: string): File {
@@ -61,5 +62,29 @@ describe("file-kind", () => {
     );
     // Forced past dropzone Accept, router would treat as text — API still rejects.
     expect(classifyUploadFile(file("memo.docx", ""))).toBe("text");
+  });
+});
+
+describe("SPEC-183 splitByImageCapability", () => {
+  it("separates pictures from everything else, so a text-only workspace can refuse only them", () => {
+    const files = [
+      file("policy.md", "text/markdown"),
+      file("scan.png", "image/png"),
+      file("handbook.pdf", "application/pdf"),
+      file("photo.JPG", ""),
+    ];
+    const { text, images } = splitByImageCapability(files);
+    expect(text.map((f) => f.name)).toEqual(["policy.md", "handbook.pdf"]);
+    expect(images.map((f) => f.name)).toEqual(["scan.png", "photo.JPG"]);
+  });
+
+  it("returns everything as text when nothing is a picture", () => {
+    const { text, images } = splitByImageCapability([file("a.txt", "text/plain")]);
+    expect(images).toEqual([]);
+    expect(text).toHaveLength(1);
+  });
+
+  it("handles an empty drop", () => {
+    expect(splitByImageCapability([])).toEqual({ text: [], images: [] });
   });
 });

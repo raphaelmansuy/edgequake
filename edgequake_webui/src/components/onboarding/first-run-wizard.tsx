@@ -265,6 +265,7 @@ export function FirstRunWizard({ surface = 'dashboard' }: FirstRunWizardProps) {
             embedding={embedding}
             vision={vision}
             onEditStep={goToStep}
+            steps={steps}
             showDocumentParsing
           />
         );

@@ -84,3 +84,23 @@ export function classifyUploadFile(file: File): UploadFileKind {
   if (isImageUploadFile(file)) return "image";
   return "text";
 }
+
+/**
+ * SPEC-183 — split a drop into the files this workspace can store and the pictures it cannot.
+ *
+ * A graph workspace, and a normal one created with text evidence, refuse images by design:
+ * `embedding_modalities` is immutable, so no later edit can admit them. The caller tells the
+ * person which half was refused and where the fix lives.
+ */
+export function splitByImageCapability(files: readonly File[]): {
+  text: File[];
+  images: File[];
+} {
+  const text: File[] = [];
+  const images: File[] = [];
+  for (const file of files) {
+    if (classifyUploadFile(file) === "image") images.push(file);
+    else text.push(file);
+  }
+  return { text, images };
+}

@@ -37,6 +37,41 @@ pub fn grounding_instructions() -> &'static str {
   - Grounded arithmetic (W3-arith): if the question asks how many / a headcount / a count of people and the Context explicitly states BOTH (a) a percentage/rate and (b) a sample size N (e.g. "1,503 adults", "n=710") that together determine that count, you MUST compute count = round(percentage/100 × N), answer with that short integer (not the percentage), and cite the chunks that supplied the percentage and N. Worked example: Context has "Not good" = 36% and sample "1,503 adults" → answer 541 (not 36 or 36%). Do NOT invent missing percentages or sample sizes. Do NOT refuse merely because the count is not printed as a literal integer when both operands are present."#
 }
 
+/// Extra instruction appended **only** when the context contains image chunks.
+///
+/// WHY: on a Normal workspace an image chunk carries no text — the picture is embedded as a
+/// vector and the chunk body is a placeholder (`[Image: 05-alpine-lake]`, see
+/// `context_format::chunk_body`). The generic prompt then told the model to answer "ONLY from
+/// the Context", which it correctly obeyed by refusing: *"the provided context consists solely of
+/// image placeholders"*. That refusal is honest but useless — the retrieval was right, and the
+/// picture is on screen beside the answer.
+///
+/// The fix is not to let the model guess at pixels. It is to tell it what the placeholders mean,
+/// so it can do the three things that are actually grounded: name the pictures it has, say the
+/// collection holds no readable text, and point at the images. Anything more would be invention.
+pub fn image_context_instructions() -> &'static str {
+    r#"2c. Image Sources (context contains pictures):
+  - Some chunks are pictures. Their body reads `[Image: <title>]` because a photograph has no text: it was embedded as a vector, never captioned. The title is the file name, not a description.
+  - You CANNOT see the pixels. Never describe, guess at, or invent what a picture shows, and never infer its content from its file name.
+  - You CAN truthfully say which pictures were retrieved (by their titles), that they matched the question by visual similarity, and that this collection has no readable text about them.
+  - When the question asks for facts that only text could answer and every chunk is an image, do NOT answer "insufficient evidence" and stop. Name the pictures that matched by title, cite them as [N], state plainly that these are pictures with no accompanying text, and stop there.
+  - Do not fabricate captions to fill the gap. A named picture and an honest limit is the correct answer."#
+}
+
+/// True when the context contains at least one chunk whose body is an image placeholder.
+///
+/// Callers use this to append [`image_context_instructions`] only when it applies, so a text
+/// corpus pays nothing for guidance about pictures.
+pub fn context_has_images(chunks: &[crate::context::RetrievedChunk]) -> bool {
+    chunks.iter().any(|chunk| {
+        let modality_is_image = chunk.modality.as_deref() == Some("image");
+        let empty_text = chunk.content.trim().is_empty();
+        // Either marker is enough: `modality=image` is what the header prints, and an empty body
+        // is what makes it a placeholder. A picture with a caption is text, and needs no warning.
+        modality_is_image && empty_text
+    })
+}
+
 /// 082: Acc `answer_style=gold` forbids citation markers — detect that extension.
 pub fn is_gold_answer_extension(ext: Option<&str>) -> bool {
     let Some(raw) = ext.map(str::trim).filter(|s| !s.is_empty()) else {
@@ -394,5 +429,48 @@ mod tests {
         assert_eq!(cleaned, "Cisplatin is first-line for stage IIIA.");
         assert!(!cleaned.contains('['));
         assert!(!cleaned.to_lowercase().contains("references"));
+    }
+
+    #[test]
+    fn image_guidance_never_lets_the_model_invent_pixels() {
+        // The screenshot said "the context consists solely of image placeholders". That refusal
+        // was honest and useless: the pictures were found, and the model was never told what a
+        // placeholder means. The guidance must fix the utility without unlocking invention.
+        let g = image_context_instructions();
+        assert!(g.contains("[Image:"), "it explains the placeholder shape");
+        assert!(
+            g.to_lowercase().contains("cannot see the pixels"),
+            "the model must not claim to see them"
+        );
+        assert!(
+            g.to_lowercase().contains("never describe"),
+            "guessing at a picture is forbidden"
+        );
+        assert!(
+            g.to_lowercase().contains("do not fabricate"),
+            "an honest limit replaces a fabricated caption"
+        );
+        // And it must tell the model what it CAN do, or the refusal simply changes shape.
+        assert!(g.to_lowercase().contains("name the pictures"));
+    }
+
+    #[test]
+    fn image_guidance_is_detected_only_for_imageless_text_chunks() {
+        let picture = crate::context::RetrievedChunk::new("c1", "", 0.5).with_modality("image");
+        assert!(context_has_images(std::slice::from_ref(&picture)));
+
+        // A picture WITH a caption has text, so the generic prompt is enough.
+        let captioned = crate::context::RetrievedChunk::new("c2", "a dog on a beach", 0.5)
+            .with_modality("image");
+        assert!(!context_has_images(&[captioned]));
+
+        // A normal text chunk is not a picture.
+        let text = crate::context::RetrievedChunk::new("c3", "refunds within 30 days", 0.5);
+        assert!(!context_has_images(&[text]));
+
+        // Mixed corpus: the guidance is needed because at least one picture has no text.
+        let text_again = crate::context::RetrievedChunk::new("c4", "body", 0.5);
+        assert!(context_has_images(&[text_again, picture]));
+        assert!(!context_has_images(&[]));
     }
 }

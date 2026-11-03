@@ -12,7 +12,12 @@ import { useAuthedImageUrl } from '@/hooks/use-authed-image-url';
 import { useOpenSource } from '@/hooks/use-open-source';
 import { getDocumentOriginalDownloadUrl } from '@/lib/api/edgequake/documents';
 import { formatMatchPercent } from '@/lib/citations/citation-href';
-import { balancedColumns, imageMatches, type ImageMatch } from '@/lib/citations/image-matches';
+import {
+  balancedColumns,
+  imageMatches,
+  relevantImageMatches,
+  type ImageMatch,
+} from '@/lib/citations/image-matches';
 import { locationFromChunk } from '@/lib/query/companion-pane';
 import type { QueryContext } from '@/types';
 import { ImageOff } from 'lucide-react';
@@ -124,15 +129,35 @@ export function ImageMatchesGrid({
 }) {
   const { t } = useTranslation();
   const openSource = useOpenSource();
-  const all = imageMatches(chunks);
+  // SPEC-183: only pictures that actually matched the question. Retrieval always returns
+  // `top_k`, so "what came back" is not "what is relevant" — a refund question used to display
+  // all twenty photographs. `relevantImageMatches` drops any tile whose measured similarity is
+  // below the floor; a payload without similarities keeps its tiles, so nothing regresses.
+  const all = relevantImageMatches(chunks);
   if (all.length === 0) return null;
   const shown = all.slice(0, VISIBLE_TILES);
   const hidden = all.length - shown.length;
+  // How many were retrieved but judged not relevant enough to show. Used only to keep the
+  // heading honest when the filter removed something.
+  const suppressed = imageMatches(chunks).length - all.length;
 
   return (
     <section className="mb-3 space-y-2" data-testid="query-image-matches" aria-label={t('query.imageMatches.title', 'Matching images')}>
       <h3 className="text-xs font-medium text-muted-foreground">
         {t('query.imageMatches.title', 'Matching images')} · {all.length}
+        {suppressed > 0 ? (
+          <span
+            className="ml-1.5 font-normal text-muted-foreground/70"
+            data-testid="query-image-matches-suppressed"
+            title={t(
+              'query.imageMatches.suppressedHint',
+              '{{count}} more pictures were retrieved but did not match closely enough to show.',
+              { count: suppressed },
+            )}
+          >
+            {t('query.imageMatches.suppressed', '+{{count}} weak', { count: suppressed })}
+          </span>
+        ) : null}
       </h3>
       <ul className={GRID_CLASS} style={gridStyle(shown.length)}>
         {shown.map((match) => (

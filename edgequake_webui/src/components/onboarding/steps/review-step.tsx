@@ -5,6 +5,7 @@ import { Group, Row } from '@/components/onboarding/steps/review-parts';
 import type { EmbeddingSelection } from '@/components/workspace/embedding-model-selector';
 import type { LLMSelection } from '@/components/workspace/llm-model-selector';
 import { useInheritedModelDefaults } from '@/hooks/use-inherited-model-defaults';
+import { editHandlerFor } from '@/lib/onboarding/review-edit';
 import type { WorkspaceConfigChangedKey, WorkspaceConfigDiff } from '@/lib/onboarding/workspace-config-diff';
 import type { WizardDraft, WizardStepId } from '@/lib/onboarding/wizard-state';
 import { formatServerDefaultExtractionLanguageLabel } from '@/constants/extraction-languages';
@@ -23,6 +24,12 @@ export interface ReviewStepProps {
   vision?: LLMSelection;
   /** Jump to a prior step from review (LAW Wave 6). */
   onEditStep?: (step: WizardStepId) => void;
+  /**
+   * SPEC-183 — the steps this wizard actually has. An Edit link is printed only for a step
+   * in this list; a normal reconfigure has no retrieval step, so it gets no dead button.
+   * Required on purpose: a caller that forgets it cannot silently restore the dead link.
+   */
+  steps: readonly WizardStepId[];
   /** When false, omit the duplicate review hint (shell step description already shows it). */
   showHint?: boolean;
   /** Reconfigure: hide identity group (name/slug not editable). */
@@ -120,6 +127,7 @@ export function ReviewStep({
   embedding,
   vision,
   onEditStep,
+  steps,
   showHint = false,
   hideWorkspaceIdentity = false,
   showDocumentParsing = false,
@@ -130,6 +138,8 @@ export function ReviewStep({
   const { t } = useTranslation();
   const defaults = useInheritedModelDefaults(tenantId ?? null);
   const editLabel = t('onboarding.editStep', 'Edit');
+  // SPEC-183: an Edit link exists only for a step this wizard reaches.
+  const editFor = (step: WizardStepId) => editHandlerFor(steps, step, onEditStep);
 
   const inheritLabel =
     defaults.source === 'tenant'
@@ -230,7 +240,7 @@ export function ReviewStep({
       {includeAdmin ? (
         <Group
           title={t('onboarding.adminSection', 'Admin')}
-          onEdit={onEditStep ? () => onEditStep('admin') : undefined}
+          onEdit={editFor('admin')}
           editLabel={editLabel}
           testId="wizard-review-admin"
         >
@@ -245,7 +255,7 @@ export function ReviewStep({
       {includeTenant ? (
         <Group
           title={t('tenant.tenant', 'Organization')}
-          onEdit={onEditStep ? () => onEditStep('tenant-basics') : undefined}
+          onEdit={editFor('tenant-basics')}
           editLabel={editLabel}
           testId="wizard-review-tenant"
         >
@@ -259,7 +269,7 @@ export function ReviewStep({
       {!hideWorkspaceIdentity ? (
         <Group
           title={t('workspace.workspace', 'Workspace')}
-          onEdit={onEditStep ? () => onEditStep('workspace-basics') : undefined}
+          onEdit={editFor('workspace-basics')}
           editLabel={editLabel}
           testId="wizard-review-workspace"
         >
@@ -277,12 +287,16 @@ export function ReviewStep({
       ) : null}
 
       {showRetrieval ? (
-        <ReviewRetrievalGroup draft={draft} onEditStep={onEditStep} editLabel={editLabel} />
+        <ReviewRetrievalGroup
+          draft={draft}
+          onEditStep={steps.includes('retrieval') ? onEditStep : undefined}
+          editLabel={editLabel}
+        />
       ) : null}
 
       <Group
         title={t('onboarding.modelsSection', 'Models')}
-        onEdit={onEditStep ? () => onEditStep('models') : undefined}
+        onEdit={editFor('models')}
         editLabel={editLabel}
         testId="wizard-review-models"
       >
@@ -313,7 +327,7 @@ export function ReviewStep({
       {showDocumentParsing ? (
         <Group
           title={t('onboarding.documentParsingSection', 'Document parsing')}
-          onEdit={onEditStep ? () => onEditStep('document-parsing') : undefined}
+          onEdit={editFor('document-parsing')}
           editLabel={editLabel}
           testId="wizard-review-document-parsing"
         >
@@ -326,7 +340,7 @@ export function ReviewStep({
 
       <Group
         title={t('onboarding.chunkingSection', 'Chunking')}
-        onEdit={onEditStep ? () => onEditStep('chunking') : undefined}
+        onEdit={editFor('chunking')}
         editLabel={editLabel}
         testId="wizard-review-chunking"
       >
@@ -349,7 +363,7 @@ export function ReviewStep({
       <>
       <Group
         title={t('onboarding.extractBudgetSection', 'Extract budget')}
-        onEdit={onEditStep ? () => onEditStep('extract-budget') : undefined}
+        onEdit={editFor('extract-budget')}
         editLabel={editLabel}
         testId="wizard-review-extract-budget"
       >
@@ -375,7 +389,7 @@ export function ReviewStep({
 
       <Group
         title={t('onboarding.extractionSection', 'Extraction')}
-        onEdit={onEditStep ? () => onEditStep('extraction') : undefined}
+        onEdit={editFor('extraction')}
         editLabel={editLabel}
         testId="wizard-review-extraction"
       >

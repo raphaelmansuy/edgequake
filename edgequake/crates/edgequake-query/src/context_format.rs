@@ -154,10 +154,43 @@ pub fn format_chunk_block(ref_id: usize, chunk: &RetrievedChunk) -> String {
     let meta = format_chunk_meta(chunk);
     let ref_id = chunk_citation_ref(chunk, ref_id);
     format!(
-        "[{ref_id}] (score: {:.3}){meta}\n{}\n\n",
-        chunk.score,
+        "[{ref_id}] ({}){meta}\n{}\n\n",
+        score_field(chunk),
         chunk_body(chunk)
     )
+}
+
+/// How the chunk's score is presented to the model.
+///
+/// WHY this is not just `score: {:.3}`: on a Normal workspace the chunk score is a **reciprocal
+/// rank fusion** value, not a similarity. RRF scores live in a tiny band around `1/(60+rank)` —
+/// the first hit is 0.016393, the twentieth is 0.015385 — so printing them as `score: 0.016` told
+/// the model that every retrieved passage was equally and vanishingly weak, and invited it to
+/// reason about a number that carries no meaning. The UI already refuses to average these
+/// (`lib/citations/confidence.ts`); the prompt now refuses to present them as relevance either.
+///
+/// A graph workspace's chunk score is a real similarity or `ts_rank_cd`, so it keeps the number.
+pub fn score_field(chunk: &RetrievedChunk) -> String {
+    if is_rank_only_score(chunk.score) {
+        "relevance: fused by rank".to_string()
+    } else {
+        format!("score: {:.3}", chunk.score)
+    }
+}
+
+/// Upper bound of an RRF score with `k = 60`: a first place in a single list.
+///
+/// Anything at or below this cannot be a cosine similarity (which retrieval keeps above
+/// `min_score`, 0.1 by default) or a `ts_rank_cd` (also scaled to ~0..1 and gated the same way).
+/// It is the signature of a fused rank: `1/(RRF_K + 1)` = 0.016393.
+pub const RRF_SCORE_CEILING: f32 = 1.0 / 61.0 + 1e-6;
+
+/// True when a score is a fused rank signal rather than a similarity.
+///
+/// Kept deliberately narrow so a real but low similarity is still printed: the band is
+/// `(0, 1/61]`, and a zero score (an unranked or unset hit) is not fused.
+pub fn is_rank_only_score(score: f32) -> bool {
+    score > 0.0 && score <= RRF_SCORE_CEILING
 }
 
 /// The text the model sees for a chunk. An image chunk has no text (SPEC-180): it is
@@ -467,6 +500,46 @@ mod tests {
         let meta = format_chunk_meta(&chunk);
         assert!(meta.contains("page=7"));
         assert!(meta.contains("modality=chart"));
+    }
+
+    #[test]
+    fn a_fused_rank_score_is_not_presented_as_relevance() {
+        // Measured on a real Normal workspace: the dense+BM25 fusion returns scores in a band of
+        // ~0.0154..0.0164. Printing that as `score: 0.016` told the model every passage was
+        // equally weak, and it is not a similarity at all.
+        let fused = RetrievedChunk::new("c1", "refunds are accepted", 0.016_393_442);
+        let block = format_chunk_block(1, &fused);
+        assert!(
+            !block.contains("score:"),
+            "a rank reciprocal must not be labelled a score: {block}"
+        );
+        assert!(
+            block.contains("fused by rank"),
+            "the model is told why there is no number: {block}"
+        );
+        // The header shape the legend promises is still intact.
+        assert!(block.starts_with("[1] ("));
+    }
+
+    #[test]
+    fn a_real_similarity_keeps_its_number() {
+        // A graph workspace scores chunks with a cosine or ts_rank_cd; that is worth printing.
+        let similar = RetrievedChunk::new("c1", "body", 0.87);
+        assert!(format_chunk_block(1, &similar).starts_with("[1] (score: 0.870)"));
+        assert!(!format_chunk_block(1, &similar).contains("fused by rank"));
+    }
+
+    #[test]
+    fn the_rank_band_boundary_is_where_rrf_stops() {
+        // 1/(k+1) with k = 60 is the best a single fused list can score.
+        assert!(is_rank_only_score(1.0 / 61.0));
+        assert!(is_rank_only_score(0.015_384_615)); // rank 20
+        assert!(!is_rank_only_score(0.5));
+        assert!(!is_rank_only_score(0.1)); // the cosine min_score floor
+        assert!(
+            !is_rank_only_score(0.0),
+            "an unset score is not a fused rank"
+        );
     }
 
     #[test]

@@ -86,6 +86,14 @@ export interface MessageSource {
   mime_type?: string;
   /** What the chunk was embedded from: `text` or `image` (SPEC-180). SPEC-182. */
   source_modality?: string;
+  /**
+   * Absolute similarity to the query, when the server measured one (SPEC-183).
+   *
+   * Kept on the persisted source so a reloaded conversation gates its image grid the same way
+   * the live answer did. Absent on older conversations, which stay ungated rather than losing
+   * the pictures they were saved with.
+   */
+  similarity?: number;
   /** Source line range start (parity with live SourceReference — SPEC-155 Q16). */
   start_line?: number;
   /** Source line range end. */

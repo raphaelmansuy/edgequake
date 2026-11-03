@@ -295,6 +295,15 @@ impl QueryEngine {
         .map(|section| format!("\n{section}\n"))
         .unwrap_or_default();
 
+        // SPEC-180: an image chunk has no text, so the model must be told what the placeholders
+        // mean before it refuses a question retrieval actually answered. Empty for a text corpus,
+        // so nothing changes for the overwhelming majority of workspaces.
+        let image_section = if crate::grounding::context_has_images(&context.chunks) {
+            format!("\n\n{}", crate::grounding::image_context_instructions())
+        } else {
+            String::new()
+        };
+
         match Self::answer_prompt_style(question_type) {
             AnswerPromptStyle::LightRag => {
                 return Self::build_system_prompt_lightrag(
@@ -302,6 +311,7 @@ impl QueryEngine {
                     &additional_instructions,
                     &conversation_section,
                     response_type,
+                    &image_section,
                 );
             }
             AnswerPromptStyle::Specific => {
@@ -311,6 +321,7 @@ impl QueryEngine {
                     &conversation_section,
                     system_prompt_extension,
                     response_type,
+                    &image_section,
                 );
             }
             AnswerPromptStyle::Default => {}
@@ -348,6 +359,7 @@ The answer must integrate relevant facts from the Knowledge Graph and Document C
 {completeness}
 
 {grounding}
+{image_section}
 
 3. Formatting & Language:
   - The response MUST be in the same language as the user query.
@@ -413,12 +425,14 @@ The answer must integrate relevant facts from the Knowledge Graph and Document C
     /// 046: prefer concrete Context names over category paraphrases (Complex Acc).
     ///
     /// Keeps EQ grounded-arithmetic / partial-answer rules (unlike LR abstain).
+    #[allow(clippy::too_many_arguments)] // each is a distinct prompt section, not a struct
     fn build_system_prompt_specific(
         context_text: &str,
         additional_instructions: &str,
         conversation_section: &str,
         system_prompt_extension: Option<&str>,
         response_type: &str,
+        image_section: &str,
     ) -> String {
         let gold = crate::grounding::is_gold_answer_extension(system_prompt_extension);
         let grounding = crate::grounding::grounding_instructions_for(system_prompt_extension);
@@ -454,6 +468,7 @@ Prefer **specific named items from Context** (drug names, test names, staging sy
 {completeness}
 
 {grounding}
+{image_section}
 
 3. Formatting & Language:
   - The response MUST be in the same language as the user query.
@@ -478,7 +493,12 @@ Prefer **specific named items from Context** (drug names, test names, staging sy
         additional_instructions: &str,
         conversation_section: &str,
         response_type: &str,
+        image_section: &str,
     ) -> String {
+        debug_assert!(
+            image_section.is_empty() || image_section.contains("Image Sources"),
+            "image_section must be the grounding::image_context_instructions block"
+        );
         format!(
             r#"---Role---
 
@@ -1047,5 +1067,81 @@ mod prefix_cache_tests {
             assert_eq!(sys, system);
             assert_eq!(user, "What is X?");
         }
+    }
+}
+
+/// SPEC-183: the rendered system prompt, on both shapes of corpus.
+///
+/// These assert the *whole* prompt, not the pieces: the bug they cover was that a correct
+/// refusal came from a prompt that never mentioned what an image placeholder meant.
+#[cfg(test)]
+mod image_context_prompt_tests {
+    use super::*;
+    use crate::context::{QueryContext, RetrievedChunk};
+    use crate::engine_impl::QueryEngineConfig;
+
+    /// A real engine with in-memory storage: the prompt builder is a method, and this is the
+    /// same constructor the contract tests use, so the prompt under test is the prompt shipped.
+    fn engine() -> QueryEngine {
+        use edgequake_storage::{MemoryGraphStorage, MemoryVectorStorage};
+        let vector = Arc::new(MemoryVectorStorage::new("t", 8));
+        let graph = Arc::new(MemoryGraphStorage::new("t"));
+        let mock = Arc::new(edgequake_llm::MockProvider::default());
+        QueryEngine::with_mock_keywords(
+            QueryEngineConfig::default(),
+            vector as Arc<dyn edgequake_storage::traits::VectorStorage>,
+            graph as Arc<dyn edgequake_storage::traits::GraphStorage>,
+            Arc::clone(&mock) as Arc<dyn edgequake_llm::traits::EmbeddingProvider>,
+            Arc::clone(&mock) as Arc<dyn edgequake_llm::traits::LLMProvider>,
+        )
+    }
+
+    /// A context of the shape that produced the bug: one picture, no text at all.
+    fn picture_only() -> QueryContext {
+        let mut context = QueryContext::new();
+        context.add_chunk(
+            RetrievedChunk::new("c1", "", 0.016_393_442)
+                .with_modality("image")
+                .with_document_name("05-alpine-lake"),
+        );
+        context
+    }
+
+    fn text_only() -> QueryContext {
+        let mut context = QueryContext::new();
+        context.add_chunk(RetrievedChunk::new(
+            "c1",
+            "Refunds are accepted within 30 days.",
+            0.87,
+        ));
+        context
+    }
+
+    #[test]
+    fn an_image_context_tells_the_model_what_the_placeholders_mean() {
+        let prompt = engine().build_system_prompt(&picture_only(), None, &[], None, None);
+        assert!(
+            prompt.contains("Image Sources"),
+            "the prompt must explain image chunks: {prompt}"
+        );
+        assert!(
+            prompt.to_lowercase().contains("cannot see the pixels"),
+            "and must forbid inventing what they show"
+        );
+        // The placeholder itself is what the model is looking at.
+        assert!(prompt.contains("[Image: 05-alpine-lake]"), "{prompt}");
+        // The rank score is no longer printed as a similarity.
+        assert!(!prompt.contains("score: 0.016"), "{prompt}");
+        assert!(prompt.contains("fused by rank"), "{prompt}");
+    }
+
+    #[test]
+    fn a_text_context_is_unchanged_by_this_pack() {
+        // The overwhelming majority of workspaces must pay nothing for guidance about pictures.
+        let prompt = engine().build_system_prompt(&text_only(), None, &[], None, None);
+        assert!(!prompt.contains("Image Sources"), "{prompt}");
+        assert!(!prompt.to_lowercase().contains("cannot see the pixels"));
+        // A real similarity is still printed, because it means something.
+        assert!(prompt.contains("score: 0.870"), "{prompt}");
     }
 }

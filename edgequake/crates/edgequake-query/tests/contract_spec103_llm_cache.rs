@@ -197,10 +197,12 @@ async fn spec103_query_answer_hit_skips_generate() {
         r2.stats.answer_cache_hit,
         "second identical Mix/Naive prompt must hit answer cache"
     );
-    assert!(
-        r2.stats.keyword_cache_hit,
-        "second query must report keyword_cache_hit"
-    );
+    // WHY `keyword_cache_hit` is NOT asserted here: `QueryMode::Naive` runs the normal
+    // retrieval pipeline, which goes straight from embedding to the dense+BM25 legs and never
+    // calls the keyword extractor (`normal_pipeline::run_normal` → `retrieve_normal_context`).
+    // A naive query therefore cannot report a keyword cache hit, and asserting one made this
+    // test fail for a reason unrelated to the answer cache it exists to cover. The keyword
+    // cache has its own test (`spec103_keyword_hit_skips_llm`).
     assert_eq!(r2.answer, "ANSWER_FROM_LLM_V1");
 
     std::env::remove_var("EDGEQUAKE_LLM_CACHE");

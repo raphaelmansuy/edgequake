@@ -41,6 +41,53 @@ export const calculateConfidence = (context: QueryContext): number | null => {
   return Math.min(1, breadth * 0.85 + graphBonus);
 };
 
+/**
+ * Phrases a model emits when it is declining to answer from the context it was given.
+ *
+ * Matched against the answer, not the sources. Deliberately narrow and case-insensitive: this
+ * decides whether a "Strong" badge appears next to words like "there is insufficient evidence",
+ * which is the one pairing a reader will not forgive.
+ */
+const REFUSAL_PATTERNS: RegExp[] = [
+  /not answerable/i,
+  /insufficient (?:evidence|information|context|data)/i,
+  // Active and passive: models write both "I cannot answer" and "this cannot be determined".
+  /(?:cannot|can't|can not|unable to) (?:(?:be )?(?:answer|determine|find|locate|established|confirmed))/i,
+  /no (?:relevant |usable |readable )?(?:textual )?(?:information|evidence|content|data|passages?)/i,
+  /(?:context|documents?|sources?) (?:consists?|contains?|is) (?:solely|only|entirely)[^.]{0,60}(?:image|placeholder)/i,
+  /(?:does not|do not) (?:contain|include|provide)[^.]{0,40}(?:information|evidence|text)/i,
+  /i (?:do not|don't) (?:have|see|know)[^.]{0,40}(?:information|evidence|enough)/i,
+  // "...the handbook states regarding refunds cannot be determined" — subject before the modal.
+  /(?:cannot|can't|can not) be (?:determined|answered|established|confirmed|found)/i,
+];
+
+/** True when the answer declines to answer, whatever the retrieval returned. */
+export function isRefusalAnswer(answer: string | null | undefined): boolean {
+  const text = (answer ?? '').trim();
+  if (!text) return false;
+  return REFUSAL_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+/**
+ * The confidence to display, after the answer has been read.
+ *
+ * A refusal means the evidence did not support an answer, so reporting breadth as confidence
+ * says the opposite of what just happened: the screenshot that prompted this showed
+ * **"20 Sources · Strong"** directly above *"insufficient textual information"*. Retrieved
+ * volume is not support, and a metric that contradicts the sentence beside it is worse than no
+ * metric.
+ *
+ * A refusal therefore returns `null` — "do not assert a confidence I do not have" — which the
+ * caller already renders as no badge.
+ */
+export function calculateAnswerConfidence(
+  context: QueryContext,
+  answer: string | null | undefined,
+): number | null {
+  if (isRefusalAnswer(answer)) return null;
+  return calculateConfidence(context);
+}
+
 export const getConfidenceLabel = (score: number): ConfidenceStyle => {
   if (score >= 0.5) {
     return {

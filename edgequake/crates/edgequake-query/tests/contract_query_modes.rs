@@ -114,8 +114,16 @@ async fn mix_with_skewed_weights_differs_from_hybrid() {
         .await
         .unwrap();
 
-    let mut kg_top = vec![0.0_f32; dim];
-    kg_top[1] = 0.95;
+    // A chunk the local arm can surface: it must score above `min_score` against the mock's
+    // query embedding, or the arm correctly returns nothing.
+    //
+    // WHY this used to be a one-hot vector: `kg_top[1] = 0.95` has cosine ≈ 0.026 with a uniform
+    // query, i.e. an irrelevant chunk. The test then required the local arm to return it, which
+    // can only happen if the similarity floor is not applied — so the fixture was quietly
+    // demanding a bug. Near-uniform with one dim reduced keeps it close to the query (above the
+    // floor) while still ranking below `chunk_naive_top`, which is all the test needs.
+    let mut kg_top = vec![1.0_f32; dim];
+    kg_top[0] = 0.4;
     vector
         .upsert(&[(
             "chunk_kg_top".to_string(),
@@ -196,7 +204,9 @@ async fn mix_with_skewed_weights_differs_from_hybrid() {
 
     assert!(
         !resp_n.context.chunks.is_empty() && !resp_l.context.chunks.is_empty(),
-        "both Mix skews must return chunks"
+        "both Mix skews must return chunks (naive={}, local={})",
+        resp_n.context.chunks.len(),
+        resp_l.context.chunks.len()
     );
 
     let n_ids: Vec<String> = resp_n.context.chunks.iter().map(|c| c.id.clone()).collect();

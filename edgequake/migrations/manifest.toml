@@ -4,7 +4,7 @@
 
 schema_version = 1
 compat_serve_min = 149
-compat_serve_max = 226
+compat_serve_max = 227
 irreversible_drop = [125, 126, 131, 171]
 legacy_cutover_assert = 142
 
@@ -1633,6 +1633,13 @@ lock_class = "ddl_access_exclusive"
 [[migration]]
 version = 226
 file = "226_spec181_admin.sql"
+phase = "expand"
+no_transaction = false
+lock_class = "ddl_access_exclusive"
+
+[[migration]]
+version = 227
+file = "227_spec180_bm25_doc_stats.sql"
 phase = "expand"
 no_transaction = false
 lock_class = "ddl_access_exclusive"

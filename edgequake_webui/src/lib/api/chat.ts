@@ -114,6 +114,13 @@ export interface SourceReference {
   source_type: string;
   id: string;
   score: number;
+  /**
+   * Absolute similarity to the query (0..1), when the server measured one.
+   *
+   * On a Normal workspace `score` is a reciprocal rank fusion value, so it only encodes
+   * ordering. This is the number that says whether a hit is a real match.
+   */
+  similarity?: number;
   rerank_score?: number;
   snippet?: string;
   reference_id?: number;

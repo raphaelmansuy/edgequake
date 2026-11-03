@@ -119,7 +119,8 @@ pub use context_format::{
     assign_stable_citation_ids, chunk_citation_ref, format_chunk_block, format_chunk_meta,
     format_entity_line, format_query_context, format_query_context_flat,
     format_query_context_passage_pack, format_query_context_path, format_query_context_with_mode,
-    format_relationship_line, passage_pack_enabled, ContextFormatMode,
+    format_relationship_line, is_rank_only_score, passage_pack_enabled, score_field,
+    ContextFormatMode,
 };
 pub use engine_impl::{QueryEmbeddings, QueryEngine, QueryEngineConfig};
 pub use entity_rank::{rank_entities_for_prompt, EntityRankMode};

@@ -308,7 +308,12 @@ async fn create_rules() {
     assert_eq!(ok["embedding_dimension"], 3072, "{ok}");
 
     // A probe that fails is reported at create time, not on the first upload.
+    //
+    // WHY the forget: the successful probe above is memoised per `(provider, model)` for five
+    // minutes, process-wide. Without dropping it this assertion reads the earlier success and
+    // sees 201, which reads as "create accepts a broken deployment" and is not true.
     std::env::set_var("EDGEQUAKE_VERTEX_BASE_URL", "http://127.0.0.1:9");
+    edgequake_api::services::embed_capability_probe::forget_all();
     let (st, err) = create_workspace_raw(
         &h,
         &tenant,
@@ -316,5 +321,15 @@ async fn create_rules() {
     )
     .await;
     assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{err}");
-    assert_eq!(err["code"], "embedding_auth", "{err}");
+    // The pair cannot serve images *here*, and create says so instead of storing it. Which code
+    // depends on how the call failed, and both are honest: an unreachable endpoint is
+    // `embedding_request_failed`, while a credential the project refuses collapses to
+    // `embedding_auth` (`failure_code`). Pinning only the auth code made this test fail on any
+    // machine with a reachable-but-refusing deployment, which is a property of the environment
+    // rather than of the rule under test.
+    assert!(
+        ["embedding_auth", "embedding_request_failed"]
+            .contains(&err["code"].as_str().unwrap_or("")),
+        "a probe that cannot run must refuse the create: {err}"
+    );
 }

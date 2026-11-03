@@ -210,4 +210,31 @@ mod tests {
         assert!(ids.contains("topic"));
         assert_eq!(out.len(), 2);
     }
+
+    #[test]
+    fn an_image_chunk_survives_the_text_reranker() {
+        // EC-180-55 / LAW-180-9: a cross-encoder scores text, and an image chunk has none. Its
+        // fused position is what judged it, so it must come back even when the reranker drops it.
+        // This is the guarantee the normal pipeline relies on when it protects image ids.
+        let mut picture = chunk("picture", 0.7);
+        picture.source_modality = Some("image".into());
+        let original = vec![picture, chunk("text", 0.9)];
+
+        // The reranker returns only text: the picture scored below the threshold and vanished.
+        let ce = vec![chunk("text", 0.99)];
+        let image_ids: Vec<String> = original
+            .iter()
+            .filter(|c| c.is_image_chunk())
+            .map(|c| c.id.clone())
+            .collect();
+        assert_eq!(image_ids, vec!["picture".to_string()]);
+
+        let out = blend_protect_ids(&original, ce, &image_ids, 2);
+        let ids: HashSet<_> = out.iter().map(|c| c.id.as_str()).collect();
+        assert!(
+            ids.contains("picture"),
+            "an image that fusion selected must not be dropped by a text reranker"
+        );
+        assert!(ids.contains("text"), "and the reranked text stays too");
+    }
 }

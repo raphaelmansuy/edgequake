@@ -52,6 +52,11 @@ export interface ModelRoleRowProps {
   /** How the inherited pair is named in the picker ("Organization default (openai/…)"). */
   inheritLabel: string;
   inheritPair: { provider?: string; model?: string };
+  /**
+   * SPEC-183 — the workspace will store images, so only an embedding model that reads them can
+   * serve it. Offering the rest would let the operator pick a pair the server refuses.
+   */
+  imageEmbeddingOnly?: boolean;
 }
 
 export function ModelRoleRow({
@@ -66,6 +71,7 @@ export function ModelRoleRow({
   tenantId,
   inheritLabel,
   inheritPair,
+  imageEmbeddingOnly = false,
 }: ModelRoleRowProps) {
   const panelId = useId();
   const label = ROLE_LABEL[role];
@@ -174,6 +180,7 @@ export function ModelRoleRow({
               scopeId={tenantId}
               inheritLabel={inheritLabel}
               inheritPair={inheritPair}
+              imageOnly={imageEmbeddingOnly}
             />
           ) : (
             <LLMModelSelector

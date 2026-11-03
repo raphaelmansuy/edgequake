@@ -19,6 +19,8 @@ import { useCallback } from "react";
 import { useDropzone, type Accept } from "react-dropzone";
 import { toast } from "sonner";
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@/lib/api/upload-limits";
+import { splitByImageCapability } from "@/lib/upload/file-kind";
+import type { ImageCapability } from "@/lib/documents/image-upload-guidance";
 
 /**
  * Maximum file size for uploads. Sourced from `upload-limits.ts` (the
@@ -51,6 +53,13 @@ export interface UseDocumentDropzoneOptions {
   onFilesAccepted: (files: File[]) => Promise<void>;
   /** i18n translation function */
   t: TFunction;
+  /**
+   * SPEC-183 — the workspace's image capability, as the server stated it. `embeds_images: false`
+   * refuses pictures here with a sentence that names the fix, instead of travelling to the
+   * server to be told `embedding_model_not_multimodal` with nowhere to go. Absent means the
+   * server has not said, and the upload proceeds: the server still answers correctly.
+   */
+  acceptsImages?: ImageCapability;
 }
 
 /**
@@ -88,7 +97,7 @@ export interface UseDocumentDropzoneReturn {
 export function useDocumentDropzone(
   options: UseDocumentDropzoneOptions,
 ): UseDocumentDropzoneReturn {
-  const { onFilesAccepted, t } = options;
+  const { onFilesAccepted, t, acceptsImages } = options;
 
   const onDrop = useCallback(
     async (
@@ -141,12 +150,32 @@ export function useDocumentDropzone(
         toast.error(errorMessages);
       }
 
-      // Process accepted files
-      if (acceptedFiles.length > 0) {
+      if (acceptedFiles.length === 0) return;
+
+      // Fail open on an unknown capability; refuse only what the server said it cannot store.
+      if (acceptsImages?.embeds_images !== false) {
         await onFilesAccepted(acceptedFiles);
+        return;
+      }
+      // SPEC-183: the evidence is immutable, so an image cannot be stored here at all. Name the
+      // workspace shape that can, rather than repeating the server's code.
+      const { text, images } = splitByImageCapability(acceptedFiles);
+      if (images.length > 0) {
+        const names = images.map((file) => file.name).join(", ");
+        toast.error(
+          t(
+            "documents.upload.imagesNeedImageWorkspace",
+            '{{count}} picture(s) were not uploaded: this workspace stores text only. Pictures need a workspace created with evidence “Text and images”.',
+            { count: images.length, names },
+          ),
+          { description: names },
+        );
+      }
+      if (text.length > 0) {
+        await onFilesAccepted(text);
       }
     },
-    [onFilesAccepted, t],
+    [onFilesAccepted, t, acceptsImages?.embeds_images],
   );
 
   const {

@@ -132,6 +132,15 @@ export interface QueryContext {
     mime_type?: string;
     /** What the chunk was embedded from: `text` or `image` (SPEC-180). */
     source_modality?: string;
+    /**
+     * Absolute similarity to the query (0..1), when the server measured one.
+     *
+     * WHY it is separate from `score`: on a Normal workspace `score` is a reciprocal rank fusion
+     * value, so every hit sits near 0.016 regardless of quality. This is the number that can
+     * answer "is this a real match?", and it is what the image grid gates on. Absent means "not
+     * measured", not "zero".
+     */
+    similarity?: number;
   }>;
   entities: Array<{
     id: string;

@@ -2,7 +2,7 @@
 
 import { useLlmCapabilityModels } from "@/hooks/use-llm-capability-models";
 import { cn } from '@/lib/utils';
-import { SlidersHorizontal, Upload } from 'lucide-react';
+import { ImageOff, SlidersHorizontal, Upload } from 'lucide-react';
 import type React from 'react';
 import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { DropzoneInputProps, DropzoneRootProps } from 'react-dropzone';
@@ -26,6 +26,7 @@ import {
 } from '@/components/settings/vision-extract-controls';
 import { useTranslation } from 'react-i18next';
 import { MAX_UPLOAD_LABEL } from '@/lib/api/upload-limits';
+import type { ImageCapability } from '@/lib/documents/image-upload-guidance';
 import { formatWorkspaceDefaultPdfParserLabel, formatWorkspaceDefaultPdfParserShortLabel } from '@/lib/pdf/resolve-pdf-parser-backend';
 import {
   effectiveEffortWhenAuto,
@@ -80,6 +81,13 @@ export interface DocumentDropzoneProps {
    * SPEC-048: compact chrome while ingestion is working so progress UI stays primary.
    */
   quiet?: boolean;
+  /**
+   * SPEC-183 — the workspace's image capability, as the server stated it. `embeds_images: false`
+   * means a dropped picture cannot be stored, so the zone says so up front instead of letting
+   * the upload fail with the server's sentence and no statement of where the fix lives.
+   * Absent means the server has not said, and nothing is refused on a guess.
+   */
+  acceptsImages?: ImageCapability;
   /**
    * SPEC-099 LAW-099-4: denser band when feedback zone has live work.
    * Always remains a full-width drop target (never removed).
@@ -348,6 +356,7 @@ export function DocumentDropzone({
   quiet = false,
   collapsed = false,
   fill = false,
+  acceptsImages,
 }: DocumentDropzoneProps) {
   const { t } = useTranslation();
   const llmModels = useLlmCapabilityModels();
@@ -408,6 +417,7 @@ export function DocumentDropzone({
     fillIsHero &&
     measured &&
     boxHeight >= DROPZONE_ROOMY_MIN_HEIGHT_PX;
+  const textOnly = acceptsImages?.embeds_images === false;
   const composed = Boolean(fill) && !fillIsRow;
   const imagesLabel = t('documents.upload.formatImages', 'Images');
   const formatLine = `TXT, MD, JSON, PDF, ${imagesLabel}`;
@@ -582,6 +592,33 @@ export function DocumentDropzone({
         aria-label={t('documents.upload.uploadDrop', 'Upload files by clicking or dragging')}
         data-testid="document-dropzone-input"
       />
+
+      {/*
+        SPEC-183 — a picture cannot be stored on a text-only workspace, and the evidence is
+        fixed at create. Saying so here is the difference between a refusal and a dead end:
+        the sentence carries the place the fix lives (a new workspace with images).
+      */}
+      {textOnly ? (
+        <div
+          role="status"
+          data-testid="dropzone-text-only-notice"
+          className={cn(
+            'mx-3 mt-2 flex items-start gap-2 rounded-md border border-amber-300/70 bg-amber-50/70 px-2.5 py-2 text-[11.5px] leading-snug text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200',
+            fill && !fillIsRow ? 'mb-2' : 'max-sm:mx-0 max-sm:mt-1',
+          )}
+        >
+          <ImageOff aria-hidden className="mt-px h-3.5 w-3.5 shrink-0" />
+          <span className="min-w-0">
+            <span className="block font-medium">
+              {t('documents.upload.textOnlyTitle', 'This workspace stores text only')}
+            </span>
+            {t(
+              'documents.upload.textOnlyBody',
+              'Pictures need a workspace created with evidence “Text and images”. That choice is fixed when the workspace is made, so create one there and upload the pictures in it.',
+            )}
+          </span>
+        </div>
+      ) : null}
       {composed ? (
         <div
           className={cn(

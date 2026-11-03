@@ -43,6 +43,10 @@ pub fn message_context_from_subgraph(
                 title: s.file_path.clone().or_else(|| s.document_id.clone()),
                 content: Some(s.snippet.clone().unwrap_or_default()),
                 score: s.score,
+                // SPEC-183: without this the grid cannot tell a real match from a row that
+                // merely came back, which is how twenty photographs appeared under a refund
+                // question. Carried here so the streamed context gates the same way.
+                similarity: s.similarity,
                 document_id: s.document_id.clone(),
                 // SPEC-033 FP-033-1: Persist page attribution so the citation panel
                 // can group passages by page even after conversation reload.

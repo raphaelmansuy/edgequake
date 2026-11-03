@@ -60,6 +60,7 @@ pub fn build_sources_from_context(
                 source_type: "chunk".to_string(),
                 id: chunk.id.clone(),
                 score: chunk.score,
+                similarity: chunk.similarity,
                 rerank_score: None,
                 snippet: Some(truncate_for_granularity(&chunk.content, granularity)),
                 reference_id: ref_id,
@@ -108,6 +109,7 @@ pub fn build_sources_from_context(
             source_type: "entity".to_string(),
             id: entity.name.clone(),
             score: entity.score,
+            similarity: None,
             rerank_score: None,
             snippet: Some(truncate_for_granularity(&entity.description, granularity)),
             reference_id: ref_id,
@@ -157,6 +159,7 @@ pub fn build_sources_from_context(
             // Keep identity in id for dedupe; snippet uses presentation labels (073).
             id: format!("{}->{}", rel.source, rel.target),
             score: rel.score,
+            similarity: None,
             rerank_score: None,
             snippet: Some(format!(
                 "{} {} {}",

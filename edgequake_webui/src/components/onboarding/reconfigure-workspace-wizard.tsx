@@ -371,6 +371,7 @@ export function ReconfigureWorkspaceWizard({
             embedding={embedding}
             vision={vision}
             onEditStep={goToStep}
+            steps={steps}
             hideWorkspaceIdentity
             showDocumentParsing
             showRetrieval

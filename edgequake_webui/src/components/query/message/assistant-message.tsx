@@ -266,6 +266,7 @@ export const AssistantMessage = memo(function AssistantMessage({
               {message.context ? (
                 <SourceCitations
                   context={message.context}
+                  answer={displayContent}
                   openSignal={sourcesOpenSignal}
                   onEntityClick={(entityId) => {
                     router.push(

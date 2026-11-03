@@ -123,6 +123,24 @@ fn fuse_legs(search: &NormalSearch<'_>, legs: Legs) -> NormalOutcome {
                 .or_insert_with(|| build_chunk_from_result(hit));
         }
     }
+    // SPEC-183: keep the dense cosine, which fusion would otherwise discard.
+    //
+    // `VectorSearchResult::score` from the dense leg *is* a similarity on the query's own
+    // scale, while the fused `score` this function returns is only a reciprocal rank. Anything
+    // that needs to decide "is this hit actually relevant?" — the image grid, the confidence
+    // badge — needs the former, and it exists here for free. A hit found only by BM25 has no
+    // cosine, and stays `None` rather than being given a fabricated one.
+    let mut similarity: HashMap<&str, f32> = HashMap::new();
+    for hits in &legs.dense {
+        for hit in hits {
+            // Two dense lists (text and image vectors) can name the same chunk; keep the better
+            // similarity, because that is the evidence the stronger leg matched on.
+            similarity
+                .entry(hit.id.as_str())
+                .and_modify(|best| *best = best.max(hit.score))
+                .or_insert(hit.score);
+        }
+    }
     let dense_hits: usize = legs.dense.iter().map(Vec::len).sum();
     for hits in &legs.dense {
         lists.push(hits.iter().map(|h| h.id.clone()).collect());
@@ -135,8 +153,10 @@ fn fuse_legs(search: &NormalSearch<'_>, legs: Legs) -> NormalOutcome {
     let chunks: Vec<RetrievedChunk> = fuse_ranked(&lists, &weights)
         .into_iter()
         .filter_map(|hit| {
+            let sim = similarity.get(hit.id.as_str()).copied();
             lookup.remove(&hit.id).map(|mut chunk| {
                 chunk.score = hit.score;
+                chunk.similarity = sim;
                 chunk
             })
         })
@@ -330,6 +350,49 @@ mod tests {
             .unwrap();
         assert_eq!(out.trace.bm25_hits, 0);
         assert_eq!(out.chunks[0].id, "a");
+    }
+
+    #[tokio::test]
+    async fn fusion_keeps_the_dense_similarity_it_used_to_discard() {
+        // WHY: the fused `score` is a reciprocal rank (~0.0164 for any first place), so it cannot
+        // say whether a hit is actually relevant. The dense cosine can, and it already existed —
+        // fusion threw it away. This pins that it now survives to the caller.
+        let store: Arc<dyn VectorStorage> = Arc::new(Canned {
+            dense: vec![hit("strong", 0.82, "alpha"), hit("weak", 0.11, "beta")],
+            bm25: Some(Ok(Some(vec![hit("lexical", 3.0, "gamma")]))),
+        });
+        let out = retrieve_normal(&store, &search("alpha", &[1.0, 0.0, 0.0]))
+            .await
+            .unwrap();
+
+        let by_id = |id: &str| out.chunks.iter().find(|c| c.id == id).expect(id);
+        assert_eq!(by_id("strong").similarity, Some(0.82));
+        assert_eq!(by_id("weak").similarity, Some(0.11));
+        // A lexical-only hit has no cosine. It must stay unknown rather than become 0.0, which
+        // a reader would interpret as "certainly irrelevant".
+        assert_eq!(by_id("lexical").similarity, None);
+        // The fused rank is still what orders them.
+        assert!(by_id("strong").score > 0.0);
+    }
+
+    #[tokio::test]
+    async fn two_dense_lists_keep_the_better_similarity() {
+        // A text query and an image query can retrieve the same chunk. The stronger evidence
+        // wins, so the grid does not hide a picture the image leg matched well.
+        let store: Arc<dyn VectorStorage> = Arc::new(Canned {
+            dense: vec![hit("shared", 0.31, "mixed")],
+            bm25: None,
+        });
+        let mut s = search("q", &[1.0, 0.0, 0.0]);
+        let image = [0.0f32, 1.0, 0.0];
+        s.image_vector = Some(&image);
+        let out = retrieve_normal(&store, &s).await.unwrap();
+        let shared = out.chunks.iter().find(|c| c.id == "shared").unwrap();
+        assert_eq!(
+            shared.similarity,
+            Some(0.31),
+            "both legs report 0.31 here; the max is what must survive"
+        );
     }
 
     #[tokio::test]
