@@ -1,0 +1,773 @@
+{
+  "base": "http://127.0.0.1:8090",
+  "tenant_id": "8adffd4b-8350-452b-984f-13e959b01db3",
+  "workspace_id": "19c3916f-3939-4403-9ba4-0db8c970a92f",
+  "documents": {
+    "01-forest-path.jpg": "01a19ebb-c707-753a-b762-3be378238939",
+    "02-misty-highlands.jpg": "01a19ebb-c7d3-74a6-8ff9-ee3b5d35d270",
+    "03-desert-road.jpg": "01a19ebb-c8f5-792d-87b7-54c975e442e9",
+    "04-man-portrait.jpg": "01a19ebb-ca05-7f28-b701-5cf85b10c6a2",
+    "05-alpine-lake.jpg": "01a19ebb-cad5-7537-8dc2-e7c128aceee5",
+    "06-mountain-peaks.jpg": "01a19ebb-cb8b-7a36-bc9a-216f369b3177",
+    "07-tropical-beach.jpg": "01a19ebb-cc48-759f-8a9b-b2dd38118e56",
+    "08-cat-portrait.jpg": "01a19ebb-cd02-7c02-ac7a-d3244044f6e8",
+    "09-milky-way.jpg": "01a19ebb-cdae-7a1e-86b2-7c8041b1953b",
+    "10-woman-portrait.jpg": "01a19ebb-cea5-778f-84b6-48857e983d8e",
+    "11-espresso.jpg": "01a19ebb-cfa8-7076-b618-db5cb35a850a",
+    "12-pizza-margherita.jpg": "01a19ebb-d0c7-70ba-b8b9-b72551e163e5",
+    "13-golden-retriever-puppy.jpg": "01a19ebb-d1f0-71fc-bacf-e4a1aa2a1b06",
+    "14-cornfield-sunset.jpg": "01a19ebb-d39c-7c3c-9b3d-1068303ab54f",
+    "15-vintage-bicycle.jpg": "01a19ebb-d46b-77ee-b2ab-f9a074922238",
+    "16-orange-poppies.jpg": "01a19ebb-d524-7cfb-9d45-ec90d28f2af6",
+    "17-ocean-wave.jpg": "01a19ebb-d5fd-788a-9df1-6235fa369599",
+    "18-modern-architecture.jpg": "01a19ebb-d6bc-7b44-83ed-2fdc2e978829",
+    "19-cappuccino-latte-art.jpg": "01a19ebb-d7be-7c86-97e4-1e418dbcc393",
+    "20-beagle-portrait.jpg": "01a19ebb-d885-70e4-b2c4-a92c58dfbbdc"
+  },
+  "captions": {
+    "01-forest-path.jpg": "Sunlit dirt path through a tall forest",
+    "02-misty-highlands.jpg": "Green valley with low cloud and a winding road",
+    "03-desert-road.jpg": "Two-lane road running through red rock desert",
+    "04-man-portrait.jpg": "Portrait of a smiling man in a grey sweater",
+    "05-alpine-lake.jpg": "Turquoise alpine lake with a small rowing boat",
+    "06-mountain-peaks.jpg": "Snow-capped peaks rising above a sea of clouds",
+    "07-tropical-beach.jpg": "White sand beach with clear turquoise water",
+    "08-cat-portrait.jpg": "Black and white cat looking at the camera",
+    "09-milky-way.jpg": "The Milky Way over snow-covered mountains",
+    "10-woman-portrait.jpg": "Portrait of a woman in a striped shirt",
+    "11-espresso.jpg": "Espresso in a white cup, photographed from above",
+    "12-pizza-margherita.jpg": "Slices of margherita pizza with fresh basil",
+    "13-golden-retriever-puppy.jpg": "Golden retriever puppy resting its head",
+    "14-cornfield-sunset.jpg": "Sunset over a green corn field",
+    "15-vintage-bicycle.jpg": "White vintage Peugeot bicycle against a dark wall",
+    "16-orange-poppies.jpg": "Orange poppies against a deep blue sky",
+    "17-ocean-wave.jpg": "A single wave breaking in warm evening light",
+    "18-modern-architecture.jpg": "White geometric building photographed from below",
+    "19-cappuccino-latte-art.jpg": "Two cappuccinos with latte art on a wooden table",
+    "20-beagle-portrait.jpg": "A beagle with its tongue out, outdoors"
+  },
+  "retrieval": [
+    {
+      "query": "a path through the woods with sunlight between the trees",
+      "expect": "01-forest-path.jpg",
+      "got": "01-forest-path.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "01-forest-path.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "03-desert-road.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "16-orange-poppies.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "20-beagle-portrait.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "10-woman-portrait.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2680
+    },
+    {
+      "query": "misty green hills with a road winding through the valley",
+      "expect": "02-misty-highlands.jpg",
+      "got": "02-misty-highlands.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "02-misty-highlands.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "03-desert-road.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "01-forest-path.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "06-mountain-peaks.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "09-milky-way.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2761
+    },
+    {
+      "query": "an empty highway between red rocks in the desert",
+      "expect": "03-desert-road.jpg",
+      "got": "03-desert-road.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "03-desert-road.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "02-misty-highlands.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "01-forest-path.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "05-alpine-lake.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "16-orange-poppies.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 5526
+    },
+    {
+      "query": "a headshot of a man smiling",
+      "expect": "04-man-portrait.jpg",
+      "got": "04-man-portrait.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "04-man-portrait.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "20-beagle-portrait.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "10-woman-portrait.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "16-orange-poppies.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "13-golden-retriever-puppy.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2880
+    },
+    {
+      "query": "a small wooden boat on a turquoise mountain lake",
+      "expect": "05-alpine-lake.jpg",
+      "got": "05-alpine-lake.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "05-alpine-lake.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "16-orange-poppies.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "09-milky-way.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "06-mountain-peaks.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "08-cat-portrait.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2788
+    },
+    {
+      "query": "snowy mountain tops above the clouds at sunrise",
+      "expect": "06-mountain-peaks.jpg",
+      "got": "06-mountain-peaks.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "06-mountain-peaks.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "09-milky-way.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "02-misty-highlands.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "07-tropical-beach.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "17-ocean-wave.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2658
+    },
+    {
+      "query": "a tropical beach with white sand",
+      "expect": "07-tropical-beach.jpg",
+      "got": "07-tropical-beach.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "07-tropical-beach.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "16-orange-poppies.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "17-ocean-wave.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "01-forest-path.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "08-cat-portrait.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2694
+    },
+    {
+      "query": "a cat staring straight at the camera",
+      "expect": "08-cat-portrait.jpg",
+      "got": "08-cat-portrait.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "08-cat-portrait.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "13-golden-retriever-puppy.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "20-beagle-portrait.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "10-woman-portrait.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "03-desert-road.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2789
+    },
+    {
+      "query": "stars and the galaxy over dark mountain silhouettes at night",
+      "expect": "09-milky-way.jpg",
+      "got": "09-milky-way.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "09-milky-way.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "06-mountain-peaks.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "03-desert-road.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "02-misty-highlands.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "16-orange-poppies.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2669
+    },
+    {
+      "query": "a portrait of a young woman outdoors",
+      "expect": "10-woman-portrait.jpg",
+      "got": "10-woman-portrait.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "10-woman-portrait.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "13-golden-retriever-puppy.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "20-beagle-portrait.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "16-orange-poppies.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "15-vintage-bicycle.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2677
+    },
+    {
+      "query": "a small strong coffee in a cup seen from above",
+      "expect": "11-espresso.jpg",
+      "got": "11-espresso.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "11-espresso.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "19-cappuccino-latte-art.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "08-cat-portrait.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "15-vintage-bicycle.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "16-orange-poppies.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 3223
+    },
+    {
+      "query": "slices of pizza with melted cheese and basil",
+      "expect": "12-pizza-margherita.jpg",
+      "got": "12-pizza-margherita.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "12-pizza-margherita.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "19-cappuccino-latte-art.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "16-orange-poppies.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "20-beagle-portrait.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "03-desert-road.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2886
+    },
+    {
+      "query": "a young golden retriever puppy",
+      "expect": "13-golden-retriever-puppy.jpg",
+      "got": "13-golden-retriever-puppy.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "13-golden-retriever-puppy.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "20-beagle-portrait.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "16-orange-poppies.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "01-forest-path.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "17-ocean-wave.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2699
+    },
+    {
+      "query": "the sun going down over a farm field",
+      "expect": "14-cornfield-sunset.jpg",
+      "got": "14-cornfield-sunset.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "14-cornfield-sunset.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "10-woman-portrait.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "07-tropical-beach.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "02-misty-highlands.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "16-orange-poppies.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2697
+    },
+    {
+      "query": "an old white racing bicycle with a leather saddle",
+      "expect": "15-vintage-bicycle.jpg",
+      "got": "15-vintage-bicycle.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "15-vintage-bicycle.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "08-cat-portrait.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "20-beagle-portrait.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "01-forest-path.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "05-alpine-lake.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2710
+    },
+    {
+      "query": "bright orange wild flowers under a blue sky",
+      "expect": "16-orange-poppies.jpg",
+      "got": "16-orange-poppies.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "16-orange-poppies.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "14-cornfield-sunset.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "03-desert-road.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "02-misty-highlands.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "17-ocean-wave.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2678
+    },
+    {
+      "query": "a wave breaking on the sea at sunset",
+      "expect": "17-ocean-wave.jpg",
+      "got": "17-ocean-wave.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "17-ocean-wave.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "07-tropical-beach.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "06-mountain-peaks.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "14-cornfield-sunset.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "02-misty-highlands.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2766
+    },
+    {
+      "query": "a modern white building made of sharp geometric shapes",
+      "expect": "18-modern-architecture.jpg",
+      "got": "18-modern-architecture.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "18-modern-architecture.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "16-orange-poppies.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "15-vintage-bicycle.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "08-cat-portrait.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "09-milky-way.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2682
+    },
+    {
+      "query": "two cups of coffee with heart shapes drawn in the foam",
+      "expect": "19-cappuccino-latte-art.jpg",
+      "got": "19-cappuccino-latte-art.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "19-cappuccino-latte-art.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "11-espresso.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "13-golden-retriever-puppy.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "16-orange-poppies.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "15-vintage-bicycle.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2774
+    },
+    {
+      "query": "a happy hound dog panting with its tongue out",
+      "expect": "20-beagle-portrait.jpg",
+      "got": "20-beagle-portrait.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "20-beagle-portrait.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "13-golden-retriever-puppy.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "16-orange-poppies.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "15-vintage-bicycle.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "01-forest-path.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 2767
+    },
+    {
+      "probe": "probes/probe-cat.jpg",
+      "caption": "a tabby cat lying on a sofa",
+      "why": "A different cat, in a different room, must find the corpus cat and beat three dogs.",
+      "accept": [
+        "08-cat-portrait.jpg"
+      ],
+      "got": "08-cat-portrait.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "08-cat-portrait.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "13-golden-retriever-puppy.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "20-beagle-portrait.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "19-cappuccino-latte-art.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "11-espresso.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 1207
+    },
+    {
+      "probe": "probes/probe-dog.jpg",
+      "caption": "a yorkshire terrier puppy on a rug",
+      "why": "A puppy must land on a dog picture, and must not pick the cat although both are pets.",
+      "accept": [
+        "13-golden-retriever-puppy.jpg",
+        "20-beagle-portrait.jpg"
+      ],
+      "got": "13-golden-retriever-puppy.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "13-golden-retriever-puppy.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "20-beagle-portrait.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "11-espresso.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "08-cat-portrait.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "01-forest-path.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 1563
+    },
+    {
+      "probe": "probes/probe-mountain.jpg",
+      "caption": "snow peaks under a twilight sky",
+      "why": "Four mountain pictures exist. Any of them is right; a beach or a portrait is not.",
+      "accept": [
+        "06-mountain-peaks.jpg",
+        "09-milky-way.jpg",
+        "05-alpine-lake.jpg",
+        "02-misty-highlands.jpg"
+      ],
+      "got": "09-milky-way.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "09-milky-way.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "06-mountain-peaks.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "03-desert-road.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "05-alpine-lake.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "17-ocean-wave.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 1230
+    },
+    {
+      "probe": "probes/probe-pizza.jpg",
+      "caption": "two wood-fired pizzas with basil",
+      "why": "A pizza must find the pizza, not the two coffee pictures it also resembles.",
+      "accept": [
+        "12-pizza-margherita.jpg"
+      ],
+      "got": "12-pizza-margherita.jpg",
+      "pass": true,
+      "top5": [
+        {
+          "file": "12-pizza-margherita.jpg",
+          "score": 0.01639
+        },
+        {
+          "file": "19-cappuccino-latte-art.jpg",
+          "score": 0.01613
+        },
+        {
+          "file": "17-ocean-wave.jpg",
+          "score": 0.01587
+        },
+        {
+          "file": "20-beagle-portrait.jpg",
+          "score": 0.01562
+        },
+        {
+          "file": "03-desert-road.jpg",
+          "score": 0.01538
+        }
+      ],
+      "ms": 1304
+    }
+  ],
+  "passed": 24,
+  "total": 24,
+  "ingest_status_counts": {
+    "completed": 20
+  },
+  "wall_clock_s": 96.1
+}

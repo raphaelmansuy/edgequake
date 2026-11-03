@@ -1,0 +1,59 @@
+[
+  {
+    "probe": "probe-cat.jpg",
+    "accepted": [
+      "08-cat-portrait.jpg"
+    ],
+    "got": "08-cat-portrait.jpg",
+    "score": 0.7693,
+    "runner_up": "13-golden-retriever-puppy.jpg",
+    "runner_up_score": 0.7236,
+    "margin": 0.0457,
+    "margin_required": true,
+    "why": "a cat photograph finds the cat, not the dogs",
+    "pass": true
+  },
+  {
+    "probe": "probe-dog.jpg",
+    "accepted": [
+      "13-golden-retriever-puppy.jpg"
+    ],
+    "got": "13-golden-retriever-puppy.jpg",
+    "score": 0.7524,
+    "runner_up": "20-beagle-portrait.jpg",
+    "runner_up_score": 0.7089,
+    "margin": 0.0435,
+    "margin_required": true,
+    "why": "a puppy finds the puppy, and beats the cat",
+    "pass": true
+  },
+  {
+    "probe": "probe-mountain.jpg",
+    "accepted": [
+      "06-mountain-peaks.jpg",
+      "09-milky-way.jpg"
+    ],
+    "got": "09-milky-way.jpg",
+    "score": 0.8328,
+    "runner_up": "06-mountain-peaks.jpg",
+    "runner_up_score": 0.8266,
+    "margin": 0.0062,
+    "margin_required": false,
+    "why": "a snow peak at dusk finds a snow peak, not the beach",
+    "pass": true
+  },
+  {
+    "probe": "probe-pizza.jpg",
+    "accepted": [
+      "12-pizza-margherita.jpg"
+    ],
+    "got": "12-pizza-margherita.jpg",
+    "score": 0.8126,
+    "runner_up": "19-cappuccino-latte-art.jpg",
+    "runner_up_score": 0.7534,
+    "margin": 0.0592,
+    "margin_required": true,
+    "why": "a pizza finds the pizza, not the coffee",
+    "pass": true
+  }
+]

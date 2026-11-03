@@ -1,0 +1,1567 @@
+{
+  "steps": [
+    {
+      "step": "create_tenant",
+      "request": {
+        "POST": "/api/v1/tenants",
+        "body": {
+          "name": "SPEC-182 corpus 19dcc7"
+        }
+      },
+      "status": 201,
+      "response": {
+        "id": "8adffd4b-8350-452b-984f-13e959b01db3",
+        "name": "SPEC-182 corpus 19dcc7"
+      }
+    },
+    {
+      "step": "create_workspace",
+      "request": {
+        "POST": "/api/v1/tenants/8adffd4b-8350-452b-984f-13e959b01db3/workspaces",
+        "body": {
+          "name": "Picture library 19dcc7",
+          "rag_profile": "normal",
+          "embedding_modalities": "text,image",
+          "embedding_provider": "vertexai",
+          "embedding_model": "gemini-embedding-2",
+          "embedding_dimension": 1536,
+          "llm_provider": "ollama",
+          "llm_model": "gemma4:latest"
+        }
+      },
+      "status": 201,
+      "response": {
+        "id": "19c3916f-3939-4403-9ba4-0db8c970a92f",
+        "rag_profile": "normal",
+        "embedding_modalities": "text,image",
+        "embedding_model": "gemini-embedding-2",
+        "embedding_dimension": 1536,
+        "rag_profile_capabilities": {
+          "extracts_graph": false,
+          "embeds_images": true,
+          "writes_bm25": true,
+          "queries_graph": false,
+          "allows_graph_modes": false,
+          "shows_graph_ui": false
+        }
+      },
+      "note": "embeds_images=true, extracts_graph=false is the whole contract"
+    },
+    {
+      "step": "upload:01-forest-path.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "Sunlit dirt path through a tall forest.jpg"
+        },
+        "bytes": 270076
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-c707-753a-b762-3be378238939",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:02-misty-highlands.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "Green valley with low cloud and a winding road.jpg"
+        },
+        "bytes": 143220
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-c7d3-74a6-8ff9-ee3b5d35d270",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:03-desert-road.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "Two-lane road running through red rock desert.jpg"
+        },
+        "bytes": 253043
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-c8f5-792d-87b7-54c975e442e9",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:04-man-portrait.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "Portrait of a smiling man in a grey sweater.jpg"
+        },
+        "bytes": 218359
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-ca05-7f28-b701-5cf85b10c6a2",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:05-alpine-lake.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "Turquoise alpine lake with a small rowing boat.jpg"
+        },
+        "bytes": 225909
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-cad5-7537-8dc2-e7c128aceee5",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:06-mountain-peaks.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "Snow-capped peaks rising above a sea of clouds.jpg"
+        },
+        "bytes": 116849
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-cb8b-7a36-bc9a-216f369b3177",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:07-tropical-beach.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "White sand beach with clear turquoise water.jpg"
+        },
+        "bytes": 111908
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-cc48-759f-8a9b-b2dd38118e56",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:08-cat-portrait.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "Black and white cat looking at the camera.jpg"
+        },
+        "bytes": 76931
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-cd02-7c02-ac7a-d3244044f6e8",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:09-milky-way.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "The Milky Way over snow-covered mountains.jpg"
+        },
+        "bytes": 176763
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-cdae-7a1e-86b2-7c8041b1953b",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:10-woman-portrait.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "Portrait of a woman in a striped shirt.jpg"
+        },
+        "bytes": 228375
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-cea5-778f-84b6-48857e983d8e",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:11-espresso.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "Espresso in a white cup, photographed from above.jpg"
+        },
+        "bytes": 287882
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-cfa8-7076-b618-db5cb35a850a",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:12-pizza-margherita.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "Slices of margherita pizza with fresh basil.jpg"
+        },
+        "bytes": 304476
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-d0c7-70ba-b8b9-b72551e163e5",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:13-golden-retriever-puppy.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "Golden retriever puppy resting its head.jpg"
+        },
+        "bytes": 314957
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-d1f0-71fc-bacf-e4a1aa2a1b06",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:14-cornfield-sunset.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "Sunset over a green corn field.jpg"
+        },
+        "bytes": 319543
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-d39c-7c3c-9b3d-1068303ab54f",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:15-vintage-bicycle.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "White vintage Peugeot bicycle against a dark wall.jpg"
+        },
+        "bytes": 182680
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-d46b-77ee-b2ab-f9a074922238",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:16-orange-poppies.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "Orange poppies against a deep blue sky.jpg"
+        },
+        "bytes": 147503
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-d524-7cfb-9d45-ec90d28f2af6",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:17-ocean-wave.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "A single wave breaking in warm evening light.jpg"
+        },
+        "bytes": 145971
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-d5fd-788a-9df1-6235fa369599",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:18-modern-architecture.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "White geometric building photographed from below.jpg"
+        },
+        "bytes": 137660
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-d6bc-7b44-83ed-2fdc2e978829",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:19-cappuccino-latte-art.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "Two cappuccinos with latte art on a wooden table.jpg"
+        },
+        "bytes": 223178
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-d7be-7c86-97e4-1e418dbcc393",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "upload:20-beagle-portrait.jpg",
+      "request": {
+        "POST": "/api/v1/documents/upload",
+        "multipart": {
+          "file": "A beagle with its tongue out, outdoors.jpg"
+        },
+        "bytes": 106410
+      },
+      "status": 202,
+      "response": {
+        "document_id": "01a19ebb-d885-70e4-b2c4-a92c58dfbbdc",
+        "status": "pending"
+      }
+    },
+    {
+      "step": "ingest_complete",
+      "request": {
+        "GET": "/api/v1/documents/{id} until status is terminal"
+      },
+      "status": "ok",
+      "response": {
+        "statuses": {
+          "01-forest-path.jpg": "completed",
+          "02-misty-highlands.jpg": "completed",
+          "03-desert-road.jpg": "completed",
+          "04-man-portrait.jpg": "completed",
+          "05-alpine-lake.jpg": "completed",
+          "06-mountain-peaks.jpg": "completed",
+          "07-tropical-beach.jpg": "completed",
+          "08-cat-portrait.jpg": "completed",
+          "09-milky-way.jpg": "completed",
+          "10-woman-portrait.jpg": "completed",
+          "11-espresso.jpg": "completed",
+          "12-pizza-margherita.jpg": "completed",
+          "13-golden-retriever-puppy.jpg": "completed",
+          "14-cornfield-sunset.jpg": "completed",
+          "15-vintage-bicycle.jpg": "completed",
+          "16-orange-poppies.jpg": "completed",
+          "17-ocean-wave.jpg": "completed",
+          "18-modern-architecture.jpg": "completed",
+          "19-cappuccino-latte-art.jpg": "completed",
+          "20-beagle-portrait.jpg": "completed"
+        },
+        "not_ready": {}
+      },
+      "note": "a normal workspace runs no extraction, so ready means chunks + vectors exist"
+    },
+    {
+      "step": "text_to_image:a path through the woods with sunlight between the trees",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "a path through the woods with sunlight between the trees",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-c707-753a-b762-3be378238939",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-c8f5-792d-87b7-54c975e442e9",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d524-7cfb-9d45-ec90d28f2af6",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d885-70e4-b2c4-a92c58dfbbdc",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "01-forest-path.jpg",
+          "03-desert-road.jpg",
+          "16-orange-poppies.jpg",
+          "20-beagle-portrait.jpg",
+          "10-woman-portrait.jpg"
+        ]
+      },
+      "duration_ms": 2680,
+      "note": "expect 01-forest-path.jpg"
+    },
+    {
+      "step": "text_to_image:misty green hills with a road winding through the valley",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "misty green hills with a road winding through the valley",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-c7d3-74a6-8ff9-ee3b5d35d270",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-c8f5-792d-87b7-54c975e442e9",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-c707-753a-b762-3be378238939",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cb8b-7a36-bc9a-216f369b3177",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "02-misty-highlands.jpg",
+          "03-desert-road.jpg",
+          "01-forest-path.jpg",
+          "06-mountain-peaks.jpg",
+          "09-milky-way.jpg"
+        ]
+      },
+      "duration_ms": 2761,
+      "note": "expect 02-misty-highlands.jpg"
+    },
+    {
+      "step": "text_to_image:an empty highway between red rocks in the desert",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "an empty highway between red rocks in the desert",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-c8f5-792d-87b7-54c975e442e9",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-c7d3-74a6-8ff9-ee3b5d35d270",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-c707-753a-b762-3be378238939",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cad5-7537-8dc2-e7c128aceee5",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "03-desert-road.jpg",
+          "02-misty-highlands.jpg",
+          "01-forest-path.jpg",
+          "05-alpine-lake.jpg",
+          "16-orange-poppies.jpg"
+        ]
+      },
+      "duration_ms": 5526,
+      "note": "expect 03-desert-road.jpg"
+    },
+    {
+      "step": "text_to_image:a headshot of a man smiling",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "a headshot of a man smiling",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-ca05-7f28-b701-5cf85b10c6a2",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d885-70e4-b2c4-a92c58dfbbdc",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cea5-778f-84b6-48857e983d8e",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d524-7cfb-9d45-ec90d28f2af6",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "04-man-portrait.jpg",
+          "20-beagle-portrait.jpg",
+          "10-woman-portrait.jpg",
+          "16-orange-poppies.jpg",
+          "13-golden-retriever-puppy.jpg"
+        ]
+      },
+      "duration_ms": 2880,
+      "note": "expect 04-man-portrait.jpg"
+    },
+    {
+      "step": "text_to_image:a small wooden boat on a turquoise mountain lake",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "a small wooden boat on a turquoise mountain lake",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-cad5-7537-8dc2-e7c128aceee5",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d524-7cfb-9d45-ec90d28f2af6",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cdae-7a1e-86b2-7c8041b1953b",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cb8b-7a36-bc9a-216f369b3177",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "05-alpine-lake.jpg",
+          "16-orange-poppies.jpg",
+          "09-milky-way.jpg",
+          "06-mountain-peaks.jpg",
+          "08-cat-portrait.jpg"
+        ]
+      },
+      "duration_ms": 2788,
+      "note": "expect 05-alpine-lake.jpg"
+    },
+    {
+      "step": "text_to_image:snowy mountain tops above the clouds at sunrise",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "snowy mountain tops above the clouds at sunrise",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-cb8b-7a36-bc9a-216f369b3177",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cdae-7a1e-86b2-7c8041b1953b",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-c7d3-74a6-8ff9-ee3b5d35d270",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cc48-759f-8a9b-b2dd38118e56",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "06-mountain-peaks.jpg",
+          "09-milky-way.jpg",
+          "02-misty-highlands.jpg",
+          "07-tropical-beach.jpg",
+          "17-ocean-wave.jpg"
+        ]
+      },
+      "duration_ms": 2658,
+      "note": "expect 06-mountain-peaks.jpg"
+    },
+    {
+      "step": "text_to_image:a tropical beach with white sand",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "a tropical beach with white sand",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-cc48-759f-8a9b-b2dd38118e56",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d524-7cfb-9d45-ec90d28f2af6",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d5fd-788a-9df1-6235fa369599",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-c707-753a-b762-3be378238939",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "07-tropical-beach.jpg",
+          "16-orange-poppies.jpg",
+          "17-ocean-wave.jpg",
+          "01-forest-path.jpg",
+          "08-cat-portrait.jpg"
+        ]
+      },
+      "duration_ms": 2694,
+      "note": "expect 07-tropical-beach.jpg"
+    },
+    {
+      "step": "text_to_image:a cat staring straight at the camera",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "a cat staring straight at the camera",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-cd02-7c02-ac7a-d3244044f6e8",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d1f0-71fc-bacf-e4a1aa2a1b06",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d885-70e4-b2c4-a92c58dfbbdc",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cea5-778f-84b6-48857e983d8e",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "08-cat-portrait.jpg",
+          "13-golden-retriever-puppy.jpg",
+          "20-beagle-portrait.jpg",
+          "10-woman-portrait.jpg",
+          "03-desert-road.jpg"
+        ]
+      },
+      "duration_ms": 2789,
+      "note": "expect 08-cat-portrait.jpg"
+    },
+    {
+      "step": "text_to_image:stars and the galaxy over dark mountain silhouettes at night",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "stars and the galaxy over dark mountain silhouettes at night",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-cdae-7a1e-86b2-7c8041b1953b",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cb8b-7a36-bc9a-216f369b3177",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-c8f5-792d-87b7-54c975e442e9",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-c7d3-74a6-8ff9-ee3b5d35d270",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "09-milky-way.jpg",
+          "06-mountain-peaks.jpg",
+          "03-desert-road.jpg",
+          "02-misty-highlands.jpg",
+          "16-orange-poppies.jpg"
+        ]
+      },
+      "duration_ms": 2669,
+      "note": "expect 09-milky-way.jpg"
+    },
+    {
+      "step": "text_to_image:a portrait of a young woman outdoors",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "a portrait of a young woman outdoors",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-cea5-778f-84b6-48857e983d8e",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d1f0-71fc-bacf-e4a1aa2a1b06",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d885-70e4-b2c4-a92c58dfbbdc",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d524-7cfb-9d45-ec90d28f2af6",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "10-woman-portrait.jpg",
+          "13-golden-retriever-puppy.jpg",
+          "20-beagle-portrait.jpg",
+          "16-orange-poppies.jpg",
+          "15-vintage-bicycle.jpg"
+        ]
+      },
+      "duration_ms": 2677,
+      "note": "expect 10-woman-portrait.jpg"
+    },
+    {
+      "step": "text_to_image:a small strong coffee in a cup seen from above",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "a small strong coffee in a cup seen from above",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-cfa8-7076-b618-db5cb35a850a",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d7be-7c86-97e4-1e418dbcc393",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cd02-7c02-ac7a-d3244044f6e8",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d46b-77ee-b2ab-f9a074922238",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "11-espresso.jpg",
+          "19-cappuccino-latte-art.jpg",
+          "08-cat-portrait.jpg",
+          "15-vintage-bicycle.jpg",
+          "16-orange-poppies.jpg"
+        ]
+      },
+      "duration_ms": 3223,
+      "note": "expect 11-espresso.jpg"
+    },
+    {
+      "step": "text_to_image:slices of pizza with melted cheese and basil",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "slices of pizza with melted cheese and basil",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-d0c7-70ba-b8b9-b72551e163e5",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d7be-7c86-97e4-1e418dbcc393",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d524-7cfb-9d45-ec90d28f2af6",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d885-70e4-b2c4-a92c58dfbbdc",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "12-pizza-margherita.jpg",
+          "19-cappuccino-latte-art.jpg",
+          "16-orange-poppies.jpg",
+          "20-beagle-portrait.jpg",
+          "03-desert-road.jpg"
+        ]
+      },
+      "duration_ms": 2886,
+      "note": "expect 12-pizza-margherita.jpg"
+    },
+    {
+      "step": "text_to_image:a young golden retriever puppy",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "a young golden retriever puppy",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-d1f0-71fc-bacf-e4a1aa2a1b06",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d885-70e4-b2c4-a92c58dfbbdc",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d524-7cfb-9d45-ec90d28f2af6",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-c707-753a-b762-3be378238939",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "13-golden-retriever-puppy.jpg",
+          "20-beagle-portrait.jpg",
+          "16-orange-poppies.jpg",
+          "01-forest-path.jpg",
+          "17-ocean-wave.jpg"
+        ]
+      },
+      "duration_ms": 2699,
+      "note": "expect 13-golden-retriever-puppy.jpg"
+    },
+    {
+      "step": "text_to_image:the sun going down over a farm field",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "the sun going down over a farm field",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-d39c-7c3c-9b3d-1068303ab54f",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cea5-778f-84b6-48857e983d8e",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cc48-759f-8a9b-b2dd38118e56",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-c7d3-74a6-8ff9-ee3b5d35d270",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "14-cornfield-sunset.jpg",
+          "10-woman-portrait.jpg",
+          "07-tropical-beach.jpg",
+          "02-misty-highlands.jpg",
+          "16-orange-poppies.jpg"
+        ]
+      },
+      "duration_ms": 2697,
+      "note": "expect 14-cornfield-sunset.jpg"
+    },
+    {
+      "step": "text_to_image:an old white racing bicycle with a leather saddle",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "an old white racing bicycle with a leather saddle",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-d46b-77ee-b2ab-f9a074922238",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cd02-7c02-ac7a-d3244044f6e8",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d885-70e4-b2c4-a92c58dfbbdc",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-c707-753a-b762-3be378238939",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "15-vintage-bicycle.jpg",
+          "08-cat-portrait.jpg",
+          "20-beagle-portrait.jpg",
+          "01-forest-path.jpg",
+          "05-alpine-lake.jpg"
+        ]
+      },
+      "duration_ms": 2710,
+      "note": "expect 15-vintage-bicycle.jpg"
+    },
+    {
+      "step": "text_to_image:bright orange wild flowers under a blue sky",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "bright orange wild flowers under a blue sky",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-d524-7cfb-9d45-ec90d28f2af6",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d39c-7c3c-9b3d-1068303ab54f",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-c8f5-792d-87b7-54c975e442e9",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-c7d3-74a6-8ff9-ee3b5d35d270",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "16-orange-poppies.jpg",
+          "14-cornfield-sunset.jpg",
+          "03-desert-road.jpg",
+          "02-misty-highlands.jpg",
+          "17-ocean-wave.jpg"
+        ]
+      },
+      "duration_ms": 2678,
+      "note": "expect 16-orange-poppies.jpg"
+    },
+    {
+      "step": "text_to_image:a wave breaking on the sea at sunset",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "a wave breaking on the sea at sunset",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-d5fd-788a-9df1-6235fa369599",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cc48-759f-8a9b-b2dd38118e56",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cb8b-7a36-bc9a-216f369b3177",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d39c-7c3c-9b3d-1068303ab54f",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "17-ocean-wave.jpg",
+          "07-tropical-beach.jpg",
+          "06-mountain-peaks.jpg",
+          "14-cornfield-sunset.jpg",
+          "02-misty-highlands.jpg"
+        ]
+      },
+      "duration_ms": 2766,
+      "note": "expect 17-ocean-wave.jpg"
+    },
+    {
+      "step": "text_to_image:a modern white building made of sharp geometric shapes",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "a modern white building made of sharp geometric shapes",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-d6bc-7b44-83ed-2fdc2e978829",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d524-7cfb-9d45-ec90d28f2af6",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d46b-77ee-b2ab-f9a074922238",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cd02-7c02-ac7a-d3244044f6e8",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "18-modern-architecture.jpg",
+          "16-orange-poppies.jpg",
+          "15-vintage-bicycle.jpg",
+          "08-cat-portrait.jpg",
+          "09-milky-way.jpg"
+        ]
+      },
+      "duration_ms": 2682,
+      "note": "expect 18-modern-architecture.jpg"
+    },
+    {
+      "step": "text_to_image:two cups of coffee with heart shapes drawn in the foam",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "two cups of coffee with heart shapes drawn in the foam",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-d7be-7c86-97e4-1e418dbcc393",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cfa8-7076-b618-db5cb35a850a",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d1f0-71fc-bacf-e4a1aa2a1b06",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d524-7cfb-9d45-ec90d28f2af6",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "19-cappuccino-latte-art.jpg",
+          "11-espresso.jpg",
+          "13-golden-retriever-puppy.jpg",
+          "16-orange-poppies.jpg",
+          "15-vintage-bicycle.jpg"
+        ]
+      },
+      "duration_ms": 2774,
+      "note": "expect 19-cappuccino-latte-art.jpg"
+    },
+    {
+      "step": "text_to_image:a happy hound dog panting with its tongue out",
+      "request": {
+        "POST": "/api/v1/query",
+        "body": {
+          "query": "a happy hound dog panting with its tongue out",
+          "context_only": true,
+          "document_filter": {
+            "doc_kinds": [
+              "image"
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-d885-70e4-b2c4-a92c58dfbbdc",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d1f0-71fc-bacf-e4a1aa2a1b06",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d524-7cfb-9d45-ec90d28f2af6",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d46b-77ee-b2ab-f9a074922238",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "20-beagle-portrait.jpg",
+          "13-golden-retriever-puppy.jpg",
+          "16-orange-poppies.jpg",
+          "15-vintage-bicycle.jpg",
+          "01-forest-path.jpg"
+        ]
+      },
+      "duration_ms": 2767,
+      "note": "expect 20-beagle-portrait.jpg"
+    },
+    {
+      "step": "image_to_image:probe-cat.jpg",
+      "request": {
+        "POST": "/api/v1/query",
+        "multipart": {
+          "query_image": "probes/probe-cat.jpg",
+          "query": ""
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-cd02-7c02-ac7a-d3244044f6e8",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d1f0-71fc-bacf-e4a1aa2a1b06",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d885-70e4-b2c4-a92c58dfbbdc",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d7be-7c86-97e4-1e418dbcc393",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "08-cat-portrait.jpg",
+          "13-golden-retriever-puppy.jpg",
+          "20-beagle-portrait.jpg",
+          "19-cappuccino-latte-art.jpg",
+          "11-espresso.jpg"
+        ]
+      },
+      "duration_ms": 1207,
+      "note": "A different cat, in a different room, must find the corpus cat and beat three dogs."
+    },
+    {
+      "step": "image_to_image:probe-dog.jpg",
+      "request": {
+        "POST": "/api/v1/query",
+        "multipart": {
+          "query_image": "probes/probe-dog.jpg",
+          "query": ""
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-d1f0-71fc-bacf-e4a1aa2a1b06",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d885-70e4-b2c4-a92c58dfbbdc",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cfa8-7076-b618-db5cb35a850a",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cd02-7c02-ac7a-d3244044f6e8",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "13-golden-retriever-puppy.jpg",
+          "20-beagle-portrait.jpg",
+          "11-espresso.jpg",
+          "08-cat-portrait.jpg",
+          "01-forest-path.jpg"
+        ]
+      },
+      "duration_ms": 1563,
+      "note": "A puppy must land on a dog picture, and must not pick the cat although both are pets."
+    },
+    {
+      "step": "image_to_image:probe-mountain.jpg",
+      "request": {
+        "POST": "/api/v1/query",
+        "multipart": {
+          "query_image": "probes/probe-mountain.jpg",
+          "query": ""
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-cdae-7a1e-86b2-7c8041b1953b",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cb8b-7a36-bc9a-216f369b3177",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-c8f5-792d-87b7-54c975e442e9",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-cad5-7537-8dc2-e7c128aceee5",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "09-milky-way.jpg",
+          "06-mountain-peaks.jpg",
+          "03-desert-road.jpg",
+          "05-alpine-lake.jpg",
+          "17-ocean-wave.jpg"
+        ]
+      },
+      "duration_ms": 1230,
+      "note": "Four mountain pictures exist. Any of them is right; a beach or a portrait is not."
+    },
+    {
+      "step": "image_to_image:probe-pizza.jpg",
+      "request": {
+        "POST": "/api/v1/query",
+        "multipart": {
+          "query_image": "probes/probe-pizza.jpg",
+          "query": ""
+        }
+      },
+      "status": 200,
+      "response": {
+        "sources": [
+          {
+            "document_id": "01a19ebb-d0c7-70ba-b8b9-b72551e163e5",
+            "score": 0.01639,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d7be-7c86-97e4-1e418dbcc393",
+            "score": 0.01613,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d5fd-788a-9df1-6235fa369599",
+            "score": 0.01587,
+            "snippet": ""
+          },
+          {
+            "document_id": "01a19ebb-d885-70e4-b2c4-a92c58dfbbdc",
+            "score": 0.01562,
+            "snippet": ""
+          }
+        ],
+        "ranked": [
+          "12-pizza-margherita.jpg",
+          "19-cappuccino-latte-art.jpg",
+          "17-ocean-wave.jpg",
+          "20-beagle-portrait.jpg",
+          "03-desert-road.jpg"
+        ]
+      },
+      "duration_ms": 1304,
+      "note": "A pizza must find the pizza, not the two coffee pictures it also resembles."
+    },
+    {
+      "step": "image_query_refused",
+      "request": {
+        "POST": "/api/v1/query",
+        "workspace": "text-only",
+        "multipart": {
+          "query_image": "probe-cat.jpg"
+        }
+      },
+      "status": 422,
+      "response": {
+        "code": "image_query_not_supported",
+        "message": "this workspace embeds text only; search by image needs 'text and images'"
+      },
+      "note": "fail closed, not a silent text-only fallback"
+    },
+    {
+      "step": "graph_refused_on_normal",
+      "request": {
+        "GET": "/api/v1/graph"
+      },
+      "status": 409,
+      "response": {
+        "code": "profile_has_no_graph"
+      },
+      "note": "a chunk index has no graph to draw, and says so"
+    }
+  ]
+}

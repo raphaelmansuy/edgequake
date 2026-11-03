@@ -1,0 +1,243 @@
+{
+  "$comment": "SPEC-182 corpus. `caption` becomes the document title. `expect` names the document a human-written query should put first; `queries` are written from the picture, not from this file.",
+  "images": [
+    {
+      "file": "01-forest-path.jpg",
+      "caption": "Sunlit dirt path through a tall forest",
+      "expect": [
+        {
+          "query": "a path through the woods with sunlight between the trees",
+          "top": "01-forest-path.jpg"
+        }
+      ]
+    },
+    {
+      "file": "02-misty-highlands.jpg",
+      "caption": "Green valley with low cloud and a winding road",
+      "expect": [
+        {
+          "query": "misty green hills with a road winding through the valley",
+          "top": "02-misty-highlands.jpg"
+        }
+      ]
+    },
+    {
+      "file": "03-desert-road.jpg",
+      "caption": "Two-lane road running through red rock desert",
+      "expect": [
+        {
+          "query": "an empty highway between red rocks in the desert",
+          "top": "03-desert-road.jpg"
+        }
+      ]
+    },
+    {
+      "file": "04-man-portrait.jpg",
+      "caption": "Portrait of a smiling man in a grey sweater",
+      "expect": [
+        {
+          "query": "a headshot of a man smiling",
+          "top": "04-man-portrait.jpg"
+        }
+      ]
+    },
+    {
+      "file": "05-alpine-lake.jpg",
+      "caption": "Turquoise alpine lake with a small rowing boat",
+      "expect": [
+        {
+          "query": "a small wooden boat on a turquoise mountain lake",
+          "top": "05-alpine-lake.jpg"
+        }
+      ]
+    },
+    {
+      "file": "06-mountain-peaks.jpg",
+      "caption": "Snow-capped peaks rising above a sea of clouds",
+      "expect": [
+        {
+          "query": "snowy mountain tops above the clouds at sunrise",
+          "top": "06-mountain-peaks.jpg"
+        }
+      ]
+    },
+    {
+      "file": "07-tropical-beach.jpg",
+      "caption": "White sand beach with clear turquoise water",
+      "expect": [
+        {
+          "query": "a tropical beach with white sand",
+          "top": "07-tropical-beach.jpg"
+        }
+      ]
+    },
+    {
+      "file": "08-cat-portrait.jpg",
+      "caption": "Black and white cat looking at the camera",
+      "expect": [
+        {
+          "query": "a cat staring straight at the camera",
+          "top": "08-cat-portrait.jpg"
+        }
+      ]
+    },
+    {
+      "file": "09-milky-way.jpg",
+      "caption": "The Milky Way over snow-covered mountains",
+      "expect": [
+        {
+          "query": "stars and the galaxy over dark mountain silhouettes at night",
+          "top": "09-milky-way.jpg"
+        }
+      ]
+    },
+    {
+      "file": "10-woman-portrait.jpg",
+      "caption": "Portrait of a woman in a striped shirt",
+      "expect": [
+        {
+          "query": "a portrait of a young woman outdoors",
+          "top": "10-woman-portrait.jpg"
+        }
+      ]
+    },
+    {
+      "file": "11-espresso.jpg",
+      "caption": "Espresso in a white cup, photographed from above",
+      "expect": [
+        {
+          "query": "a small strong coffee in a cup seen from above",
+          "top": "11-espresso.jpg"
+        }
+      ]
+    },
+    {
+      "file": "12-pizza-margherita.jpg",
+      "caption": "Slices of margherita pizza with fresh basil",
+      "expect": [
+        {
+          "query": "slices of pizza with melted cheese and basil",
+          "top": "12-pizza-margherita.jpg"
+        }
+      ]
+    },
+    {
+      "file": "13-golden-retriever-puppy.jpg",
+      "caption": "Golden retriever puppy resting its head",
+      "expect": [
+        {
+          "query": "a young golden retriever puppy",
+          "top": "13-golden-retriever-puppy.jpg"
+        }
+      ]
+    },
+    {
+      "file": "14-cornfield-sunset.jpg",
+      "caption": "Sunset over a green corn field",
+      "expect": [
+        {
+          "query": "the sun going down over a farm field",
+          "top": "14-cornfield-sunset.jpg"
+        }
+      ]
+    },
+    {
+      "file": "15-vintage-bicycle.jpg",
+      "caption": "White vintage Peugeot bicycle against a dark wall",
+      "expect": [
+        {
+          "query": "an old white racing bicycle with a leather saddle",
+          "top": "15-vintage-bicycle.jpg"
+        }
+      ]
+    },
+    {
+      "file": "16-orange-poppies.jpg",
+      "caption": "Orange poppies against a deep blue sky",
+      "expect": [
+        {
+          "query": "bright orange wild flowers under a blue sky",
+          "top": "16-orange-poppies.jpg"
+        }
+      ]
+    },
+    {
+      "file": "17-ocean-wave.jpg",
+      "caption": "A single wave breaking in warm evening light",
+      "expect": [
+        {
+          "query": "a wave breaking on the sea at sunset",
+          "top": "17-ocean-wave.jpg"
+        }
+      ]
+    },
+    {
+      "file": "18-modern-architecture.jpg",
+      "caption": "White geometric building photographed from below",
+      "expect": [
+        {
+          "query": "a modern white building made of sharp geometric shapes",
+          "top": "18-modern-architecture.jpg"
+        }
+      ]
+    },
+    {
+      "file": "19-cappuccino-latte-art.jpg",
+      "caption": "Two cappuccinos with latte art on a wooden table",
+      "expect": [
+        {
+          "query": "two cups of coffee with heart shapes drawn in the foam",
+          "top": "19-cappuccino-latte-art.jpg"
+        }
+      ]
+    },
+    {
+      "file": "20-beagle-portrait.jpg",
+      "caption": "A beagle with its tongue out, outdoors",
+      "expect": [
+        {
+          "query": "a happy hound dog panting with its tongue out",
+          "top": "20-beagle-portrait.jpg"
+        }
+      ]
+    }
+  ],
+  "cross_modal": [
+    {
+      "probe": "probes/probe-cat.jpg",
+      "caption": "a tabby cat lying on a sofa",
+      "why": "A different cat, in a different room, must find the corpus cat and beat three dogs.",
+      "accept": [
+        "08-cat-portrait.jpg"
+      ]
+    },
+    {
+      "probe": "probes/probe-dog.jpg",
+      "caption": "a yorkshire terrier puppy on a rug",
+      "why": "A puppy must land on a dog picture, and must not pick the cat although both are pets.",
+      "accept": [
+        "13-golden-retriever-puppy.jpg",
+        "20-beagle-portrait.jpg"
+      ]
+    },
+    {
+      "probe": "probes/probe-mountain.jpg",
+      "caption": "snow peaks under a twilight sky",
+      "why": "Four mountain pictures exist. Any of them is right; a beach or a portrait is not.",
+      "accept": [
+        "06-mountain-peaks.jpg",
+        "09-milky-way.jpg",
+        "05-alpine-lake.jpg",
+        "02-misty-highlands.jpg"
+      ]
+    },
+    {
+      "probe": "probes/probe-pizza.jpg",
+      "caption": "two wood-fired pizzas with basil",
+      "why": "A pizza must find the pizza, not the two coffee pictures it also resembles.",
+      "accept": [
+        "12-pizza-margherita.jpg"
+      ]
+    }
+  ]
+}

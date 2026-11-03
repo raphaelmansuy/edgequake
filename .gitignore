@@ -36,6 +36,10 @@ sdks/**/bin/
 !specs/096-multi-language-extraction/e2e/screenshots/*.png
 !specs/128-improve-pdf-parsing/e2e/screenshots/*.png
 !tutorial/images/*.png
+!specs/182-rags/images/*.jpg
+!specs/182-rags/images/probes/*.jpg
+!specs/182-rags/images/*.png
+!specs/182-rags/screenshots/**/*.png
 
 # Environment files
 .env
