@@ -1857,9 +1857,14 @@ fn spec027_swagger_ui_persist_authorization_enabled() {
 
 #[test]
 fn spec027_workspace_delete_uses_metadata_scan_ssot() {
+    // SPEC-181 moved the cascade into one purge. The handler must call that purge,
+    // and the purge must plan KV keys through the metadata scan, not a full key listing.
     let crud = read_crate_src("src/handlers/workspaces/workspace_crud.rs");
-    assert!(crud.contains("plan_workspace_document_kv_deletion"));
+    assert!(crud.contains("purge_exec::purge_workspace"));
     assert!(!crud.contains("kv_storage.keys()"));
+    let purge = read_crate_src("src/services/tenancy/purge_exec.rs");
+    assert!(purge.contains("plan_workspace_document_kv_deletion"));
+    assert!(!purge.contains("kv_storage.keys()"));
     let scan = read_crate_src("src/services/document_metadata_scan.rs");
     assert!(scan.contains("plan_workspace_document_kv_deletion"));
     assert!(scan.contains("keys_with_prefix"));

@@ -41,6 +41,7 @@ pub async fn test_provider(
         auth_scheme: body.auth_scheme,
         allow_private_network: body.allow_private_network,
         expected_dimension: body.expected_dimension,
+        list_only: None,
     };
     Ok(Json(probe_provider(req).await))
 }

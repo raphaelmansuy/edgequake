@@ -1070,6 +1070,7 @@ async fn refresh_listing(
                 auth_scheme: None,
                 allow_private_network: Some(allow_private),
                 expected_dimension: None,
+                list_only: None,
             })
         }
         None => env_refresh_request(state, slug),
@@ -1115,6 +1116,7 @@ fn env_refresh_request(
         auth_scheme: None,
         allow_private_network: Some(connection.allow_private_network),
         expected_dimension: None,
+        list_only: None,
     })
 }
 

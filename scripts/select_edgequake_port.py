@@ -22,13 +22,28 @@ def is_listening(port: int) -> bool:
 
 
 def is_edgequake(kind: str, port: int) -> bool:
+    """True when this port is served by EdgeQuake.
+
+    WHY `/live` first for the backend: `/health` is a *deep* document. It pings storage and
+    may consult the LLM provider, so its latency belongs to the provider, not to this
+    process. This function only needs to answer "is EdgeQuake here?", and `/live` answers
+    that in milliseconds. Falling back to `/health` keeps compatibility with older builds
+    that predate `/live`, and a 2 s budget tolerates a cold connection pool.
+    """
+    if kind == "backend":
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/live", timeout=2.0) as response:
+                if 200 <= response.status < 300:
+                    return True
+        except (urllib.error.URLError, TimeoutError, ValueError):
+            pass  # older build without /live: try the deep document below
     url = (
         f"http://127.0.0.1:{port}/health"
         if kind == "backend"
         else f"http://127.0.0.1:{port}/"
     )
     try:
-        with urllib.request.urlopen(url, timeout=0.5) as response:
+        with urllib.request.urlopen(url, timeout=2.0) as response:
             body = response.read(4096).decode("utf-8", errors="ignore")
         if kind == "backend":
             return '"status"' in body and (

@@ -29,6 +29,7 @@ async fn openai_shape_ok_and_401() {
         auth_scheme: Some("bearer".into()),
         allow_private_network: Some(true),
         expected_dimension: Some(8),
+        list_only: None,
     })
     .await;
     assert!(ok.ok, "{ok:?}");
@@ -43,6 +44,7 @@ async fn openai_shape_ok_and_401() {
         auth_scheme: Some("bearer".into()),
         allow_private_network: Some(true),
         expected_dimension: None,
+        list_only: None,
     })
     .await;
     assert_eq!(unauth.kind, ProbeErrorKind::Unauthorized);
@@ -56,6 +58,7 @@ async fn openai_shape_ok_and_401() {
         auth_scheme: Some("x_api_key".into()),
         allow_private_network: Some(true),
         expected_dimension: None,
+        list_only: None,
     })
     .await;
     assert!(anth.chat_ok, "{anth:?}");
@@ -69,6 +72,7 @@ async fn openai_shape_ok_and_401() {
         auth_scheme: Some("none".into()),
         allow_private_network: Some(true),
         expected_dimension: None,
+        list_only: None,
     })
     .await;
     assert!(ollama.list_ok, "{ollama:?}");
@@ -85,6 +89,7 @@ async fn ssrf_blocks_metadata() {
         auth_scheme: None,
         allow_private_network: Some(true),
         expected_dimension: None,
+        list_only: None,
     })
     .await;
     assert_eq!(r.kind, ProbeErrorKind::SsrfDenied);

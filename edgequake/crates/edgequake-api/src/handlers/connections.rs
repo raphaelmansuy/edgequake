@@ -542,6 +542,7 @@ pub async fn test_stored_connection(
             auth_scheme: Some(row.auth_scheme),
             allow_private_network: Some(row.allow_private_network),
             expected_dimension: None,
+            list_only: None,
         })
         .await;
         let err = if probe.ok {

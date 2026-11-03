@@ -12,6 +12,17 @@ use std::sync::Arc;
 /// Per-component ping budget. Sum of three parallel pings stays under 1s wall time.
 pub const COMPONENT_PING_TIMEOUT: Duration = Duration::from_millis(750);
 
+/// Budget for the LLM reachability probe inside `/health`.
+///
+/// WHY this is separate and short: `probe_named_provider_reachable` opens a real HTTP
+/// request to the provider with an 8 s client timeout. `/health` is called by the dev
+/// proxy, load balancers and dashboards, and every one of them uses a sub-second budget —
+/// observed at 8–11 s per call on a local Ollama that was answering `/api/tags` in
+/// milliseconds. Blocking the deep health document on an optional reachability check made
+/// the proxy reject a perfectly healthy backend. The storage pings remain the authority on
+/// whether this instance can serve; reachability is reported, not waited for.
+pub const LLM_PROBE_TIMEOUT: Duration = Duration::from_millis(750);
+
 /// Run an async probe with a hard timeout; `false` on timeout or error.
 pub async fn probe_with_timeout<F, Fut>(timeout: Duration, probe: F) -> bool
 where

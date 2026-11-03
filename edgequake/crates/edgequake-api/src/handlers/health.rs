@@ -113,8 +113,21 @@ pub async fn health_check(State(state): State<AppState>) -> ApiResult<Json<Healt
         vector_storage: vector_ok,
         graph_storage: graph_ok,
         graph_available,
-        llm_provider: crate::providers::probe::probe_named_provider_reachable(
-            state.query.llm_provider.name(),
+        // WHY bounded: `probe_named_provider_reachable` performs a real HTTP request with an
+        // 8 s client timeout. `/health` is read by the dev proxy, load balancers and
+        // dashboards, all of which use a sub-second budget. Observed here: `/health` took
+        // 8–11 s against a local Ollama answering `/api/tags` in milliseconds, so the dev
+        // proxy declared a healthy backend dead and fell through to a wrong port. Storage
+        // pings stay the authority on whether this instance can serve; provider
+        // reachability is reported, never waited for beyond the bounded budget.
+        llm_provider: super::health_probes::probe_with_timeout(
+            super::health_probes::LLM_PROBE_TIMEOUT,
+            || async {
+                crate::providers::probe::probe_named_provider_reachable(
+                    state.query.llm_provider.name(),
+                )
+                .await
+            },
         )
         .await,
         eq_id_schema,

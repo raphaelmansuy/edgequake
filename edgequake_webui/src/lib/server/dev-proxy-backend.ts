@@ -12,11 +12,22 @@ import path from "node:path";
 const REPO_ROOT = path.join(__dirname, "..", "..", "..", "..");
 const PORT_SCRIPT = path.join(REPO_ROOT, "scripts", "select_edgequake_port.py");
 
+/**
+ * Budget for the dev proxy's own identification probe.
+ *
+ * WHY not 1 s: this probe decides which port the browser talks to, so a false negative
+ * silently redirects the whole UI to a wrong or dead backend and every page 500s — which
+ * is exactly what happened when `/health` blocked on a provider reachability check. The
+ * server side is now bounded (LLM_PROBE_TIMEOUT), but the probe is kept generous because
+ * a cold first request also pays for lazy connection-pool warmup.
+ */
+const HEALTH_PROBE_TIMEOUT_S = 5;
+
 /** Returns true when `baseUrl/health` responds with an EdgeQuake payload. */
 export function probeEdgequakeHealth(baseUrl: string): boolean {
   const normalized = baseUrl.replace(/\/$/, "");
   try {
-    const body = execSync(`curl -fsS -m 1 "${normalized}/health"`, {
+    const body = execSync(`curl -fsS -m ${HEALTH_PROBE_TIMEOUT_S} "${normalized}/health"`, {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
     });

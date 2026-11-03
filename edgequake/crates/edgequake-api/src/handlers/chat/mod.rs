@@ -168,7 +168,19 @@ fn language_code_to_name(code: &str) -> &'static str {
 /// but that fails when the user's UI is in Chinese yet they type in English.
 /// By appending an explicit language directive to the query text (not stored in
 /// the message), we ensure the LLM responds in the user's preferred language.
+///
+/// WHY an empty query is left alone: this function feeds **retrieval** as well as
+/// generation, and every non-empty string is embedded and searched. A picture-only
+/// request arrives with `message: ""` on purpose (the image vector is the whole query).
+/// Appending the directive to that empty string manufactured a text query where the
+/// caller had deliberately supplied none — the text leg then outvoted the image vector.
+/// Measured on the SPEC-182 corpus: a pizza probe returned a beagle first and the pizza
+/// fourth with the directive, and the pizza first without it. An empty query has nothing
+/// to translate, so there is nothing to direct either.
 fn enrich_query_with_language(query: &str, language: &Option<String>) -> String {
+    if query.trim().is_empty() {
+        return query.to_string();
+    }
     match language {
         Some(lang) if !lang.is_empty() => {
             let lang_name = language_code_to_name(lang);
@@ -331,6 +343,9 @@ mod tests {
             entity_type: None,
             degree: None,
             source_chunk_ids: None,
+            doc_kind: None,
+            mime_type: None,
+            source_modality: None,
             page_start: None,
             page_end: None,
         }];
@@ -361,6 +376,9 @@ mod tests {
             entity_type: None,
             degree: None,
             source_chunk_ids: None,
+            doc_kind: None,
+            mime_type: None,
+            source_modality: None,
             page_start: None,
             page_end: None,
         }];
@@ -389,6 +407,9 @@ mod tests {
             entity_type: None,
             degree: None,
             source_chunk_ids: None,
+            doc_kind: None,
+            mime_type: None,
+            source_modality: None,
             page_start: None,
             page_end: None,
         }];
@@ -518,5 +539,25 @@ mod tests {
         let q = "What is RAG?";
         assert_eq!(enrich_query_with_language(q, &None), q);
         assert_eq!(enrich_query_with_language(q, &Some("".into())), q);
+    }
+
+    #[test]
+    fn test_enrich_query_leaves_an_empty_query_empty() {
+        // WHY this is load-bearing and not cosmetic: the enriched string is what
+        // retrieval embeds. A picture-only request sends `message: ""` so that the image
+        // vector is the entire query; appending a directive turned that into a real text
+        // query that competed with the picture. On the SPEC-182 corpus a pizza probe
+        // returned a beagle first (score 0.0315, a text-leg scale) instead of the pizza
+        // (0.0164, the fused scale) purely because the UI sends `language: "en"`.
+        assert_eq!(enrich_query_with_language("", &Some("en".into())), "");
+        assert_eq!(enrich_query_with_language("   ", &Some("fr".into())), "   ");
+    }
+
+    #[test]
+    fn test_enrich_query_still_directs_a_real_query() {
+        // The feature this function exists for must keep working.
+        let out = enrich_query_with_language("What is RAG?", &Some("en".into()));
+        assert!(out.starts_with("What is RAG?"));
+        assert!(out.contains("English"));
     }
 }

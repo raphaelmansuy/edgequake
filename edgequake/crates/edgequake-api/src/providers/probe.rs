@@ -35,6 +35,16 @@ pub struct ProbeRequest {
     pub allow_private_network: Option<bool>,
     /// Expected embedding dimension; mismatch → dim_mismatch.
     pub expected_dimension: Option<usize>,
+    /// Stop after listing models. No chat completion, no embedding call.
+    ///
+    /// WHY: the deep `/health` document only needs "is the provider answering at all?".
+    /// The full probe sends a real chat completion, which makes a local Ollama *load the
+    /// model* — measured at 8–11 s for a 9 GB model, on a `/health` call that the dev
+    /// proxy, load balancers and dashboards read with a sub-second budget. Callers that
+    /// genuinely need to prove chat and embed work (the settings and models screens) keep
+    /// the full probe.
+    #[serde(default)]
+    pub list_only: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -226,6 +236,32 @@ pub async fn probe_provider(req: ProbeRequest) -> ProbeResponse {
             .or_else(|| models.first().cloned())
             .unwrap_or_else(|| "default".into())
     });
+
+    // WHY early return: see `ProbeRequest::list_only`. A successful model listing already
+    // proves the provider endpoint answers over the network with this credential, which is
+    // what a liveness-style caller needs. Sending a chat completion would make the provider
+    // do real work (and, for a local server, load a model) to answer a health ping.
+    if req.list_only.unwrap_or(false) {
+        return ProbeResponse {
+            ok: list_ok,
+            kind: if list_ok {
+                ProbeErrorKind::Ok
+            } else {
+                list_kind
+            },
+            latency_ms: start.elapsed().as_millis() as u64,
+            message: if list_ok {
+                "provider answered a model listing".to_string()
+            } else {
+                list_msg
+            },
+            models,
+            embedding_dimension: None,
+            chat_ok: false,
+            embed_ok: false,
+            list_ok,
+        };
+    }
 
     let chat_ok = ping_chat(&client, &scheme, api_key.as_deref(), &shape, &base, &model).await;
     let (embed_ok, dim) = ping_embed(
@@ -460,6 +496,9 @@ async fn ping_embed(
 }
 
 /// Live probe used by `/health` for the process default provider.
+///
+/// Lists models instead of running a chat completion: `/health` asks "is the provider
+/// answering?" and must not make a local server load a multi-gigabyte model to answer it.
 pub async fn probe_named_provider_reachable(name: &str) -> bool {
     let shape = name.to_ascii_lowercase();
     if !crate::locality::is_slow_local_provider(&shape) {
@@ -506,6 +545,7 @@ pub async fn probe_named_provider_reachable(name: &str) -> bool {
         auth_scheme: Some("none".into()),
         allow_private_network: Some(true),
         expected_dimension: None,
+        list_only: Some(true),
     };
     let r = probe_provider(req).await;
     r.list_ok || r.ok
@@ -591,6 +631,7 @@ mod tests {
             auth_scheme: Some("bearer".into()),
             allow_private_network: Some(false),
             expected_dimension: None,
+            list_only: None,
         })
         .await;
         assert!(
@@ -632,6 +673,7 @@ mod tests {
             auth_scheme: Some("none".into()),
             allow_private_network: Some(true),
             expected_dimension: None,
+            list_only: None,
         })
         .await;
         assert!(response.list_ok, "list failed: {}", response.message);
