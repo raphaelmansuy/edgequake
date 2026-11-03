@@ -7,6 +7,10 @@
  */
 import type { Chunks } from './group-passages';
 
+/**
+ * Extensions, used only for sources that predate `source_modality` (older stored
+ * conversations) or that come from a client that did not receive it.
+ */
 const IMAGE_EXTENSION = /\.(png|jpe?g|webp|gif|bmp|tiff?)$/i;
 
 type Source = Chunks[number];
@@ -18,7 +22,22 @@ export interface ImageMatch {
   title: string;
 }
 
-export function isImageSource(chunk: Pick<Source, 'file_path'>): boolean {
+/**
+ * Whether a citation is a picture.
+ *
+ * WHY the server fields come first: `file_path` carries the document *title*, and an image
+ * document's title is its caption ("Two cappuccinos with latte art on a wooden table"), with
+ * no extension. So an extension test alone answered `false` for every real image, and the
+ * "Matching images" grid never rendered outside mocked routes. The API now states
+ * `source_modality` (what the chunk was embedded from), `mime_type` and `doc_kind`; those are
+ * authoritative. The filename check stays last as a fallback for old payloads.
+ */
+export function isImageSource(
+  chunk: Pick<Source, 'file_path'> & Partial<Pick<Source, 'source_modality' | 'mime_type' | 'doc_kind'>>,
+): boolean {
+  if (chunk.source_modality === 'image') return true;
+  if (chunk.mime_type?.startsWith('image/')) return true;
+  if (chunk.doc_kind === 'image') return true;
   return IMAGE_EXTENSION.test(chunk.file_path ?? '');
 }
 

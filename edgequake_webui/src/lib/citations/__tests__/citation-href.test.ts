@@ -60,9 +60,19 @@ describe("formatMatchPercent", () => {
   it("clamps raw scores above 1 (was showing 297%)", () => {
     expect(formatMatchPercent(2.97)).toBe(100);
   });
-  it("rounds and guards bad input", () => {
+  it("rounds a genuine relatedness score", () => {
     expect(formatMatchPercent(0.456)).toBe(46);
-    expect(formatMatchPercent(-1)).toBe(0);
-    expect(formatMatchPercent(Number.NaN)).toBe(0);
+    expect(formatMatchPercent(1)).toBe(100);
+  });
+  it("returns null for an RRF fusion score instead of a misleading 2%", () => {
+    // WHY: on a normal workspace `score` is RRF, and its only reachable values are
+    // 0.01538…0.01639. Multiplying by 100 printed "2%" beside a perfect match and "1%"
+    // beside an unrelated picture. A rank score is not a percentage.
+    for (const rrf of [0.01639, 0.01613, 0.01587, 0.01562, 0.01538]) {
+      expect(formatMatchPercent(rrf)).toBeNull();
+    }
+    expect(formatMatchPercent(0)).toBeNull();
+    expect(formatMatchPercent(-1)).toBeNull();
+    expect(formatMatchPercent(Number.NaN)).toBeNull();
   });
 });

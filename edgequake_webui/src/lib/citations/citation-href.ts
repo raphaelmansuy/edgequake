@@ -35,8 +35,23 @@ export function resolveClickIntent(opts: {
 }
 
 /** Percent label clamped to 0–100 (raw retrieval scores may exceed 1). */
-export function formatMatchPercent(score: number): number {
-  if (!Number.isFinite(score)) return 0;
+/**
+ * Match strength for a tile, or `null` when the number would be misleading.
+ *
+ * WHY null: on a normal workspace `score` is an RRF fusion score, not a cosine. With
+ * twenty candidates its only possible values are 0.01639…0.01538, so `score * 100` renders
+ * "2%" beside a perfect match and "1%" beside an unrelated picture. Both numbers are real
+ * and both are meaningless: RRF encodes *rank*, and comparing it to a threshold is exactly
+ * the mistake the API docs warn about.
+ *
+ * A percentage is only shown when it can be read as relatedness — a cosine in [0, 1], which
+ * is what a reranker or a dense score produces. Below 0.1 the value is a fusion score, so
+ * the tile shows the citation number alone rather than a number that invites the wrong
+ * conclusion.
+ */
+export function formatMatchPercent(score: number): number | null {
+  if (!Number.isFinite(score)) return null;
+  if (score < 0.1) return null;
   return Math.round(Math.min(1, Math.max(0, score)) * 100);
 }
 

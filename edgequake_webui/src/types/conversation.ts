@@ -76,6 +76,16 @@ export interface MessageSource {
   page_start?: number;
   /** PDF page number (1-indexed) where this chunk ends. May exceed page_start (SPEC-135 span). */
   page_end?: number;
+  /**
+   * Family of the cited document: `pdf`, `image`, `markdown`, `text`, `office`, `other`.
+   * SPEC-182: persisted alongside the citation so a reloaded conversation can still tell a
+   * picture source from a text one. See `MessageSource` in `edgequake-core`.
+   */
+  doc_kind?: string;
+  /** MIME type of the cited document (`image/jpeg`, …). SPEC-182. */
+  mime_type?: string;
+  /** What the chunk was embedded from: `text` or `image` (SPEC-180). SPEC-182. */
+  source_modality?: string;
   /** Source line range start (parity with live SourceReference — SPEC-155 Q16). */
   start_line?: number;
   /** Source line range end. */

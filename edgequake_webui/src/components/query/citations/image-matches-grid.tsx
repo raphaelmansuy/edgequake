@@ -100,14 +100,16 @@ function Tile({ match, onOpen }: { match: ImageMatch; onOpen: (match: ImageMatch
             {match.title}
           </span>
           {/* Relatedness reads as a number, not an unexplained floating badge. */}
-          <span
-            className="shrink-0 text-[11px] tabular-nums text-muted-foreground"
-            title={t('query.imageMatches.relevance', 'Match strength')}
-          >
-            {percent}%
-          </span>
+          {percent === null ? null : (
+            <span
+              className="shrink-0 text-[11px] tabular-nums text-muted-foreground"
+              title={t('query.imageMatches.relevance', 'Match strength')}
+            >
+              {percent}%
+            </span>
+          )}
         </span>
-      </button>
+    </button>
     </li>
   );
 }

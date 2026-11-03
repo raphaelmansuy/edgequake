@@ -123,6 +123,15 @@ export interface QueryContext {
     page_start?: number;
     /** PDF page number where this chunk ends. May exceed page_start (SPEC-135 span). */
     page_end?: number;
+    /**
+     * Family of the cited document: `pdf`, `image`, `markdown`, `text`, `office`, `other`.
+     * Stated by the server; do not infer it from `file_path`, which holds the title.
+     */
+    doc_kind?: string;
+    /** MIME type of the cited document (`image/jpeg`, …). */
+    mime_type?: string;
+    /** What the chunk was embedded from: `text` or `image` (SPEC-180). */
+    source_modality?: string;
   }>;
   entities: Array<{
     id: string;

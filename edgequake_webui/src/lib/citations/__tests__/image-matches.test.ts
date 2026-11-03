@@ -16,6 +16,39 @@ describe('image matches', () => {
     expect(isImageSource({})).toBe(false);
   });
 
+  it('recognizes a picture from the facts the server states', () => {
+    // WHY: `file_path` holds the document title, and an image document's title is its
+    // caption — no extension. Every real image was therefore reported as "not an image",
+    // and the matching-images grid never rendered outside mocked routes.
+    const caption = 'Two cappuccinos with latte art on a wooden table';
+    expect(isImageSource({ file_path: caption, source_modality: 'image' })).toBe(true);
+    expect(isImageSource({ file_path: caption, mime_type: 'image/jpeg' })).toBe(true);
+    expect(isImageSource({ file_path: caption, doc_kind: 'image' })).toBe(true);
+    // The same caption with no facts and no extension: unknown, and the old rule says no.
+    expect(isImageSource({ file_path: caption })).toBe(false);
+    // A text document must not be mistaken for a picture by its title.
+    expect(
+      isImageSource({
+        file_path: 'A photo of a cat, described',
+        doc_kind: 'markdown',
+        mime_type: 'text/markdown',
+        source_modality: 'text',
+      }),
+    ).toBe(false);
+  });
+
+  it('finds a captioned picture among text sources', () => {
+    const matches = imageMatches([
+      { ...chunk('d1', 'Orchard notes', 0.4), doc_kind: 'text', source_modality: 'text' },
+      {
+        ...chunk('d2', 'A beagle with its tongue out', 0.9),
+        doc_kind: 'image',
+        source_modality: 'image',
+      },
+    ]);
+    expect(matches.map((m) => m.title)).toEqual(['A beagle with its tongue out']);
+  });
+
   it('keeps images only, strongest first, with the answer citation number', () => {
     const matches = imageMatches([
       chunk('d1', 'handbook.pdf', 0.9),

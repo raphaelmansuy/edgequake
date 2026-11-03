@@ -36,6 +36,12 @@ function mapChunkSources(sources: SourceReference[]): QueryContext["chunks"] {
       // and render deeplink badges ("p.N ↗") to the exact PDF page.
       page_start: s.page_start,
       page_end: s.page_end,
+      // SPEC-182: what kind of document this citation is. The image grid decides
+      // "is this a picture?" from these, not from an extension on `file_path`
+      // (which holds the title and usually has none).
+      doc_kind: s.doc_kind,
+      mime_type: s.mime_type,
+      source_modality: s.source_modality,
     }));
 }
 
@@ -130,6 +136,12 @@ export function mapServerMessageContextToQueryContext(
       // SPEC-033: propagate page attribution from persisted conversation context
       page_start: source.page_start,
       page_end: source.page_end,
+      // SPEC-182: same three facts the live path carries. Without them a reloaded
+      // conversation has no way to tell a picture citation from a text one, and the
+      // "Matching images" grid silently disappears on reload.
+      doc_kind: source.doc_kind,
+      mime_type: source.mime_type,
+      source_modality: source.source_modality,
       // SPEC-155 Q16: parity with live mapChunkSources
       start_line: source.start_line,
       end_line: source.end_line,

@@ -7,24 +7,38 @@ export type ConfidenceStyle = {
   bgColor: string;
 };
 
-export const calculateConfidence = (context: QueryContext): number => {
+/**
+ * How strongly the context supports the answer, as a 0..1 band input.
+ *
+ * WHY this now reports rank evidence rather than an average of `score` values: on a normal
+ * workspace a chunk `score` is an RRF fusion score whose reachable range is 0.01538–0.01639
+ * (see `api/RESULTS.md`). Averaging numbers in that range always produced ~0.016, which fell
+ * in the lowest band and labelled a perfect match "Mentioned (1%)". A percentage derived
+ * from a rank score is not a confidence.
+ *
+ * The score here therefore reflects how much evidence came back, which is what the band
+ * labels ("Strong" … "Mentioned") actually describe:
+ *   - several distinct sources ranked → stronger
+ *   - a single source → weak
+ *   - graph entities on top → a small bonus
+ *
+ * Returns `null` when there is nothing to judge, so the caller can omit the badge entirely
+ * instead of asserting a confidence it does not have.
+ */
+export const calculateConfidence = (context: QueryContext): number | null => {
   const chunkScores = context.chunks?.map((c) => c.score).filter((s) => s > 0) || [];
+  const entityCount = context.entities?.length || 0;
+  const relCount = context.relationships?.length || 0;
 
-  if (chunkScores.length === 0) {
-    const entityScores =
-      context.entities?.map((e) => e.relevance).filter((r) => r > 0) || [];
-    const relScores =
-      context.relationships?.map((r) => r.relevance).filter((r) => r > 0) || [];
-    const allScores = [...entityScores, ...relScores];
-    if (allScores.length === 0) return 0.5;
-    return allScores.reduce((a, b) => a + b, 0) / allScores.length;
+  if (chunkScores.length === 0 && entityCount === 0 && relCount === 0) {
+    return null;
   }
 
-  const maxScore = Math.max(...chunkScores);
-  const avgScore = chunkScores.reduce((a, b) => a + b, 0) / chunkScores.length;
-  const entityBonus = Math.min(0.1, (context.entities?.length || 0) * 0.005);
-
-  return Math.min(1.0, maxScore * 0.6 + avgScore * 0.3 + entityBonus);
+  // Evidence breadth: 1 source is weak, 5+ distinct sources is strong. Capped so a large
+  // context cannot claim certainty on volume alone.
+  const breadth = Math.min(1, chunkScores.length / 5);
+  const graphBonus = Math.min(0.15, (entityCount + relCount) * 0.02);
+  return Math.min(1, breadth * 0.85 + graphBonus);
 };
 
 export const getConfidenceLabel = (score: number): ConfidenceStyle => {

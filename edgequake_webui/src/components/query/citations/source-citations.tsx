@@ -77,7 +77,10 @@ export function SourceCitations({
   );
 
   const confidence = useMemo(() => calculateConfidence(context), [context]);
-  const { labelKey, defaultLabel, color: confidenceColor } = getConfidenceLabel(confidence);
+  // `null` means there is nothing to judge: show the band for ordering, but never a number.
+  const { labelKey, defaultLabel, color: confidenceColor } = getConfidenceLabel(
+    confidence ?? 0,
+  );
   const confidenceLabel = t(labelKey, defaultLabel);
 
   const sourceCount = context.chunks?.length || 0;
@@ -119,11 +122,13 @@ export function SourceCitations({
               {showsGraph ? `${sourceLabel} · ${topicLabel}` : sourceLabel}
             </span>
             <span className={`text-xs flex items-center gap-1.5 ${confidenceColor}`}>
-              <ConfidenceDots score={confidence} />
-              <span className="font-semibold hidden sm:inline">
-                {confidenceLabel} ({Math.round(confidence * 100)}%)
-              </span>
-              <span className="font-semibold sm:hidden">{Math.round(confidence * 100)}%</span>
+              <ConfidenceDots score={confidence ?? 0} />
+              {/*
+                WHY no percentage: on a normal workspace the chunk `score` is an RRF rank
+                score, so any number derived from it is ~1% even for a perfect match. The
+                band label describes relative ordering and is the honest thing to show.
+              */}
+              <span className="font-semibold">{confidenceLabel}</span>
             </span>
           </span>
           {isExpanded ? (

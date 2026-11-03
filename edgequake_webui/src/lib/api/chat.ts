@@ -133,6 +133,15 @@ export interface SourceReference {
   page_start?: number;
   /** PDF page number (1-indexed) where this chunk ends. Always equals page_start. */
   page_end?: number;
+  /**
+   * Family of the cited document: `pdf`, `image`, `markdown`, `text`, `office`, `other`.
+   * @implements SPEC-182 — stated by the server so a client never sniffs a filename.
+   */
+  doc_kind?: string;
+  /** MIME type of the cited document (`image/jpeg`, `application/pdf`, …). */
+  mime_type?: string;
+  /** What the chunk was embedded from: `text` or `image` (SPEC-180). */
+  source_modality?: string;
   /** Entity type (e.g., "PERSON", "ORGANIZATION"). @implements SPEC-006 */
   entity_type?: string;
   /** Entity degree (number of relationships). @implements SPEC-006 */
