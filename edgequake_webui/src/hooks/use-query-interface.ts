@@ -2,7 +2,7 @@
 
 import { useQueryConversationLifecycle } from "@/hooks/use-query-conversation-lifecycle";
 import { useQueryImages } from "@/hooks/use-query-images";
-import { useQuerySearchImage } from "@/hooks/use-query-search-image";
+import { searchImageMessages, useQuerySearchImage } from "@/hooks/use-query-search-image";
 import { useQueryStreamSession } from "@/hooks/use-query-stream-session";
 import { useStickToBottom } from "@/hooks/use-stick-to-bottom";
 import { convertServerMessage } from "@/lib/query/convert-server-message";
@@ -191,7 +191,13 @@ export function useQueryInterface() {
     if ((!input.trim() && !pendingSearchImage) || stream.isStreamingOrLoading) return;
 
     endQueryHandoffNewConversation();
-    const queryText = input.trim() || t("query.searchByImage.defaultMessage", "Find matches for this image");
+    // WHY `message` may be empty while `display` is not: see `searchImageMessages`. The
+    // display label must never become the text query, or it dilutes the image vector.
+    const { message: queryText, display } = searchImageMessages(
+      input,
+      Boolean(pendingSearchImage),
+      t("query.searchByImage.defaultMessage", "Find matches for this image"),
+    );
     const currentImages = images.getPayload();
     setInput("");
     try {
@@ -206,7 +212,7 @@ export function useQueryInterface() {
       inputRef.current.style.height = "auto";
     }
 
-    await stream.submitQuery(queryText, currentImages, pendingSearchImage);
+    await stream.submitQuery(queryText, currentImages, pendingSearchImage, display);
   };
 
   const handleSuggestionClick = useCallback((text: string) => {

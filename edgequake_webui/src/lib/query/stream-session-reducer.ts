@@ -37,7 +37,22 @@ export interface StreamSessionState {
 }
 
 export type StreamSessionEvent =
-  | { type: "submit"; text: string; messageId: string; mode: QueryMode; provider?: string; model?: string }
+  | {
+      type: "submit";
+      /** The text sent to the model. Empty for a picture-only search. */
+      text: string;
+      messageId: string;
+      mode: QueryMode;
+      provider?: string;
+      model?: string;
+      /**
+       * What the user's turn shows. Defaults to `text`.
+       *
+       * WHY separate: a picture-only search sends an empty message (so the server does not
+       * embed an invented sentence as a competing text query) but must still show a turn.
+       */
+      displayText?: string;
+    }
   | { type: "conversation"; conversationId: string }
   | { type: "stage"; stage: StreamStage; detail?: string }
   | { type: "thinking"; content: string }
@@ -108,7 +123,7 @@ export function reduceStreamSession(
         optimisticUserMessage: {
           id: `optimistic-user-${Date.now()}`,
           role: "user",
-          content: event.text,
+          content: event.displayText ?? event.text,
           timestamp: Date.now(),
         },
         lastSubmittedText: event.text,

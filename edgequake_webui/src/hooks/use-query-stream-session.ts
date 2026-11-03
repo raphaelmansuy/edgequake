@@ -179,6 +179,7 @@ export function useQueryStreamSession({
       conversationId: string | null,
       payloadImages?: Array<{ data: string; mime_type: string }>,
       queryImage?: File,
+      displayText?: string,
     ) => {
       const messageId = generateUUID();
       const gen = requestGenRef.current;
@@ -188,6 +189,7 @@ export function useQueryStreamSession({
         reduceStreamSession(s, {
           type: "submit",
           text: queryText,
+          displayText,
           messageId,
           mode: querySettings.mode,
           provider: querySettings.provider,
@@ -456,12 +458,14 @@ export function useQueryStreamSession({
       conversationId: string | null,
       payloadImages?: Array<{ data: string; mime_type: string }>,
       queryImage?: File,
+      displayText?: string,
     ) => {
       const gen = requestGenRef.current;
       setSession((s) =>
         reduceStreamSession(s, {
           type: "submit",
           text: queryText,
+          displayText,
           messageId: generateUUID(),
           mode: querySettings.mode,
           provider: querySettings.provider,
@@ -560,11 +564,12 @@ export function useQueryStreamSession({
       conversationId: string | null,
       payloadImages?: Array<{ data: string; mime_type: string }>,
       queryImage?: File,
+      displayText?: string,
     ) => {
       if (effectiveStream) {
-        await handleStreamQuery(queryText, conversationId, payloadImages, queryImage);
+        await handleStreamQuery(queryText, conversationId, payloadImages, queryImage, displayText);
       } else {
-        await handleBlockingQuery(queryText, conversationId, payloadImages, queryImage);
+        await handleBlockingQuery(queryText, conversationId, payloadImages, queryImage, displayText);
       }
     },
     [effectiveStream, handleBlockingQuery, handleStreamQuery],
@@ -579,9 +584,10 @@ export function useQueryStreamSession({
       queryText: string,
       payloadImages?: Array<{ data: string; mime_type: string }>,
       queryImage?: File,
+      displayText?: string,
     ) => {
       await truncateFromEditAnchor();
-      await runQuery(queryText, activeConversationId, payloadImages, queryImage);
+      await runQuery(queryText, activeConversationId, payloadImages, queryImage, displayText);
     },
     [activeConversationId, runQuery, truncateFromEditAnchor],
   );

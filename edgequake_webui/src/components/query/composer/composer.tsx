@@ -7,6 +7,7 @@ import {
   composerPhaseFromSession,
   composerShowsSend,
   composerShowsStop,
+  composerSubmitIntent,
 } from "@/lib/query/composer-ui-machine";
 import type { AttachedImage } from "@/lib/query/query-interface-types";
 import { cn } from "@/lib/utils";
@@ -173,8 +174,13 @@ export function Composer({
   const handleSubmit = (e?: FormEvent) => {
     e?.preventDefault();
     const text = input.trim();
-    if (!text) return;
-    if (phase === "streaming") {
+    const intent = composerSubmitIntent({
+      text,
+      hasSearchImage: canSearchByImage && searchImage?.image != null,
+      phase,
+    });
+    if (intent === "none") return;
+    if (intent === "queue") {
       onQueue(text);
       onInputChange("");
       return;

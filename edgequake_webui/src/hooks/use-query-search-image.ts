@@ -51,4 +51,35 @@ export function useQuerySearchImage() {
   return { image, inputRef, pick, clear, onInputChange, openPicker };
 }
 
+export interface QueryMessages {
+  /** The user's own words. Empty when the whole request is a picture. */
+  message: string;
+  /** Text to show as the user's turn when there are no words of their own. */
+  display: string;
+}
+
+/**
+ * The (message, display) pair for one submission.
+ *
+ * WHY the model's `message` stays empty for a picture-only search: `query_image` is its own
+ * retrieval mode. On a normal workspace the server embeds `message` as a *text* query vector
+ * and fuses it with the image vector under equal weight (SPEC-180 09). Any invented sentence —
+ * even a neutral "Find matches for this image" — is embedded as real text and competes with
+ * the pixels. Measured on the SPEC-182 corpus: with that sentence the pizza probe returns a
+ * beagle first and the pizza fourth; with an empty message the pizza is first.
+ *
+ * So the label a person reads ("Find matches for this image") is a *display* concern only.
+ * Sending it as the query would be letting the UI choose the answer.
+ */
+export function searchImageMessages(
+  text: string,
+  hasImage: boolean,
+  fallback: string,
+): QueryMessages {
+  const message = text.trim();
+  if (message) return { message, display: message };
+  if (hasImage) return { message: "", display: fallback };
+  return { message: "", display: "" };
+}
+
 export type QuerySearchImageControl = ReturnType<typeof useQuerySearchImage>;

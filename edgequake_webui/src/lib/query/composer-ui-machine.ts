@@ -71,3 +71,27 @@ export function composerShowsStop(phase: ComposerPhase): boolean {
 export function composerShowsSend(phase: ComposerPhase): boolean {
   return phase !== "streaming";
 }
+
+/**
+ * Whether pressing Send (or Enter) must produce a request.
+ *
+ * WHY this exists as a pure function: the two disabled states have different rules and
+ * conflating them produced a dead button. A *text* turn needs text. A *picture-only*
+ * search does not — SPEC-180 09 defines `query_image` with an empty `query` as a valid
+ * request, and the Send button already enables itself for that case. The old inline guard
+ * required text unconditionally, so attaching a picture and pressing Send did nothing.
+ *
+ * A queued turn is always text: the picture was consumed by the request in flight.
+ */
+export function composerSubmitIntent(opts: {
+  text: string;
+  hasSearchImage: boolean;
+  phase: ComposerPhase;
+}): "send" | "queue" | "none" {
+  const hasText = opts.text.trim().length > 0;
+  if (opts.phase === "streaming") {
+    return hasText ? "queue" : "none";
+  }
+  if (hasText) return "send";
+  return opts.hasSearchImage ? "send" : "none";
+}
