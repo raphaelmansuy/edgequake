@@ -219,8 +219,10 @@ services:
     depends_on:
       - minio
     environment:
-      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@minio:9000
+      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@host.docker.internal:${MINIO_API_PORT:-9000}
     command: ["mb", "--ignore-existing", "local/${MINIO_BUCKET:-eq-originals}"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - edgequake-network
     restart: "no"
@@ -233,10 +235,12 @@ services:
     depends_on:
       - minio
     environment:
-      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@minio:9000
+      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@host.docker.internal:${MINIO_API_PORT:-9000}
     volumes:
       - ./minio/originals-policy.json:/policy/originals-policy.json:ro
     command: ["admin", "policy", "create", "local", "originals-app", "/policy/originals-policy.json"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - edgequake-network
     restart: "no"
@@ -247,8 +251,10 @@ services:
     depends_on:
       - minio
     environment:
-      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@minio:9000
+      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@host.docker.internal:${MINIO_API_PORT:-9000}
     command: ["admin", "policy", "info", "local", "originals-app"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - edgequake-network
     restart: "no"
@@ -259,8 +265,10 @@ services:
     depends_on:
       - minio
     environment:
-      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@minio:9000
+      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@host.docker.internal:${MINIO_API_PORT:-9000}
     command: ["admin", "user", "add", "local", "${MINIO_APP_USER:-eq-originals-app}", "${MINIO_APP_PASSWORD:-eq-originals-app-dev}"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - edgequake-network
     restart: "no"
@@ -271,8 +279,10 @@ services:
     depends_on:
       - minio
     environment:
-      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@minio:9000
+      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@host.docker.internal:${MINIO_API_PORT:-9000}
     command: ["admin", "user", "info", "local", "${MINIO_APP_USER:-eq-originals-app}"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - edgequake-network
     restart: "no"
@@ -283,8 +293,10 @@ services:
     depends_on:
       - minio
     environment:
-      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@minio:9000
+      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@host.docker.internal:${MINIO_API_PORT:-9000}
     command: ["admin", "policy", "attach", "local", "originals-app", "--user", "${MINIO_APP_USER:-eq-originals-app}"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - edgequake-network
     restart: "no"
@@ -295,10 +307,12 @@ services:
     depends_on:
       - minio
     environment:
-      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@minio:9000
+      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@host.docker.internal:${MINIO_API_PORT:-9000}
     volumes:
       - ./minio/canary.txt:/policy/canary.txt:ro
     command: ["cp", "/policy/canary.txt", "local/${MINIO_BUCKET:-eq-originals}/other/policy-canary"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - edgequake-network
     restart: "no"
@@ -311,8 +325,10 @@ services:
     depends_on:
       - minio
     environment:
-      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@minio:9000
+      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@host.docker.internal:${MINIO_API_PORT:-9000}
     command: ["admin", "config", "get", "local", "api"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - edgequake-network
     restart: "no"
@@ -323,8 +339,10 @@ services:
     depends_on:
       - minio
     environment:
-      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@minio:9000
+      MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin123}@host.docker.internal:${MINIO_API_PORT:-9000}
     command: ["admin", "config", "set", "local", "api", "stale_uploads_expiry=24h"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - edgequake-network
     restart: "no"
