@@ -10,7 +10,12 @@ FAIL=0
 
 echo "==> SPEC-097 git-hygiene: fat artifact globs"
 
-mapfile -t fat_hits < <(
+# macOS ships bash 3.2, which has no `mapfile`. Read the same list line by line.
+fat_hits=()
+while IFS= read -r line; do
+  [[ -n "$line" ]] || continue
+  fat_hits+=("$line")
+done < <(
   {
     git ls-files -- \
       'specs/001-benchmark/e2e/artifacts/**/predictions_*.json' \

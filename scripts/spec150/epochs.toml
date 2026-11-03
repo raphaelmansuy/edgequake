@@ -7,6 +7,7 @@
 # v0.38.2 and v0.38.3 serve that same migration set, and v0.38.4 does too.
 # (SPEC-174 clearance through SPEC-179 provider refresh).
 # v0.39.0 owns schema 226 (SPEC-180 Normal RAG, SPEC-181 admin).
+# v0.39.1 serves that same set. It adds no migration.
 
 [unreleased]
 hash = "81651e73037b6344"
@@ -384,4 +385,13 @@ pg_majors = [16,17,18]
 key = true
 replay = true
 # max mig 226 (SPEC-180 normal RAG profile, SPEC-181 admin; migrations 225–226)
+# hash 81651e73037b6344 (224 numbered migration files)
+
+[[epoch]]
+tag = "v0.39.1"
+mode = "replay"
+pg_majors = [16,17,18]
+key = true
+replay = true
+# max mig 226 (same set as v0.39.0; no new migration)
 # hash 81651e73037b6344 (224 numbered migration files)

@@ -12801,6 +12801,7 @@ export interface components {
          *       "base_url": {},
          *       "embedding_model": {},
          *       "expected_dimension": {},
+         *       "list_only": {},
          *       "model": {},
          *       "shape": {}
          *     }
@@ -12814,6 +12815,17 @@ export interface components {
             embedding_model?: string | null;
             /** @description Expected embedding dimension; mismatch → dim_mismatch. */
             expected_dimension?: number | null;
+            /**
+             * @description Stop after listing models. No chat completion, no embedding call.
+             *
+             *     WHY: the deep `/health` document only needs "is the provider answering at all?".
+             *     The full probe sends a real chat completion, which makes a local Ollama *load the
+             *     model* — measured at 8–11 s for a 9 GB model, on a `/health` call that the dev
+             *     proxy, load balancers and dashboards read with a sub-second budget. Callers that
+             *     genuinely need to prove chat and embed work (the settings and models screens) keep
+             *     the full probe.
+             */
+            list_only?: boolean | null;
             model?: string | null;
             /** @description `openai_chat`, `anthropic_messages`, `ollama`, or a native provider id. */
             shape: string;
@@ -15418,11 +15430,13 @@ export interface components {
          * @example {
          *       "chunk_index": {},
          *       "degree": {},
+         *       "doc_kind": {},
          *       "document_id": {},
          *       "end_line": {},
          *       "entity_type": {},
          *       "file_path": {},
          *       "id": {},
+         *       "mime_type": {},
          *       "page_end": {},
          *       "page_start": {},
          *       "reference_id": {},
@@ -15430,6 +15444,7 @@ export interface components {
          *       "score": {},
          *       "snippet": {},
          *       "source_chunk_ids": [],
+         *       "source_modality": {},
          *       "source_type": {},
          *       "start_line": {}
          *     }
@@ -15442,6 +15457,16 @@ export interface components {
              *     @implements SPEC-006: Entity degree in source references
              */
             degree?: number | null;
+            /**
+             * @description Family of the cited document: `pdf`, `image`, `markdown`, `text`, `office`, `other`.
+             *
+             *     WHY this is on the source and not derived by the client: `file_path` carries the
+             *     document *title* (see `resolve_chunk_file_paths`), so it usually has no extension.
+             *     A client that sniffed a suffix to decide "this citation is a picture" therefore
+             *     never matched, and the thumbnail grid that depended on that decision never rendered
+             *     against a real backend. The document kind is already stored, so the server states it.
+             */
+            doc_kind?: string | null;
             /** @description Document ID that this reference came from. */
             document_id?: string | null;
             /** @description End line number in the document. */
@@ -15455,6 +15480,8 @@ export interface components {
             file_path?: string | null;
             /** @description Source ID. */
             id: string;
+            /** @description MIME type of the cited document (`image/jpeg`, `application/pdf`, …). */
+            mime_type?: string | null;
             /**
              * Format: int32
              * @description PDF page number where this chunk ends (SPEC-135: may exceed page_start).
@@ -15486,6 +15513,13 @@ export interface components {
              *     @implements SPEC-006: Entity provenance tracking
              */
             source_chunk_ids?: string[] | null;
+            /**
+             * @description What the chunk was embedded from: `text` or `image` (SPEC-180).
+             *
+             *     The precise form of "this citation is a picture": an image document produces one
+             *     chunk with `source_modality = image`, and that is what retrieval matched on.
+             */
+            source_modality?: string | null;
             /** @description Source type (chunk, entity, relationship). */
             source_type: string;
             /** @description Start line number in the document. */

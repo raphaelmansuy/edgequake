@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.39.1] — 2026-11-02
+
+Patch on v0.39.0. Schema stays **226**. An upgrade from 0.39.0 applies no migration:
+[`docs/operations/upgrade-to-0.39.1.md`](docs/operations/upgrade-to-0.39.1.md).
+
+**CD:** GHCR `edgequake`, `edgequake-frontend`, `edgequake-postgres` (`0.39.1`, `-pg16`, `-pg17`, `-pg18`), and `edgequake-keycloak` on tag `v0.39.1`.
+
+**SPEC-001 Acc:** not re-scored on this cut. This patch changes citation fields and the text sent with a picture search. It does not change mix retrieval. The latest valid medical-mid n=200 pack remains
+[`medical-mid-20261024T031725Z`](specs/001-benchmark/e2e/artifacts/history/medical-mid-20261024T031725Z/)
+(`valid: true`). EdgeQuake **0.8084**, LightRAG **0.7681**, delta **+0.0403**
+(95% bootstrap CI [-0.0241, +0.1036], n_paired 72). The interval includes 0,
+so this is a statistical tie. EdgeQuake does not claim a win.
+
+### Added
+
+- **Picture citations carry three server facts.** `SourceReference` and the stored message source now include `doc_kind`, `mime_type`, and `source_modality`. The fields are additive. A client can tell a picture from text without reading the title. The picture pack, probes, and article live in [`specs/182-rags`](specs/182-rags/README.md).
+
+### Fixed
+
+- The matching-images grid stayed empty. The client looked for an image extension on `file_path`, but `file_path` holds the document title, and a caption has no extension. The client now reads `source_modality`, `mime_type`, and `doc_kind`.
+- The grid disappeared after a reload. Persistence dropped the three new fields. `MessageSource` now stores them, the same way it stores `page_start`.
+- Send did nothing for a picture with no text. The button was enabled, but submit required text. A picture alone is now a valid send.
+- A picture search ranked the wrong image. The UI sent the label "Find matches for this image" as the query text, and that text outvoted the image vector. The request now sends an empty message and keeps the label for display only.
+- A request with `language` set did the same thing. The server appended a language directive to an empty query and created a text query. An empty query stays empty.
+- `/health` took 8–11 seconds. The probe ran a chat completion, so a local model load made the dev proxy treat a live server as dead. The probe now lists models and stops. It does not generate text.
+- A rank score was shown as a percent. Reciprocal-rank fusion scores sit near 0.016, so the UI printed "2%" and "Mentioned (1%)". A score below 0.1 no longer becomes a percent. The badge reports how much evidence was found, not a derived confidence.
+- An image upload title kept underscores and the file extension. The stored title is now the caption. The storage key is unchanged.
+- The workspace-delete contract still looked for the key planner inside the handler. Delete now calls the shared purge, and the contract follows that call.
+
 ## [0.39.0] — 2026-11-01
 
 Minor on v0.38.4. Schema moves **224 → 226**. An upgrade from 0.38.4 applies two `expand`

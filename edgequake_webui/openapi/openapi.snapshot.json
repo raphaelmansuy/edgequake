@@ -9,7 +9,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "0.39.0"
+    "version": "0.39.1"
   },
   "servers": [
     {
@@ -4235,8 +4235,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "recover_stuck",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "recover_stuck"
       }
     },
     "/api/v1/documents/reprocess": {
@@ -4293,8 +4293,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "reprocess_failed"
+        "x-edgequake-v2-job-type": "reprocess_failed",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/documents/scan": {
@@ -5599,8 +5599,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "reanalyze_multimodal",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "reanalyze_multimodal"
       }
     },
     "/api/v1/documents/{document_id}/retry-chunks": {
@@ -13069,8 +13069,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "rebuild_embeddings"
+        "x-edgequake-v2-job-type": "rebuild_embeddings",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph": {
@@ -13870,8 +13870,8 @@
             "description": "WebSocket upgrade failed"
           }
         },
-        "x-edgequake-transport": "websocket",
-        "x-edgequake-upgrade": "RFC6455"
+        "x-edgequake-upgrade": "RFC6455",
+        "x-edgequake-transport": "websocket"
       }
     },
     "/ws/progress/{track_id}": {
@@ -13902,8 +13902,8 @@
             "description": "Track not found for this workspace"
           }
         },
-        "x-edgequake-upgrade": "RFC6455",
-        "x-edgequake-transport": "websocket"
+        "x-edgequake-transport": "websocket",
+        "x-edgequake-upgrade": "RFC6455"
       }
     }
   },
@@ -30195,6 +30195,13 @@
             "description": "Expected embedding dimension; mismatch → dim_mismatch.",
             "minimum": 0
           },
+          "list_only": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Stop after listing models. No chat completion, no embedding call.\n\nWHY: the deep `/health` document only needs \"is the provider answering at all?\".\nThe full probe sends a real chat completion, which makes a local Ollama *load the\nmodel* — measured at 8–11 s for a 9 GB model, on a `/health` call that the dev\nproxy, load balancers and dashboards read with a sub-second budget. Callers that\ngenuinely need to prove chat and embed work (the settings and models screens) keep\nthe full probe."
+          },
           "model": {
             "type": [
               "string",
@@ -30213,6 +30220,7 @@
           "base_url": {},
           "embedding_model": {},
           "expected_dimension": {},
+          "list_only": {},
           "model": {},
           "shape": {}
         }
@@ -35509,6 +35517,13 @@
             "description": "Number of graph connections. Only set for source_type=\"entity\".\n@implements SPEC-006: Entity degree in source references",
             "minimum": 0
           },
+          "doc_kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Family of the cited document: `pdf`, `image`, `markdown`, `text`, `office`, `other`.\n\nWHY this is on the source and not derived by the client: `file_path` carries the\ndocument *title* (see `resolve_chunk_file_paths`), so it usually has no extension.\nA client that sniffed a suffix to decide \"this citation is a picture\" therefore\nnever matched, and the thumbnail grid that depended on that decision never rendered\nagainst a real backend. The document kind is already stored, so the server states it."
+          },
           "document_id": {
             "type": [
               "string",
@@ -35541,6 +35556,13 @@
           "id": {
             "type": "string",
             "description": "Source ID."
+          },
+          "mime_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "MIME type of the cited document (`image/jpeg`, `application/pdf`, …)."
           },
           "page_end": {
             "type": [
@@ -35598,6 +35620,13 @@
             },
             "description": "Source chunk IDs where entity was mentioned (provenance). Only set for source_type=\"entity\".\n@implements SPEC-006: Entity provenance tracking"
           },
+          "source_modality": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the chunk was embedded from: `text` or `image` (SPEC-180).\n\nThe precise form of \"this citation is a picture\": an image document produces one\nchunk with `source_modality = image`, and that is what retrieval matched on."
+          },
           "source_type": {
             "type": "string",
             "description": "Source type (chunk, entity, relationship)."
@@ -35614,11 +35643,13 @@
         "example": {
           "chunk_index": {},
           "degree": {},
+          "doc_kind": {},
           "document_id": {},
           "end_line": {},
           "entity_type": {},
           "file_path": {},
           "id": {},
+          "mime_type": {},
           "page_end": {},
           "page_start": {},
           "reference_id": {},
@@ -35626,6 +35657,7 @@
           "score": {},
           "snippet": {},
           "source_chunk_ids": [],
+          "source_modality": {},
           "source_type": {},
           "start_line": {}
         }
@@ -39325,7 +39357,7 @@
     "asyncapi": "2.6.0",
     "info": {
       "title": "EdgeQuake WebSocket Progress",
-      "version": "0.39.0",
+      "version": "0.39.1",
       "description": "Real-time pipeline and document processing progress over WebSocket (RFC 6455). SPEC-149: clients subscribe to owned track_ids on the global channel; events use a tagged {type,data} envelope."
     },
     "defaultContentType": "application/json",
