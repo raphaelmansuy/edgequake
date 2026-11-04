@@ -3,7 +3,7 @@ title: "What's new"
 description: "Per-release highlights moved out of the README."
 ---
 
-This page lists the highlights of each release from v0.39.0 back to v0.24.0, newest first. Most entries name the schema number, so you can plan a database migration before you upgrade. For the full change list, see the [CHANGELOG](CHANGELOG.md), and for the upgrade steps, see the linked upgrade guide. A plain-English [picture tour](https://edgequake.com/tutorial/) of the UI is on the marketing site.
+This page lists the highlights of each release from v0.40.0 back to v0.24.0, newest first. Most entries name the schema number, so you can plan a database migration before you upgrade. For the full change list, see the [CHANGELOG](CHANGELOG.md), and for the upgrade steps, see the linked upgrade guide. A plain-English [picture tour](https://edgequake.com/tutorial/) of the UI is on the marketing site.
 
 ## Schema train at a glance
 
@@ -35,11 +35,20 @@ timeline
     v0.38.3 : 224 pinned
     v0.38.4 : 224 pinned
     v0.39.0 : 226
+    v0.40.0 : 227
 ```
 
-The timeline shows the schema number each release leaves the database at, from v0.23.0 through v0.39.0.
+The timeline shows the schema number each release leaves the database at, from v0.23.0 through v0.40.0.
 
 Run `edgequake migrate` when you move to a release with a higher number. The [upgrading guide](operations/upgrading.md) covers the steps.
+
+### What's new in 0.40.0
+
+Default questions come from the corpus, and a Normal workspace drops chunks that do not clear a relevance floor. Schema moves **226 → 227**. Upgrade from 0.39.1 runs migration **227**. It is expand-only: the BM25 triggers stop counting empty image chunks, and existing normal workspaces have those counters recomputed. No column is added. See [upgrade-to-0.40.0.md](operations/upgrade-to-0.40.0.md).
+
+- The Query empty state asks only what the workspace can answer. A graph workspace names real entities. An empty workspace shows no question cards.
+- A picture chunk must clear cosine 0.48, and a text chunk 0.10, before it enters the prompt. `relevance_dropped` reports how many candidates the floor removed.
+- **SPEC-001 Acc** was not re-scored. The pack measures a graph workspace. The latest valid result remains a statistical tie (EdgeQuake 0.8084, LightRAG 0.7681, delta +0.0403).
 
 ### What's new in 0.39.0
 

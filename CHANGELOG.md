@@ -6,9 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ## [0.40.0] — 2026-11-03
 
-Minor on v0.39.1. Schema moves **226 → 227** (migration `227_spec180_bm25_doc_stats`, the BM25
-document-frequency table the `normal` lexical leg ranks with). An upgrade from 0.39.1 applies one
-`expand` migration; there is no data rewrite and no backfill.
+Minor on v0.39.1. Schema moves **226 → 227** (migration `227_spec180_bm25_doc_stats`). An upgrade
+from 0.39.1 applies one `expand` migration. It replaces the BM25 count triggers so an empty image
+chunk is not a document, then recomputes `bm25_doc_count` and `bm25_total_len` on existing normal
+workspaces. No column is added.
 
 **SPEC-001 Acc:** not re-scored on this cut. The relevance floor changes which chunks reach a
 Normal-workspace prompt, and the Acc pack measures a graph workspace (`mix`). The latest valid
