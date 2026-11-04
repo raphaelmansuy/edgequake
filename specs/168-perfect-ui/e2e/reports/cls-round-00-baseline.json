@@ -26,8 +26,8 @@
       "route": "graph",
       "state": "default",
       "width": 1440,
-      "cls": 0.000038580246913580246,
-      "shifts": 1
+      "cls": 0.00047449417009602196,
+      "shifts": 2
     },
     {
       "route": "pipeline",
@@ -166,8 +166,8 @@
       "route": "graph",
       "state": "collapsed-dark",
       "width": 1440,
-      "cls": 0.00047449417009602196,
-      "shifts": 2
+      "cls": 0.000038580246913580246,
+      "shifts": 1
     },
     {
       "route": "pipeline",

@@ -6,8 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ## [0.40.0] — 2026-11-03
 
-Minor on v0.39.1. Schema stays **226**. No migration: the changes are retrieval policy, an answer
-cleaner, and UI copy. Upgrading needs only a redeploy.
+Minor on v0.39.1. Schema moves **226 → 227** (migration `227_spec180_bm25_doc_stats`, the BM25
+document-frequency table the `normal` lexical leg ranks with). An upgrade from 0.39.1 applies one
+`expand` migration; there is no data rewrite and no backfill.
 
 **SPEC-001 Acc:** not re-scored on this cut. The relevance floor changes which chunks reach a
 Normal-workspace prompt, and the Acc pack measures a graph workspace (`mix`). The latest valid
@@ -39,6 +40,29 @@ medical-mid n=200 pack remains
 
 ### Fixed
 
+- **Ten React lint errors in shipped hooks, each a real render bug.** The project's ESLint config
+  states that shipped app code must be lint-clean, so these were release blockers even though
+  `release_gates.sh` does not run ESLint. Every fix removes the underlying cause rather than
+  suppressing the rule:
+  - `use-store-hydration`: `useHydratedStore` copied the store value into state through an effect.
+    It now uses `useSyncExternalStore`, which expresses "server snapshot is `undefined`" directly —
+    one render instead of two, and no re-run on every store change.
+  - `use-document-search` / `use-documents-inventory`: resetting the page in an effect let the
+    query fire once with the new filter and the **old** page, requesting a page that may not exist.
+    Both now reset during render, before the request is built.
+  - `use-query-interface`: state mirroring `baseMessages` produced a render with the previous
+    conversation's messages, flashing the wrong transcript on every switch.
+  - `use-query-scroll`: enabling auto-scroll in an effect meant the first streaming tokens landed
+    below the fold. Now flipped on the same render that detects streaming.
+  - `use-bulk-deletion-progress` / `use-page-sync-controller`: refs were written during render to
+    mirror a prop. They are written in an effect, which is the documented way and still runs before
+    any event handler reads them.
+  - `use-entity-type-colors`: an optional-chain dependency (`workspace?.id`) made the React Compiler
+    skip the whole hook, silently losing its memoization.
+  - `search-image`: reading a ref out of a props bag was flagged as a render-time ref access.
+  - `use-file-upload`: a `let` that was assigned once.
+- **Bumped again on the same tag.** This release was cut as v0.40.0 and not published; the fixes
+  above went in before the tag left the machine, so v0.40.0 carries them rather than a new number.
 - **The default workspace kind never reached the corpus rule.** `getQueryEmptyCopy` returned a
   hardcoded list before any corpus logic ran, so every graph workspace — the product default — was
   offered four sentences that could not name a single entity it held.

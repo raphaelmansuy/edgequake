@@ -7,16 +7,21 @@ import { ImageUp, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 /** The hidden file input behind the "Search by image" button. */
+// WHY the destructure: `react-hooks/refs` flags reading a ref object out of a props bag as a
+// render-time ref access, because it cannot tell a hook's own ref from one it must not touch.
+// Reading the two fields here makes it explicit that `ref={inputRef}` is the documented
+// assignment; the `.current` read that the rule protects against happens only in `openPicker`.
 export function SearchImageInput({ control }: { control: QuerySearchImageControl }) {
   const { t } = useTranslation();
+  const { inputRef, onInputChange } = control;
   return (
     <input
-      ref={control.inputRef}
+      ref={inputRef}
       type="file"
       accept={SEARCH_IMAGE_MIME.join(",")}
       className="sr-only"
       aria-label={t("query.searchByImage.label", "Search by image")}
-      onChange={control.onInputChange}
+      onChange={onInputChange}
       data-testid="query-search-image-input"
     />
   );

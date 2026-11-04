@@ -309,16 +309,6 @@ export function useFileUpload(
                 uploadPhase: "transfer" as const,
               });
 
-              let response: {
-                document_id?: string;
-                pdf_id?: string;
-                duplicate_of?: string;
-                task_id?: string;
-                track_id?: string;
-                isPdf?: boolean;
-                source_type?: "pdf" | "image" | "text" | "markdown";
-              };
-
               const uploadResult = await performFileUpload(file, {
                 expectedBatchCount: acceptedFiles.length,
                 batchTrackId,
@@ -336,7 +326,16 @@ export function useFileUpload(
                 visionFigureSystemPrompt,
                 onUploadProgress: applyUploadProgress,
               });
-              response = {
+              // The shape is written once; declaring it at the assignment lets `const` hold it.
+              const response: {
+                document_id?: string;
+                pdf_id?: string;
+                duplicate_of?: string;
+                task_id?: string;
+                track_id?: string;
+                isPdf?: boolean;
+                source_type?: "pdf" | "image" | "text" | "markdown";
+              } = {
                 document_id: uploadResult.document_id,
                 pdf_id: uploadResult.pdf_id,
                 duplicate_of: uploadResult.duplicate_of,

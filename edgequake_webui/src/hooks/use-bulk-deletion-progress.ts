@@ -81,15 +81,28 @@ export function useBulkDeletionProgress(
     initialState(wipeTrackId),
   );
   const wipeRef = useRef(wipeTrackId);
-  wipeRef.current = wipeTrackId;
+  // WHY in an effect and not during render: this ref mirrors a prop for use *inside the WebSocket
+  // message handler below*, which runs outside render. Writing it during render is what the
+  // `refs` rule forbids; an effect assignment is the documented way to mirror a prop for a
+  // callback, and by the time a message arrives the effect has run.
+  useEffect(() => {
+    wipeRef.current = wipeTrackId;
+  }, [wipeTrackId]);
 
   const reset = useCallback(() => {
     setState(initialState(wipeRef.current));
   }, []);
 
-  useEffect(() => {
+  // Keep the reported track id in step with the prop without a second render.
+  //
+  // WHY during render: the previous effect re-ran `setState` on every prop change, cascading a
+  // render whose only job was to copy a value the component already had. Comparing during render
+  // does the same work in the render that is already happening.
+  const [stateTrackId, setStateTrackId] = useState(wipeTrackId ?? null);
+  if (stateTrackId !== (wipeTrackId ?? null)) {
+    setStateTrackId(wipeTrackId ?? null);
     setState((prev) => ({ ...prev, wipeTrackId: wipeTrackId ?? null }));
-  }, [wipeTrackId]);
+  }
 
   useEffect(() => {
     if (!enabled) return;

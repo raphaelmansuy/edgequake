@@ -130,7 +130,11 @@ export function usePageSyncController(
   const pdfPageRef = useRef(clampPage(options.initialPage ?? 1));
   const mdPageRef = useRef(clampPage(options.initialPage ?? 1));
   const syncModeRef = useRef(syncMode);
-  syncModeRef.current = syncMode;
+  // Mirror the prop for use inside event handlers, which run outside render. Assigning here is
+  // what the `refs` rule forbids; an effect is the documented way and runs before any event.
+  useEffect(() => {
+    syncModeRef.current = syncMode;
+  }, [syncMode]);
   const gestureDriverRef = useRef<PageSyncDriver>('none');
   const gestureTimerRef = useRef<number | null>(null);
   const hydratedModeRef = useRef(false);

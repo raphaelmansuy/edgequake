@@ -90,10 +90,18 @@ export function useQueryInterface() {
   }, [activeConversation?.messages]);
 
   // Temporary messages list for regenerate (before stream session merges)
-  const [messagesForHook, setMessagesForHook] = useState<QueryMessage[]>([]);
-  useEffect(() => {
+  //
+  // WHY the render-phase compare: this held a copy of `baseMessages` in state, re-synced by an
+  // effect, so every conversation switch rendered once with the *previous* conversation's messages
+  // and then again with the right ones — a visible flash in the transcript. Adjusting during
+  // render keeps the two in step on the first pass, which is what React's "adjust state when a
+  // prop changes" pattern exists for.
+  const [messagesForHook, setMessagesForHook] = useState<QueryMessage[]>(baseMessages);
+  const [messagesSource, setMessagesSource] = useState(baseMessages);
+  if (messagesSource !== baseMessages) {
+    setMessagesSource(baseMessages);
     setMessagesForHook(baseMessages);
-  }, [baseMessages]);
+  }
 
   const stream = useQueryStreamSession({
     querySettings,

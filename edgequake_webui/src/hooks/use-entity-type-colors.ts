@@ -29,9 +29,14 @@ export function useEntityTypeColors() {
   const selectedTenantId = useTenantStore((s) => s.selectedTenantId);
   const setWorkspaces = useTenantStore((s) => s.setWorkspaces);
 
+  // WHY the intermediate binding: `useMemo` over `workspace?.entity_type_colors` reads an optional
+  // member expression as its dependency, which the React Compiler cannot prove stable, so it skips
+  // compiling the whole hook ("Existing memoization could not be preserved"). Naming the value
+  // first gives the dependency a plain identifier and the hook compiles again.
+  const workspaceColors = workspace?.entity_type_colors;
   const colors = useMemo(
-    () => mergeEntityTypeColorMap(workspace?.entity_type_colors),
-    [workspace?.entity_type_colors],
+    () => mergeEntityTypeColorMap(workspaceColors),
+    [workspaceColors],
   );
 
   const colorFor = useCallback(
@@ -39,14 +44,17 @@ export function useEntityTypeColors() {
     [colors],
   );
 
+  // Same reason as `workspaceColors` above: a dependency on an optional chain (`workspace?.id`)
+  // prevents the compiler from preserving the memoization, so the value is named first.
+  const workspaceId = workspace?.id;
   const persistColors = useCallback(
     async (next: Record<string, string>) => {
-      if (!workspace?.id || !selectedTenantId) {
+      if (!workspaceId || !selectedTenantId) {
         toast.error('No workspace selected');
         return;
       }
       const stripped = stripDefaultOverrides(next);
-      const wsId = workspace.id;
+      const wsId = workspaceId;
       const previous = useTenantStore.getState().workspaces;
       setWorkspaces(
         previous.map((w) =>
@@ -84,7 +92,7 @@ export function useEntityTypeColors() {
         );
       }
     },
-    [workspace?.id, selectedTenantId, setWorkspaces],
+    [workspaceId, selectedTenantId, setWorkspaces],
   );
 
   const setTypeColor = useCallback(

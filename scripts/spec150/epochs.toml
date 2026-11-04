@@ -395,3 +395,12 @@ key = true
 replay = true
 # max mig 226 (same set as v0.39.0; no new migration)
 # hash 81651e73037b6344 (224 numbered migration files)
+
+[[epoch]]
+tag = "v0.40.0"
+mode = "replay"
+pg_majors = [16,17,18]
+key = true
+replay = true
+# max mig 227 (SPEC-180 BM25 document-frequency stats, migration 227)
+# hash 7491afd4e3a729e7 (225 numbered migration files)

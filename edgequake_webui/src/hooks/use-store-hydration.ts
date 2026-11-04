@@ -15,7 +15,7 @@
 
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import type { StoreApi, UseBoundStore } from "zustand";
 
 /**
@@ -99,14 +99,15 @@ export function useHydratedStore<T, S>(
   store: UseBoundStore<StoreApi<T>> & Partial<PersistStore>,
   selector: (state: T) => S
 ): S | undefined {
-  const result = store(selector);
-  const [data, setData] = useState<S | undefined>(undefined);
-
-  useEffect(() => {
-    setData(result);
-  }, [result]);
-
-  return data;
+  // WHY `useSyncExternalStore` and not an effect: the hook's contract is "undefined on the server
+  // and on the first client render, then the real value". An effect that flips a flag produces
+  // exactly that, but costs a second render and re-runs on every store change. React's own
+  // primitive for "server snapshot differs from client snapshot" expresses the contract directly:
+  // the server snapshot is always `undefined`, so hydration resolves in a single pass and later
+  // store changes flow through without an effect.
+  const getSnapshot = () => selector(store.getState());
+  const getServerSnapshot = (): S | undefined => undefined;
+  return useSyncExternalStore(store.subscribe, getSnapshot, getServerSnapshot);
 }
 
 /**

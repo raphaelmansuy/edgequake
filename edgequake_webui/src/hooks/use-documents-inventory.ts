@@ -31,15 +31,25 @@ export function useDocumentsInventory(options: UseDocumentsInventoryOptions) {
   );
   const [currentPage, setCurrentPage] = useState(1);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [
+  // Reset to the first page whenever the scope or filters change, so a new result set starts at
+  // its top.
+  //
+  // WHY during render rather than in an effect: an effect would let the query below run once with
+  // the new filters and the *old* page — requesting a page that may not exist in the new result
+  // set, then correcting itself. Comparing the signature during render resets before the request
+  // is built.
+  const scopeKey = [
     options.tenantId,
     options.workspaceId,
     options.searchQuery,
     options.statusFilter,
     pageSize,
-  ]);
+  ].join("\u0000");
+  const [pageScopeKey, setPageScopeKey] = useState(scopeKey);
+  if (pageScopeKey !== scopeKey) {
+    setPageScopeKey(scopeKey);
+    setCurrentPage(1);
+  }
 
   const documentPattern = options.searchQuery.trim() || undefined;
   const queries = useDocumentQueries({

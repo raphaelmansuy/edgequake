@@ -43,11 +43,19 @@ export function EntityNeighborhoodPane({
   onAskEntity,
 }: EntityNeighborhoodPaneProps) {
   const { t } = useTranslation();
-  const [state, setState] = useState<LoadState>({ status: "loading" });
+  // The last completed load, tagged with the entity it belongs to.
+  //
+  // WHY the tag instead of resetting to `loading` inside the effect: calling `setState` in an
+  // effect body schedules a second render on every entity change, which the `set-state-in-effect`
+  // rule rightly flags as a cascade. Storing which entity the result belongs to makes "loading"
+  // a *derived* fact — `loaded?.entityId !== entityId` — so switching entities shows the loader
+  // during the same render, with no extra pass and no flicker of the previous entity's graph.
+  const [loaded, setLoaded] = useState<
+    { entityId: string; state: Exclude<LoadState, { status: "loading" }> } | null
+  >(null);
 
   useEffect(() => {
     let cancelled = false;
-    setState({ status: "loading" });
     void getEntityNeighborhood(entityId, 1)
       .then((res) => {
         if (cancelled) return;
@@ -57,25 +65,31 @@ export function EntityNeighborhoodPane({
           entityId,
         );
         const seedId = resolveSeedNodeId(model.nodes, entityId);
-        setState({ status: "ready", model, seedId });
+        setLoaded({ entityId, state: { status: "ready", model, seedId } });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
         const notFound =
           err instanceof ApiRequestError && err.status === 404;
-        setState({
-          status: "error",
-          notFound,
-          message:
-            err instanceof Error
-              ? err.message
-              : t("query.companion.neighborhoodFailed", "Couldn't load neighbourhood"),
+        setLoaded({
+          entityId,
+          state: {
+            status: "error",
+            notFound,
+            message:
+              err instanceof Error
+                ? err.message
+                : t("query.companion.neighborhoodFailed", "Couldn't load neighbourhood"),
+          },
         });
       });
     return () => {
       cancelled = true;
     };
   }, [entityId, t]);
+
+  const state: LoadState =
+    loaded?.entityId === entityId ? loaded.state : { status: "loading" };
 
   if (state.status === "loading") {
     return (

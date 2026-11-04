@@ -16,7 +16,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { searchDocuments } from "@/lib/api/edgequake/documents";
 import type { DocumentSearchItem, DocumentSearchResponse } from "@/types";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 const SEARCH_DEBOUNCE_MS = 300;
 /** 30s stale time — documents don't change frequently enough to need fresh data on each keystroke. */
@@ -48,9 +48,17 @@ export function useDocumentSearch(
 
   // Reset to the first window whenever the effective query changes so a fresh
   // search always starts from the top of its result set.
-  useEffect(() => {
+  //
+  // WHY the render-phase compare instead of an effect that calls `setLimit`: an effect would
+  // schedule a second render on every keystroke that settles the debounce, and the first render
+  // would already have fired the query with the *old* limit — a visible duplicate request. React's
+  // documented "adjust state when a prop changes" pattern resets during render, so the query below
+  // never sees a stale limit.
+  const [limitFor, setLimitFor] = useState(debounced);
+  if (limitFor !== debounced) {
+    setLimitFor(debounced);
     setLimit(INITIAL_PAGE_SIZE);
-  }, [debounced]);
+  }
 
   const result = useQuery<DocumentSearchResponse>({
     queryKey: ["documents", "search", debounced, limit],

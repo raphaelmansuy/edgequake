@@ -17,6 +17,19 @@ export function useQueryScroll(
     scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, streamingState, shouldAutoScroll]);
 
+  // Re-enable auto-scroll when the answer starts arriving.
+  //
+  // WHY during render: setting it in an effect meant the first streaming tick rendered with
+  // auto-scroll still off (the user had scrolled up), so the first tokens landed below the fold
+  // and only a second render pulled them into view — the flicker the effect was meant to prevent.
+  // Deriving "streaming now" against the previous value flips it on the same render.
+  const streamingNow = streamingState === "thinking" || streamingState === "generating";
+  const [wasStreaming, setWasStreaming] = useState(false);
+  if (streamingNow !== wasStreaming) {
+    setWasStreaming(streamingNow);
+    if (streamingNow) setShouldAutoScroll(true);
+  }
+
   useEffect(() => {
     const viewport = scrollRef.current?.querySelector(
       "[data-radix-scroll-area-viewport]",
@@ -32,12 +45,6 @@ export function useQueryScroll(
     viewport.addEventListener("scroll", handleScroll);
     return () => viewport.removeEventListener("scroll", handleScroll);
   }, []);
-
-  useEffect(() => {
-    if (streamingState === "thinking" || streamingState === "generating") {
-      setShouldAutoScroll(true);
-    }
-  }, [streamingState]);
 
   return { scrollRef, scrollAnchorRef };
 }
