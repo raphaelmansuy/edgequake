@@ -299,11 +299,14 @@ class RelationshipsResource(SyncResource):
 
         POST /api/v1/graph/relationships
         """
-        return self._post(
+        data = self._post(
             "/api/v1/graph/relationships",
-            json=rel.model_dump(exclude_none=True),
-            response_type=Relationship,
+            json=rel.model_dump(exclude_none=True, by_alias=True),
         )
+        # WHY: API returns {status, message, relationship: {...}} — unwrap
+        if isinstance(data, dict) and "relationship" in data:
+            return Relationship.model_validate(data["relationship"])
+        return Relationship.model_validate(data)
 
     def get(self, relationship_id: str) -> RelationshipDetail:
         """Get relationship details.
@@ -526,11 +529,13 @@ class AsyncRelationshipsResource(AsyncResource):
         return [Relationship.model_validate(r) for r in items]
 
     async def create(self, rel: RelationshipCreate) -> Relationship:
-        return await self._post(
+        data = await self._post(
             "/api/v1/graph/relationships",
-            json=rel.model_dump(exclude_none=True),
-            response_type=Relationship,
+            json=rel.model_dump(exclude_none=True, by_alias=True),
         )
+        if isinstance(data, dict) and "relationship" in data:
+            return Relationship.model_validate(data["relationship"])
+        return Relationship.model_validate(data)
 
     async def get(self, relationship_id: str) -> RelationshipDetail:
         return await self._get(
