@@ -17,7 +17,9 @@ pub enum AuthRequirement {
     /// a proxied OpenAI-compatible gateway). Hiding the field here would make a protected local
     /// server impossible to configure, which is why "no key required" is not "no key accepted".
     OptionalApiKey,
-    /// No key at all: the server's Google Cloud identity calls Vertex. A saved key cannot be used.
+    /// Vertex AI. The server identity works with nothing stored. A saved secret is either a
+    /// service-account JSON file or a Vertex API key (Express, or a key bound to a service account),
+    /// encrypted at rest.
     ServerGoogleIdentity,
     /// The AWS credential chain (environment, profile, instance role).
     AwsChain,
@@ -44,12 +46,24 @@ impl AuthRequirement {
 
     /// Can this shape be built from a URL and a saved secret?
     ///
-    /// Vertex and Bedrock cannot: their clients need an identity the server already holds, so a
-    /// saved key is refused with an explanation instead of silently ignored.
+    /// Vertex can: a service-account JSON (or a Vertex API key) is encrypted and used to mint
+    /// the call. Bedrock and the Copilot proxy still cannot — their clients read a chain the
+    /// server already holds, so a pasted value would be stored and then ignored.
     pub fn accepts_saved_key(self) -> bool {
         matches!(
             self,
-            Self::ApiKey | Self::ApiKeyAndEndpoint | Self::OptionalApiKey
+            Self::ApiKey
+                | Self::ApiKeyAndEndpoint
+                | Self::OptionalApiKey
+                | Self::ServerGoogleIdentity
+        )
+    }
+
+    /// The server can call this provider with no saved secret (ADC, the AWS chain, a proxy).
+    pub fn server_identity_suffices(self) -> bool {
+        matches!(
+            self,
+            Self::ServerGoogleIdentity | Self::AwsChain | Self::ServerProxy
         )
     }
 
@@ -72,6 +86,27 @@ pub struct ConnectionShape {
     pub auth: AuthRequirement,
 }
 
+/// Shapes whose client builds its own URL from the credential or the region.
+///
+/// Gemini is addressed by model and key (its OpenAI-compat host is a different API), Vertex from
+/// project and location, and Bedrock and Copilot from the SDK/proxy. A Base URL field for these
+/// looked editable and changed nothing, which is the same class of lie as a key field Vertex
+/// ignores. The server states it so the form can disable the field and say why.
+pub fn honors_base_url(shape: &str) -> bool {
+    !matches!(
+        shape.trim().to_ascii_lowercase().as_str(),
+        "gemini"
+            | "google"
+            | "vertexai"
+            | "vertex"
+            | "bedrock"
+            | "aws-bedrock"
+            | "vscode-copilot"
+            | "vscode"
+            | "copilot"
+    )
+}
+
 pub const CONNECTION_SHAPES: &[ConnectionShape] = &[
     ConnectionShape {
         id: "openai",
@@ -91,14 +126,14 @@ pub const CONNECTION_SHAPES: &[ConnectionShape] = &[
         id: "gemini",
         label: "Gemini",
         default_base_url: "https://generativelanguage.googleapis.com",
-        hint: "Google AI Studio API key required.",
+        hint: "Google AI Studio API key (GEMINI_API_KEY). A Vertex service-account file belongs on Vertex AI.",
         auth: AuthRequirement::ApiKey,
     },
     ConnectionShape {
         id: "vertexai",
         label: "Vertex AI",
         default_base_url: "https://aiplatform.googleapis.com",
-        hint: "Uses Google Cloud credentials on the server. A saved key cannot build this client.",
+        hint: "Service-account JSON (the key behind gcloud auth activate-service-account), a Vertex Express or service-account-bound API key, or this server's Google Cloud identity. A saved secret is encrypted and never shown again.",
         auth: AuthRequirement::ServerGoogleIdentity,
     },
     ConnectionShape {
@@ -118,8 +153,10 @@ pub const CONNECTION_SHAPES: &[ConnectionShape] = &[
     ConnectionShape {
         id: "huggingface",
         label: "Hugging Face",
-        default_base_url: "https://api-inference.huggingface.co/v1",
-        hint: "API key required. OpenAI-compatible.",
+        // 2026: `api-inference.huggingface.co` was retired (410 Gone). Inference Providers now
+        // serve an OpenAI-shaped router. Source: huggingface.co/docs/inference-providers
+        default_base_url: "https://router.huggingface.co/v1",
+        hint: "Access token required (HF_TOKEN). OpenAI-compatible Inference Providers router.",
         auth: AuthRequirement::ApiKey,
     },
     ConnectionShape {
@@ -195,8 +232,10 @@ pub const CONNECTION_SHAPES: &[ConnectionShape] = &[
     ConnectionShape {
         id: "azure",
         label: "Azure OpenAI",
-        default_base_url: "https://YOUR_RESOURCE.openai.azure.com",
-        hint: "API key required. OpenAI-compatible endpoint.",
+        // Foundry v1 route: the resource host plus `/openai/v1`; no dated `api-version`.
+        // Source: learn.microsoft.com/azure/foundry/openai/api-version-lifecycle
+        default_base_url: "https://YOUR_RESOURCE.openai.azure.com/openai/v1",
+        hint: "API key required. The URL must end in /openai/v1 (Foundry v1). The deployment name is the model.",
         auth: AuthRequirement::ApiKeyAndEndpoint,
     },
     ConnectionShape {
@@ -209,15 +248,17 @@ pub const CONNECTION_SHAPES: &[ConnectionShape] = &[
     ConnectionShape {
         id: "cohere",
         label: "Cohere",
-        default_base_url: "https://api.cohere.com/v1",
-        hint: "API key required. OpenAI-compatible.",
+        // `api.cohere.com/v1` is Cohere's *native* chat shape (`message`, not `messages`). A client
+        // that speaks OpenAI needs the Compatibility API. Source: docs.cohere.com/docs/compatibility-api
+        default_base_url: "https://api.cohere.ai/compatibility/v1",
+        hint: "API key required. Uses Cohere's OpenAI-compatible endpoint.",
         auth: AuthRequirement::ApiKey,
     },
     ConnectionShape {
         id: "bedrock",
         label: "AWS Bedrock",
         default_base_url: "https://bedrock-runtime.us-east-1.amazonaws.com",
-        hint: "Uses AWS credentials on the server. A saved key cannot build this client.",
+        hint: "Uses this server's AWS credential chain: an instance role, AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or AWS_BEARER_TOKEN_BEDROCK. A key pasted here would be stored and then ignored, so the field is not offered.",
         auth: AuthRequirement::AwsChain,
     },
 ];
@@ -301,7 +342,7 @@ pub fn is_openai_wire(shape: &str) -> bool {
 pub fn requires_server_credentials(shape: &str) -> bool {
     matches!(
         shape.trim().to_ascii_lowercase().as_str(),
-        "vertexai" | "vertex" | "bedrock" | "vscode-copilot" | "vscode" | "copilot"
+        "bedrock" | "vscode-copilot" | "vscode" | "copilot"
     )
 }
 
@@ -356,13 +397,14 @@ mod tests {
     }
 
     #[test]
-    fn vertex_ai_takes_an_identity_never_a_saved_key() {
+    fn vertex_ai_stores_a_google_credential_and_still_works_with_the_server_identity() {
         let vertex = shape("vertexai");
         assert_eq!(vertex.auth, AuthRequirement::ServerGoogleIdentity);
-        // The factory refuses a saved key for this shape, so the form must not offer one.
-        assert!(!vertex.auth.accepts_saved_key());
-        assert!(!vertex.auth.stores_secret());
-        assert_eq!(vertex.auth.as_str(), "server_google_identity");
+        assert!(vertex.auth.accepts_saved_key());
+        assert!(vertex.auth.stores_secret());
+        assert!(!vertex.auth.requires_key());
+        assert!(vertex.auth.server_identity_suffices());
+        assert!(!requires_server_credentials("vertexai"));
     }
 
     #[test]
@@ -429,6 +471,25 @@ mod tests {
                     s.id
                 );
             }
+        }
+    }
+
+    #[test]
+    fn a_base_url_is_only_offered_where_the_client_reads_it() {
+        // Gemini is addressed by model and key, Vertex by project and location, Bedrock and the
+        // Copilot proxy by the SDK. A Base URL field for these is a control that changes nothing.
+        for id in ["gemini", "google", "vertexai", "vertex", "bedrock"] {
+            assert!(!honors_base_url(id), "{id} must not offer a Base URL");
+        }
+        for id in [
+            "openai",
+            "anthropic",
+            "azure",
+            "ollama",
+            "openrouter",
+            "huggingface",
+        ] {
+            assert!(honors_base_url(id), "{id} builds from its Base URL");
         }
     }
 

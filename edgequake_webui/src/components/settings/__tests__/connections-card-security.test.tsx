@@ -41,8 +41,9 @@ const SHAPES = [
     hint: "Uses Google Cloud credentials on the server.",
     auth: "server_google_identity",
     requires_key: false,
-    accepts_saved_key: false,
-    stores_secret: false,
+    accepts_saved_key: true,
+    stores_secret: true,
+    secret_kinds: ["server_identity", "service_account_json", "api_key"],
   },
 ];
 
@@ -97,15 +98,11 @@ describe("ConnectionsCard security requirements", () => {
     });
   });
 
-  it("explains the identity requirement instead of asking for a key Vertex cannot use", async () => {
+  it("lets Vertex store a service-account file and hides the field for the server identity", async () => {
     await renderCard();
 
-    // The server's list marks every shape, so the card knows Vertex takes no saved key. Selecting
-    // it must replace the password field with the real requirement, not accept a dead value.
     await waitFor(() => expect(screen.getByTestId("connection-shape")).toBeInTheDocument());
     const select = screen.getByTestId("connection-shape") as HTMLSelectElement;
-    // The shape list must actually contain Vertex, otherwise the assertion below would pass for
-    // the wrong reason (a fallback list, not the server's contract).
     const options = Array.from(select.options).map((o) => o.value);
     expect(options).toContain("vertexai");
     await act(async () => {
@@ -113,11 +110,17 @@ describe("ConnectionsCard security requirements", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId("connection-no-api-key")).toBeInTheDocument();
+      expect(screen.getByTestId("connection-credential-kind")).toBeInTheDocument();
     });
+    expect(screen.getByTestId("connection-no-api-key").textContent).toMatch(/Google Cloud identity/i);
+    expect(screen.queryByTestId("connection-service-account")).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.change(screen.getByTestId("connection-credential-kind"), {
+        target: { value: "service_account_json" },
+      });
+    });
+    expect(screen.getByTestId("connection-service-account")).toBeInTheDocument();
     expect(screen.queryByLabelText(/^api key$/i)).not.toBeInTheDocument();
-    expect(screen.getByTestId("connection-no-api-key").textContent).toMatch(
-      /GOOGLE_CLOUD_PROJECT|Google Cloud identity/i,
-    );
   });
 });

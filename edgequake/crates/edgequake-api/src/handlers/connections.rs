@@ -55,6 +55,9 @@ pub struct UpsertConnection {
     pub auth_scheme: Option<String>,
     #[serde(default)]
     pub api_key: Option<String>,
+    /// Vertex location (`us-central1`, `global`). Not a secret.
+    #[serde(default)]
+    pub credential_region: Option<String>,
     #[serde(default)]
     pub timeout_secs: Option<i32>,
     #[serde(default)]
@@ -222,10 +225,24 @@ pub async fn list_connection_shapes(_admin: ApiRequireAdmin) -> Json<Vec<serde_j
                 "requires_key": shape.auth.requires_key(),
                 "accepts_saved_key": shape.auth.accepts_saved_key(),
                 "stores_secret": shape.auth.stores_secret(),
+                "secret_kinds": secret_kinds(shape.auth),
+                "base_url_editable": crate::providers::connection_shapes::honors_base_url(shape.id),
             })
         })
         .collect();
     Json(shapes)
+}
+
+fn secret_kinds(auth: crate::providers::connection_shapes::AuthRequirement) -> Vec<&'static str> {
+    use crate::providers::connection_shapes::AuthRequirement;
+    match auth {
+        AuthRequirement::ServerGoogleIdentity => {
+            vec!["server_identity", "service_account_json", "api_key"]
+        }
+        AuthRequirement::ApiKey | AuthRequirement::ApiKeyAndEndpoint => vec!["api_key"],
+        AuthRequirement::OptionalApiKey => vec!["api_key"],
+        AuthRequirement::AwsChain | AuthRequirement::ServerProxy => vec![],
+    }
 }
 
 #[utoipa::path(get, path = "/api/v1/connections", tag = "Providers")]
@@ -687,9 +704,28 @@ async fn upsert(
     let key_id: Option<String> = None;
     let mut secret_ref: Option<serde_json::Value> = None;
     let mut replace_secret = false;
+    let mut sealed_scheme: Option<String> = None;
     if let Some(k) = body.api_key.as_deref().filter(|s| !s.is_empty()) {
+        let shape_auth = crate::providers::connection_shapes::CONNECTION_SHAPES
+            .iter()
+            .find(|preset| preset.id == body.api_shape.trim().to_ascii_lowercase())
+            .map(|preset| preset.auth);
+        if shape_auth.is_some_and(|auth| !auth.accepts_saved_key()) {
+            return Err(ApiError::BadRequest(
+                "This provider uses credentials the server already holds. A saved key cannot build its client."
+                    .into(),
+            ));
+        }
+        let sealed = crate::providers::credential_material::seal_secret(
+            &body.api_shape,
+            k,
+            body.credential_region.as_deref(),
+        )
+        .map_err(ApiError::BadRequest)?;
+        sealed_scheme = Some(sealed.auth_scheme.to_string());
+        let k = sealed.stored;
         replace_secret = true;
-        fingerprint = Some(edgequake_secrets::SecretString::new(k).fingerprint());
+        fingerprint = Some(edgequake_secrets::SecretString::new(&k).fingerprint());
         // New keys are a secret reference. The inline columns stay null.
         #[cfg(feature = "postgres")]
         {
@@ -701,7 +737,7 @@ async fn upsert(
                     retry_after_secs: 5,
                 })?;
             let stored = crate::providers::secret_manager::SecretService::new(pool)
-                .put(tenant_id, &format!("eq-conn-{connection_id}"), k)
+                .put(tenant_id, &format!("eq-conn-{connection_id}"), &k)
                 .await?;
             secret_ref =
                 Some(serde_json::to_value(&stored).map_err(|e| ApiError::Internal(e.to_string()))?);
@@ -726,7 +762,9 @@ async fn upsert(
                 retry_after_secs: 5,
             })?;
         let timeout = body.timeout_secs.unwrap_or(120);
-        let auth_scheme = body.auth_scheme.unwrap_or_else(|| "none".into());
+        let auth_scheme = sealed_scheme
+            .or(body.auth_scheme)
+            .unwrap_or_else(|| "none".into());
         let duplicate: bool = if let Some(existing) = id {
             sqlx::query_scalar(
                 "SELECT EXISTS( \
@@ -863,6 +901,7 @@ async fn upsert(
             secret_ref,
             replace_secret,
             connection_id,
+            sealed_scheme,
         );
         Err(ApiError::ServiceUnavailable {
             message: "PostgreSQL required".into(),

@@ -59,6 +59,7 @@
 pub mod connection_factory;
 pub mod connection_shapes;
 pub mod connection_store;
+pub mod credential_material;
 pub mod credentials;
 mod error;
 pub mod probe;

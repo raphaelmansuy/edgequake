@@ -15,6 +15,7 @@ import { useId, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
 const CONNECTIONS_KEY = ['connections'] as const;
+const DEFAULT_SLUG = 'local';
 
 type ConnectionView = ConnectionRowData;
 
@@ -33,23 +34,27 @@ interface ConnectionShape {
   requires_key?: boolean;
   accepts_saved_key?: boolean;
   stores_secret?: boolean;
+  /** `server_identity`, `service_account_json`, `api_key`. Absent on an older server. */
+  secret_kinds?: string[];
+  /** False when the client builds its own URL (Gemini, Vertex, Bedrock). Absent = editable. */
+  base_url_editable?: boolean;
 }
 
 /**
  * Built-in shape list, shown only while the server's `/connections/shapes` is unreachable.
  * The card says so and offers a retry; it never presents this list as the server's.
  *
- * `accepts_saved_key` is carried here too: the form must not offer a Vertex key field even when
- * the server is unreachable, because the client refuses a saved key for that shape either way.
+ * Vertex lists the secrets it can store: the server identity, a service-account JSON file, or an
+ * API key. Bedrock and Copilot list none, because a pasted value would be ignored.
  */
 const BUILT_IN_SHAPES: ConnectionShape[] = [
   { id: 'openai', label: 'OpenAI', default_base_url: 'https://api.openai.com/v1', hint: 'API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
   { id: 'anthropic', label: 'Anthropic', default_base_url: 'https://api.anthropic.com', hint: 'API key required. Messages API.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
-  { id: 'gemini', label: 'Gemini', default_base_url: 'https://generativelanguage.googleapis.com', hint: 'Google AI Studio API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
-  { id: 'vertexai', label: 'Vertex AI', default_base_url: 'https://aiplatform.googleapis.com', hint: 'Uses the server\'s Google Cloud identity.', auth: 'server_google_identity', accepts_saved_key: false, stores_secret: false },
+  { id: 'gemini', label: 'Gemini', default_base_url: 'https://generativelanguage.googleapis.com', hint: 'Google AI Studio API key required.', auth: 'api_key', requires_key: true, accepts_saved_key: true, stores_secret: true, base_url_editable: false },
+  { id: 'vertexai', label: 'Vertex AI', default_base_url: 'https://aiplatform.googleapis.com', hint: 'Service-account JSON, a Vertex API key, or this server\'s Google Cloud identity.', auth: 'server_google_identity', accepts_saved_key: true, stores_secret: true, requires_key: false, secret_kinds: ['server_identity', 'service_account_json', 'api_key'] },
   { id: 'openrouter', label: 'OpenRouter', default_base_url: 'https://openrouter.ai/api/v1', hint: 'API key required. OpenAI-compatible.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
   { id: 'xai', label: 'xAI', default_base_url: 'https://api.x.ai/v1', hint: 'API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
-  { id: 'huggingface', label: 'Hugging Face', default_base_url: 'https://api-inference.huggingface.co/v1', hint: 'API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
+  { id: 'huggingface', label: 'Hugging Face', default_base_url: 'https://router.huggingface.co/v1', hint: 'Access token required (HF_TOKEN). OpenAI-compatible router.', auth: 'api_key', requires_key: true, accepts_saved_key: true, stores_secret: true },
   { id: 'openai-compatible', label: 'OpenAI-compatible', default_base_url: 'https://api.openai.com/v1', hint: 'Chat completions API.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
   { id: 'ollama', label: 'Ollama', default_base_url: 'http://127.0.0.1:11434', hint: 'Local Ollama. A key is optional.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
   { id: 'lmstudio', label: 'LM Studio', default_base_url: 'http://127.0.0.1:1234/v1', hint: 'Local LM Studio.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
@@ -60,10 +65,10 @@ const BUILT_IN_SHAPES: ConnectionShape[] = [
   { id: 'mlx-lm', label: 'MLX-LM', default_base_url: 'http://127.0.0.1:8080/v1', hint: 'mlx_lm.server.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
   { id: 'vscode-copilot', label: 'VS Code Copilot', default_base_url: 'https://api.githubcopilot.com', hint: 'Server credentials.', auth: 'server_proxy', accepts_saved_key: false, stores_secret: false },
   { id: 'mistral', label: 'Mistral', default_base_url: 'https://api.mistral.ai/v1', hint: 'API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
-  { id: 'azure', label: 'Azure OpenAI', default_base_url: 'https://YOUR_RESOURCE.openai.azure.com', hint: 'API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
+  { id: 'azure', label: 'Azure OpenAI', default_base_url: 'https://YOUR_RESOURCE.openai.azure.com/openai/v1', hint: 'API key required. The URL ends in /openai/v1.', auth: 'api_key_and_endpoint', requires_key: true, accepts_saved_key: true, stores_secret: true },
   { id: 'nvidia', label: 'NVIDIA', default_base_url: 'https://integrate.api.nvidia.com/v1', hint: 'API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
-  { id: 'cohere', label: 'Cohere', default_base_url: 'https://api.cohere.com/v1', hint: 'API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
-  { id: 'bedrock', label: 'AWS Bedrock', default_base_url: 'https://bedrock-runtime.us-east-1.amazonaws.com', hint: 'Server credentials.', auth: 'aws_chain', accepts_saved_key: false, stores_secret: false },
+  { id: 'cohere', label: 'Cohere', default_base_url: 'https://api.cohere.ai/compatibility/v1', hint: 'API key required. OpenAI-compatible endpoint.', auth: 'api_key', requires_key: true, accepts_saved_key: true, stores_secret: true },
+  { id: 'bedrock', label: 'AWS Bedrock', default_base_url: 'https://bedrock-runtime.us-east-1.amazonaws.com', hint: 'Server AWS chain or AWS_BEARER_TOKEN_BEDROCK. A pasted key is not used.', auth: 'aws_chain', accepts_saved_key: false, stores_secret: false, secret_kinds: [] },
 ];
 
 interface ProbeResponse {
@@ -119,8 +124,10 @@ export function ConnectionsCard() {
   const shape = shapes.some((item) => item.id === chosenShape) ? chosenShape : (shapes[0]?.id ?? chosenShape);
   const selectedShape = shapes.find((item) => item.id === shape);
   const [baseUrl, setBaseUrl] = useState('https://api.openai.com/v1');
-  const [slug, setSlug] = useState('local');
+  const [slug, setSlug] = useState(DEFAULT_SLUG);
   const [apiKey, setApiKey] = useState('');
+  const [credentialKind, setCredentialKind] = useState('server_identity');
+  const [credentialRegion, setCredentialRegion] = useState('us-central1');
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<DeletableConnection | null>(null);
@@ -133,8 +140,21 @@ export function ConnectionsCard() {
    * let an operator save a secret the client refuses to use. An older server, or the built-in
    * fallback list, may omit the flag, and then the form behaves as it always did.
    */
-  const mayTakeKey = selectedShape?.accepts_saved_key !== false;
-  const keyRequired = selectedShape?.requires_key === true;
+  const secretKinds = selectedShape?.secret_kinds;
+  const googleCredential = secretKinds?.includes('service_account_json') === true;
+  const mayTakeKey = googleCredential
+    ? credentialKind !== 'server_identity'
+    : selectedShape?.accepts_saved_key !== false;
+  const keyRequired = googleCredential ? credentialKind !== 'server_identity' : selectedShape?.requires_key === true;
+  const keyIsJson = googleCredential && credentialKind === 'service_account_json';
+  // The server states whether a Base URL changes anything for this shape. An older server omits
+  // the flag, and then the field behaves as it always did.
+  const baseUrlLocked =
+    selectedShape?.base_url_editable === false ||
+    selectedShape?.auth === 'server_google_identity' ||
+    selectedShape?.auth === 'aws_chain' ||
+    selectedShape?.auth === 'server_proxy';
+  const canSubmit = !busy && slug.trim() !== '' && (!keyRequired || apiKey.trim() !== '');
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: CONNECTIONS_KEY });
 
@@ -145,6 +165,13 @@ export function ConnectionsCard() {
     if (chosen && (baseUrl.trim() === '' || baseUrl === previous?.default_base_url)) {
       setBaseUrl(chosen.default_base_url);
     }
+    // The placeholder name is a real slug. Leaving it as "local" while the shape says Vertex AI
+    // saves a Vertex connection called "local", which is how the reviewed screenshot read.
+    if (slug === DEFAULT_SLUG || slug === previous?.id) {
+      setSlug(next);
+    }
+    setApiKey('');
+    setCredentialKind(chosen?.secret_kinds?.includes('service_account_json') ? 'server_identity' : 'api_key');
   };
 
   const testStored = async (id: string) => {
@@ -170,7 +197,8 @@ export function ConnectionsCard() {
         body: JSON.stringify({
           shape,
           base_url: baseUrl,
-          api_key: apiKey || undefined,
+          api_key: mayTakeKey ? apiKey || undefined : undefined,
+          credential_region: googleCredential ? credentialRegion : undefined,
           allow_private_network: place.allowPrivate,
         }),
       });
@@ -207,7 +235,8 @@ export function ConnectionsCard() {
         display_name: slug,
         api_shape: shape,
         base_url: baseUrl,
-        api_key: apiKey || undefined,
+        api_key: mayTakeKey ? apiKey || undefined : undefined,
+        credential_region: googleCredential ? credentialRegion : undefined,
         locality: place.locality,
         allow_private_network: place.allowPrivate,
       };
@@ -244,8 +273,9 @@ export function ConnectionsCard() {
           Connections
         </CardTitle>
         <CardDescription>
-          Point EdgeQuake at OpenAI, Anthropic, Ollama, oMLX, MLX-LM, llama.cpp, or any
-          OpenAI-/Anthropic-shaped local server. Keys are encrypted at rest and never shown again.
+          Add a cloud provider (OpenAI, Anthropic, Vertex AI, Azure, Mistral, Bedrock) or a local
+          server (Ollama, LM Studio, oMLX, llama.cpp). A saved key or key file is encrypted at rest
+          and never shown again.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -291,20 +321,71 @@ export function ConnectionsCard() {
               ))}
             </select>
           </ConnectionField>
-          <ConnectionField id={`${fieldId}-url`} label="Base URL" className="md:col-span-2">
+          <ConnectionField
+            id={`${fieldId}-url`}
+            label="Base URL"
+            hint={
+              baseUrlLocked
+                ? "Fixed for this provider. The client builds its own endpoint from the credential or the region."
+                : undefined
+            }
+            className="md:col-span-2"
+          >
             <Input
               id={`${fieldId}-url`}
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="http://127.0.0.1:9050"
+              disabled={baseUrlLocked}
             />
           </ConnectionField>
+          {googleCredential ? (
+            <ConnectionField
+              id={`${fieldId}-kind`}
+              label="Credential"
+              hint={
+                credentialKind === 'api_key'
+                  ? "An Express mode key, or a Google Cloud API key bound to a service account."
+                  : credentialKind === 'service_account_json'
+                    ? "The key file behind gcloud auth activate-service-account. Needs project_id and private_key."
+                    : "Calls use the identity this server already holds. Nothing is stored."
+              }
+              className="md:col-span-2"
+            >
+              <select
+                id={`${fieldId}-kind`}
+                data-testid="connection-credential-kind"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                value={credentialKind}
+                onChange={(e) => {
+                  setCredentialKind(e.target.value);
+                  setApiKey('');
+                }}
+              >
+                <option value="server_identity">This server&apos;s Google Cloud identity</option>
+                <option value="service_account_json">Service account JSON</option>
+                <option value="api_key">API key</option>
+              </select>
+            </ConnectionField>
+          ) : null}
+          {googleCredential && credentialKind !== 'server_identity' ? (
+            <ConnectionField id={`${fieldId}-region`} label="Location" hint="us-central1 or global. Not a secret.">
+              <Input
+                id={`${fieldId}-region`}
+                value={credentialRegion}
+                onChange={(e) => setCredentialRegion(e.target.value)}
+                autoComplete="off"
+              />
+            </ConnectionField>
+          ) : null}
           {mayTakeKey ? (
             <ConnectionField
               id={`${fieldId}-key`}
-              label={keyRequired ? "API key" : "API key (optional)"}
+              label={keyIsJson ? "Service account JSON" : keyRequired ? "API key" : "API key (optional)"}
               hint={
-                editingId
+                keyIsJson
+                  ? "The whole JSON file. Encrypted at rest and never shown again."
+                  : editingId
                   ? "Leave the key blank to keep the current key. A new key replaces it."
                   : keyRequired
                     ? "Required. Encrypted at rest and never shown again."
@@ -312,15 +393,29 @@ export function ConnectionsCard() {
               }
               className="md:col-span-2"
             >
-              <Input
-                id={`${fieldId}-key`}
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder={keyRequired ? "Paste the key" : "Leave empty for local servers"}
-                autoComplete="off"
-                required={keyRequired}
-              />
+              {keyIsJson ? (
+                <textarea
+                  id={`${fieldId}-key`}
+                  data-testid="connection-service-account"
+                  className="flex min-h-28 w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-xs"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder='{"type":"service_account",...}'
+                  autoComplete="off"
+                  spellCheck={false}
+                  required
+                />
+              ) : (
+                <Input
+                  id={`${fieldId}-key`}
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder={keyRequired ? "Paste the key" : "Leave empty for local servers"}
+                  autoComplete="off"
+                  required={keyRequired}
+                />
+              )}
             </ConnectionField>
           ) : (
             /*
@@ -333,10 +428,10 @@ export function ConnectionsCard() {
               data-testid="connection-no-api-key"
             >
               {selectedShape?.auth === "server_google_identity"
-                ? "Vertex AI uses this server's Google Cloud identity — there is no API key to enter. Set GOOGLE_CLOUD_PROJECT (and optionally GOOGLE_CLOUD_REGION) on the server, and grant that identity aiplatform.endpoints.predict on the project."
+                ? "No secret is stored. Calls use this server's Google Cloud identity. Choose Service account JSON to store a key file instead."
                 : selectedShape?.auth === "aws_chain"
-                  ? "AWS Bedrock uses this server's AWS credential chain — there is no API key to enter. Configure AWS credentials on the server."
-                  : "This provider uses credentials the server already holds. There is no API key to enter."}
+                  ? "No secret is stored. The Bedrock client signs with this server's AWS chain: an instance role, AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or AWS_BEARER_TOKEN_BEDROCK."
+                  : "No secret is stored. This provider uses credentials the server already holds."}
             </div>
           )}
         </div>
@@ -344,7 +439,7 @@ export function ConnectionsCard() {
           <Button type="button" variant="secondary" disabled={busy} onClick={() => void testDraft()}>
             Test connection
           </Button>
-          <Button type="button" disabled={busy} onClick={() => void save()} data-testid="connection-save">
+          <Button type="button" disabled={!canSubmit} onClick={() => void save()} data-testid="connection-save">
             {editingId ? 'Update connection' : 'Save'}
           </Button>
           {editingId ? (

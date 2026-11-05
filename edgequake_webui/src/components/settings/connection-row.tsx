@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { connectionSourceLabel } from "@/lib/settings/connection-summary";
+import { connectionSourceLabel, connectionShapeLabel, connectionCredentialLabel } from "@/lib/settings/connection-summary";
 
 export interface ConnectionRowData {
   id: string;
@@ -18,6 +18,7 @@ export interface ConnectionRowData {
   key_configured: boolean;
   key_fingerprint?: string | null;
   secret_backend?: string | null;
+  auth_scheme?: string | null;
   last_test_ok?: boolean | null;
 }
 
@@ -68,6 +69,8 @@ export function ConnectionRow({
 }) {
   const { t } = useTranslation();
   const stored = storedIn(row);
+  const credential = connectionCredentialLabel(row.auth_scheme);
+  const shapeLabel = connectionShapeLabel(row.api_shape);
   return (
     <li
       className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between"
@@ -79,15 +82,15 @@ export function ConnectionRow({
           <Badge variant="outline" className="font-normal">
             {connectionSourceLabel(row.source)}
           </Badge>
-          {row.key_configured ? (
-            <Badge variant="outline" className="font-mono text-[11px] font-normal">
-              {t("settings.connections.key", "key")} {row.key_fingerprint ?? t("settings.connections.keySet", "set")}
+          {credential ? (
+            <Badge variant="outline" className="font-normal" data-testid="connection-credential">
+              {credential}
             </Badge>
           ) : null}
           <TestBadge ok={row.last_test_ok} />
         </div>
-        <p className="truncate text-xs text-muted-foreground" title={`${row.api_shape} · ${row.base_url}`}>
-          {row.api_shape} · {row.base_url}
+        <p className="truncate text-xs text-muted-foreground" title={`${shapeLabel} · ${row.base_url}`}>
+          {shapeLabel} · {row.base_url}
         </p>
         {stored ? (
           <p className="text-xs text-muted-foreground" data-testid="connection-stored-in">

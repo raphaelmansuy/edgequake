@@ -125,7 +125,9 @@ pub async fn llm_from_pool(
 ) -> Option<Arc<dyn LLMProvider>> {
     let uuid = parse_connection_id(id)?;
     let spec = load_connection_spec(pool, uuid, model).await.ok()?;
-    crate::providers::connection_factory::llm_from_connection(&spec).ok()
+    crate::providers::connection_factory::llm_from_stored(&spec)
+        .await
+        .ok()
 }
 
 /// Build an LLM from `llm_roles.<role>.connection_id` when that id is set.
@@ -174,5 +176,7 @@ pub async fn embedding_from_pool(
     spec.model = model.to_string();
     spec.embedding_model = Some(model.to_string());
     spec.embedding_dimension = Some(dimension);
-    crate::providers::connection_factory::embedding_from_connection(&spec).ok()
+    crate::providers::connection_factory::embedding_from_stored(&spec)
+        .await
+        .ok()
 }

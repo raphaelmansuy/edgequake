@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  connectionCredentialLabel,
+  connectionShapeLabel,
   connectionSourceLabel,
   connectionSummary,
   connectionSummaryParts,
@@ -25,10 +27,39 @@ describe("connectionSourceLabel", () => {
   });
 });
 
+describe("connectionShapeLabel", () => {
+  it("names the shape instead of printing its slug", () => {
+    expect(connectionShapeLabel("vertexai")).toBe("Vertex AI");
+    expect(connectionShapeLabel("openai_chat")).toBe("OpenAI-compatible");
+    expect(connectionShapeLabel("ollama")).toBe("Ollama");
+  });
+
+  it("prefers the server's label and tolerates a missing shape", () => {
+    expect(connectionShapeLabel("vertexai", "Google Vertex AI")).toBe("Google Vertex AI");
+    expect(connectionShapeLabel("")).toBe("");
+    expect(connectionShapeLabel(undefined)).toBe("");
+    expect(connectionShapeLabel("unheard-of")).toBe("unheard-of");
+  });
+});
+
+describe("connectionCredentialLabel", () => {
+  it("names the stored credential kind, never the fingerprint", () => {
+    expect(connectionCredentialLabel("google_service_account")).toBe("Service account saved");
+    expect(connectionCredentialLabel("bearer")).toBe("API key saved");
+    expect(connectionCredentialLabel("google_api_key")).toBe("Vertex API key saved");
+  });
+
+  it("says nothing for a shape that stores no secret", () => {
+    expect(connectionCredentialLabel("none")).toBe("");
+    expect(connectionCredentialLabel(null)).toBe("");
+    expect(connectionCredentialLabel(undefined)).toBe("");
+  });
+});
+
 describe("connectionSummary", () => {
   it("joins shape, base url and source", () => {
     expect(connectionSummary(base)).toBe(
-      "ollama · http://localhost:11434 · Saved by you",
+      "Ollama · http://localhost:11434 · Saved by you",
     );
   });
 

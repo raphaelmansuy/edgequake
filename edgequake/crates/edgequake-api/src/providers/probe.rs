@@ -154,6 +154,8 @@ pub async fn probe_provider(req: ProbeRequest) -> ProbeResponse {
         // `/api/tags` lists installed models. `/api/version` (the health path) does not, and
         // using it here reported an empty but successful refresh.
         format!("{base}{}", crate::locality::local_models_path("ollama"))
+    } else if crate::providers::credential_material::is_vertex(&shape) {
+        return probe_vertex(start, api_key.as_deref()).await;
     } else if crate::providers::connection_shapes::requires_server_credentials(&shape) {
         return ProbeResponse {
             ok: false,
@@ -168,44 +170,61 @@ pub async fn probe_provider(req: ProbeRequest) -> ProbeResponse {
             embed_ok: false,
             list_ok: false,
         };
+    } else if matches!(shape.as_str(), "cohere" | "azure") {
+        /*
+         * Cohere's compatibility surface has no `GET /models`: the documented listing lives on the
+         * native host. Azure's list route is control-plane, not `/models` on the inference base.
+         * Probing the wrong URL reported a working key as broken, so these are checked by the chat
+         * path below instead of a listing that does not exist.
+         */
+        String::new()
     } else {
         openai_compatible_url(&base, "models")
     };
 
-    let list_res = apply_auth(client.get(&list_url), &scheme, api_key.as_deref())
-        .send()
-        .await;
-    let (list_ok, models, list_kind, list_msg) = match list_res {
-        Ok(resp)
-            if matches!(
-                resp.status(),
-                reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN
-            ) =>
-        {
-            (
+    let (list_ok, models, list_kind, list_msg) = if list_url.is_empty() {
+        (
+            true,
+            vec![],
+            ProbeErrorKind::Ok,
+            "no listing endpoint".to_string(),
+        )
+    } else {
+        let list_res = apply_auth(client.get(&list_url), &scheme, api_key.as_deref())
+            .send()
+            .await;
+        match list_res {
+            Ok(resp)
+                if matches!(
+                    resp.status(),
+                    reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN
+                ) =>
+            {
+                (
+                    false,
+                    vec![],
+                    ProbeErrorKind::Unauthorized,
+                    format!("{} listing models", resp.status().as_u16()),
+                )
+            }
+            Ok(resp) if resp.status().is_success() => {
+                let body = resp.json::<serde_json::Value>().await.unwrap_or_default();
+                let models = extract_model_ids(&body);
+                (true, models, ProbeErrorKind::Ok, "listed models".into())
+            }
+            Ok(resp) => (
                 false,
                 vec![],
-                ProbeErrorKind::Unauthorized,
-                format!("{} listing models", resp.status().as_u16()),
-            )
+                ProbeErrorKind::ShapeMismatch,
+                format!("list returned {}", resp.status()),
+            ),
+            Err(e) => (
+                false,
+                vec![],
+                ProbeErrorKind::Unreachable,
+                format!("list failed: {e}"),
+            ),
         }
-        Ok(resp) if resp.status().is_success() => {
-            let body = resp.json::<serde_json::Value>().await.unwrap_or_default();
-            let models = extract_model_ids(&body);
-            (true, models, ProbeErrorKind::Ok, "listed models".into())
-        }
-        Ok(resp) => (
-            false,
-            vec![],
-            ProbeErrorKind::ShapeMismatch,
-            format!("list returned {}", resp.status()),
-        ),
-        Err(e) => (
-            false,
-            vec![],
-            ProbeErrorKind::Unreachable,
-            format!("list failed: {e}"),
-        ),
     };
 
     if !list_ok
@@ -374,6 +393,108 @@ fn fail(start: Instant, kind: ProbeErrorKind, message: String) -> ProbeResponse 
         chat_ok: false,
         embed_ok: false,
         list_ok: false,
+    }
+}
+
+/// Vertex is not an OpenAI `/models` host. A pasted service-account file is proven by minting a
+/// token. An API key is sent as a header, never in the URL, so a failure cannot echo it.
+async fn probe_vertex(start: Instant, api_key: Option<&str>) -> ProbeResponse {
+    use super::credential_material::{open_secret, OpenedSecret};
+    use edgequake_llm::google_auth::GoogleCredentials;
+
+    let Some(raw) = api_key.map(str::trim).filter(|s| !s.is_empty()) else {
+        return if crate::providers::credentials::vertex_auth_configured_sync() {
+            ProbeResponse {
+                ok: true,
+                kind: ProbeErrorKind::Ok,
+                latency_ms: start.elapsed().as_millis() as u64,
+                message: "No key saved. This server's Google Cloud identity is configured.".into(),
+                models: vec![],
+                embedding_dimension: None,
+                chat_ok: false,
+                embed_ok: false,
+                list_ok: false,
+            }
+        } else {
+            fail(
+                start,
+                ProbeErrorKind::Unauthorized,
+                "No key saved, and this server has no Google Cloud identity. Paste a service-account JSON or a Vertex API key.".into(),
+            )
+        };
+    };
+
+    match open_secret(raw) {
+        OpenedSecret::GoogleCredential { material, .. } => {
+            let creds: GoogleCredentials = match serde_json::from_str(&material) {
+                Ok(creds) => creds,
+                Err(_) => {
+                    return fail(
+                        start,
+                        ProbeErrorKind::Unauthorized,
+                        "The stored Google credential could not be read.".into(),
+                    );
+                }
+            };
+            let principal = creds.principal().to_string();
+            match creds.into_source().refresh().await {
+                Ok(_) => ProbeResponse {
+                    ok: true,
+                    kind: ProbeErrorKind::Ok,
+                    latency_ms: start.elapsed().as_millis() as u64,
+                    message: format!("Minted a Google access token for {principal}."),
+                    models: vec![],
+                    embedding_dimension: None,
+                    chat_ok: false,
+                    embed_ok: false,
+                    list_ok: false,
+                },
+                Err(_) => fail(
+                    start,
+                    ProbeErrorKind::Unauthorized,
+                    format!(
+                        "Google refused a token for {principal}. The key may have been revoked."
+                    ),
+                ),
+            }
+        }
+        OpenedSecret::GoogleApiKey(material) | OpenedSecret::ApiKey(material) => {
+            let client = match reqwest::Client::builder()
+                .timeout(Duration::from_secs(8))
+                .build()
+            {
+                Ok(client) => client,
+                Err(err) => return fail(start, ProbeErrorKind::Unreachable, err.to_string()),
+            };
+            match client
+                .get("https://generativelanguage.googleapis.com/v1beta/models")
+                .header("x-goog-api-key", material)
+                .send()
+                .await
+            {
+                Ok(resp) if resp.status().is_success() => ProbeResponse {
+                    ok: true,
+                    kind: ProbeErrorKind::Ok,
+                    latency_ms: start.elapsed().as_millis() as u64,
+                    message: "Vertex API key accepted by the Gemini API.".into(),
+                    models: vec![],
+                    embedding_dimension: None,
+                    chat_ok: false,
+                    embed_ok: false,
+                    list_ok: true,
+                },
+                Ok(resp) => fail(
+                    start,
+                    ProbeErrorKind::Unauthorized,
+                    format!("The API key was refused (HTTP {}).", resp.status()),
+                ),
+                Err(_) => fail(
+                    start,
+                    ProbeErrorKind::Unreachable,
+                    "Could not reach the Gemini API to check this key.".into(),
+                ),
+            }
+        }
     }
 }
 

@@ -80,7 +80,7 @@ const CHIPS_COLLAPSED = 6;
 function authHintFor(row: OfferProvider): string | null {
   switch (row.auth) {
     case "server_google_identity":
-      return "Google Cloud identity";
+      return row.key_configured ? "Key set" : "Google Cloud identity";
     case "aws_chain":
       return "AWS credential chain";
     case "server_proxy":

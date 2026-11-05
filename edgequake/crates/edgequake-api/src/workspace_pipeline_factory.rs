@@ -183,7 +183,8 @@ impl WorkspacePipelineFactory {
                         .await
                         {
                             connected =
-                                crate::providers::connection_factory::llm_from_connection(&spec)
+                                crate::providers::connection_factory::llm_from_stored(&spec)
+                                    .await
                                     .ok();
                         }
                     }

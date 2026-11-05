@@ -547,7 +547,7 @@ impl WorkspaceProviderResolver {
             .await
             {
                 Ok(spec) => {
-                    match crate::providers::connection_factory::llm_from_connection(&spec) {
+                    match crate::providers::connection_factory::llm_from_stored(&spec).await {
                         Ok(provider) => Ok(Some(ResolvedLlmProvider {
                             provider,
                             provider_name: spec.shape,

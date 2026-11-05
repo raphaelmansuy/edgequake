@@ -147,8 +147,12 @@ fn key_configured_for(state: &AppState, slug: &str) -> bool {
     }
     let _ = state;
     // No row found: an identity-based provider is still usable, a key-based one is not known to be.
-    let (_, accepts_saved_key) = auth_for(slug);
-    !accepts_saved_key
+    // No row: an identity the server already holds is still usable. A key-based provider is not.
+    use crate::providers::connection_shapes::CONNECTION_SHAPES;
+    CONNECTION_SHAPES
+        .iter()
+        .find(|shape| shape.id == slug)
+        .is_some_and(|shape| shape.auth.server_identity_suffices())
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

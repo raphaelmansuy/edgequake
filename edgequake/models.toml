@@ -2190,7 +2190,9 @@ image_per_unit = 0.0
 name = "azure"
 display_name = "Azure OpenAI"
 type = "azure"
-api_base = ""  # Set via AZURE_OPENAI_ENDPOINT
+# Foundry v1: the resource host plus /openai/v1, and no dated api-version.
+# Source: learn.microsoft.com/azure/foundry/openai/api-version-lifecycle
+api_base = ""  # Set via AZURE_OPENAI_ENDPOINT, including /openai/v1
 api_key_env = "AZURE_OPENAI_API_KEY"
 enabled = false
 priority = 5
@@ -3083,7 +3085,10 @@ image_per_unit = 0.0
 name = "cohere"
 display_name = "Cohere"
 type = "openaicompatible"
-api_base = "https://api.cohere.com"
+# The Compatibility API is Cohere's OpenAI-shaped surface. `api.cohere.com/v1` speaks Cohere's
+# native shape (`message`, not `messages`) and would 400 through an OpenAI client.
+# Source: docs.cohere.com/docs/compatibility-api
+api_base = "https://api.cohere.ai/compatibility/v1"
 api_key_env = "COHERE_API_KEY"
 enabled = true
 priority = 26
@@ -3165,7 +3170,9 @@ embedding_dimension = 1024
 name = "huggingface"
 display_name = "HuggingFace"
 type = "openaicompatible"
-api_base = "https://api-inference.huggingface.co"
+# 2026: the legacy host returns 410 Gone. Inference Providers serve an OpenAI-shaped
+# router. Source: huggingface.co/docs/inference-providers
+api_base = "https://router.huggingface.co/v1"
 api_key_env = "HF_TOKEN"
 enabled = true
 priority = 28

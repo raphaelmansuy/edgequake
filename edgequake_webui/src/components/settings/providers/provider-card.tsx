@@ -225,7 +225,9 @@ function CredentialLine({ row }: { row: DeploymentProvider }) {
   return (
     <span className="inline-flex items-center gap-1" data-testid={`key-${row.slug}`}>
       <KeyRound className="h-3.5 w-3.5" aria-hidden />
-      {row.auth === "optional_api_key"
+      {row.auth === "server_google_identity"
+        ? t("settings.providers.credential.google", "Google Cloud identity")
+        : row.auth === "optional_api_key"
         ? t("settings.providers.keyOptional", "No key (optional)")
         : t("settings.providers.noKey", "No key")}
     </span>

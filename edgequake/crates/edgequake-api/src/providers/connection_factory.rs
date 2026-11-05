@@ -4,8 +4,11 @@
 
 use std::sync::Arc;
 
+use edgequake_llm::google_auth::GoogleCredentials;
 use edgequake_llm::traits::{EmbeddingProvider, LLMProvider};
 use edgequake_llm::{AnthropicProvider, GeminiProvider, OllamaProvider, OpenAIProvider};
+
+use super::credential_material::{self, OpenedSecret};
 
 use crate::error::ApiError;
 use crate::providers::connection_shapes::{is_openai_wire, requires_server_credentials};
@@ -23,6 +26,79 @@ pub struct ConnectionSpec {
     pub embedding_dimension: Option<usize>,
 }
 
+/// Build a provider, minting a Vertex token from a stored service-account file when one is saved.
+pub async fn llm_from_stored(spec: &ConnectionSpec) -> Result<Arc<dyn LLMProvider>, ApiError> {
+    if credential_material::is_vertex(&spec.shape) {
+        let inner = vertex_llm(spec).await?;
+        return Ok(wrap_llm("vertexai", inner));
+    }
+    llm_from_connection(spec)
+}
+
+/// Embedding provider for a stored connection. Vertex uses the same credential as chat.
+pub async fn embedding_from_stored(
+    spec: &ConnectionSpec,
+) -> Result<Arc<dyn EmbeddingProvider>, ApiError> {
+    if credential_material::is_vertex(&spec.shape) {
+        let inner = vertex_embed(spec).await?;
+        return Ok(wrap_embed("vertexai", inner));
+    }
+    embedding_from_connection(spec)
+}
+
+async fn vertex_llm(spec: &ConnectionSpec) -> Result<Arc<dyn LLMProvider>, ApiError> {
+    let provider = vertex_gemini(spec).await?;
+    Ok(Arc::new(provider.with_model(&spec.model)))
+}
+
+async fn vertex_embed(spec: &ConnectionSpec) -> Result<Arc<dyn EmbeddingProvider>, ApiError> {
+    let provider = vertex_gemini(spec).await?;
+    let model = spec
+        .embedding_model
+        .clone()
+        .unwrap_or_else(|| spec.model.clone());
+    Ok(Arc::new(provider.with_embedding_model(&model)))
+}
+
+async fn vertex_gemini(spec: &ConnectionSpec) -> Result<GeminiProvider, ApiError> {
+    let Some(raw) = spec
+        .api_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    else {
+        return GeminiProvider::from_env_vertex_ai_adc()
+            .await
+            .map_err(|err| ApiError::BadRequest(err.to_string()));
+    };
+    match credential_material::open_secret(raw) {
+        OpenedSecret::GoogleCredential { region, material } => {
+            let creds: GoogleCredentials = serde_json::from_str(&material).map_err(|_| {
+                ApiError::BadRequest(
+                    "The stored Google credential is not a service-account or authorized-user file."
+                        .into(),
+                )
+            })?;
+            let project = creds.project_id().unwrap_or("").trim().to_string();
+            if project.is_empty() {
+                return Err(ApiError::BadRequest(
+                    "The stored Google credential has no project_id.".into(),
+                ));
+            }
+            let principal = creds.principal().to_string();
+            let token = creds.into_source().refresh().await.map_err(|_| {
+                ApiError::BadRequest(format!(
+                    "Could not mint a Google access token for {principal}. The key may have been revoked."
+                ))
+            })?;
+            Ok(GeminiProvider::vertex_ai(project, region, token.token))
+        }
+        OpenedSecret::GoogleApiKey(material) | OpenedSecret::ApiKey(material) => {
+            Ok(GeminiProvider::new(material))
+        }
+    }
+}
+
 pub fn llm_from_connection(spec: &ConnectionSpec) -> Result<Arc<dyn LLMProvider>, ApiError> {
     let shape = spec.shape.to_ascii_lowercase();
     if requires_server_credentials(&shape) {
@@ -30,6 +106,23 @@ pub fn llm_from_connection(spec: &ConnectionSpec) -> Result<Arc<dyn LLMProvider>
     }
     let key = spec.api_key.clone().unwrap_or_default();
     let inner: Arc<dyn LLMProvider> = match shape.as_str() {
+        /*
+         * Vertex without an async token exchange. A saved Vertex secret is one of three things:
+         * nothing (the server identity), an API key (Express or service-account-bound), or a
+         * service-account JSON that must be traded for an access token over the network.
+         * `llm_from_stored` handles the last case; this sync path can only build the key one.
+         */
+        "vertexai" | "vertex" => match credential_material::open_secret(&key) {
+            OpenedSecret::GoogleApiKey(material) | OpenedSecret::ApiKey(material) => {
+                Arc::new(GeminiProvider::new(material).with_model(&spec.model))
+            }
+            OpenedSecret::GoogleCredential { .. } => {
+                return Err(ApiError::BadRequest(
+                    "A Vertex service-account file needs an async token exchange. Use the stored-connection path, which mints a token before it builds the client."
+                        .into(),
+                ));
+            }
+        },
         "ollama" => Arc::new(build_ollama(spec)?),
         "anthropic_messages" | "anthropic" | "claude" => Arc::new(
             AnthropicProvider::new(key)
@@ -43,6 +136,24 @@ pub fn llm_from_connection(spec: &ConnectionSpec) -> Result<Arc<dyn LLMProvider>
                 ));
             }
             Arc::new(GeminiProvider::new(key).with_model(&spec.model))
+        }
+        /*
+         * Azure is not plain OpenAI wire. Its model field is a *deployment*, and a saved base may
+         * or may not include the Foundry `/openai/v1` suffix. Normalising here means one stored
+         * URL works either way instead of producing `/openai/v1/openai/v1`.
+         */
+        "azure" | "azure-openai" | "azure_openai" => {
+            if key.is_empty() {
+                return Err(ApiError::BadRequest(
+                    "Azure OpenAI requires an API key on the connection".into(),
+                ));
+            }
+            let endpoint = azure_endpoint(&spec.base_url);
+            Arc::new(edgequake_llm::AzureOpenAIProvider::new(
+                endpoint,
+                key,
+                spec.model.clone(),
+            ))
         }
         other if is_openai_wire(other) => {
             Arc::new(OpenAIProvider::compatible(key, spec.base_url.clone()).with_model(&spec.model))
@@ -69,6 +180,17 @@ pub fn embedding_from_connection(
         .clone()
         .unwrap_or_else(|| spec.model.clone());
     let inner: Arc<dyn EmbeddingProvider> = match shape.as_str() {
+        "vertexai" | "vertex" => match credential_material::open_secret(&key) {
+            OpenedSecret::GoogleApiKey(material) | OpenedSecret::ApiKey(material) => {
+                Arc::new(GeminiProvider::new(material).with_embedding_model(&model))
+            }
+            OpenedSecret::GoogleCredential { .. } => {
+                return Err(ApiError::BadRequest(
+                    "A Vertex service-account file needs an async token exchange. Use the stored-connection path, which mints a token before it builds the client."
+                        .into(),
+                ));
+            }
+        },
         "ollama" => {
             let mut adjusted = spec.clone();
             adjusted.embedding_model = Some(model.clone());
@@ -82,6 +204,18 @@ pub fn embedding_from_connection(
             }
             Arc::new(GeminiProvider::new(key).with_embedding_model(&model))
         }
+        "azure" | "azure-openai" | "azure_openai" => {
+            if key.is_empty() {
+                return Err(ApiError::BadRequest(
+                    "Azure OpenAI requires an API key on the connection".into(),
+                ));
+            }
+            let endpoint = azure_endpoint(&spec.base_url);
+            Arc::new(
+                edgequake_llm::AzureOpenAIProvider::new(endpoint, key, spec.model.clone())
+                    .with_embedding_deployment(&model),
+            )
+        }
         other if is_openai_wire(other) => Arc::new(
             OpenAIProvider::compatible(key, spec.base_url.clone()).with_embedding_model(&model),
         ),
@@ -92,6 +226,23 @@ pub fn embedding_from_connection(
         }
     };
     Ok(wrap_embed(&shape, inner))
+}
+
+/// The Foundry v1 endpoint: the resource host, with exactly one `/openai/v1` suffix.
+///
+/// Operators paste either `https://r.openai.azure.com` or `.../openai/v1`, and the provider
+/// appends `/openai/v1` itself. Passing the already-suffixed form through yields
+/// `/openai/v1/openai/v1`. `/openai/deployments/...` is the legacy shape and is left alone.
+fn azure_endpoint(raw: &str) -> String {
+    let trimmed = raw.trim().trim_end_matches('/');
+    if trimmed.contains("/openai/deployments/") {
+        return trimmed.to_string();
+    }
+    trimmed
+        .strip_suffix("/openai/v1")
+        .unwrap_or(trimmed)
+        .trim_end_matches('/')
+        .to_string()
 }
 
 fn server_credential_error(shape: &str) -> ApiError {
@@ -146,6 +297,70 @@ fn wrap_embed(shape: &str, inner: Arc<dyn EmbeddingProvider>) -> Arc<dyn Embeddi
 mod tests {
     use super::*;
 
+    /*
+     * Endpoint facts that go stale. Each of these was a real 2026 breakage: Hugging Face retired
+     * its host, Cohere's `/v1` is not OpenAI-shaped, and Azure's Foundry route ends in `/openai/v1`.
+     */
+    #[test]
+    fn azure_endpoint_gets_exactly_one_foundry_suffix() {
+        assert_eq!(
+            azure_endpoint("https://r.openai.azure.com"),
+            "https://r.openai.azure.com"
+        );
+        assert_eq!(
+            azure_endpoint("https://r.openai.azure.com/"),
+            "https://r.openai.azure.com"
+        );
+        assert_eq!(
+            azure_endpoint("https://r.openai.azure.com/openai/v1"),
+            "https://r.openai.azure.com"
+        );
+        // A doubled suffix is the failure this prevents.
+        assert!(!azure_endpoint("https://r.openai.azure.com/openai/v1/").contains("/openai/v1"));
+        // The legacy deployment route is not ours to rewrite.
+        assert_eq!(
+            azure_endpoint("https://r.openai.azure.com/openai/deployments/gpt-4o"),
+            "https://r.openai.azure.com/openai/deployments/gpt-4o"
+        );
+    }
+
+    #[test]
+    fn azure_builds_a_provider_and_still_requires_a_key() {
+        let spec = ConnectionSpec {
+            shape: "azure".into(),
+            base_url: "https://r.openai.azure.com/openai/v1".into(),
+            api_key: Some("k".into()),
+            model: "gpt-4o".into(),
+            embedding_model: None,
+            embedding_dimension: None,
+        };
+        assert!(llm_from_connection(&spec).is_ok());
+        let keyless = ConnectionSpec {
+            api_key: None,
+            ..spec.clone()
+        };
+        assert!(llm_from_connection(&keyless).is_err());
+    }
+
+    #[test]
+    fn shape_defaults_point_at_the_surfaces_that_still_exist() {
+        use crate::providers::connection_shapes::CONNECTION_SHAPES;
+        let base = |id: &str| {
+            CONNECTION_SHAPES
+                .iter()
+                .find(|s| s.id == id)
+                .unwrap_or_else(|| panic!("no shape {id}"))
+                .default_base_url
+        };
+        // Retired in 2026 and returns 410 Gone.
+        assert!(!base("huggingface").contains("api-inference.huggingface.co"));
+        assert!(base("huggingface").contains("router.huggingface.co/v1"));
+        // Cohere's /v1 is the native shape; the Compatibility API is the OpenAI-shaped one.
+        assert!(base("cohere").contains("/compatibility/v1"));
+        // Foundry v1 needs the suffix and no dated api-version.
+        assert!(base("azure").ends_with("/openai/v1"));
+    }
+
     #[test]
     fn openai_compatible_constructs() {
         let spec = ConnectionSpec {
@@ -194,18 +409,36 @@ mod tests {
     }
 
     #[test]
-    fn vertex_does_not_fall_back_to_env() {
-        let spec = ConnectionSpec {
+    fn vertex_builds_from_a_saved_api_key_and_explains_a_service_account_file() {
+        // An Express key or a service-account-bound key is a plain Gemini-API key: sync build works.
+        let key_spec = ConnectionSpec {
             shape: "vertexai".into(),
             base_url: "https://aiplatform.googleapis.com".into(),
-            api_key: Some("k".into()),
-            model: "gemini".into(),
+            api_key: Some("AIzaSyDaGmWKa4JsXZ-HjGw7ISLn_3namBGewQe".into()),
+            model: "gemini-3-8-flash".into(),
             embedding_model: None,
             embedding_dimension: None,
         };
-        match llm_from_connection(&spec) {
-            Err(err) => assert!(err.to_string().contains("server credentials"), "{err}"),
-            Ok(_) => panic!("vertexai must not build from a saved key"),
+        assert!(llm_from_connection(&key_spec).is_ok());
+
+        // A service-account file needs an async token exchange, so the sync builder must say so
+        // rather than silently building the wrong client.
+        let json_spec = ConnectionSpec {
+            api_key: Some(
+                r#"{"type":"service_account","client_email":"a@b.iam.gserviceaccount.com","private_key":"-----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY-----","project_id":"p"}"#
+                    .into(),
+            ),
+            ..key_spec.clone()
+        };
+        match llm_from_connection(&json_spec) {
+            Err(err) => {
+                let msg = err.to_string();
+                assert!(
+                    msg.contains("service-account") || msg.contains("service account"),
+                    "{msg}"
+                );
+            }
+            Ok(_) => panic!("a service-account file must not build synchronously"),
         }
     }
 }
