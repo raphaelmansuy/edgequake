@@ -4,6 +4,103 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Providers and models settings say what each provider actually needs.** Captured and reviewed at
+  four widths and two themes in `specs/184-improve-provider-settings/e2e/` (11 iterations).
+  - **Vertex AI no longer claims "Key set".** The deployment card printed a green tick for any
+    provider with a stored value, so a Vertex row advertised a key its client refuses. The row now
+    reads "Google Cloud identity", driven by `auth`/`accepts_saved_key` on the DTO rather than by
+    guessing from the slug.
+  - **Raw slugs replaced by names.** The card showed `openai_chat` / `vertexai` next to the provider
+    name; it now shows the registry label ("OpenAI-compatible", "Vertex AI").
+  - **Offer rows state their requirement.** Each row under Organization/Workspace providers now
+    says `· Key set`, `· Key not set`, or `· Google Cloud identity` beside the model count, so a
+    reviewer can tell a local server (nothing to configure) from a cloud provider with a missing
+    credential.
+  - **"Model list not refreshed yet" no longer contradicts the list beneath it.** It reports a
+    *discovery run*, not model presence. It now reads "these models come from the catalog; no
+    discovery run since this provider was added".
+- **The Model roles table says the repeated instruction once.** Four rows each repeated the same
+  two-line sentence, making a tall noisy table. The card now shows one counted summary
+  ("4 jobs cannot use their saved model here…") and each row keeps only its own short reason.
+  - The count is derived from the rows themselves. It previously counted only server-resolved
+    breakage, so it said **3** while **four** rows were red; the e2e now asserts the two agree.
+  - A row whose picker says "Inherit" but whose inherited model is refused now says so
+    ("The inherited model is refused: …") instead of showing an unexplained error.
+  - One phrase per fact: the two wordings for the same condition ("Not allowed…" vs "This model is
+    not allowed…") are unified.
+
+### Fixed
+
+- **Vertex AI chat and image embedding authenticate as the same verified identity.** They used
+  different ladders: chat preferred the ADC file, embedding preferred `gcloud auth
+  print-access-token`. On a machine where those are different principals, chat authenticated as an
+  identity with no `aiplatform.endpoints.predict` on `GOOGLE_CLOUD_PROJECT` and **every query failed
+  403** while embedding worked. Proved by minting both tokens for the same model:
+  `gcloud(vertex-express) → 200`, `adc(authorized_user) → 403` on the same project — the ADC file's
+  own `quota_project_id` pointed somewhere else entirely.
+  - `providers::vertex_identity` now mints a candidate token and asks Vertex a **free**
+    `:countTokens` question with it, which needs the same permission as generation. The first
+    identity that answers wins and is cached for 30 minutes. Chat uses that token; embedding asks
+    the same module first.
+  - The failure is now reported as a sentence naming the project, the model, both identities tried
+    and the fix, instead of a raw provider body. Live verification prints
+    `verified identity gcloud active account for project mobioos-506015`.
+- **The health probe asks whether the identity may use the project, not just whether a token
+  exists.** It used to pass whenever any token could be minted, which is exactly how a broken
+  pairing reached a user query instead of the model picker.
+- **A provider permission failure is no longer reported as "Something went wrong".** A 403
+  `PERMISSION_DENIED` body is long, so the length guard replaced it with the generic sentence — the
+  one fact worth acting on, hidden. Permission, authentication and rate-limit failures each get
+  their own sentence now.
+
+- **The upload zone no longer hides its own controls.** Measured, not guessed: with the preview
+  panel open on a 1440px screen the drop target was **76px tall and held 113px** of invitation and
+  settings, so the parser and vision selects were scrolled out of a box that does not scroll. The
+  band now chooses one of three shapes from its *measured* height — inline controls, a single
+  settings button, or one compact row — because the old choice was driven by width alone and could
+  not see the problem.
+- **The "text only" note sits above the drop target instead of inside it.** As a flex sibling it
+  took 897px of a 963px row, squeezing the selects to **0px wide**; in a 216px column it wrapped to
+  192px inside a 97px box and was clipped to nothing. It is a fact about the workspace, not an
+  upload instruction, so it now renders beside the zone.
+- **The note is one line, expandable, and dismissible per workspace.** Four lines of prose above
+  the primary action, re-shown on every visit, was the definition of clunky. It now collapses to
+  one line with a **Why** toggle, keeps the full reason one click away (wired with
+  `aria-expanded`/`aria-controls`), and remembers a dismissal for that workspace only.
+- **The zone stops advertising "Images" on a workspace that refuses them.** The report showed a
+  note saying pictures cannot be stored directly above chips offering "Images". Only an explicit
+  `server says false` removes the chip — an unknown capability keeps it, because the server decides.
+- **Five wall-clock performance tests were flaky and are now stable.** Each took a single
+  `performance.now()` sample inside a parallel worker and compared it to a 1–100ms bound, so one GC
+  pause failed the suite: `normalize statuses` reported 165ms against 100ms, `format tokens` 63ms
+  against 50ms, `spread operator` 44ms against 5ms. They now warm up and take the fastest of three
+  runs (`src/lib/testing/timing.ts`). Eight consecutive full-suite runs pass, where roughly one in
+  five failed before. The bounds are unchanged, so a real regression still fails.
+- **A local provider may need no key and still accept one.** `AuthRequirement::OptionalApiKey` marks
+  the shapes where a key is optional (Ollama, vLLM, a proxied OpenAI-compatible gateway). Treating
+  them as keyless would have hidden a field that a protected local server needs.
+
+### Changed
+
+- **Each provider declares its security requirement as data, not prose.** `ConnectionShape` carries
+  an `AuthRequirement` (`api_key`, `api_key_and_endpoint`, `optional_api_key`,
+  `server_google_identity`, `aws_chain`, `server_proxy`) and `/api/v1/connections/shapes` returns
+  `auth`, `requires_key`, `accepts_saved_key` and `stores_secret`. The add-provider form hides the
+  key field for a shape that cannot use one and states the real requirement instead — the report's
+  page showed Vertex among providers with a key field it could never use.
+  - Two invariants are now tests: a shape that accepts a key is exactly one that stores a secret
+    (so a secret is never written in the clear), and a required key is always an accepted key.
+  - **"No key required" is not "no key accepted."** Local shapes keep an optional key field, because
+    a protected vLLM or proxied gateway is a real deployment. Marking them keyless would have made
+    those impossible to configure.
+
+### Added
+
+- `providers::vertex_identity`: identity selection, verification, caching and the operator-facing
+  error. The live test is `#[ignore]`d and reproduces the reported failure on demand.
+
 ## [0.40.0] — 2026-11-03
 
 Minor on v0.39.1. Schema moves **226 → 227** (migration `227_spec180_bm25_doc_stats`). An upgrade

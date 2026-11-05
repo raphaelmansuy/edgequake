@@ -294,25 +294,47 @@ pub fn vertex_auth_health_error() -> String {
     "No Vertex identity configured (ADC, service account, or GOOGLE_ACCESS_TOKEN)".to_string()
 }
 
-/// Live probe: can we obtain a token right now?
+/// Live probe: can we obtain a token right now **and is that identity allowed to call the
+/// configured project**?
+///
+/// SPEC-185: minting a token was never the whole question. Chat preferred the ADC file while the
+/// embedder preferred the gcloud account, so a machine could mint both tokens and still fail every
+/// query with 403 because the one chat picked had no permission on `GOOGLE_CLOUD_PROJECT`. The
+/// probe now exercises the model the workspace will actually use, with a free `:countTokens` call,
+/// which requires the same `aiplatform.endpoints.predict` permission as generation.
 pub async fn probe_vertex_auth_live() -> Result<(), String> {
-    if env_non_empty("GOOGLE_ACCESS_TOKEN") {
+    if env_non_empty("GOOGLE_ACCESS_TOKEN") && !env_non_empty("GOOGLE_CLOUD_PROJECT") {
+        // A static token with no project cannot be verified; keep the old behaviour rather than
+        // claiming a failure we have not measured.
         return Ok(());
     }
-    if vertex_metadata_available().await {
+    if vertex_metadata_available().await && !env_non_empty("GOOGLE_CLOUD_PROJECT") {
         return Ok(());
     }
-    if gcloud_adc_token_available() || gcloud_account_token_available() {
-        return Ok(());
+
+    let Some(project) = crate::providers::vertex_identity::vertex_project() else {
+        return Err(vertex_auth_health_error());
+    };
+    // The default chat model is a representative target: the permission is per project, not per
+    // model, so one authorised call answers the question for all of them.
+    let model = std::env::var("EDGEQUAKE_VERTEX_PROBE_MODEL")
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "gemini-3.8-flash".to_string());
+
+    match crate::providers::vertex_identity::verify(&project, &model).await {
+        Ok(identity) => {
+            tracing::debug!(
+                project = %project,
+                model = %model,
+                identity = identity.as_str(),
+                "Vertex identity verified against the configured project"
+            );
+            Ok(())
+        }
+        Err(message) => Err(message),
     }
-    if service_account_credentials_file_exists() {
-        return Err(
-            "Service account key set; run `gcloud auth application-default login \
-             --impersonate-service-account=...` or deploy on GCP with an attached service account"
-                .to_string(),
-        );
-    }
-    Err(vertex_auth_health_error())
 }
 
 fn env_non_empty(name: &str) -> bool {

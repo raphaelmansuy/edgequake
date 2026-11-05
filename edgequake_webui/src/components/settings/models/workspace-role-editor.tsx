@@ -6,6 +6,7 @@
  * what the ladder resolved, including locked and broken states.
  */
 
+import { useCallback, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useConnectionOptions, useEffectiveUsages } from "@/hooks/use-model-policy";
 import { useWorkspaceLlmRoles } from "@/hooks/use-workspace-llm-roles";
@@ -35,6 +36,26 @@ export function WorkspaceRoleEditor({ readOnly = false }: WorkspaceRoleEditorPro
 
   const resolved = new Map((effective.data?.usages ?? []).map((u) => [u.usage, u]));
   const connectionOptions = connections.data ?? [];
+  /*
+   * SPEC-184 — the count comes from the rows, not from a second derivation here.
+   *
+   * A row flags a saved model for two different reasons (the server resolved it as broken, or the
+   * picker cannot find it among the eligible ones). Counting only the first said "3" while four
+   * rows were red. Each row now reports its own verdict, so the summary and the table cannot
+   * disagree.
+   */
+  const [flaggedUsages, setFlaggedUsages] = useState<ReadonlySet<UsageKey>>(() => new Set());
+  const reportFlag = useCallback((usage: UsageKey, flagged: boolean) => {
+    setFlaggedUsages((current) => {
+      const has = current.has(usage);
+      if (has === flagged) return current;
+      const next = new Set(current);
+      if (flagged) next.add(usage);
+      else next.delete(usage);
+      return next;
+    });
+  }, []);
+  const ineligibleCount = flaggedUsages.size;
 
   return (
     <Card data-testid="model-roles-card">
@@ -47,6 +68,18 @@ export function WorkspaceRoleEditor({ readOnly = false }: WorkspaceRoleEditorPro
           Pick the model each job uses. Only models allowed for this workspace are listed. An empty
           model inherits the workspace default.
         </CardDescription>
+        {/*
+          SPEC-184 — the "pick another one to save" instruction is identical for every affected
+          row, so it belongs here once with a count instead of repeated four times inside the
+          table. The rows keep their own short reason, which is the part that differs.
+        */}
+        {ineligibleCount > 0 ? (
+          <p className="text-xs text-destructive" role="status" data-testid="model-roles-ineligible-summary">
+            {ineligibleCount === 1
+              ? "1 job cannot use its saved model here. Pick another one to save."
+              : `${ineligibleCount} jobs cannot use their saved model here. Pick another one for each to save.`}
+          </p>
+        ) : null}
       </CardHeader>
       <CardContent className="space-y-4">
         {!workspace ? (
@@ -73,6 +106,7 @@ export function WorkspaceRoleEditor({ readOnly = false }: WorkspaceRoleEditorPro
                   connections={connectionOptions}
                   readOnly={readOnly}
                   onChange={(next) => roles.patchUsage(usage, next)}
+                  onFlagChange={reportFlag}
                 />
               ))}
             </div>

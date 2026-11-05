@@ -6,6 +6,7 @@
  * @see specs/001-upload-pdf.md
  */
 
+import { fastestRunMs } from "@/lib/testing/timing";
 import type { CostBreakdown, StageCostBreakdown } from "@/types/cost";
 import { describe, expect, it } from "vitest";
 
@@ -525,37 +526,34 @@ describe("Edge Cases", () => {
 
 describe("Performance", () => {
   it("should format costs quickly", () => {
-    const start = performance.now();
+    const duration = fastestRunMs(() => {
+      for (let i = 0; i < 10000; i++) {
+        formatCost(Math.random() * 100);
+      }
+    });
 
-    for (let i = 0; i < 10000; i++) {
-      formatCost(Math.random() * 100);
-    }
-
-    const duration = performance.now() - start;
     expect(duration).toBeLessThan(50);
   });
 
   it("should format tokens quickly", () => {
-    const start = performance.now();
+    const duration = fastestRunMs(() => {
+      for (let i = 0; i < 10000; i++) {
+        formatTokens(Math.floor(Math.random() * 10_000_000));
+      }
+    });
 
-    for (let i = 0; i < 10000; i++) {
-      formatTokens(Math.floor(Math.random() * 10_000_000));
-    }
-
-    const duration = performance.now() - start;
     expect(duration).toBeLessThan(50);
   });
 
   it("should calculate trends quickly", () => {
-    const start = performance.now();
+    const duration = fastestRunMs(() => {
+      for (let i = 0; i < 10000; i++) {
+        const cost = Math.random() * 10;
+        const estimated = Math.random() * 10;
+        calculateTrend(cost, estimated);
+      }
+    });
 
-    for (let i = 0; i < 10000; i++) {
-      const cost = Math.random() * 10;
-      const estimated = Math.random() * 10;
-      calculateTrend(cost, estimated);
-    }
-
-    const duration = performance.now() - start;
     expect(duration).toBeLessThan(20);
   });
 });

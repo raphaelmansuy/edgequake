@@ -193,7 +193,11 @@
       "pdfParserAuto": "Auto",
       "settings": "上传设置",
       "textOnlyTitle": "此工作区只存储文本",
-      "textOnlyBody": "图片需要创建时选择“文本和图片”这一证据类型的工作区。该选择在创建时固定，请新建一个这样的工作区并在其中上传图片。",
+      "textOnlyTitleShort": "仅文本",
+      "textOnlyWhy": "原因",
+      "textOnlyHide": "收起",
+      "textOnlyBody": "证据类型在工作区创建时一次性确定。请新建一个工作区并选择证据类型“文本和图片”，然后在其中上传图片。",
+      "dismissTextOnly": "隐藏此提示",
       "imagesNeedImageWorkspace": "{{count}} 张图片未上传：此工作区只存储文本。图片需要创建时选择“文本和图片”这一证据类型的工作区。"
     },
     "duplicateDialog": {

@@ -40,6 +40,8 @@ sdks/**/bin/
 !specs/182-rags/images/probes/*.jpg
 !specs/182-rags/images/*.png
 !specs/182-rags/screenshots/**/*.png
+!specs/183-workspace-image-fix/screenshots/**/*.png
+!specs/184-improve-provider-settings/e2e/**/*.png
 
 # Environment files
 .env

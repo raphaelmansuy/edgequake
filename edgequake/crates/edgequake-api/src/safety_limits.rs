@@ -535,8 +535,40 @@ fn create_vertex_llm_via_adc(
             "Vertex AI requires a Tokio runtime for Application Default Credentials".to_string(),
         )
     })?;
-    let mut provider =
-        tokio::task::block_in_place(|| handle.block_on(GeminiProvider::from_env_vertex_ai_adc()))?;
+
+    /*
+     * SPEC-185 — do not let the provider pick its own credential.
+     *
+     * `from_env_vertex_ai_adc` prefers the ADC file, while the image embedder prefers
+     * `gcloud auth print-access-token`. On a machine where those are different principals, chat
+     * authenticated as an identity with no permission on GOOGLE_CLOUD_PROJECT and every query
+     * failed 403 while embedding worked. `select_identity` verifies a token against the configured
+     * project first (free `:countTokens`), so chat and embedding agree and the failure is reported
+     * with the project, the model and the fix instead of a raw provider error.
+     */
+    let project = crate::providers::vertex_identity::vertex_project().ok_or_else(|| {
+        LlmError::ConfigError(
+            "Vertex AI requires GOOGLE_CLOUD_PROJECT (run: make gcp-use PROJECT=<id>)".to_string(),
+        )
+    })?;
+    let region = crate::providers::vertex_identity::vertex_region();
+    let access = tokio::task::block_in_place(|| {
+        handle.block_on(crate::providers::vertex_identity::select_identity(
+            &project, actual,
+        ))
+    })
+    .map_err(LlmError::ConfigError)?;
+
+    tracing::debug!(
+        provider = "vertexai",
+        model = %actual,
+        project = %project,
+        region = %region,
+        identity = access.identity.as_str(),
+        "Vertex chat uses the verified Google identity"
+    );
+
+    let mut provider = GeminiProvider::vertex_ai(&project, &region, access.token);
     provider = provider.with_model(actual);
     if let Some(ctx) = ctx {
         provider = provider.with_application_context(ctx);

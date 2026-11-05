@@ -193,7 +193,11 @@
       "pdfParserAuto": "Auto",
       "settings": "Upload settings",
       "textOnlyTitle": "This workspace stores text only",
-      "textOnlyBody": "Pictures need a workspace created with evidence “Text and images”. That choice is fixed when the workspace is made, so create one there and upload the pictures in it.",
+      "textOnlyTitleShort": "Text only",
+      "textOnlyWhy": "Why",
+      "textOnlyHide": "Hide",
+      "textOnlyBody": "Evidence is set once, when a workspace is created. Create a new workspace with Evidence = “Text and images”, then upload pictures there.",
+      "dismissTextOnly": "Dismiss this note",
       "imagesNeedImageWorkspace": "{{count}} picture(s) were not uploaded: this workspace stores text only. Pictures need a workspace created with evidence “Text and images”."
     },
     "duplicateDialog": {

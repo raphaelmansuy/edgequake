@@ -27,6 +27,33 @@ pub struct EnvOrGcloudSource;
 #[async_trait::async_trait]
 impl TokenSource for EnvOrGcloudSource {
     async fn mint(&self) -> Result<String, EmbedError> {
+        /*
+         * SPEC-185 — prefer the identity verified against the configured project.
+         *
+         * This used to always take the gcloud account, while chat preferred the ADC file. When
+         * those are different principals, one path worked and the other failed 403 on the same
+         * project. Asking the shared verifier first is what makes chat and embedding agree; the
+         * gcloud path stays as the fallback for the case where no project is configured.
+         */
+        if let Some(project) = crate::providers::vertex_identity::vertex_project() {
+            let model = std::env::var("EDGEQUAKE_VERTEX_EMBEDDING_MODEL")
+                .ok()
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty())
+                .unwrap_or_else(|| "gemini-embedding-2".to_string());
+            match crate::providers::vertex_identity::select_identity(&project, &model).await {
+                Ok(access) => return Ok(access.token),
+                // Verified identity unavailable: fall through to the legacy ladder so a deployment
+                // that never configured a project keeps working exactly as before.
+                Err(err) => {
+                    tracing::debug!(
+                        project = %project,
+                        error = %err,
+                        "Vertex identity verification failed; using the gcloud token"
+                    );
+                }
+            }
+        }
         if let Ok(token) = std::env::var("GOOGLE_ACCESS_TOKEN") {
             let token = token.trim().to_string();
             if !token.is_empty() {

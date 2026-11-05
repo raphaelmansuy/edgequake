@@ -31,4 +31,35 @@ describe("query error attribution", () => {
       );
     },
   );
+
+  /*
+   * SPEC-185 — the reported failure. A 403 PERMISSION_DENIED body is long, so the length guard
+   * used to replace it with "Something went wrong", which hid a fixable credential problem.
+   */
+  it("names a provider permission failure instead of hiding it", () => {
+    const raw =
+      'LLM error: API error: Stream error: {"error":{"code":403,"message":"Permission ' +
+      "&#39;aiplatform.endpoints.predict&#39; denied on resource " +
+      '\'//aiplatform.googleapis.com/projects/mobioos-506015/locations/global/publishers/google/models/gemini-3.8-flash\'","status":"PERMISSION_DENIED"}}';
+    render(<MessageError message={raw} />);
+
+    const text = screen.getByRole("alert").textContent ?? "";
+    expect(text).toContain("refused the request");
+    expect(text).not.toContain("Something went wrong");
+  });
+
+  it("names an expired credential instead of hiding it", () => {
+    render(<MessageError message="LLM error: 401 UNAUTHENTICATED: token expired" />);
+
+    const text = screen.getByRole("alert").textContent ?? "";
+    expect(text).toContain("rejected the credentials");
+    expect(text).not.toContain("Something went wrong");
+  });
+
+  it("still refuses to dump a stack trace", () => {
+    const stack = `LLM error: boom\n    at Object.<anonymous> (${"x".repeat(300)})`;
+    render(<MessageError message={stack} />);
+
+    expect(screen.getByRole("alert").textContent).toContain("Something went wrong");
+  });
 });

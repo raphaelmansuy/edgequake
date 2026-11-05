@@ -212,6 +212,16 @@ pub async fn list_connection_shapes(_admin: ApiRequireAdmin) -> Json<Vec<serde_j
                 "label": shape.label,
                 "default_base_url": shape.default_base_url,
                 "hint": shape.hint,
+                /*
+                 * SPEC-185 — the security contract, not just prose. A form can now ask "may this
+                 * shape take a key?" and "is a saved value a secret?" instead of re-deriving it
+                 * from the id, which is how a Vertex connection with an unusable key could be
+                 * saved in the first place.
+                 */
+                "auth": shape.auth.as_str(),
+                "requires_key": shape.auth.requires_key(),
+                "accepts_saved_key": shape.auth.accepts_saved_key(),
+                "stores_secret": shape.auth.stores_secret(),
             })
         })
         .collect();

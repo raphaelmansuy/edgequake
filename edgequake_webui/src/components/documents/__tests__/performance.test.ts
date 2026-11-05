@@ -11,6 +11,7 @@
  * - Batch update handling
  */
 
+import { fastestRunMs } from "@/lib/testing/timing";
 import { describe, expect, it } from "vitest";
 
 // ============================================================================
@@ -35,11 +36,16 @@ interface PhaseProgress {
  * WHY: Measures execution time of a function
  * Used for performance benchmarking
  */
+/**
+ * See `@/lib/testing/timing` for why a single wall-clock sample is not a valid assertion inside
+ * a parallel test runner. Kept as a thin wrapper so the call sites read the same as before.
+ */
 function measureTime<T>(fn: () => T): { result: T; durationMs: number } {
-  const start = performance.now();
-  const result = fn();
-  const end = performance.now();
-  return { result, durationMs: end - start };
+  let result!: T;
+  const durationMs = fastestRunMs(() => {
+    result = fn();
+  });
+  return { result, durationMs };
 }
 
 /**
@@ -293,9 +299,7 @@ describe("Performance: Memory Efficiency", () => {
       const { durationMs } = measureTime(() => {
         for (let i = 0; i < 100; i++) {
           // Simulate map update
-          phases.map((p, idx) =>
-            idx === 0 ? { ...p, percentage: i } : p,
-          );
+          phases.map((p, idx) => (idx === 0 ? { ...p, percentage: i } : p));
         }
       });
 

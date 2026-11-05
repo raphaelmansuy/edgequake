@@ -30,7 +30,15 @@ test.describe("SPEC-175 model editors @spec175", () => {
     // Vision is saved as Qwen 3, which is not eligible for vision.
     const row = page.getByTestId("usage-row-vlm");
     await expect(row.getByTestId("usage-broken")).toHaveText("This model is not allowed for this workspace.");
-    await expect(row.getByText("The saved model is no longer allowed here.")).toBeVisible();
+    /*
+     * SPEC-184 — the "pick another one to save" instruction moved from every row to one summary
+     * line in the card header. Four identical sentences made the table tall and noisy; the count
+     * keeps it actionable, and this asserts it is present and singular.
+     */
+    await expect(page.getByTestId("model-roles-ineligible-summary")).toContainText(
+      "Pick another one for each to save.",
+    );
+    await expect(page.getByText("The saved model is no longer allowed here.")).toHaveCount(0);
     // The picker shows the saved pair, not "Inherit": the user sees what is actually saved.
     await expect(page.getByLabel("Model for Vision (PDF pages)")).toHaveValue("ollama::qwen3");
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { ConnectionOption } from "@/hooks/use-model-policy";
@@ -27,6 +27,15 @@ interface UsageRoleRowProps {
   connections: readonly ConnectionOption[];
   readOnly: boolean;
   onChange: (next: RoleDraft) => void;
+  /**
+   * SPEC-184 — reports whether this row is currently flagging a saved model that cannot be used.
+   *
+   * WHY a callback instead of counting in the parent: the row is the only place that knows both
+   * conditions (the server's resolved reason AND whether the saved pair is absent from the eligible
+   * list). The header used to count only the first, so it said "3" while four rows were red.
+   * Letting the rows report makes the summary and the table one fact by construction.
+   */
+  onFlagChange?: (usage: UsageKey, flagged: boolean) => void;
 }
 
 const selectClass =
@@ -56,18 +65,37 @@ function ResolvedSummary({ resolved }: { resolved: ResolvedUsage | undefined }) 
 /**
  * Why the saved pair cannot be used, placed directly under the picker that fixes it.
  *
- * The first line says what is wrong ("not allowed for this workspace"); the second says what to do
- * about it. Both sit under the picker, so the reader never has to join two columns to act.
+ * One short line, not two. The instruction ("pick another one to save") is identical on every
+ * affected row, so repeating it four times made a tall, noisy table: the card states it once
+ * above the rows. What stays here is the per-row fact — which model, and why it is refused.
  */
-function BrokenPickNotice({ resolved, savedButIneligible }: { resolved: ResolvedUsage | undefined; savedButIneligible: boolean }) {
+function BrokenPickNotice({
+  resolved,
+  savedButIneligible,
+  inheriting,
+}: {
+  resolved: ResolvedUsage | undefined;
+  savedButIneligible: boolean;
+  /** True when the refused value comes from inheritance, not from a saved pick. */
+  inheriting: boolean;
+}) {
+  /*
+   * SPEC-184 — ONE phrase for one fact. The resolved reason and the picker's own check both mean
+   * "this saved pair cannot run here", and they used to word it two different ways in the same
+   * table ("Not allowed…" vs "This model is not allowed…"), which reads like two problems.
+   *
+   * An inherited value is refused too, but the reader is looking at a picker that says "Inherit",
+   * so naming the source is the difference between an unexplained error and an obvious one.
+   */
   const broken = brokenMessage(resolved?.broken_reason ?? "none");
-  const reason = broken ?? (savedButIneligible ? "This model is not allowed for this workspace." : null);
+  const reason =
+    broken ??
+    (savedButIneligible ? brokenMessage("not_eligible") : null);
   if (!reason) return null;
   return (
-    <div className="space-y-0.5 text-xs text-destructive">
-      <p role="alert" data-testid="usage-broken">{reason}</p>
-      <p>The saved model is no longer allowed here. Pick another one to save.</p>
-    </div>
+    <p role="alert" className="text-xs text-destructive" data-testid="usage-broken">
+      {inheriting && broken ? `The inherited model is refused: ${reason}` : reason}
+    </p>
   );
 }
 
@@ -80,11 +108,28 @@ export function UsageRoleRow({
   connections,
   readOnly,
   onChange,
+  onFlagChange,
 }: UsageRoleRowProps) {
   const label = USAGE_LABELS[usage];
   const eligible = useEligibleModels(draft ? workspaceId : null, usage);
   const groups = useMemo(() => pickerGroups(eligible.data?.models ?? []), [eligible.data]);
   const options = useMemo(() => groups.flatMap((g) => g.options), [groups]);
+
+  const value = draft ? pickerValue(draft) : "";
+  // Only judge eligibility once the list has loaded; a pending list would flash a false warning.
+  const savedButIneligible =
+    !eligible.isPending && !!value && !options.some((o) => o.value === value);
+  /*
+   * Report to the card so its summary counts exactly the rows that render a reason. A row without a
+   * `draft` (the `decision` usage) has no picker and shows no reason, so it must not be counted —
+   * otherwise the summary says 5 while four rows are red. Every hook runs before the early return.
+   */
+  const flagged = draft
+    ? (resolved?.broken_reason ?? "none") !== "none" || savedButIneligible
+    : false;
+  useEffect(() => {
+    onFlagChange?.(usage, flagged);
+  }, [flagged, onFlagChange, usage]);
 
   if (!draft) {
     return (
@@ -100,9 +145,6 @@ export function UsageRoleRow({
     );
   }
 
-  const value = pickerValue(draft);
-  // Only judge eligibility once the list has loaded; a pending list would flash a false warning.
-  const savedButIneligible = !eligible.isPending && !!value && !options.some((o) => o.value === value);
   const locked = resolved?.locked ?? false;
   const controlsDisabled = readOnly || locked;
 
@@ -145,7 +187,7 @@ export function UsageRoleRow({
             </optgroup>
           ))}
         </select>
-        <BrokenPickNotice resolved={resolved} savedButIneligible={savedButIneligible} />
+        <BrokenPickNotice resolved={resolved} savedButIneligible={savedButIneligible} inheriting={!value} />
       </div>
       <div className="space-y-1">
         <label className="text-xs text-muted-foreground md:sr-only" htmlFor={`usage-connection-${usage}`}>

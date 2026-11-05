@@ -62,9 +62,20 @@ function RefreshLine({ row }: { row: DeploymentProvider }) {
   const { t } = useTranslation();
   const summary = refreshSummary(row);
   if (summary.tone === "never") {
+    /*
+     * SPEC-184 — say what this means, because as written it contradicted the page.
+     *
+     * `refresh` records a *discovery run*, not whether models exist. The card printed
+     * "Model list not refreshed yet" directly above a list of models, which reads as a bug. Naming
+     * the action ("since this provider was added") removes the contradiction; the button that
+     * performs it sits in the card header for providers that support discovery.
+     */
     return (
       <p className="text-xs text-muted-foreground" data-testid={`refresh-line-${row.slug}`}>
-        {t("settings.providers.neverRefreshed", "Model list not refreshed yet")}
+        {t(
+          "settings.providers.neverDiscovered",
+          "These models come from the catalog; no discovery run since this provider was added",
+        )}
       </p>
     );
   }
@@ -181,6 +192,46 @@ function ModelChips({ row }: { row: DeploymentProvider }) {
   );
 }
 
+/**
+ * How this provider proves who it is.
+ *
+ * WHY not `key_configured` alone: a Vertex AI row has a stored value and no usable key (it
+ * authenticates as the server's Google Cloud identity), so the card used to print "Key set" with a
+ * green tick for a provider whose key is refused. The server now states the contract on the row.
+ */
+function CredentialLine({ row }: { row: DeploymentProvider }) {
+  const { t } = useTranslation();
+  if (row.accepts_saved_key === false) {
+    const identity = row.auth === "aws_chain"
+      ? t("settings.providers.credential.aws", "AWS credential chain")
+      : row.auth === "server_proxy"
+        ? t("settings.providers.credential.proxy", "Server-held credential")
+        : t("settings.providers.credential.google", "Google Cloud identity");
+    return (
+      <span className="inline-flex items-center gap-1" data-testid={`key-${row.slug}`}>
+        <KeyRound className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+        {identity}
+      </span>
+    );
+  }
+  if (row.key_configured) {
+    return (
+      <span className="inline-flex items-center gap-1" data-testid={`key-${row.slug}`}>
+        <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+        {t("settings.providers.keySet", "Key set")}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1" data-testid={`key-${row.slug}`}>
+      <KeyRound className="h-3.5 w-3.5" aria-hidden />
+      {row.auth === "optional_api_key"
+        ? t("settings.providers.keyOptional", "No key (optional)")
+        : t("settings.providers.noKey", "No key")}
+    </span>
+  );
+}
+
 export function ProviderCard({
   row,
   busy,
@@ -204,20 +255,9 @@ export function ProviderCard({
         <div className="min-w-0 space-y-1">
           <h3 className="truncate text-base font-medium">{row.display_name}</h3>
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <span>{row.api_shape}</span>
-            <span className="inline-flex items-center gap-1" data-testid={`key-${row.slug}`}>
-              {row.key_configured ? (
-                <>
-                  <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
-                  {t("settings.providers.keySet", "Key set")}
-                </>
-              ) : (
-                <>
-                  <KeyRound className="h-3.5 w-3.5" aria-hidden />
-                  {t("settings.providers.noKey", "No key")}
-                </>
-              )}
-            </span>
+            {/* The registry's label, not the raw slug: `openai_chat` is an implementation term. */}
+            <span data-testid={`shape-${row.slug}`}>{row.api_shape_label ?? row.api_shape}</span>
+            <CredentialLine row={row} />
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

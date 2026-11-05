@@ -3,6 +3,7 @@
  */
 import { DEFAULT_VISION_EXTRACT_DRAFT } from "@/components/settings/vision-extract-controls";
 import i18n from "@/lib/i18n";
+import { resetTextOnlyNoticeDismissals } from "@/lib/documents/text-only-notice-dismiss";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -79,10 +80,13 @@ function renderZone(overrides: Partial<DocumentDropzoneProps> = {}) {
 describe("DocumentDropzone", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
+    localStorage.clear();
+    resetTextOnlyNoticeDismissals();
   });
 
   afterEach(() => {
     cleanup();
+    resetTextOnlyNoticeDismissals();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -196,5 +200,37 @@ describe("DocumentDropzone", () => {
     );
     expect(screen.queryByTestId("vision-settings-panel-trigger")).not.toBeInTheDocument();
     expect(screen.getByText("PDF parser")).toBeInTheDocument();
+  });
+
+  it("stops advertising Images on a workspace that cannot store them", () => {
+    installBox(720, 640);
+    renderZone({ acceptsImages: { embeds_images: false } });
+
+    const chips = screen.getByTestId("document-dropzone-formats");
+    expect(chips).toHaveTextContent("PDF");
+    expect(chips).not.toHaveTextContent("Images");
+  });
+
+  it("keeps the Images chip when the capability is unknown", () => {
+    installBox(720, 640);
+    renderZone({ acceptsImages: null });
+
+    // Absent is not "no": the server decides whether a picture is accepted, so the UI must
+    // not remove a format on a guess.
+    expect(screen.getByTestId("document-dropzone-formats")).toHaveTextContent("Images");
+  });
+
+  it("renders the text-only note above the drop target, not inside it", () => {
+    installBox(720, 640);
+    renderZone({ acceptsImages: { embeds_images: false } });
+
+    // SPEC-185: the note lives beside the drop target. Inside it, at the short-and-wide
+    // layout, it took 897px of a 963px row and squeezed the settings selects to 0px.
+    expect(screen.queryByTestId("dropzone-text-only-notice")).not.toBeInTheDocument();
+    // The zone itself is untouched: it is still a complete drop target.
+    expect(screen.getByTestId("document-dropzone")).toBeInTheDocument();
+    expect(screen.getByTestId("document-dropzone-title")).toHaveTextContent(
+      "Add documents",
+    );
   });
 });

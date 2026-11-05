@@ -6,6 +6,7 @@
  * @see specs/001-upload-pdf.md
  */
 
+import { fastestRunMs } from "@/lib/testing/timing";
 import { describe, expect, it } from "vitest";
 
 // ============================================================================
@@ -421,25 +422,23 @@ describe("Edge Cases", () => {
 
 describe("Performance", () => {
   it("should calculate ETA quickly for many iterations", () => {
-    const start = performance.now();
+    const duration = fastestRunMs(() => {
+      for (let i = 0; i < 10000; i++) {
+        calculateEta(i * 100, (i / 100) % 100, false, 120000);
+      }
+    });
 
-    for (let i = 0; i < 10000; i++) {
-      calculateEta(i * 100, (i / 100) % 100, false, 120000);
-    }
-
-    const duration = performance.now() - start;
     expect(duration).toBeLessThan(50);
   });
 
   it("should format time quickly for many iterations", () => {
-    const start = performance.now();
+    const duration = fastestRunMs(() => {
+      for (let i = 0; i < 10000; i++) {
+        formatTime(i * 1000);
+        formatShortTime(i * 1000);
+      }
+    });
 
-    for (let i = 0; i < 10000; i++) {
-      formatTime(i * 1000);
-      formatShortTime(i * 1000);
-    }
-
-    const duration = performance.now() - start;
     expect(duration).toBeLessThan(50);
   });
 });

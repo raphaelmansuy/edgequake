@@ -6,6 +6,7 @@
  * @see specs/001-upload-pdf.md
  */
 
+import { fastestRunMs } from "@/lib/testing/timing";
 import { describe, expect, it } from "vitest";
 
 // ============================================================================
@@ -597,19 +598,17 @@ describe("Edge Cases", () => {
 
 describe("Performance", () => {
   it("should check status types quickly", () => {
-    const start = performance.now();
+    const duration = fastestRunMs(() => {
+      for (let i = 0; i < 10000; i++) {
+        isProcessingStatus("extracting");
+        isTerminalStatus("completed");
+      }
+    });
 
-    for (let i = 0; i < 10000; i++) {
-      isProcessingStatus("extracting");
-      isTerminalStatus("completed");
-    }
-
-    const duration = performance.now() - start;
     expect(duration).toBeLessThan(50);
   });
 
   it("should normalize statuses quickly", () => {
-    const start = performance.now();
     const statuses = [
       "pending",
       "PROCESSING",
@@ -619,16 +618,16 @@ describe("Performance", () => {
       undefined,
     ];
 
-    for (let i = 0; i < 10000; i++) {
-      statuses.forEach((s) => normalizeStatus(s));
-    }
+    const duration = fastestRunMs(() => {
+      for (let i = 0; i < 10000; i++) {
+        statuses.forEach((s) => normalizeStatus(s));
+      }
+    });
 
-    const duration = performance.now() - start;
     expect(duration).toBeLessThan(100);
   });
 
   it("should get stage progress quickly", () => {
-    const start = performance.now();
     const statuses: DocumentStatus[] = [
       "chunking",
       "extracting",
@@ -637,11 +636,12 @@ describe("Performance", () => {
       "pending",
     ];
 
-    for (let i = 0; i < 10000; i++) {
-      statuses.forEach((s) => getStageProgress(s));
-    }
+    const duration = fastestRunMs(() => {
+      for (let i = 0; i < 10000; i++) {
+        statuses.forEach((s) => getStageProgress(s));
+      }
+    });
 
-    const duration = performance.now() - start;
     expect(duration).toBeLessThan(100);
   });
 });

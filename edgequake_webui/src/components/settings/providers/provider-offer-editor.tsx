@@ -31,8 +31,7 @@ import {
   useTenantOffer,
   useWorkspaceOffer,
 } from "@/hooks/use-provider-offer";
-import type { OfferProvider, ProviderOffer } from "@/lib/api/edgequake/provider-offer";
-import {
+import type { OfferProvider, ProviderOffer } from "@/lib/api/edgequake/provider-offer";import {
   draftFromProviders,
   lead,
   sameDraft,
@@ -72,6 +71,31 @@ interface GrantEditorProps {
 const CHIPS_COLLAPSED = 6;
 
 /**
+ * The one-line answer to "what does this provider need?", or `null` when it needs nothing.
+ *
+ * The offer row used to say only how many models a provider has. A reviewer scanning it could not
+ * tell a local server (nothing to configure) from a cloud provider whose identity or key was
+ * missing — the two cases that decide whether a workspace can answer at all.
+ */
+function authHintFor(row: OfferProvider): string | null {
+  switch (row.auth) {
+    case "server_google_identity":
+      return "Google Cloud identity";
+    case "aws_chain":
+      return "AWS credential chain";
+    case "server_proxy":
+      return "Server-held credential";
+    case "optional_api_key":
+      return null;
+    case "api_key":
+    case "api_key_and_endpoint":
+      return row.key_configured === false ? "Key not set" : "Key set";
+    default:
+      return null;
+  }
+}
+
+/**
  * One provider row.
  *
  * A provider with more models than `CHIPS_COLLAPSED` shows the first few and a `+N` button that
@@ -95,6 +119,7 @@ function ProviderRow({
   const models = row.models ?? [];
   const hidden = models.length - CHIPS_COLLAPSED;
   const shown = expanded ? models : models.slice(0, CHIPS_COLLAPSED);
+  const authHint = authHintFor(row);
 
   return (
     <li
@@ -114,6 +139,10 @@ function ProviderRow({
           <span className="block truncate font-medium">{row.display_name}</span>
           <span className="text-xs text-muted-foreground">
             {models.length} {models.length === 1 ? "model" : "models"}
+            {/* SPEC-184 — what this provider needs to authenticate. Without it a reviewer cannot
+                tell an entry that is silent because it is local from one that is silent because
+                its identity is missing. */}
+            {authHint ? <span className="text-muted-foreground/70"> · {authHint}</span> : null}
           </span>
         </span>
       </label>

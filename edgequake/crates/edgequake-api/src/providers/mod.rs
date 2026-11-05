@@ -65,12 +65,14 @@ pub mod probe;
 mod resolver;
 #[cfg(feature = "postgres")]
 pub mod secret_manager;
+pub mod vertex_identity;
 
 pub use credentials::{
     credential_kind_for, llm_provider_credentials_configured,
     llm_provider_credentials_configured_by_name, provider_config_requirements,
     provider_credentials_configured, vertex_auth_configured_sync, CredentialKind,
 };
+pub use vertex_identity::{select_identity, verify as verify_vertex_identity, VertexAccess, VertexIdentity};
 pub use error::ProviderResolutionError;
 pub use resolver::{
     LlmResolutionRequest, ProviderSource, ResolvedEmbeddingProvider, ResolvedLlmProvider,

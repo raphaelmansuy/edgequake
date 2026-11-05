@@ -1,0 +1,325 @@
+[
+  {
+    "label": "closed-1440",
+    "viewport": {
+      "w": 1440,
+      "h": 900
+    },
+    "zone": {
+      "w": 963,
+      "h": 110,
+      "x": 252,
+      "y": 152
+    },
+    "zoneOverflow": {
+      "scrollW": 977,
+      "clientW": 961,
+      "clippedX": true,
+      "scrollH": 108,
+      "clientH": 108,
+      "clippedY": false
+    },
+    "zoneLayout": "row",
+    "zoneDensity": "row",
+    "notice": {
+      "w": 897,
+      "h": 65,
+      "x": 277,
+      "y": 178
+    },
+    "title": {
+      "w": 0,
+      "h": 20,
+      "x": 1230,
+      "y": 197
+    },
+    "combo": {
+      "w": 0,
+      "h": 72,
+      "x": 1202,
+      "y": 171
+    },
+    "comboOverflow": {
+      "scrollW": 26,
+      "clientW": 0,
+      "clippedX": true,
+      "scrollH": 72,
+      "clientH": 72,
+      "clippedY": false
+    },
+    "clippedText": [
+      "Drop files or choose them",
+      "Drop files here, or choose them from you",
+      "Workspace (Vision)",
+      "Vision"
+    ]
+  },
+  {
+    "label": "preview-1440",
+    "viewport": {
+      "w": 1440,
+      "h": 900
+    },
+    "zone": {
+      "w": 558,
+      "h": 110,
+      "x": 252,
+      "y": 152
+    },
+    "zoneOverflow": {
+      "scrollW": 556,
+      "clientW": 556,
+      "clippedX": false,
+      "scrollH": 250,
+      "clientH": 108,
+      "clippedY": true
+    },
+    "zoneLayout": "stack",
+    "zoneDensity": "compact",
+    "notice": {
+      "w": 532,
+      "h": 65,
+      "x": 265,
+      "y": 161
+    },
+    "title": {
+      "w": 214,
+      "h": 20,
+      "x": 309,
+      "y": 244
+    },
+    "combo": {
+      "w": 556,
+      "h": 113,
+      "x": 253,
+      "y": 290
+    },
+    "comboOverflow": {
+      "scrollW": 556,
+      "clientW": 556,
+      "clippedX": false,
+      "scrollH": 112,
+      "clientH": 112,
+      "clippedY": false
+    },
+    "clippedText": []
+  },
+  {
+    "label": "closed-1280",
+    "viewport": {
+      "w": 1280,
+      "h": 900
+    },
+    "zone": null,
+    "zoneOverflow": null,
+    "zoneLayout": null,
+    "zoneDensity": null,
+    "notice": null,
+    "title": null,
+    "combo": null,
+    "comboOverflow": null,
+    "clippedText": []
+  },
+  {
+    "label": "preview-1280",
+    "viewport": {
+      "w": 1280,
+      "h": 900
+    },
+    "zone": {
+      "w": 422,
+      "h": 110,
+      "x": 252,
+      "y": 152
+    },
+    "zoneOverflow": {
+      "scrollW": 420,
+      "clientW": 420,
+      "clippedX": false,
+      "scrollH": 194,
+      "clientH": 108,
+      "clippedY": true
+    },
+    "zoneLayout": "stack",
+    "zoneDensity": "compact",
+    "notice": {
+      "w": 396,
+      "h": 81,
+      "x": 265,
+      "y": 161
+    },
+    "title": {
+      "w": 214,
+      "h": 20,
+      "x": 309,
+      "y": 260
+    },
+    "combo": {
+      "w": 0,
+      "h": 0,
+      "x": 0,
+      "y": 0
+    },
+    "comboOverflow": {
+      "scrollW": 0,
+      "clientW": 0,
+      "clippedX": false,
+      "scrollH": 0,
+      "clientH": 0,
+      "clippedY": false
+    },
+    "clippedText": []
+  },
+  {
+    "label": "closed-1024",
+    "viewport": {
+      "w": 1024,
+      "h": 900
+    },
+    "zone": {
+      "w": 612,
+      "h": 110,
+      "x": 252,
+      "y": 152
+    },
+    "zoneOverflow": {
+      "scrollW": 610,
+      "clientW": 610,
+      "clippedX": false,
+      "scrollH": 250,
+      "clientH": 108,
+      "clippedY": true
+    },
+    "zoneLayout": "stack",
+    "zoneDensity": "compact",
+    "notice": {
+      "w": 586,
+      "h": 65,
+      "x": 265,
+      "y": 161
+    },
+    "title": {
+      "w": 214,
+      "h": 20,
+      "x": 309,
+      "y": 244
+    },
+    "combo": {
+      "w": 610,
+      "h": 113,
+      "x": 253,
+      "y": 290
+    },
+    "comboOverflow": {
+      "scrollW": 610,
+      "clientW": 610,
+      "clippedX": false,
+      "scrollH": 112,
+      "clientH": 112,
+      "clippedY": false
+    },
+    "clippedText": []
+  },
+  {
+    "label": "preview-1024",
+    "viewport": {
+      "w": 1024,
+      "h": 900
+    },
+    "zone": {
+      "w": 206,
+      "h": 99,
+      "x": 252,
+      "y": 215
+    },
+    "zoneOverflow": {
+      "scrollW": 204,
+      "clientW": 204,
+      "clippedX": false,
+      "scrollH": 345,
+      "clientH": 97,
+      "clippedY": true
+    },
+    "zoneLayout": "stack",
+    "zoneDensity": "compact",
+    "notice": {
+      "w": 180,
+      "h": 192,
+      "x": 265,
+      "y": 224
+    },
+    "title": {
+      "w": 136,
+      "h": 20,
+      "x": 309,
+      "y": 434
+    },
+    "combo": {
+      "w": 0,
+      "h": 0,
+      "x": 0,
+      "y": 0
+    },
+    "comboOverflow": {
+      "scrollW": 0,
+      "clientW": 0,
+      "clippedX": false,
+      "scrollH": 0,
+      "clientH": 0,
+      "clippedY": false
+    },
+    "clippedText": [
+      "Drop files or choose them · up to 50MB"
+    ]
+  },
+  {
+    "label": "closed-820",
+    "viewport": {
+      "w": 820,
+      "h": 900
+    },
+    "zone": {
+      "w": 642,
+      "h": 110,
+      "x": 52,
+      "y": 152
+    },
+    "zoneOverflow": {
+      "scrollW": 640,
+      "clientW": 640,
+      "clippedX": false,
+      "scrollH": 250,
+      "clientH": 108,
+      "clippedY": true
+    },
+    "zoneLayout": "stack",
+    "zoneDensity": "compact",
+    "notice": {
+      "w": 616,
+      "h": 65,
+      "x": 65,
+      "y": 161
+    },
+    "title": {
+      "w": 214,
+      "h": 20,
+      "x": 109,
+      "y": 244
+    },
+    "combo": {
+      "w": 640,
+      "h": 113,
+      "x": 53,
+      "y": 290
+    },
+    "comboOverflow": {
+      "scrollW": 640,
+      "clientW": 640,
+      "clippedX": false,
+      "scrollH": 112,
+      "clientH": 112,
+      "clippedY": false
+    },
+    "clippedText": []
+  }
+]

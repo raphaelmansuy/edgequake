@@ -57,6 +57,31 @@ function humanise(
       "Rate limited by the LLM provider. Wait a moment and retry.",
     );
   }
+  /*
+   * SPEC-185 — a permission failure used to be reported as "Something went wrong".
+   *
+   * `PERMISSION_DENIED` arrives as a long JSON body, so the length guard below swallowed the one
+   * useful fact. That hid a real, fixable misconfiguration: the model's Google identity had no
+   * access to the configured project, which reads as a generic outage and leaves the operator with
+   * nothing to act on. Naming it turns an unexplained failure into a one-line fix.
+   */
+  if (
+    lower.includes("permission_denied") ||
+    lower.includes("permission '") ||
+    lower.includes("permission ") ||
+    lower.includes("403")
+  ) {
+    return t(
+      "query.errorPermission",
+      "The model provider refused the request: its credentials are not allowed to use this project or model. Ask an administrator to check the provider credentials.",
+    );
+  }
+  if (lower.includes("unauthenticated") || lower.includes("401")) {
+    return t(
+      "query.errorUnauthenticated",
+      "The model provider rejected the credentials. They may have expired — an administrator can reconnect the provider.",
+    );
+  }
   // Never dump stacks
   if (raw.length > 280 || raw.includes("\n    at ")) {
     return t(

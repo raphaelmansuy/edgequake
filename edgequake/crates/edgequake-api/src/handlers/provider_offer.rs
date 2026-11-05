@@ -51,11 +51,27 @@ pub struct DeploymentProviderDto {
     pub display_name: String,
     pub origin: String,
     pub api_shape: String,
+    /// SPEC-184 — the human name for `api_shape` ("OpenAI-compatible", "Vertex AI").
+    ///
+    /// The card printed the raw slug (`openai_chat`, `azure`, `vertexai`) next to the provider
+    /// name, which reads as jargon and, worse, hides the one thing a reviewer needs: whether the
+    /// provider speaks a compatible API or its own protocol. The registry already holds the label,
+    /// so the server sends it instead of teaching the UI a second mapping.
+    pub api_shape_label: String,
     pub offered: bool,
     pub withdrawn: bool,
     pub probe: String,
     pub key_configured: bool,
     pub models: Vec<OfferModelDto>,
+    /// SPEC-184 — how this provider authenticates, from the shape registry.
+    ///
+    /// WHY it is on the DTO: the card used to print "Key set" for any provider with a stored
+    /// secret, so a Vertex AI row claimed a key it cannot use (Vertex authenticates as the server's
+    /// Google identity). The UI cannot infer this from `key_configured`, and guessing from the slug
+    /// is the kind of duplication that drifts. One field, one source of truth.
+    pub auth: String,
+    /// Whether a stored key is meaningful here. `false` means "identity, not a secret".
+    pub accepts_saved_key: bool,
     /// Last per-provider refresh (SPEC-179). Absent until the first refresh.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refresh: Option<ProviderRefreshState>,
@@ -76,6 +92,62 @@ pub struct DeploymentProvidersResponse {
     pub providers: Vec<DeploymentProviderDto>,
 }
 
+/// How a provider authenticates, from the shape registry.
+///
+/// A slug with no registered shape is treated as key-based: that is the common case, and an
+/// unknown shape must not silently lose the indicator that a key is configured.
+fn auth_for(slug: &str) -> (String, bool) {
+    use crate::providers::connection_shapes::CONNECTION_SHAPES;
+    match CONNECTION_SHAPES.iter().find(|shape| shape.id == slug) {
+        Some(shape) => (shape.auth.as_str().to_string(), shape.auth.accepts_saved_key()),
+        None => ("api_key".to_string(), true),
+    }
+}
+
+/// The human label for a provider's `api_shape`, falling back to the raw value.
+fn shape_label(slug: &str) -> String {
+    use crate::providers::connection_shapes::CONNECTION_SHAPES;
+    CONNECTION_SHAPES
+        .iter()
+        .find(|shape| shape.id == slug)
+        .map(|shape| shape.label.to_string())
+        .unwrap_or_else(|| slug.to_string())
+}
+
+/// Does this provider have a usable credential? Env-backed providers always answer `true` here
+/// because their presence in the parent set *is* the evidence that they are configured.
+fn key_configured_for(state: &AppState, slug: &str) -> bool {
+    let from_env = env_connections()
+        .iter()
+        .any(|row| row.slug == slug && row.key_configured);
+    if from_env {
+        return true;
+    }
+    #[cfg(feature = "postgres")]
+    if let Some(pool) = state.optional_pg_pool() {
+        let found: Option<(bool,)> = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                sqlx::query_as(
+                    "SELECT (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL) \
+                     FROM provider_connections WHERE slug = $1 AND tenant_id IS NULL LIMIT 1",
+                )
+                .bind(slug)
+                .fetch_optional(pool)
+                .await
+            })
+        })
+        .ok()
+        .flatten();
+        if let Some((configured,)) = found {
+            return configured;
+        }
+    }
+    let _ = state;
+    // No row found: an identity-based provider is still usable, a key-based one is not known to be.
+    let (_, accepts_saved_key) = auth_for(slug);
+    !accepts_saved_key
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct WithdrawRequest {
     pub withdrawn: bool,
@@ -88,6 +160,9 @@ pub struct OfferProviderDto {
     pub offered_by_parent: bool,
     pub enabled: bool,
     pub models: Vec<OfferModelDto>,
+    /// SPEC-184 — the security contract, so a row can state what the provider needs.
+    pub auth: String,
+    pub key_configured: bool,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -162,16 +237,21 @@ pub async fn get_deployment_providers(
             continue;
         }
         let withdrawn = !offered.contains(&slug);
+        let (auth, accepts_saved_key) = auth_for(&slug);
+        let label = shape_label(&slug);
         providers.push(DeploymentProviderDto {
             models: models_for(&catalog, &slug),
             slug,
             display_name: row.display_name,
             origin: "env".into(),
+            api_shape_label: label,
             api_shape: row.api_shape,
             offered: offered.contains(&row.slug) || offered.iter().any(|s| s == &row.slug),
             withdrawn,
             probe: "ok".into(),
             key_configured: row.key_configured,
+            auth,
+            accepts_saved_key,
             refresh: None,
         });
     }
@@ -209,6 +289,7 @@ pub async fn get_deployment_providers(
                 Some(false) => "failed",
                 None => "unchecked",
             };
+            let (auth, accepts_saved_key) = auth_for(&slug);
             providers.push(DeploymentProviderDto {
                 offered: offered.contains(&slug),
                 withdrawn: withdrawn.contains(&slug),
@@ -216,9 +297,12 @@ pub async fn get_deployment_providers(
                 slug,
                 display_name,
                 origin: "fleet".into(),
+                api_shape_label: shape_label(&slug),
                 api_shape,
                 probe: probe.into(),
                 key_configured,
+                auth,
+                accepts_saved_key,
                 refresh: None,
             });
         }
@@ -773,12 +857,17 @@ async fn offer_body(
     crate::services::model_policy_catalog::append_connection_models(state, &mut catalog).await?;
     let providers = parent
         .iter()
-        .map(|slug| OfferProviderDto {
-            display_name: slug.clone(),
-            offered_by_parent: true,
-            enabled: offer.slugs.contains(slug),
-            models: models_for(&catalog, slug),
-            slug: slug.clone(),
+        .map(|slug| {
+            let (auth, _accepts) = auth_for(slug);
+            OfferProviderDto {
+                display_name: slug.clone(),
+                offered_by_parent: true,
+                enabled: offer.slugs.contains(slug),
+                models: models_for(&catalog, slug),
+                auth,
+                key_configured: key_configured_for(state, slug),
+                slug: slug.clone(),
+            }
         })
         .collect();
     Ok(ProviderOfferResponse {

@@ -1,0 +1,358 @@
+[
+  {
+    "label": "closed-1440",
+    "viewport": {
+      "w": 1440,
+      "h": 900
+    },
+    "zone": {
+      "w": 1112,
+      "h": 76,
+      "x": 252,
+      "y": 186
+    },
+    "zoneOverflow": {
+      "scrollW": 1110,
+      "clientW": 1110,
+      "clippedX": false,
+      "scrollH": 74,
+      "clientH": 74,
+      "clippedY": false
+    },
+    "zoneLayout": "row",
+    "zoneDensity": "row",
+    "notice": {
+      "w": 1088,
+      "h": 26,
+      "x": 264,
+      "y": 160
+    },
+    "title": {
+      "w": 234,
+      "h": 20,
+      "x": 301,
+      "y": 214
+    },
+    "combo": {
+      "w": 809,
+      "h": 36,
+      "x": 543,
+      "y": 206
+    },
+    "comboOverflow": {
+      "scrollW": 809,
+      "clientW": 809,
+      "clippedX": false,
+      "scrollH": 36,
+      "clientH": 36,
+      "clippedY": false
+    },
+    "clippedText": [
+      "Drop files here, or choose them from you"
+    ]
+  },
+  {
+    "label": "preview-1440",
+    "viewport": {
+      "w": 1440,
+      "h": 900
+    },
+    "zone": {
+      "w": 632,
+      "h": 76,
+      "x": 252,
+      "y": 186
+    },
+    "zoneOverflow": {
+      "scrollW": 630,
+      "clientW": 630,
+      "clippedX": false,
+      "scrollH": 74,
+      "clientH": 74,
+      "clippedY": false
+    },
+    "zoneLayout": "stack",
+    "zoneDensity": "compact",
+    "notice": {
+      "w": 608,
+      "h": 26,
+      "x": 264,
+      "y": 160
+    },
+    "title": {
+      "w": 214,
+      "h": 20,
+      "x": 309,
+      "y": 197
+    },
+    "combo": {
+      "w": 0,
+      "h": 0,
+      "x": 0,
+      "y": 0
+    },
+    "comboOverflow": {
+      "scrollW": 0,
+      "clientW": 0,
+      "clippedX": false,
+      "scrollH": 0,
+      "clientH": 0,
+      "clippedY": false
+    },
+    "clippedText": []
+  },
+  {
+    "label": "closed-1280",
+    "viewport": {
+      "w": 1280,
+      "h": 900
+    },
+    "zone": {
+      "w": 952,
+      "h": 76,
+      "x": 252,
+      "y": 186
+    },
+    "zoneOverflow": {
+      "scrollW": 950,
+      "clientW": 950,
+      "clippedX": false,
+      "scrollH": 74,
+      "clientH": 74,
+      "clippedY": false
+    },
+    "zoneLayout": "row",
+    "zoneDensity": "row",
+    "notice": {
+      "w": 928,
+      "h": 26,
+      "x": 264,
+      "y": 160
+    },
+    "title": {
+      "w": 194,
+      "h": 20,
+      "x": 301,
+      "y": 214
+    },
+    "combo": {
+      "w": 689,
+      "h": 36,
+      "x": 503,
+      "y": 206
+    },
+    "comboOverflow": {
+      "scrollW": 689,
+      "clientW": 689,
+      "clippedX": false,
+      "scrollH": 36,
+      "clientH": 36,
+      "clippedY": false
+    },
+    "clippedText": [
+      "Drop files here, or choose them from you"
+    ]
+  },
+  {
+    "label": "preview-1280",
+    "viewport": {
+      "w": 1280,
+      "h": 900
+    },
+    "zone": {
+      "w": 472,
+      "h": 76,
+      "x": 252,
+      "y": 186
+    },
+    "zoneOverflow": {
+      "scrollW": 470,
+      "clientW": 470,
+      "clippedX": false,
+      "scrollH": 97,
+      "clientH": 74,
+      "clippedY": true
+    },
+    "zoneLayout": "stack",
+    "zoneDensity": "compact",
+    "notice": {
+      "w": 448,
+      "h": 26,
+      "x": 264,
+      "y": 160
+    },
+    "title": {
+      "w": 214,
+      "h": 20,
+      "x": 309,
+      "y": 197
+    },
+    "combo": {
+      "w": 0,
+      "h": 0,
+      "x": 0,
+      "y": 0
+    },
+    "comboOverflow": {
+      "scrollW": 0,
+      "clientW": 0,
+      "clippedX": false,
+      "scrollH": 0,
+      "clientH": 0,
+      "clippedY": false
+    },
+    "clippedText": []
+  },
+  {
+    "label": "closed-1024",
+    "viewport": {
+      "w": 1024,
+      "h": 900
+    },
+    "zone": {
+      "w": 696,
+      "h": 76,
+      "x": 252,
+      "y": 186
+    },
+    "zoneOverflow": {
+      "scrollW": 694,
+      "clientW": 694,
+      "clippedX": false,
+      "scrollH": 74,
+      "clientH": 74,
+      "clippedY": false
+    },
+    "zoneLayout": "stack",
+    "zoneDensity": "compact",
+    "notice": {
+      "w": 672,
+      "h": 26,
+      "x": 264,
+      "y": 160
+    },
+    "title": {
+      "w": 214,
+      "h": 20,
+      "x": 309,
+      "y": 197
+    },
+    "combo": {
+      "w": 0,
+      "h": 0,
+      "x": 0,
+      "y": 0
+    },
+    "comboOverflow": {
+      "scrollW": 0,
+      "clientW": 0,
+      "clippedX": false,
+      "scrollH": 0,
+      "clientH": 0,
+      "clippedY": false
+    },
+    "clippedText": []
+  },
+  {
+    "label": "preview-1024",
+    "viewport": {
+      "w": 1024,
+      "h": 900
+    },
+    "zone": {
+      "w": 216,
+      "h": 65,
+      "x": 252,
+      "y": 249
+    },
+    "zoneOverflow": {
+      "scrollW": 214,
+      "clientW": 214,
+      "clippedX": false,
+      "scrollH": 137,
+      "clientH": 63,
+      "clippedY": true
+    },
+    "zoneLayout": "stack",
+    "zoneDensity": "compact",
+    "notice": {
+      "w": 192,
+      "h": 26,
+      "x": 264,
+      "y": 223
+    },
+    "title": {
+      "w": 146,
+      "h": 20,
+      "x": 309,
+      "y": 260
+    },
+    "combo": {
+      "w": 0,
+      "h": 0,
+      "x": 0,
+      "y": 0
+    },
+    "comboOverflow": {
+      "scrollW": 0,
+      "clientW": 0,
+      "clippedX": false,
+      "scrollH": 0,
+      "clientH": 0,
+      "clippedY": false
+    },
+    "clippedText": [
+      "Drop files or choose them · up to 50MB"
+    ]
+  },
+  {
+    "label": "closed-820",
+    "viewport": {
+      "w": 820,
+      "h": 900
+    },
+    "zone": {
+      "w": 642,
+      "h": 76,
+      "x": 52,
+      "y": 186
+    },
+    "zoneOverflow": {
+      "scrollW": 640,
+      "clientW": 640,
+      "clippedX": false,
+      "scrollH": 74,
+      "clientH": 74,
+      "clippedY": false
+    },
+    "zoneLayout": "stack",
+    "zoneDensity": "compact",
+    "notice": {
+      "w": 618,
+      "h": 26,
+      "x": 64,
+      "y": 160
+    },
+    "title": {
+      "w": 214,
+      "h": 20,
+      "x": 109,
+      "y": 197
+    },
+    "combo": {
+      "w": 0,
+      "h": 0,
+      "x": 0,
+      "y": 0
+    },
+    "comboOverflow": {
+      "scrollW": 0,
+      "clientW": 0,
+      "clippedX": false,
+      "scrollH": 0,
+      "clientH": 0,
+      "clippedY": false
+    },
+    "clippedText": []
+  }
+]

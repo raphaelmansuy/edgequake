@@ -17,6 +17,15 @@ export interface DeploymentProvider {
   withdrawn: boolean;
   probe: string;
   key_configured: boolean;
+  /**
+   * SPEC-184 — how the provider authenticates (`api_key`, `server_google_identity`, …) and whether
+   * a stored key means anything. Optional so a payload from an older server still parses; when
+   * absent the card falls back to `key_configured`, which is what it always used.
+   */
+  auth?: string;
+  accepts_saved_key?: boolean;
+  /** Human name for `api_shape` ("OpenAI-compatible"), from the shape registry. */
+  api_shape_label?: string;
   models: OfferModel[];
   refresh?: {
     refreshed_at: string;
@@ -33,6 +42,12 @@ export interface OfferProvider {
   offered_by_parent: boolean;
   enabled: boolean;
   models: OfferModel[];
+  /**
+   * SPEC-184 — the security contract, so a row can say what the provider needs instead of only how
+   * many models it has. Optional: an older server omits them and the row stays as it was.
+   */
+  auth?: string;
+  key_configured?: boolean;
 }
 
 export interface ProviderOffer {

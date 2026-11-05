@@ -2887,6 +2887,12 @@ image_per_unit = 0.0
 [[providers]]
 name = "vertexai"
 display_name = "Google Vertex AI"
+# `type` stays `openaicompatible` because `edgequake_llm::ProviderType` has no Vertex variant to
+# name; it is the catalog's shape field, not the client selector — the `vertexai` slug is, and
+# `connection_factory` refuses to build that client from a saved key. The security contract lives
+# in `providers::connection_shapes::AuthRequirement` (`server_google_identity`): this provider
+# authenticates as the server's Google Cloud identity and has **no API key**, so `api_key_env` is
+# deliberately empty rather than missing.
 type = "openaicompatible"
 api_base = ""
 api_key_env = ""

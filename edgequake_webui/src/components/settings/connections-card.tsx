@@ -23,34 +23,47 @@ interface ConnectionShape {
   label: string;
   default_base_url: string;
   hint: string;
+  /**
+   * SPEC-185 — the server's security contract for this shape.
+   *
+   * Absent on the built-in fallback list and on an older server, so the form treats "unknown" as
+   * "may take a key" and behaves as it did before. The server is authoritative when it answers.
+   */
+  auth?: string;
+  requires_key?: boolean;
+  accepts_saved_key?: boolean;
+  stores_secret?: boolean;
 }
 
 /**
  * Built-in shape list, shown only while the server's `/connections/shapes` is unreachable.
  * The card says so and offers a retry; it never presents this list as the server's.
+ *
+ * `accepts_saved_key` is carried here too: the form must not offer a Vertex key field even when
+ * the server is unreachable, because the client refuses a saved key for that shape either way.
  */
 const BUILT_IN_SHAPES: ConnectionShape[] = [
-  { id: 'openai', label: 'OpenAI', default_base_url: 'https://api.openai.com/v1', hint: 'API key required.' },
-  { id: 'anthropic', label: 'Anthropic', default_base_url: 'https://api.anthropic.com', hint: 'API key required. Messages API.' },
-  { id: 'gemini', label: 'Gemini', default_base_url: 'https://generativelanguage.googleapis.com', hint: 'Google AI Studio API key required.' },
-  { id: 'vertexai', label: 'Vertex AI', default_base_url: 'https://aiplatform.googleapis.com', hint: 'Server credentials.' },
-  { id: 'openrouter', label: 'OpenRouter', default_base_url: 'https://openrouter.ai/api/v1', hint: 'API key required. OpenAI-compatible.' },
-  { id: 'xai', label: 'xAI', default_base_url: 'https://api.x.ai/v1', hint: 'API key required.' },
-  { id: 'huggingface', label: 'Hugging Face', default_base_url: 'https://api-inference.huggingface.co/v1', hint: 'API key required.' },
-  { id: 'openai-compatible', label: 'OpenAI-compatible', default_base_url: 'https://api.openai.com/v1', hint: 'Chat completions API.' },
-  { id: 'ollama', label: 'Ollama', default_base_url: 'http://127.0.0.1:11434', hint: 'Local Ollama. A key is optional.' },
-  { id: 'lmstudio', label: 'LM Studio', default_base_url: 'http://127.0.0.1:1234/v1', hint: 'Local LM Studio.' },
-  { id: 'omlx', label: 'oMLX', default_base_url: 'http://127.0.0.1:9050/v1', hint: 'Local oMLX.' },
-  { id: 'mtplx', label: 'MTPLX', default_base_url: 'http://127.0.0.1:8080/v1', hint: 'Local MTPLX.' },
-  { id: 'llamacpp', label: 'llama.cpp', default_base_url: 'http://127.0.0.1:8080/v1', hint: 'llama-server.' },
-  { id: 'vllm-mlx', label: 'vLLM-MLX', default_base_url: 'http://127.0.0.1:8000/v1', hint: 'Local vLLM-MLX.' },
-  { id: 'mlx-lm', label: 'MLX-LM', default_base_url: 'http://127.0.0.1:8080/v1', hint: 'mlx_lm.server.' },
-  { id: 'vscode-copilot', label: 'VS Code Copilot', default_base_url: 'https://api.githubcopilot.com', hint: 'Server credentials.' },
-  { id: 'mistral', label: 'Mistral', default_base_url: 'https://api.mistral.ai/v1', hint: 'API key required.' },
-  { id: 'azure', label: 'Azure OpenAI', default_base_url: 'https://YOUR_RESOURCE.openai.azure.com', hint: 'API key required.' },
-  { id: 'nvidia', label: 'NVIDIA', default_base_url: 'https://integrate.api.nvidia.com/v1', hint: 'API key required.' },
-  { id: 'cohere', label: 'Cohere', default_base_url: 'https://api.cohere.com/v1', hint: 'API key required.' },
-  { id: 'bedrock', label: 'AWS Bedrock', default_base_url: 'https://bedrock-runtime.us-east-1.amazonaws.com', hint: 'Server credentials.' },
+  { id: 'openai', label: 'OpenAI', default_base_url: 'https://api.openai.com/v1', hint: 'API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
+  { id: 'anthropic', label: 'Anthropic', default_base_url: 'https://api.anthropic.com', hint: 'API key required. Messages API.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
+  { id: 'gemini', label: 'Gemini', default_base_url: 'https://generativelanguage.googleapis.com', hint: 'Google AI Studio API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
+  { id: 'vertexai', label: 'Vertex AI', default_base_url: 'https://aiplatform.googleapis.com', hint: 'Uses the server\'s Google Cloud identity.', auth: 'server_google_identity', accepts_saved_key: false, stores_secret: false },
+  { id: 'openrouter', label: 'OpenRouter', default_base_url: 'https://openrouter.ai/api/v1', hint: 'API key required. OpenAI-compatible.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
+  { id: 'xai', label: 'xAI', default_base_url: 'https://api.x.ai/v1', hint: 'API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
+  { id: 'huggingface', label: 'Hugging Face', default_base_url: 'https://api-inference.huggingface.co/v1', hint: 'API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
+  { id: 'openai-compatible', label: 'OpenAI-compatible', default_base_url: 'https://api.openai.com/v1', hint: 'Chat completions API.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
+  { id: 'ollama', label: 'Ollama', default_base_url: 'http://127.0.0.1:11434', hint: 'Local Ollama. A key is optional.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
+  { id: 'lmstudio', label: 'LM Studio', default_base_url: 'http://127.0.0.1:1234/v1', hint: 'Local LM Studio.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
+  { id: 'omlx', label: 'oMLX', default_base_url: 'http://127.0.0.1:9050/v1', hint: 'Local oMLX.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
+  { id: 'mtplx', label: 'MTPLX', default_base_url: 'http://127.0.0.1:8080/v1', hint: 'Local MTPLX.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
+  { id: 'llamacpp', label: 'llama.cpp', default_base_url: 'http://127.0.0.1:8080/v1', hint: 'llama-server.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
+  { id: 'vllm-mlx', label: 'vLLM-MLX', default_base_url: 'http://127.0.0.1:8000/v1', hint: 'Local vLLM-MLX.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
+  { id: 'mlx-lm', label: 'MLX-LM', default_base_url: 'http://127.0.0.1:8080/v1', hint: 'mlx_lm.server.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
+  { id: 'vscode-copilot', label: 'VS Code Copilot', default_base_url: 'https://api.githubcopilot.com', hint: 'Server credentials.', auth: 'server_proxy', accepts_saved_key: false, stores_secret: false },
+  { id: 'mistral', label: 'Mistral', default_base_url: 'https://api.mistral.ai/v1', hint: 'API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
+  { id: 'azure', label: 'Azure OpenAI', default_base_url: 'https://YOUR_RESOURCE.openai.azure.com', hint: 'API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
+  { id: 'nvidia', label: 'NVIDIA', default_base_url: 'https://integrate.api.nvidia.com/v1', hint: 'API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
+  { id: 'cohere', label: 'Cohere', default_base_url: 'https://api.cohere.com/v1', hint: 'API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
+  { id: 'bedrock', label: 'AWS Bedrock', default_base_url: 'https://bedrock-runtime.us-east-1.amazonaws.com', hint: 'Server credentials.', auth: 'aws_chain', accepts_saved_key: false, stores_secret: false },
 ];
 
 interface ProbeResponse {
@@ -104,12 +117,24 @@ export function ConnectionsCard() {
   const [chosenShape, setShape] = useState('openai');
   // A server list that does not carry the default id must not leave the select blank.
   const shape = shapes.some((item) => item.id === chosenShape) ? chosenShape : (shapes[0]?.id ?? chosenShape);
+  const selectedShape = shapes.find((item) => item.id === shape);
   const [baseUrl, setBaseUrl] = useState('https://api.openai.com/v1');
   const [slug, setSlug] = useState('local');
   const [apiKey, setApiKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<DeletableConnection | null>(null);
+
+  /*
+   * SPEC-185 — ask the contract, not the shape id.
+   *
+   * The server marks a shape that authenticates with an identity it already holds (Vertex AI,
+   * Bedrock, the Copilot proxy) with `accepts_saved_key: false`. Showing a password field there
+   * let an operator save a secret the client refuses to use. An older server, or the built-in
+   * fallback list, may omit the flag, and then the form behaves as it always did.
+   */
+  const mayTakeKey = selectedShape?.accepts_saved_key !== false;
+  const keyRequired = selectedShape?.requires_key === true;
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: CONNECTIONS_KEY });
 
@@ -274,25 +299,46 @@ export function ConnectionsCard() {
               placeholder="http://127.0.0.1:9050"
             />
           </ConnectionField>
-          <ConnectionField
-            id={`${fieldId}-key`}
-            label="API key"
-            hint={
-              editingId
-                ? "Leave the key blank to keep the current key. A new key replaces it."
-                : "Optional. Encrypted at rest and never shown again."
-            }
-            className="md:col-span-2"
-          >
-            <Input
+          {mayTakeKey ? (
+            <ConnectionField
               id={`${fieldId}-key`}
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Leave empty for local servers"
-              autoComplete="off"
-            />
-          </ConnectionField>
+              label={keyRequired ? "API key" : "API key (optional)"}
+              hint={
+                editingId
+                  ? "Leave the key blank to keep the current key. A new key replaces it."
+                  : keyRequired
+                    ? "Required. Encrypted at rest and never shown again."
+                    : "Optional. A protected server needs one; a local one does not."
+              }
+              className="md:col-span-2"
+            >
+              <Input
+                id={`${fieldId}-key`}
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={keyRequired ? "Paste the key" : "Leave empty for local servers"}
+                autoComplete="off"
+                required={keyRequired}
+              />
+            </ConnectionField>
+          ) : (
+            /*
+             * SPEC-185 — this shape authenticates with an identity the server already holds.
+             * Offering a key field here let an operator save a secret the client refuses to use,
+             * and then wonder why nothing worked. Saying what it does need is the whole point.
+             */
+            <div
+              className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground md:col-span-2"
+              data-testid="connection-no-api-key"
+            >
+              {selectedShape?.auth === "server_google_identity"
+                ? "Vertex AI uses this server's Google Cloud identity — there is no API key to enter. Set GOOGLE_CLOUD_PROJECT (and optionally GOOGLE_CLOUD_REGION) on the server, and grant that identity aiplatform.endpoints.predict on the project."
+                : selectedShape?.auth === "aws_chain"
+                  ? "AWS Bedrock uses this server's AWS credential chain — there is no API key to enter. Configure AWS credentials on the server."
+                  : "This provider uses credentials the server already holds. There is no API key to enter."}
+            </div>
+          )}
         </div>
         <div className="flex gap-2">
           <Button type="button" variant="secondary" disabled={busy} onClick={() => void testDraft()}>

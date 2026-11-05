@@ -189,12 +189,38 @@ test.describe("@spec183 image upload on a text-only workspace", () => {
     const notice = page.getByTestId("dropzone-text-only-notice");
     // The refusal used to arrive from the server, after the upload, naming no destination.
     await expect(notice).toBeVisible({ timeout: 20_000 });
-    await expect(notice).toContainText(/stores text only/i);
-    await expect(notice).toContainText(/Text and images/i);
-    await expect(notice).toContainText(/new workspace|create one/i);
+    await expect(notice).toContainText(/text only/i);
+    // SPEC-185: one line by default, so the note never competes with the drop target. The
+    // refusal sentence (and the fix it names) is one click away, not four lines up front.
+    await expect(page.getByTestId("dropzone-text-only-notice-body")).toHaveCount(0);
+    await page.getByTestId("dropzone-text-only-notice-toggle").click();
+    const body = page.getByTestId("dropzone-text-only-notice-body");
+    await expect(body).toContainText(/Text and images/i);
+    await expect(body).toContainText(/new workspace|create one/i);
 
     await spec183Shot(page, "07-documents-text-only-notice");
     await spec183ShotLocator(page, notice, "08-dropzone-text-only-notice-crop");
+  });
+
+  test("the notice can be closed and stays closed after a reload", async ({ page }) => {
+    await openNormalWorkspace(page, { path: "/documents", images: false });
+
+    const notice = page.getByTestId("dropzone-text-only-notice");
+    await expect(notice).toBeVisible({ timeout: 20_000 });
+
+    // Closing must not also open the file picker: the whole zone is a drop target that opens it
+    // on click, so the close control stops propagation.
+    await page.getByTestId("dropzone-text-only-notice-dismiss").click();
+    await expect(notice).toBeHidden();
+    await expect(page.getByTestId("document-dropzone-title")).toBeVisible();
+
+    // It is a standing fact about an immutable setting, so a dismissal has to survive the
+    // reload — otherwise it reappears on every visit and the control means nothing.
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("document-dropzone")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("dropzone-text-only-notice")).toHaveCount(0);
+
+    await spec183Shot(page, "11-documents-text-only-notice-dismissed");
   });
 
   test("a picture dropped into a text-only workspace is refused with the reason", async ({

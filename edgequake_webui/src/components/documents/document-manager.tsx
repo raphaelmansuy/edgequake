@@ -98,6 +98,7 @@ import { BulkDeleteConfirmDialog } from './bulk-delete-confirm-dialog';
 import { BulkReprocessDialog, type BulkReprocessChoice } from './bulk-reprocess-dialog';
 import { DeleteConfirmDialog } from './delete-confirm-dialog';
 import { DocumentDropzone } from './document-dropzone';
+import { WorkspaceTextOnlyNotice } from './workspace-text-only-notice';
 import { DocumentErrorAlert } from './document-error-alert';
 import { DocumentHeader } from './document-header';
 import { DocumentsWorkspace } from './workspace/documents-workspace';
@@ -1156,11 +1157,18 @@ export function DocumentManager() {
           tree={workspace.renderTree}
           contents={{
             intake: (
-              <div
-                className="relative min-h-0 min-w-0 flex-1"
-                data-testid="documents-intake-dropzone-slot"
-              >
-                {intakeDropzone}
+              <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+                {/* SPEC-185: outside the drop target, so it can never take its line. */}
+                <WorkspaceTextOnlyNotice
+                  capability={imageCapability}
+                  workspaceId={selectedWorkspaceId}
+                />
+                <div
+                  className="relative min-h-0 min-w-0 flex-1"
+                  data-testid="documents-intake-dropzone-slot"
+                >
+                  {intakeDropzone}
+                </div>
               </div>
             ),
             runs: (

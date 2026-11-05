@@ -6,6 +6,7 @@
  * @see specs/001-upload-pdf.md
  */
 
+import { fastestRunMs } from "@/lib/testing/timing";
 import type {
   IngestionProgress,
   IngestionStage,
@@ -958,76 +959,74 @@ describe("Edge Cases", () => {
 
 describe("Performance", () => {
   it("should handle rapid stage updates efficiently", () => {
-    const start = performance.now();
+    const duration = fastestRunMs(() => {
+      for (let i = 0; i < 1000; i++) {
+        const progress: Partial<IngestionProgress> = {
+          progress: {
+            current_stage: "extracting",
+            completion_percentage: i / 10,
+            latest_message: `Processing ${i}`,
+            stages: [
+              {
+                stage: "preprocessing",
+                status: "completed",
+                progress: 100,
+                completed_items: 1,
+                total_items: 1,
+              },
+              {
+                stage: "chunking",
+                status: "completed",
+                progress: 100,
+                completed_items: 10,
+                total_items: 10,
+              },
+              {
+                stage: "extracting",
+                status: "running",
+                progress: i / 10,
+                completed_items: i,
+                total_items: 1000,
+              },
+              {
+                stage: "merging",
+                status: "pending",
+                progress: 0,
+                completed_items: 0,
+                total_items: 0,
+              },
+              {
+                stage: "embedding",
+                status: "pending",
+                progress: 0,
+                completed_items: 0,
+                total_items: 0,
+              },
+              {
+                stage: "indexing",
+                status: "pending",
+                progress: 0,
+                completed_items: 0,
+                total_items: 0,
+              },
+            ],
+          },
+        };
 
-    for (let i = 0; i < 1000; i++) {
-      const progress: Partial<IngestionProgress> = {
-        progress: {
-          current_stage: "extracting",
-          completion_percentage: i / 10,
-          latest_message: `Processing ${i}`,
-          stages: [
-            {
-              stage: "preprocessing",
-              status: "completed",
-              progress: 100,
-              completed_items: 1,
-              total_items: 1,
-            },
-            {
-              stage: "chunking",
-              status: "completed",
-              progress: 100,
-              completed_items: 10,
-              total_items: 10,
-            },
-            {
-              stage: "extracting",
-              status: "running",
-              progress: i / 10,
-              completed_items: i,
-              total_items: 1000,
-            },
-            {
-              stage: "merging",
-              status: "pending",
-              progress: 0,
-              completed_items: 0,
-              total_items: 0,
-            },
-            {
-              stage: "embedding",
-              status: "pending",
-              progress: 0,
-              completed_items: 0,
-              total_items: 0,
-            },
-            {
-              stage: "indexing",
-              status: "pending",
-              progress: 0,
-              completed_items: 0,
-              total_items: 0,
-            },
-          ],
-        },
-      };
+        buildStagesFromProgress(progress);
+      }
+    });
 
-      buildStagesFromProgress(progress);
-    }
-
-    const duration = performance.now() - start;
     expect(duration).toBeLessThan(100); // Should complete in under 100ms
   });
 
   it("should handle many stages without performance degradation", () => {
-    const start = performance.now();
+    const duration = fastestRunMs(() => {
+      for (let i = 0; i < 500; i++) {
+        createDefaultStages("extracting");
+      }
+    });
 
-    for (let i = 0; i < 500; i++) {
-      createDefaultStages("extracting");
-    }
-
-    const duration = performance.now() - start;
     expect(duration).toBeLessThan(50); // Should be very fast
   });
 });

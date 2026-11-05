@@ -2,7 +2,7 @@
 
 import { useLlmCapabilityModels } from "@/hooks/use-llm-capability-models";
 import { cn } from '@/lib/utils';
-import { ImageOff, SlidersHorizontal, Upload } from 'lucide-react';
+import { SlidersHorizontal, Upload } from 'lucide-react';
 import type React from 'react';
 import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { DropzoneInputProps, DropzoneRootProps } from 'react-dropzone';
@@ -36,8 +36,10 @@ import {
 import type { UploadPdfParserChoice } from '@/lib/pdf/resolve-pdf-parser-backend';
 import type { PdfParserBackend } from '@/types/graph';
 import {
+  DROPZONE_COMPACT_BAND_MAX_HEIGHT_PX,
   DROPZONE_ROOMY_MIN_HEIGHT_PX,
   resolveDropzoneFillLayout,
+  shouldCollapseSettingsBar,
   type DropzoneFillLayout,
 } from '@/lib/documents/dropzone-fill-layout';
 
@@ -220,14 +222,16 @@ function ChooseFilesButton({
   );
 }
 
-function FormatChips({ label, imagesLabel }: { label: string; imagesLabel: string }) {
+function FormatChips({ label, imagesLabel }: { label: string; imagesLabel: string | null }) {
+  // `null` when the workspace cannot store pictures: the chip is not offered at all.
+  const chips = imagesLabel ? [...FORMAT_CODES, imagesLabel] : [...FORMAT_CODES];
   return (
     <ul
       className="mt-4 flex max-w-md flex-wrap items-center justify-center gap-1.5"
       aria-label={label}
       data-testid="document-dropzone-formats"
     >
-      {[...FORMAT_CODES, imagesLabel].map((chip) => (
+      {chips.map((chip) => (
         <li
           key={chip}
           className="rounded-md border border-border/80 bg-background px-1.5 py-0.5 text-[11px] font-medium tracking-wide text-muted-foreground"
@@ -261,6 +265,7 @@ function DropzoneSettingsBar({
   label,
   hint,
   collapseWhenNarrow,
+  forceCollapsed = false,
   settingsLabel,
   children,
 }: {
@@ -269,6 +274,11 @@ function DropzoneSettingsBar({
   hint: string;
   /** Narrow, short bands tuck the controls behind one button instead of clipping. */
   collapseWhenNarrow: boolean;
+  /**
+   * SPEC-185 — the measured box is too short to hold the inline bar at any width. The width
+   * query cannot see height, so a short dock kept the bar and clipped it.
+   */
+  forceCollapsed?: boolean;
   settingsLabel: string;
   children: ReactNode;
 }) {
@@ -276,11 +286,17 @@ function DropzoneSettingsBar({
     onClick: (event: React.MouseEvent) => event.stopPropagation(),
     onKeyDown: (event: React.KeyboardEvent) => event.stopPropagation(),
   };
+  const showPopover = collapseWhenNarrow || forceCollapsed;
   return (
     <>
-      {collapseWhenNarrow ? (
+      {showPopover ? (
         <div
-          className={'flex shrink-0 border-t border-border/70 bg-background px-3 py-1.5 @[30rem]/dz:hidden'}
+          className={cn(
+            'flex shrink-0 border-t border-border/70 bg-background px-3 py-1.5',
+            // A short height needs one row; a wide-but-low band already fits the controls
+            // inline, so only the genuinely cramped case hides them behind the button.
+            (!forceCollapsed || stacked) && '@[30rem]/dz:hidden',
+          )}
           data-testid="upload-settings-popover-bar"
           {...stop}
         >
@@ -303,6 +319,8 @@ function DropzoneSettingsBar({
           'flex shrink-0 cursor-auto gap-2 overflow-hidden border-t border-border/70 bg-background px-3 py-2',
           stacked ? 'flex-col items-stretch' : 'flex-row flex-wrap items-center',
           collapseWhenNarrow && '@max-[30rem]/dz:hidden',
+          // Hidden whenever the popover form is showing, otherwise the bar renders twice.
+          forceCollapsed && 'hidden',
         )}
         data-testid="upload-parser-vision-combo"
         {...stop}
@@ -417,10 +435,37 @@ export function DocumentDropzone({
     fillIsHero &&
     measured &&
     boxHeight >= DROPZONE_ROOMY_MIN_HEIGHT_PX;
-  const textOnly = acceptsImages?.embeds_images === false;
+  /**
+   * SPEC-185 — a docked zone cannot grow, so a short band has to adapt rather than clip. Without
+   * this the selects sat below the fold of a 76px box and were simply invisible.
+   */
+  const collapseBar =
+    Boolean(fill) &&
+    measured &&
+    !roomy &&
+    shouldCollapseSettingsBar({ height: boxHeight, stacked: fillIsStack });
+  /**
+   * SPEC-185 — one row instead of two. A docked band is fixed at whatever the workspace layout
+   * gives it; under ~92px there is no honest way to fit an invitation and a settings bar.
+   */
+  const compactBand =
+    Boolean(fill) &&
+    !collapsed &&
+    measured &&
+    !roomy &&
+    boxHeight > 0 &&
+    boxHeight <= DROPZONE_COMPACT_BAND_MAX_HEIGHT_PX;
   const composed = Boolean(fill) && !fillIsRow;
   const imagesLabel = t('documents.upload.formatImages', 'Images');
-  const formatLine = `TXT, MD, JSON, PDF, ${imagesLabel}`;
+  /**
+   * SPEC-185 — never advertise a format the workspace refuses. The report showed chips offering
+   * "Images" directly under a note saying pictures cannot be stored here. Only an explicit
+   * `false` removes the chip; an unknown capability keeps it, because the server decides.
+   */
+  const acceptsImageFiles = acceptsImages?.embeds_images !== false;
+  const formatLine = acceptsImageFiles
+    ? `TXT, MD, JSON, PDF, ${imagesLabel}`
+    : 'TXT, MD, JSON, PDF';
   const limitHint = t(
     'documents.upload.formatsLimit',
     'Up to {{limit}} · Word and Excel aren’t accepted',
@@ -594,31 +639,12 @@ export function DocumentDropzone({
       />
 
       {/*
-        SPEC-183 — a picture cannot be stored on a text-only workspace, and the evidence is
-        fixed at create. Saying so here is the difference between a refusal and a dead end:
-        the sentence carries the place the fix lives (a new workspace with images).
+        SPEC-185 — the "text only" note used to live here as a flex sibling. At the short-and-wide
+        layout it consumed 897px of a 963px row and pushed the parser/vision selects to 0px; in a
+        narrow column it wrapped to 192px inside a 97px zone. It is a fact about the workspace,
+        not an upload instruction, so it now renders beside the drop target
+        (`WorkspaceTextOnlyNotice`) instead of stealing the drop target's line.
       */}
-      {textOnly ? (
-        <div
-          role="status"
-          data-testid="dropzone-text-only-notice"
-          className={cn(
-            'mx-3 mt-2 flex items-start gap-2 rounded-md border border-amber-300/70 bg-amber-50/70 px-2.5 py-2 text-[11.5px] leading-snug text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200',
-            fill && !fillIsRow ? 'mb-2' : 'max-sm:mx-0 max-sm:mt-1',
-          )}
-        >
-          <ImageOff aria-hidden className="mt-px h-3.5 w-3.5 shrink-0" />
-          <span className="min-w-0">
-            <span className="block font-medium">
-              {t('documents.upload.textOnlyTitle', 'This workspace stores text only')}
-            </span>
-            {t(
-              'documents.upload.textOnlyBody',
-              'Pictures need a workspace created with evidence “Text and images”. That choice is fixed when the workspace is made, so create one there and upload the pictures in it.',
-            )}
-          </span>
-        </div>
-      ) : null}
       {composed ? (
         <div
           className={cn(
@@ -664,11 +690,71 @@ export function DocumentDropzone({
               {!isDragActive ? (
                 <FormatChips
                   label={t('documents.upload.acceptedFormats', 'Accepted formats')}
-                  imagesLabel={imagesLabel}
+                  imagesLabel={acceptsImageFiles ? imagesLabel : null}
                 />
               ) : null}
               {!isDragActive ? (
                 <p className="mt-2 max-w-sm text-xs text-muted-foreground">{limitHint}</p>
+              ) : null}
+            </div>
+          ) : compactBand ? (
+            /* SPEC-185 — one row for a band too short for two. The zone stays a drop target and
+               stays clickable; the settings keep a real button so nothing becomes unreachable. */
+            <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2">
+              <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                <div
+                  className={cn(
+                    'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border bg-background',
+                    isDragActive ? 'border-primary bg-primary/10' : 'border-border',
+                  )}
+                >
+                  <Upload
+                    className={cn(
+                      'h-3.5 w-3.5',
+                      isDragActive ? 'text-primary' : 'text-muted-foreground',
+                    )}
+                    aria-hidden
+                  />
+                </div>
+                <p
+                  className={cn(
+                    'truncate text-sm font-medium',
+                    isDragActive ? 'text-primary' : 'text-foreground',
+                  )}
+                  data-testid="document-dropzone-title"
+                >
+                  {invitationTitle}
+                </p>
+              </div>
+              {!isDragActive ? (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="shrink-0"
+                      title={t('documents.upload.settings', 'Upload settings')}
+                      aria-label={t('documents.upload.settings', 'Upload settings')}
+                      data-testid="upload-settings-compact-trigger"
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
+                      <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="end"
+                    className="flex w-72 flex-col gap-2 p-3"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  >
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {t('documents.upload.pdfParserFooter', 'PDF parser')}
+                    </span>
+                    {settings}
+                  </PopoverContent>
+                </Popover>
               ) : null}
             </div>
           ) : (
@@ -718,18 +804,21 @@ export function DocumentDropzone({
               ) : null}
             </div>
           )}
-          <DropzoneSettingsBar
-            stacked={fillIsStack}
-            collapseWhenNarrow={!roomy}
-            settingsLabel={t('documents.upload.settings', 'Upload settings')}
-            label={t('documents.upload.pdfParserFooter', 'PDF parser')}
-            hint={t(
-              'documents.upload.pdfParserHint',
-              'Choose a PDF parser override for this upload, or keep the workspace default.',
-            )}
-          >
-            {settings}
-          </DropzoneSettingsBar>
+          {compactBand ? null : (
+            <DropzoneSettingsBar
+              stacked={fillIsStack}
+              collapseWhenNarrow={!roomy}
+              forceCollapsed={collapseBar}
+              settingsLabel={t('documents.upload.settings', 'Upload settings')}
+              label={t('documents.upload.pdfParserFooter', 'PDF parser')}
+              hint={t(
+                'documents.upload.pdfParserHint',
+                'Choose a PDF parser override for this upload, or keep the workspace default.',
+              )}
+            >
+              {settings}
+            </DropzoneSettingsBar>
+          )}
         </div>
       ) : (
         <>

@@ -193,7 +193,11 @@
       "pdfParserAuto": "Auto",
       "settings": "Paramètres d'import",
       "textOnlyTitle": "Cet espace de travail ne stocke que du texte",
-      "textOnlyBody": "Les images nécessitent un espace de travail créé avec la preuve « Texte et images ». Ce choix est définitif à la création : créez-en un ainsi, puis envoyez-y les images.",
+      "textOnlyTitleShort": "Texte uniquement",
+      "textOnlyWhy": "Pourquoi",
+      "textOnlyHide": "Masquer",
+      "textOnlyBody": "La preuve est définie une seule fois, à la création de l’espace de travail. Créez un nouvel espace de travail avec Preuve = « Texte et images », puis envoyez-y les images.",
+      "dismissTextOnly": "Masquer cette note",
       "imagesNeedImageWorkspace": "{{count}} image(s) n’ont pas été envoyées : cet espace de travail ne stocke que du texte. Les images nécessitent un espace de travail créé avec la preuve « Texte et images »."
     },
     "duplicateDialog": {
