@@ -80,7 +80,9 @@ else
       EDGEQUAKE_EMBEDDING_PROVIDER EDGEQUAKE_EMBEDDING_MODEL \
       EDGEQUAKE_COMMUNITY_GLOBAL EDGEQUAKE_COMMUNITY_BACKFILL_MAX_NODES \
       EDGEQUAKE_COMMUNITY_MAX_NODES EDGEQUAKE_COMMUNITY_STATEMENT_TIMEOUT_MS \
-      EDGEQUAKE_LOUVAIN_HIERARCHY || true
+      EDGEQUAKE_LOUVAIN_HIERARCHY \
+      EDGEQUAKE_OUTBOX_DRAIN EDGEQUAKE_OUTBOX_DRAIN_INTERVAL_SECS \
+      EDGEQUAKE_OUTBOX_DRAIN_TTL_DAYS || true
     # Match CI.yml: debug tokio tests (pdf resume / hybrid) overflow the default
     # ~2 MiB thread stack. GitHub Actions sets this on nextest; local cargo test
     # must too or `make release-gates` SIGABRTs while CI stays green.

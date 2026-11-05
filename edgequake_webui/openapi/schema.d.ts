@@ -7314,7 +7314,10 @@ export interface components {
         };
         /**
          * @example {
+         *       "accepts_saved_key": {},
          *       "api_shape": {},
+         *       "api_shape_label": {},
+         *       "auth": {},
          *       "display_name": {},
          *       "key_configured": {},
          *       "models": [],
@@ -7327,7 +7330,27 @@ export interface components {
          *     }
          */
         DeploymentProviderDto: {
+            /** @description Whether a stored key is meaningful here. `false` means "identity, not a secret". */
+            accepts_saved_key: boolean;
             api_shape: string;
+            /**
+             * @description SPEC-184 — the human name for `api_shape` ("OpenAI-compatible", "Vertex AI").
+             *
+             *     The card printed the raw slug (`openai_chat`, `azure`, `vertexai`) next to the provider
+             *     name, which reads as jargon and, worse, hides the one thing a reviewer needs: whether the
+             *     provider speaks a compatible API or its own protocol. The registry already holds the label,
+             *     so the server sends it instead of teaching the UI a second mapping.
+             */
+            api_shape_label: string;
+            /**
+             * @description SPEC-184 — how this provider authenticates, from the shape registry.
+             *
+             *     WHY it is on the DTO: the card used to print "Key set" for any provider with a stored
+             *     secret, so a Vertex AI row claimed a key it cannot use (Vertex authenticates as the server's
+             *     Google identity). The UI cannot infer this from `key_configured`, and guessing from the slug
+             *     is the kind of duplication that drifts. One field, one source of truth.
+             */
+            auth: string;
             display_name: string;
             key_configured: boolean;
             models: components["schemas"]["OfferModelDto"][];
@@ -11165,16 +11188,21 @@ export interface components {
         };
         /**
          * @example {
+         *       "auth": {},
          *       "display_name": {},
          *       "enabled": {},
+         *       "key_configured": {},
          *       "models": [],
          *       "offered_by_parent": {},
          *       "slug": {}
          *     }
          */
         OfferProviderDto: {
+            /** @description SPEC-184 — the security contract, so a row can state what the provider needs. */
+            auth: string;
             display_name: string;
             enabled: boolean;
+            key_configured: boolean;
             models: components["schemas"]["OfferModelDto"][];
             offered_by_parent: boolean;
             slug: string;

@@ -99,7 +99,10 @@ pub struct DeploymentProvidersResponse {
 fn auth_for(slug: &str) -> (String, bool) {
     use crate::providers::connection_shapes::CONNECTION_SHAPES;
     match CONNECTION_SHAPES.iter().find(|shape| shape.id == slug) {
-        Some(shape) => (shape.auth.as_str().to_string(), shape.auth.accepts_saved_key()),
+        Some(shape) => (
+            shape.auth.as_str().to_string(),
+            shape.auth.accepts_saved_key(),
+        ),
         None => ("api_key".to_string(), true),
     }
 }
@@ -290,6 +293,7 @@ pub async fn get_deployment_providers(
                 None => "unchecked",
             };
             let (auth, accepts_saved_key) = auth_for(&slug);
+            let api_shape_label = shape_label(&slug);
             providers.push(DeploymentProviderDto {
                 offered: offered.contains(&slug),
                 withdrawn: withdrawn.contains(&slug),
@@ -297,7 +301,7 @@ pub async fn get_deployment_providers(
                 slug,
                 display_name,
                 origin: "fleet".into(),
-                api_shape_label: shape_label(&slug),
+                api_shape_label,
                 api_shape,
                 probe: probe.into(),
                 key_configured,

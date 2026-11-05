@@ -3,7 +3,7 @@ title: "What's new"
 description: "Per-release highlights moved out of the README."
 ---
 
-This page lists the highlights of each release from v0.40.0 back to v0.24.0, newest first. Most entries name the schema number, so you can plan a database migration before you upgrade. For the full change list, see the [CHANGELOG](CHANGELOG.md), and for the upgrade steps, see the linked upgrade guide. A plain-English [picture tour](https://edgequake.com/tutorial/) of the UI is on the marketing site.
+This page lists the highlights of each release from v0.40.1 back to v0.24.0, newest first. Most entries name the schema number, so you can plan a database migration before you upgrade. For the full change list, see the [CHANGELOG](CHANGELOG.md), and for the upgrade steps, see the linked upgrade guide. A plain-English [picture tour](https://edgequake.com/tutorial/) of the UI is on the marketing site.
 
 ## Schema train at a glance
 
@@ -35,12 +35,21 @@ timeline
     v0.38.3 : 224 pinned
     v0.38.4 : 224 pinned
     v0.39.0 : 226
+    v0.40.1 : 227
     v0.40.0 : 227
 ```
 
-The timeline shows the schema number each release leaves the database at, from v0.23.0 through v0.40.0.
+The timeline shows the schema number each release leaves the database at, from v0.23.0 through v0.40.1.
 
 Run `edgequake migrate` when you move to a release with a higher number. The [upgrading guide](operations/upgrading.md) covers the steps.
+
+### What's new in 0.40.1
+
+Honest provider settings, a verified Vertex identity for chat and embedding, and a Documents upload zone that no longer clips its own controls. Schema stays **227**. `edgequake migrate` is a no-op. See [upgrade-to-0.40.1.md](operations/upgrade-to-0.40.1.md).
+
+- Provider cards report `Key set` / `Key not set` / `Google Cloud identity` from the connection shape, so Vertex no longer claims a key it cannot use.
+- Chat and image embedding share one verified Google Cloud identity. A mismatched ADC no longer 403s every query while embeddings succeed.
+- The text-only Documents notice is dismissible per workspace and sits beside the drop zone; the zone picks its layout from measured height.
 
 ### What's new in 0.40.0
 

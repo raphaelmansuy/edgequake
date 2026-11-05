@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.1] — 2026-11-05
+
+Patch on v0.40.0. Schema stays **227**. `edgequake migrate` is a no-op on a database that is
+already at schema 227. Roll the images. Do not change the schema.
+
 ### Changed
 
 - **Providers and models settings say what each provider actually needs.** Captured and reviewed at
@@ -30,6 +35,17 @@ All notable changes to this project will be documented in this file.
     ("The inherited model is refused: …") instead of showing an unexplained error.
   - One phrase per fact: the two wordings for the same condition ("Not allowed…" vs "This model is
     not allowed…") are unified.
+- **Each provider declares its security requirement as data, not prose.** `ConnectionShape` carries
+  an `AuthRequirement` (`api_key`, `api_key_and_endpoint`, `optional_api_key`,
+  `server_google_identity`, `aws_chain`, `server_proxy`) and `/api/v1/connections/shapes` returns
+  `auth`, `requires_key`, `accepts_saved_key` and `stores_secret`. The add-provider form hides the
+  key field for a shape that cannot use one and states the real requirement instead — the report's
+  page showed Vertex among providers with a key field it could never use.
+  - Two invariants are now tests: a shape that accepts a key is exactly one that stores a secret
+    (so a secret is never written in the clear), and a required key is always an accepted key.
+  - **"No key required" is not "no key accepted."** Local shapes keep an optional key field, because
+    a protected vLLM or proxied gateway is a real deployment. Marking them keyless would have made
+    those impossible to configure.
 
 ### Fixed
 
@@ -54,7 +70,6 @@ All notable changes to this project will be documented in this file.
   `PERMISSION_DENIED` body is long, so the length guard replaced it with the generic sentence — the
   one fact worth acting on, hidden. Permission, authentication and rate-limit failures each get
   their own sentence now.
-
 - **The upload zone no longer hides its own controls.** Measured, not guessed: with the preview
   panel open on a 1440px screen the drop target was **76px tall and held 113px** of invitation and
   settings, so the parser and vision selects were scrolled out of a box that does not scroll. The
@@ -81,20 +96,6 @@ All notable changes to this project will be documented in this file.
 - **A local provider may need no key and still accept one.** `AuthRequirement::OptionalApiKey` marks
   the shapes where a key is optional (Ollama, vLLM, a proxied OpenAI-compatible gateway). Treating
   them as keyless would have hidden a field that a protected local server needs.
-
-### Changed
-
-- **Each provider declares its security requirement as data, not prose.** `ConnectionShape` carries
-  an `AuthRequirement` (`api_key`, `api_key_and_endpoint`, `optional_api_key`,
-  `server_google_identity`, `aws_chain`, `server_proxy`) and `/api/v1/connections/shapes` returns
-  `auth`, `requires_key`, `accepts_saved_key` and `stores_secret`. The add-provider form hides the
-  key field for a shape that cannot use one and states the real requirement instead — the report's
-  page showed Vertex among providers with a key field it could never use.
-  - Two invariants are now tests: a shape that accepts a key is exactly one that stores a secret
-    (so a secret is never written in the clear), and a required key is always an accepted key.
-  - **"No key required" is not "no key accepted."** Local shapes keep an optional key field, because
-    a protected vLLM or proxied gateway is a real deployment. Marking them keyless would have made
-    those impossible to configure.
 
 ### Added
 

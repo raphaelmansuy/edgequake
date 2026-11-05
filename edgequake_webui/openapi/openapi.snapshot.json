@@ -9,7 +9,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "0.40.0"
+    "version": "0.40.1"
   },
   "servers": [
     {
@@ -4235,8 +4235,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "recover_stuck"
+        "x-edgequake-v2-job-type": "recover_stuck",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/documents/reprocess": {
@@ -4293,8 +4293,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "reprocess_failed",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "reprocess_failed"
       }
     },
     "/api/v1/documents/scan": {
@@ -13069,8 +13069,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "rebuild_embeddings",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "rebuild_embeddings"
       }
     },
     "/api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph": {
@@ -13870,8 +13870,8 @@
             "description": "WebSocket upgrade failed"
           }
         },
-        "x-edgequake-upgrade": "RFC6455",
-        "x-edgequake-transport": "websocket"
+        "x-edgequake-transport": "websocket",
+        "x-edgequake-upgrade": "RFC6455"
       }
     },
     "/ws/progress/{track_id}": {
@@ -13902,8 +13902,8 @@
             "description": "Track not found for this workspace"
           }
         },
-        "x-edgequake-transport": "websocket",
-        "x-edgequake-upgrade": "RFC6455"
+        "x-edgequake-upgrade": "RFC6455",
+        "x-edgequake-transport": "websocket"
       }
     }
   },
@@ -19151,15 +19151,30 @@
           "display_name",
           "origin",
           "api_shape",
+          "api_shape_label",
           "offered",
           "withdrawn",
           "probe",
           "key_configured",
-          "models"
+          "models",
+          "auth",
+          "accepts_saved_key"
         ],
         "properties": {
+          "accepts_saved_key": {
+            "type": "boolean",
+            "description": "Whether a stored key is meaningful here. `false` means \"identity, not a secret\"."
+          },
           "api_shape": {
             "type": "string"
+          },
+          "api_shape_label": {
+            "type": "string",
+            "description": "SPEC-184 — the human name for `api_shape` (\"OpenAI-compatible\", \"Vertex AI\").\n\nThe card printed the raw slug (`openai_chat`, `azure`, `vertexai`) next to the provider\nname, which reads as jargon and, worse, hides the one thing a reviewer needs: whether the\nprovider speaks a compatible API or its own protocol. The registry already holds the label,\nso the server sends it instead of teaching the UI a second mapping."
+          },
+          "auth": {
+            "type": "string",
+            "description": "SPEC-184 — how this provider authenticates, from the shape registry.\n\nWHY it is on the DTO: the card used to print \"Key set\" for any provider with a stored\nsecret, so a Vertex AI row claimed a key it cannot use (Vertex authenticates as the server's\nGoogle identity). The UI cannot infer this from `key_configured`, and guessing from the slug\nis the kind of duplication that drifts. One field, one source of truth."
           },
           "display_name": {
             "type": "string"
@@ -19201,7 +19216,10 @@
           }
         },
         "example": {
+          "accepts_saved_key": {},
           "api_shape": {},
+          "api_shape_label": {},
+          "auth": {},
           "display_name": {},
           "key_configured": {},
           "models": [],
@@ -26998,13 +27016,22 @@
           "display_name",
           "offered_by_parent",
           "enabled",
-          "models"
+          "models",
+          "auth",
+          "key_configured"
         ],
         "properties": {
+          "auth": {
+            "type": "string",
+            "description": "SPEC-184 — the security contract, so a row can state what the provider needs."
+          },
           "display_name": {
             "type": "string"
           },
           "enabled": {
+            "type": "boolean"
+          },
+          "key_configured": {
             "type": "boolean"
           },
           "models": {
@@ -27021,8 +27048,10 @@
           }
         },
         "example": {
+          "auth": {},
           "display_name": {},
           "enabled": {},
+          "key_configured": {},
           "models": [],
           "offered_by_parent": {},
           "slug": {}
@@ -39384,7 +39413,7 @@
     "asyncapi": "2.6.0",
     "info": {
       "title": "EdgeQuake WebSocket Progress",
-      "version": "0.40.0",
+      "version": "0.40.1",
       "description": "Real-time pipeline and document processing progress over WebSocket (RFC 6455). SPEC-149: clients subscribe to owned track_ids on the global channel; events use a tagged {type,data} envelope."
     },
     "defaultContentType": "application/json",

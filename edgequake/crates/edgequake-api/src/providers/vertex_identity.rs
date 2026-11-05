@@ -196,10 +196,9 @@ pub async fn select_identity(project: &str, model: &str) -> Result<VertexAccess,
                 remember(&scope, &access).await;
                 return Ok(access);
             }
-            Err(status) => rejected.push(format!(
-                "{} (HTTP {status})",
-                VertexIdentity::Adc.as_str()
-            )),
+            Err(status) => {
+                rejected.push(format!("{} (HTTP {status})", VertexIdentity::Adc.as_str()))
+            }
         }
     } else {
         rejected.push(format!("{} (no token)", VertexIdentity::Adc.as_str()));
@@ -221,10 +220,7 @@ pub async fn select_identity(project: &str, model: &str) -> Result<VertexAccess,
             )),
         }
     } else {
-        rejected.push(format!(
-            "{} (no token)",
-            VertexIdentity::Gcloud.as_str()
-        ));
+        rejected.push(format!("{} (no token)", VertexIdentity::Gcloud.as_str()));
     }
 
     Err(identity_error(project, model, &rejected))
@@ -306,7 +302,10 @@ mod tests {
         for id in [VertexIdentity::Adc, VertexIdentity::Gcloud] {
             let s = id.as_str();
             assert!(!s.contains("ya29"), "{s}");
-            assert!(!s.chars().any(|c| c.is_ascii_digit() && s.len() > 40), "{s}");
+            assert!(
+                !s.chars().any(|c| c.is_ascii_digit() && s.len() > 40),
+                "{s}"
+            );
         }
     }
 

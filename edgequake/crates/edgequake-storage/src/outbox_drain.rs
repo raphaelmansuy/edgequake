@@ -328,18 +328,37 @@ pub async fn chaos_claim_without_ack(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    // Process-global env mutations race under `cargo test` parallelism.
+    static OUTBOX_DRAIN_ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn contract_spec091_outbox_drain_default_on() {
+        let _guard = OUTBOX_DRAIN_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let previous = std::env::var(OUTBOX_DRAIN_ENV).ok();
         std::env::remove_var(OUTBOX_DRAIN_ENV);
         assert_eq!(OutboxDrainConfig::from_env().mode, DrainMode::On);
+        match previous {
+            Some(v) => std::env::set_var(OUTBOX_DRAIN_ENV, v),
+            None => std::env::remove_var(OUTBOX_DRAIN_ENV),
+        }
     }
 
     #[test]
     fn contract_spec091_outbox_drain_explicit_off() {
+        let _guard = OUTBOX_DRAIN_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let previous = std::env::var(OUTBOX_DRAIN_ENV).ok();
         std::env::set_var(OUTBOX_DRAIN_ENV, "off");
         assert_eq!(OutboxDrainConfig::from_env().mode, DrainMode::Off);
-        std::env::remove_var(OUTBOX_DRAIN_ENV);
+        match previous {
+            Some(v) => std::env::set_var(OUTBOX_DRAIN_ENV, v),
+            None => std::env::remove_var(OUTBOX_DRAIN_ENV),
+        }
     }
 
     #[test]

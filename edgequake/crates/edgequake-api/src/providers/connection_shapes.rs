@@ -375,20 +375,33 @@ mod tests {
 
     #[test]
     fn every_cloud_key_provider_stores_a_secret_and_every_local_one_accepts_an_optional_key() {
-        for id in ["openai", "anthropic", "gemini", "mistral", "xai", "openrouter", "huggingface"] {
+        for id in [
+            "openai",
+            "anthropic",
+            "gemini",
+            "mistral",
+            "xai",
+            "openrouter",
+            "huggingface",
+        ] {
             let s = shape(id);
             assert_eq!(s.auth, AuthRequirement::ApiKey, "{id}");
             assert!(s.auth.requires_key(), "{id} cannot work without a key");
             assert!(s.auth.stores_secret(), "{id} must encrypt its key");
         }
-        for id in ["ollama", "lmstudio", "omlx", "mtplx", "llamacpp", "vllm-mlx", "mlx-lm"] {
+        for id in [
+            "ollama", "lmstudio", "omlx", "mtplx", "llamacpp", "vllm-mlx", "mlx-lm",
+        ] {
             let s = shape(id);
             // "No key required" is not "no key accepted": a protected local server must stay
             // configurable, so the field remains and the value is still a secret.
             assert_eq!(s.auth, AuthRequirement::OptionalApiKey, "{id}");
             assert!(!s.auth.requires_key(), "{id} works without a key");
             assert!(s.auth.accepts_saved_key(), "{id} must still accept one");
-            assert!(s.auth.stores_secret(), "{id} must encrypt a key it does keep");
+            assert!(
+                s.auth.stores_secret(),
+                "{id} must encrypt a key it does keep"
+            );
         }
     }
 
@@ -410,7 +423,11 @@ mod tests {
     fn a_required_key_is_always_an_accepted_key() {
         for s in CONNECTION_SHAPES {
             if s.auth.requires_key() {
-                assert!(s.auth.accepts_saved_key(), "{} requires a key it would refuse", s.id);
+                assert!(
+                    s.auth.accepts_saved_key(),
+                    "{} requires a key it would refuse",
+                    s.id
+                );
             }
         }
     }
