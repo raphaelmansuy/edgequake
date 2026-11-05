@@ -141,13 +141,27 @@ pub fn filtered_ann_gucs_satisfy_contract(
 }
 
 #[cfg(test)]
+pub(crate) mod test_env_guard {
+    //! One lock for every test that mutates process-global HNSW env vars.
+    //!
+    //! `cargo test` runs tests in threads of one process, so a `set_var` in one test is visible to
+    //! another that reads `HnswRuntimePolicy::from_env()`. Two tuning assertions failed exactly
+    //! that way: they saw `ef_search = 99999` clamped to 1000 and `max_scan_tuples = 1`.
+    use std::sync::{Mutex, MutexGuard};
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    pub(crate) fn lock() -> MutexGuard<'static, ()> {
+        ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
 
     fn env_lock() -> std::sync::MutexGuard<'static, ()> {
-        static ENV_LOCK: Mutex<()> = Mutex::new(());
-        ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+        crate::adapters::postgres::hnsw_runtime_policy::test_env_guard::lock()
     }
 
     #[test]
@@ -202,6 +216,7 @@ mod tests {
 
     #[test]
     fn from_env_clamps_and_flags() {
+        let _guard = env_lock();
         std::env::set_var("EDGEQUAKE_HNSW_EF_SEARCH", "99999");
         std::env::set_var("EDGEQUAKE_HNSW_MAX_SCAN_TUPLES", "0");
         std::env::set_var("EDGEQUAKE_HNSW_PARTIAL_BY_WORKSPACE", "1");

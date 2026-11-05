@@ -4,6 +4,64 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.2] — 2026-11-05
+
+Patch on v0.40.1. Schema stays **227**. `edgequake migrate` is a no-op on a database that is
+already at schema 227. Roll the images. Do not change the schema.
+
+### Added
+
+- **A connection can store the credential its provider actually uses.** Vertex AI accepts three
+  kinds now: this server's Google Cloud identity (nothing stored), a service-account JSON file, or
+  a Vertex API key (Express mode, or a key bound to a service account). The file is encrypted by
+  the secret manager and never returned; chat mints an access token from it, so a machine whose
+  ADC belongs to a different principal works. `providers::credential_material` classifies the
+  pasted value, refuses a key file on a key-only provider, and never echoes it in an error.
+  - The sync builder refuses a service-account file with a sentence naming the async path, instead
+    of silently constructing the wrong client.
+  - Bedrock and the VS Code Copilot proxy still refuse a pasted value: their clients read the AWS
+    chain and the proxy, so a stored key would be ignored rather than used.
+
+### Fixed
+
+- **Hugging Face pointed at a retired host.** `api-inference.huggingface.co` returns **410 Gone**;
+  Inference Providers now serve an OpenAI-shaped router. The default is
+  `https://router.huggingface.co/v1`.
+- **Cohere's default base was not an OpenAI shape.** `api.cohere.com/v1` speaks Cohere's native
+  Chat API (`message`, not `messages`), so an OpenAI-shaped client would fail. The default is now
+  the Compatibility API, `https://api.cohere.ai/compatibility/v1`.
+- **Azure built the wrong URL from either paste.** The Foundry v1 route is the resource host plus
+  `/openai/v1` with no dated `api-version`, and the deployment name is the `model`. A saved
+  `https://r.openai.azure.com/openai/v1` went to `/openai/v1/openai/v1`. Azure now has its own
+  client arm and the endpoint is normalised to exactly one suffix.
+- **The connection test listed models on hosts that have no such route.** Cohere's compatibility
+  surface documents no `GET /models`, and Azure's listing is control-plane. Both reported a
+  working key as broken; they are now checked by the chat path.
+- **Shapes whose client builds its own URL no longer offer an editable Base URL.** Gemini,
+  Vertex AI, Bedrock and the Copilot proxy derive the endpoint from the credential, project,
+  location or SDK. `/connections/shapes` now states `base_url_editable`, and the form disables the
+  field with the reason.
+
+### Changed
+
+- **The saved-connection row names the shape and the credential kind.** It printed the raw slug
+  (`vertexai`, `openai_chat`) and a base64 fingerprint (`key c2VydmljZQ`), which told an operator
+  nothing. It now reads `Vertex AI · https://aiplatform.googleapis.com` with a `Service account
+  saved` badge.
+- **The add form no longer lets a required secret be saved empty.** Save is disabled until the
+  key or key file is present, and the placeholder slug follows the chosen shape instead of staying
+  `local` on a Vertex row.
+- Captured and reviewed at four widths and two themes across five rounds in
+  `specs/184-improve-provider-settings/e2e/`. The review also caught that the helper wrote the
+  theme into the filename only, so every "dark" capture had been a byte-identical copy of light.
+
+### Not changed
+
+- **Anthropic still sends `anthropic-version: 2023-06-01`.** That header comes from
+  `edgequake-llm` 0.10.10, the latest published version. The 2026-10-21 version removes
+  `temperature`, `top_p` and `top_k`; EdgeQuake sends none of them, so the requests remain valid.
+  Adopting the new version is a crate-side change, not a product one.
+
 ## [0.40.1] — 2026-11-05
 
 Patch on v0.40.0. Schema stays **227**. `edgequake migrate` is a no-op on a database that is

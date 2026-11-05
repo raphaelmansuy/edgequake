@@ -215,6 +215,7 @@ mod tests {
 
     #[test]
     fn test_search_tuning_hnsw_clamps_ef_search() {
+        let _guard = super::super::super::hnsw_runtime_policy::test_env_guard::lock();
         let small =
             PgVectorStorage::search_tuning_statements(VectorIndexType::HNSW, 1, false, true);
         assert_eq!(small, vec!["SET LOCAL hnsw.ef_search = 40"]);
@@ -227,6 +228,7 @@ mod tests {
 
     #[test]
     fn test_search_tuning_hnsw_filtered_enables_iterative_scan() {
+        let _guard = super::super::super::hnsw_runtime_policy::test_env_guard::lock();
         let stmts = PgVectorStorage::search_tuning_statements_with_hnsw_mode(
             VectorIndexType::HNSW,
             10,

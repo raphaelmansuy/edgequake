@@ -3,7 +3,7 @@ title: "What's new"
 description: "Per-release highlights moved out of the README."
 ---
 
-This page lists the highlights of each release from v0.40.1 back to v0.24.0, newest first. Most entries name the schema number, so you can plan a database migration before you upgrade. For the full change list, see the [CHANGELOG](CHANGELOG.md), and for the upgrade steps, see the linked upgrade guide. A plain-English [picture tour](https://edgequake.com/tutorial/) of the UI is on the marketing site.
+This page lists the highlights of each release from v0.40.2 back to v0.24.0, newest first. Most entries name the schema number, so you can plan a database migration before you upgrade. For the full change list, see the [CHANGELOG](CHANGELOG.md), and for the upgrade steps, see the linked upgrade guide. A plain-English [picture tour](https://edgequake.com/tutorial/) of the UI is on the marketing site.
 
 ## Schema train at a glance
 
@@ -35,13 +35,23 @@ timeline
     v0.38.3 : 224 pinned
     v0.38.4 : 224 pinned
     v0.39.0 : 226
+    v0.40.2 : 227
     v0.40.1 : 227
     v0.40.0 : 227
 ```
 
-The timeline shows the schema number each release leaves the database at, from v0.23.0 through v0.40.1.
+The timeline shows the schema number each release leaves the database at, from v0.23.0 through v0.40.2.
 
 Run `edgequake migrate` when you move to a release with a higher number. The [upgrading guide](operations/upgrading.md) covers the steps.
+
+### What's new in 0.40.2
+
+A Vertex connection can store its own service-account key file, and three provider endpoints were corrected against current documentation. Schema stays **227**. `edgequake migrate` is a no-op. See [upgrade-to-0.40.2.md](operations/upgrade-to-0.40.2.md).
+
+- Vertex AI stores a service-account JSON or a Vertex API key, encrypted, or uses the server identity. Chat mints a token from the file, so a mismatched ADC no longer matters.
+- Hugging Face moved to `router.huggingface.co/v1` (the old host returns 410), Cohere to its Compatibility API, Azure to the Foundry `/openai/v1` route.
+- Gemini, Vertex AI, Bedrock and Copilot no longer offer a Base URL the client ignores.
+- The saved row names the shape and credential kind instead of printing a base64 fingerprint.
 
 ### What's new in 0.40.1
 

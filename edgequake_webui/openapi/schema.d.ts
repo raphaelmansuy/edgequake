@@ -16909,6 +16909,7 @@ export interface components {
          *       "api_shape": {},
          *       "auth_scheme": {},
          *       "base_url": {},
+         *       "credential_region": {},
          *       "display_name": {},
          *       "locality": {},
          *       "slug": {},
@@ -16921,6 +16922,8 @@ export interface components {
             api_shape: string;
             auth_scheme?: string | null;
             base_url: string;
+            /** @description Vertex location (`us-central1`, `global`). Not a secret. */
+            credential_region?: string | null;
             display_name: string;
             locality?: string | null;
             slug: string;
