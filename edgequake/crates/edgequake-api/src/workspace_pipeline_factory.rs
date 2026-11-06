@@ -190,10 +190,27 @@ impl WorkspacePipelineFactory {
                     }
                 }
             }
+            #[cfg(feature = "postgres")]
+            if connected.is_none() {
+                if let Some(pool) = self.pg_pool.as_ref() {
+                    match crate::providers::connection_store::fleet_llm(
+                        pool,
+                        &extract_role.provider,
+                        &extract_role.model,
+                    )
+                    .await
+                    {
+                        Ok(Some(provider)) => connected = Some(provider),
+                        Ok(None) => {}
+                        Err(message) => return Err(message),
+                    }
+                }
+            }
             match connected {
                 Some(p) => Ok(p),
                 None => {
                     create_safe_extraction_llm_provider(&extract_role.provider, &extract_role.model)
+                        .map_err(|err| err.to_string())
                 }
             }
         };
@@ -387,6 +404,33 @@ impl WorkspacePipelineFactory {
         let from_conn: Option<Arc<dyn edgequake_llm::EmbeddingProvider>> = {
             let _ = ws;
             None
+        };
+        let from_conn = match from_conn {
+            Some(provider) => Some(provider),
+            None => {
+                #[cfg(feature = "postgres")]
+                {
+                    if let Some(pool) = self.pg_pool.as_ref() {
+                        match crate::providers::connection_store::fleet_embedding(
+                            pool,
+                            &emb.provider,
+                            &emb.model,
+                            emb.dimension,
+                        )
+                        .await
+                        {
+                            Ok(provider) => provider,
+                            Err(message) => return Err(message),
+                        }
+                    } else {
+                        None
+                    }
+                }
+                #[cfg(not(feature = "postgres"))]
+                {
+                    None
+                }
+            }
         };
         match from_conn {
             Some(provider) => Ok(provider),

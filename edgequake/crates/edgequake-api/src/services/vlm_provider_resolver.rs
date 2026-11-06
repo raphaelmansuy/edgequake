@@ -66,7 +66,31 @@ async fn try_workspace_vlm(
             return Some(connected);
         }
     }
-    create_safe_vision_provider(&cfg.provider, &cfg.model).ok()
+    saved_fleet_or_safe(&cfg.provider, &cfg.model, false).await
+}
+
+async fn saved_fleet_or_safe(
+    provider: &str,
+    model: &str,
+    pass_b: bool,
+) -> Option<Arc<dyn LLMProvider>> {
+    match crate::providers::connection_store::fleet_llm_from_ambient(provider, model).await {
+        Ok(Some(provider)) => return Some(provider),
+        Ok(None) => {}
+        Err(error) => {
+            tracing::warn!(
+                %error,
+                provider,
+                "saved provider connection could not be opened"
+            );
+            return None;
+        }
+    }
+    if pass_b {
+        create_safe_vision_provider_for_pass_b(provider, model).ok()
+    } else {
+        create_safe_vision_provider(provider, model).ok()
+    }
 }
 
 async fn try_workspace_vlm_pass_b(
@@ -81,7 +105,7 @@ async fn try_workspace_vlm_pass_b(
             return Some(connected);
         }
     }
-    create_safe_vision_provider_for_pass_b(&cfg.provider, &cfg.model).ok()
+    saved_fleet_or_safe(&cfg.provider, &cfg.model, true).await
 }
 
 async fn try_workspace_extract(
@@ -95,6 +119,20 @@ async fn try_workspace_extract(
             crate::providers::connection_store::llm_from_ambient_connection(id, &role.model).await
         {
             return Some(connected);
+        }
+    }
+    match crate::providers::connection_store::fleet_llm_from_ambient(&role.provider, &role.model)
+        .await
+    {
+        Ok(Some(provider)) => return Some(provider),
+        Ok(None) => {}
+        Err(error) => {
+            tracing::warn!(
+                %error,
+                provider = %role.provider,
+                "saved extract connection could not be opened"
+            );
+            return None;
         }
     }
     create_safe_llm_provider(&role.provider, &role.model).ok()

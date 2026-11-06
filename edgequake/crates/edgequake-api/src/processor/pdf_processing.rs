@@ -1032,6 +1032,8 @@ impl DocumentTaskProcessor {
         }
         .await;
 
+        #[cfg_attr(not(feature = "vision"), allow(unused_mut))]
+        let mut saved_vision: Option<std::sync::Arc<dyn edgequake_llm::LLMProvider>> = None;
         let converter = if precomputed_markdown.is_some() {
             edgequake_pdf::create_pdf_converter(edgequake_pdf::PdfParserBackend::EdgeParse)
         } else {
@@ -1060,10 +1062,25 @@ impl DocumentTaskProcessor {
                         {
                             use crate::safety_limits::check_vision_provider_available;
 
-                            match check_vision_provider_available(
+                            let saved = crate::providers::connection_store::vision_llm_from_saved(
+                                self.ambient_connection_pool(),
+                                vision_workspace.as_ref(),
                                 &vision_provider,
                                 vision_model.as_deref().unwrap_or_default(),
-                            ) {
+                            )
+                            .await;
+                            let gate = match saved {
+                                Ok(Some(provider)) => {
+                                    saved_vision = Some(provider);
+                                    Ok(())
+                                }
+                                Ok(None) => check_vision_provider_available(
+                                    &vision_provider,
+                                    vision_model.as_deref().unwrap_or_default(),
+                                ),
+                                Err(message) => Err(edgequake_llm::LlmError::ConfigError(message)),
+                            };
+                            match gate {
                                 Ok(()) => edgequake_pdf::create_pdf_converter(backend),
                                 Err(e) => {
                                     let error = edgequake_tasks::TaskError::Processing(format!(
@@ -1191,14 +1208,18 @@ impl DocumentTaskProcessor {
             let model = vision_model.clone().filter(|s| !s.is_empty());
             match model {
                 Some(model) => {
-                    match crate::providers::connection_store::vision_llm_preferring_connection(
-                        self.ambient_connection_pool(),
-                        vision_workspace.as_ref(),
-                        &vision_provider,
-                        &model,
-                    )
-                    .await
-                    {
+                    let provider = if let Some(provider) = saved_vision.clone() {
+                        Some(provider)
+                    } else {
+                        crate::providers::connection_store::vision_llm_preferring_connection(
+                            self.ambient_connection_pool(),
+                            vision_workspace.as_ref(),
+                            &vision_provider,
+                            &model,
+                        )
+                        .await
+                    };
+                    match provider {
                         Some(provider) => {
                             print_figure_filter = Some(
                                 edgequake_pdf::image_guard::ImageGuardProvider::wrap(provider),
@@ -1287,6 +1308,7 @@ impl DocumentTaskProcessor {
                     api_timeout_secs: Some(crate::safety_limits::vision_page_timeout_secs(
                         &vision_provider,
                     )),
+                    provider: saved_vision.clone(),
                 }
             }),
         };

@@ -115,6 +115,22 @@ impl DocumentTaskProcessor {
         if actions.run_parse_ocr {
             self.bump_task_progress(task, "page_reprocess".to_string(), 3, 35)
                 .await;
+            let vision_workspace = if let Some(svc) = self.workspace_service.as_ref() {
+                svc.get_workspace(data.workspace_id).await.ok().flatten()
+            } else {
+                None
+            };
+            let saved_vision = match crate::providers::connection_store::vision_llm_from_saved(
+                self.ambient_connection_pool(),
+                vision_workspace.as_ref(),
+                &data.vision_provider,
+                resolved_vision_model.as_deref().unwrap_or(""),
+            )
+            .await
+            {
+                Ok(provider) => provider,
+                Err(message) => return Err(TaskError::Processing(message)),
+            };
             let converter = create_pdf_converter(PdfParserBackend::Vision);
             let sink_replacements =
                 Arc::new(std::sync::Mutex::new(BTreeMap::<usize, String>::new()));
@@ -129,6 +145,7 @@ impl DocumentTaskProcessor {
                         g.insert(page, format!("<!-- edgequake-page:{page} -->\n\n{md}"));
                     }
                 })),
+                provider: saved_vision,
                 ..Default::default()
             };
             let cfg = PdfConversionConfig {

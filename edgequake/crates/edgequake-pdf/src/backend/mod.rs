@@ -177,6 +177,10 @@ pub struct VisionConversionConfig {
     pub reasoning_effort: Option<String>,
     /// Per-page VLM API timeout forwarded to pdf2md `api_timeout_secs`.
     pub api_timeout_secs: Option<u64>,
+    /// A provider already built from a saved connection. When set, conversion
+    /// does not call the environment factory (which requires `GOOGLE_CLOUD_PROJECT`
+    /// for Vertex).
+    pub provider: Option<Arc<dyn edgequake_llm::LLMProvider>>,
 }
 
 impl std::fmt::Debug for VisionConversionConfig {
@@ -204,6 +208,7 @@ impl std::fmt::Debug for VisionConversionConfig {
             .field("pages", &self.pages)
             .field("reasoning_effort", &self.reasoning_effort)
             .field("api_timeout_secs", &self.api_timeout_secs)
+            .field("provider", &self.provider.as_ref().map(|_| "<provider>"))
             .finish()
     }
 }

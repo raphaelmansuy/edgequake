@@ -52,12 +52,55 @@ async fn vertex_llm(spec: &ConnectionSpec) -> Result<Arc<dyn LLMProvider>, ApiEr
 }
 
 async fn vertex_embed(spec: &ConnectionSpec) -> Result<Arc<dyn EmbeddingProvider>, ApiError> {
-    let provider = vertex_gemini(spec).await?;
     let model = spec
         .embedding_model
         .clone()
         .unwrap_or_else(|| spec.model.clone());
+    if crate::embeddings::is_vertex_multimodal(&spec.shape, &model) {
+        if let Some(provider) = multimodal_from_stored(spec, &model)? {
+            return Ok(provider);
+        }
+    }
+    let provider = vertex_gemini(spec).await?;
     Ok(Arc::new(provider.with_embedding_model(&model)))
+}
+
+/// `gemini-embedding-2` is served by `:embedContent`, not the chat client's `:predict`.
+fn multimodal_from_stored(
+    spec: &ConnectionSpec,
+    model: &str,
+) -> Result<Option<Arc<dyn EmbeddingProvider>>, ApiError> {
+    let Some(raw) = spec
+        .api_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    else {
+        return Ok(None);
+    };
+    let OpenedSecret::GoogleCredential { material, .. } = credential_material::open_secret(raw)
+    else {
+        return Ok(None);
+    };
+    let creds: GoogleCredentials = serde_json::from_str(&material).map_err(|_| {
+        ApiError::BadRequest(
+            "The stored Google credential is not a service-account or authorized-user file.".into(),
+        )
+    })?;
+    let project = creds.project_id().unwrap_or("").trim().to_string();
+    if project.is_empty() {
+        return Err(ApiError::BadRequest(
+            "The stored Google credential has no project_id.".into(),
+        ));
+    }
+    let dimension = spec.embedding_dimension.unwrap_or(1536);
+    let embedder = crate::embeddings::vertex_gemini::VertexGeminiEmbedder::from_service_account(
+        &project, &material, model, dimension,
+    )
+    .map_err(|error| crate::embeddings::api_error(&error))?;
+    Ok(Some(Arc::new(
+        crate::embeddings::vertex_gemini::VertexTextEmbedder(Arc::new(embedder)),
+    )))
 }
 
 async fn vertex_gemini(spec: &ConnectionSpec) -> Result<GeminiProvider, ApiError> {

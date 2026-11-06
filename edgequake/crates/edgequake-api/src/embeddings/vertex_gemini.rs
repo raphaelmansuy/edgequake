@@ -125,6 +125,37 @@ impl VertexGeminiEmbedder {
         })
     }
 
+    /// A client whose token is minted from a stored service-account JSON.
+    ///
+    /// The project comes from that file, so the process does not need
+    /// `GOOGLE_CLOUD_PROJECT`.
+    pub fn from_service_account(
+        project: &str,
+        material: &str,
+        model: &str,
+        dimension: usize,
+    ) -> Result<Self, EmbedError> {
+        let base_url = std::env::var("EDGEQUAKE_VERTEX_BASE_URL")
+            .ok()
+            .map(|u| u.trim().trim_end_matches('/').to_string())
+            .filter(|u| !u.is_empty())
+            .unwrap_or_else(|| DEFAULT_BASE_URL.to_string());
+        let max_image_bytes = edgequake_pdf::image_guard::max_image_bytes_from_env();
+        Self::new(
+            VertexGeminiConfig::new(
+                project,
+                base_url,
+                model,
+                dimension,
+                DEFAULT_CONCURRENCY,
+                max_image_bytes,
+            )?,
+            VertexTokenProvider::new(Arc::new(super::vertex_token::StoredServiceAccount::new(
+                material,
+            ))),
+        )
+    }
+
     /// A client for `model` at `dimension`, with credentials from the environment.
     pub fn from_env(model: &str, dimension: usize) -> Result<Self, EmbedError> {
         Self::new(
@@ -338,6 +369,17 @@ mod tests {
     use crate::embeddings::vertex_token::TokenSource;
     use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn a_stored_service_account_does_not_need_google_cloud_project() {
+        let client = VertexGeminiEmbedder::from_service_account(
+            "demo-project",
+            r#"{"type":"service_account","project_id":"demo-project"}"#,
+            "gemini-embedding-2",
+            1536,
+        );
+        assert!(client.is_ok());
+    }
 
     struct Fixed;
 

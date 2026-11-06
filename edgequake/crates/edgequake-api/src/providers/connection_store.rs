@@ -46,6 +46,27 @@ pub fn ambient_pool_from_state(state: &crate::state::AppState) -> AmbientPool {
     }
 }
 
+/// Fleet LLM when an ambient pool was scoped on this task.
+///
+/// `Ok(None)` means no saved secret. A saved secret that cannot mint a token is an error.
+pub async fn fleet_llm_from_ambient(
+    provider: &str,
+    model: &str,
+) -> Result<Option<Arc<dyn LLMProvider>>, String> {
+    #[cfg(feature = "postgres")]
+    {
+        let Ok(pool) = SAVED_CONNECTION_POOL.try_with(|pool| pool.clone()) else {
+            return Ok(None);
+        };
+        return fleet_llm(&pool, provider, model).await;
+    }
+    #[cfg(not(feature = "postgres"))]
+    {
+        let _ = (provider, model);
+        Ok(None)
+    }
+}
+
 /// LLM built from a connection id when an ambient pool was scoped on this task.
 pub async fn llm_from_ambient_connection(id: &str, model: &str) -> Option<Arc<dyn LLMProvider>> {
     #[cfg(feature = "postgres")]
@@ -142,6 +163,121 @@ pub async fn llm_from_workspace_role(
     llm_from_pool(pool, id, &resolved.model).await
 }
 
+/// Slugs that name the same saved connection. `vertex` and `vertexai` are one provider.
+pub fn provider_match_names(provider: &str) -> Vec<String> {
+    let name = provider.trim().to_ascii_lowercase();
+    let mut names = vec![name.clone()];
+    if matches!(name.as_str(), "vertex" | "vertexai" | "vertex-ai") {
+        for alias in ["vertex", "vertexai", "vertex-ai"] {
+            if !names.iter().any(|existing| existing == alias) {
+                names.push(alias.to_string());
+            }
+        }
+    }
+    names
+}
+
+/// Fleet connection id for a provider slug, when a secret is stored.
+#[cfg(feature = "postgres")]
+pub async fn fleet_connection_id(pool: &sqlx::PgPool, provider: &str) -> Option<Uuid> {
+    let names = provider_match_names(provider);
+    sqlx::query_scalar(
+        "SELECT id FROM provider_connections \
+         WHERE tenant_id IS NULL \
+           AND (lower(slug) = ANY($1) OR lower(api_shape) = ANY($1)) \
+           AND (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL) \
+         ORDER BY (COALESCE(last_test_ok, false)) DESC \
+         LIMIT 1",
+    )
+    .bind(&names)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()
+}
+
+/// LLM built from the fleet connection for `provider`. `Ok(None)` means no saved secret.
+#[cfg(feature = "postgres")]
+pub async fn fleet_llm(
+    pool: &sqlx::PgPool,
+    provider: &str,
+    model: &str,
+) -> Result<Option<Arc<dyn LLMProvider>>, String> {
+    let Some(id) = fleet_connection_id(pool, provider).await else {
+        return Ok(None);
+    };
+    let spec = load_connection_spec(pool, id, model)
+        .await
+        .map_err(|err| err.to_string())?;
+    crate::providers::connection_factory::llm_from_stored(&spec)
+        .await
+        .map(Some)
+        .map_err(|err| err.to_string())
+}
+
+/// Embedding client built from the fleet connection for `provider`.
+#[cfg(feature = "postgres")]
+pub async fn fleet_embedding(
+    pool: &sqlx::PgPool,
+    provider: &str,
+    model: &str,
+    dimension: usize,
+) -> Result<Option<Arc<dyn EmbeddingProvider>>, String> {
+    let Some(id) = fleet_connection_id(pool, provider).await else {
+        return Ok(None);
+    };
+    let mut spec = load_connection_spec(pool, id, model)
+        .await
+        .map_err(|err| err.to_string())?;
+    spec.model = model.to_string();
+    spec.embedding_model = Some(model.to_string());
+    spec.embedding_dimension = Some(dimension);
+    crate::providers::connection_factory::embedding_from_stored(&spec)
+        .await
+        .map(Some)
+        .map_err(|err| err.to_string())
+}
+
+/// Vision LLM from the workspace role, else the fleet connection of the same slug.
+///
+/// `Ok(None)` means there is no saved secret, so the caller may use the process
+/// environment. A saved secret that cannot mint a token is an error: falling
+/// through would report a missing `GOOGLE_CLOUD_PROJECT` instead.
+pub async fn vision_llm_from_saved(
+    pool: AmbientPool,
+    ws: Option<&edgequake_core::Workspace>,
+    provider: &str,
+    model: &str,
+) -> Result<Option<Arc<dyn LLMProvider>>, String> {
+    #[cfg(feature = "postgres")]
+    {
+        let Some(pool) = pool.as_ref() else {
+            return Ok(None);
+        };
+        if let Some(ws) = ws {
+            let resolved = edgequake_core::resolve_role_llm(ws, edgequake_core::LlmRole::Vlm);
+            if resolved
+                .connection_id
+                .as_deref()
+                .is_some_and(|id| !id.is_empty())
+            {
+                return match llm_from_workspace_role(pool, ws, edgequake_core::LlmRole::Vlm).await {
+                    Some(provider) => Ok(Some(provider)),
+                    None => Err(format!(
+                        "The saved vision connection for '{provider}' could not be opened."
+                    )),
+                };
+            }
+        }
+        return fleet_llm(pool, provider, model).await;
+    }
+    #[cfg(not(feature = "postgres"))]
+    {
+        let _ = (pool, ws, provider, model);
+        Ok(None)
+    }
+}
+
 /// Prefer a saved VLM connection; otherwise build from provider name + model.
 pub async fn vision_llm_preferring_connection(
     pool: AmbientPool,
@@ -149,17 +285,16 @@ pub async fn vision_llm_preferring_connection(
     provider: &str,
     model: &str,
 ) -> Option<Arc<dyn LLMProvider>> {
-    #[cfg(feature = "postgres")]
-    if let (Some(pool), Some(ws)) = (pool.as_ref(), ws) {
-        if let Some(connected) =
-            llm_from_workspace_role(pool, ws, edgequake_core::LlmRole::Vlm).await
-        {
-            return Some(connected);
+    match vision_llm_from_saved(pool, ws, provider, model).await {
+        Ok(Some(provider)) => return Some(provider),
+        Ok(None) => {}
+        Err(error) => {
+            tracing::warn!(
+                %error,
+                provider,
+                "saved vision connection could not be opened"
+            );
         }
-    }
-    #[cfg(not(feature = "postgres"))]
-    {
-        let _ = (pool, ws);
     }
     edgequake_llm::ProviderFactory::create_llm_provider(provider, model).ok()
 }
@@ -179,4 +314,38 @@ pub async fn embedding_from_pool(
     crate::providers::connection_factory::embedding_from_stored(&spec)
         .await
         .ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::provider_match_names;
+
+    #[test]
+    fn vertex_aliases_find_the_saved_slug() {
+        let names = provider_match_names("VertexAI");
+        assert!(names.iter().any(|name| name == "vertexai"));
+        assert!(names.iter().any(|name| name == "vertex"));
+        assert!(names.iter().any(|name| name == "vertex-ai"));
+    }
+
+    #[test]
+    fn other_providers_match_their_own_slug() {
+        assert_eq!(provider_match_names(" OpenAI "), vec!["openai".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn vision_without_a_database_does_not_invent_a_connection() {
+        let saved = super::vision_llm_from_saved(
+            #[cfg(feature = "postgres")]
+            None,
+            #[cfg(not(feature = "postgres"))]
+            (),
+            None,
+            "vertexai",
+            "gemini-3.8-flash",
+        )
+        .await
+        .expect("no database is not an error");
+        assert!(saved.is_none());
+    }
 }

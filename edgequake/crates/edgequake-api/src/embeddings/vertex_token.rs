@@ -82,6 +82,35 @@ fn auth_error(message: impl Into<String>) -> EmbedError {
     EmbedError::new(embed_codes::AUTH, message)
 }
 
+/// Mints a Google access token from a stored service-account JSON.
+///
+/// The JSON stays in memory. It is parsed on each refresh and never logged.
+pub struct StoredServiceAccount {
+    material: String,
+}
+
+impl StoredServiceAccount {
+    pub fn new(material: impl Into<String>) -> Self {
+        Self {
+            material: material.into(),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl TokenSource for StoredServiceAccount {
+    async fn mint(&self) -> Result<String, EmbedError> {
+        let creds: edgequake_llm::google_auth::GoogleCredentials =
+            serde_json::from_str(&self.material).map_err(|_| {
+                auth_error("The stored Google credential is not a service-account file.")
+            })?;
+        let token = creds.into_source().refresh().await.map_err(|_| {
+            auth_error("Could not mint a Google access token. The key may have been revoked.")
+        })?;
+        Ok(token.token)
+    }
+}
+
 struct Cached {
     token: String,
     minted_at: Instant,

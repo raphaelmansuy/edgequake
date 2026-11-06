@@ -456,6 +456,10 @@ impl WorkspaceProviderResolver {
                     return Ok(Some(from_conn));
                 }
             }
+            if let Some(from_fleet) = self.try_fleet_llm(ws, request).await? {
+                self.refuse_unoffered(Some(ws), request).await?;
+                return Ok(Some(from_fleet));
+            }
             let resolved =
                 self.resolve_llm_provider_with_workspace(Some(ws), tenant.as_ref(), request)?;
             self.refuse_unoffered(Some(ws), request).await?;
@@ -516,6 +520,52 @@ impl WorkspaceProviderResolver {
                 }
             }
             Ok(())
+        }
+    }
+
+    async fn try_fleet_llm(
+        &self,
+        workspace: &Workspace,
+        request: &LlmResolutionRequest,
+    ) -> Result<Option<ResolvedLlmProvider>, ProviderResolutionError> {
+        let role = edgequake_core::resolve_role_llm(workspace, edgequake_core::LlmRole::Query);
+        let provider = request
+            .provider
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or(role.provider);
+        let model = request
+            .model
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or(role.model);
+        if provider.is_empty() || model.is_empty() {
+            return Ok(None);
+        }
+        #[cfg(feature = "postgres")]
+        {
+            let Some(pool) = self.pg_pool.as_ref() else {
+                return Ok(None);
+            };
+            return match crate::providers::connection_store::fleet_llm(pool, &provider, &model)
+                .await
+            {
+                Ok(Some(inner)) => Ok(Some(ResolvedLlmProvider {
+                    provider: inner,
+                    provider_name: provider,
+                    model_name: model,
+                    source: ProviderSource::Workspace,
+                })),
+                Ok(None) => Ok(None),
+                Err(message) => Err(ProviderResolutionError::from_creation_error(
+                    &provider, &model, &message,
+                )),
+            };
+        }
+        #[cfg(not(feature = "postgres"))]
+        {
+            let _ = (provider, model);
+            Ok(None)
         }
     }
 
@@ -683,6 +733,35 @@ impl WorkspaceProviderResolver {
                 model_name: choice.model,
                 dimension: choice.dimension,
             });
+        }
+
+        #[cfg(feature = "postgres")]
+        if let Some(pool) = self.pg_pool.as_ref() {
+            match crate::providers::connection_store::fleet_embedding(
+                pool,
+                &choice.provider,
+                &choice.model,
+                choice.dimension,
+            )
+            .await
+            {
+                Ok(Some(provider)) => {
+                    return Ok(ResolvedEmbeddingProvider {
+                        provider,
+                        provider_name: choice.provider,
+                        model_name: choice.model,
+                        dimension: choice.dimension,
+                    });
+                }
+                Ok(None) => {}
+                Err(message) => {
+                    return Err(ProviderResolutionError::from_creation_error(
+                        &choice.provider,
+                        &choice.model,
+                        &message,
+                    ));
+                }
+            }
         }
 
         debug!(
