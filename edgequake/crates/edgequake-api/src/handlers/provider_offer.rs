@@ -277,7 +277,15 @@ pub async fn get_deployment_providers(
     }
     #[cfg(feature = "postgres")]
     if let Some(pool) = state.optional_pg_pool() {
-        let rows: Vec<(Uuid, String, String, String, Option<bool>, Option<String>, bool)> = sqlx::query_as(
+        let rows: Vec<(
+            Uuid,
+            String,
+            String,
+            String,
+            Option<bool>,
+            Option<String>,
+            bool,
+        )> = sqlx::query_as(
             "SELECT id, slug, display_name, api_shape, last_test_ok, last_test_error, \
                     (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL) AS key_configured \
              FROM provider_connections WHERE tenant_id IS NULL ORDER BY slug",
