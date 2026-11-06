@@ -56,6 +56,26 @@ Set GitHub Actions variables from outputs:
 | `EDGEQUAKE_GCP_ZONE`         | `us-central1-a`              |
 | `EDGEQUAKE_GCP_INSTANCE`     | `elitizon-db`                |
 
+## Provider envelope key
+
+Saving a connection credential needs `EDGEQUAKE_SECRETS_KEY` (32 bytes: 64 hex characters, base64, or 32 raw bytes). The API still boots without it. The Connections form then returns `400` with `EDGEQUAKE_SECRETS_KEY is required to store API keys`.
+
+`render-env.sh` resolves the key in this order:
+
+1. Secret Manager secret `edgequake-secrets-key`, when it has a version other than the placeholder `UNSET`.
+2. The host file `/opt/edgequake/secrets/edgequake-secrets-key`.
+3. A new host file, created once with `openssl rand -hex 32`, mode `600`.
+
+The two copies must match. If both exist and differ, render stops and does not rotate. Do not delete the host file and do not add a second Secret Manager version. A different key makes every saved credential unreadable. `EDGEQUAKE_SECRETS_KEY_ID` stays `v1` and only labels rows.
+
+To keep the same key in Secret Manager, create the secret once and add the host file as its only version. Grant `roles/secretmanager.secretAccessor` on that secret to `edgequake-gce@saas-app-001.iam.gserviceaccount.com`. Then run `sudo /opt/edgequake/scripts/render-env.sh`. Confirm with:
+
+```bash
+curl -sf https://demo.edgequake.com/health | python3 -c 'import json,sys; print(json.load(sys.stdin)["security_posture"]["secrets_key_configured"])'
+```
+
+That prints `True` when the API process has the key. It does not print the key.
+
 Optional LLM keys (never commit):
 
 ```bash

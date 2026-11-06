@@ -51,6 +51,75 @@ BOOTSTRAP_ADMIN_PASSWORD="$(access_secret "${PREFIX}-bootstrap-admin-password")"
 MASTER_API_KEY="$(access_secret "${PREFIX}-master-api-key")"
 OPENAI_API_KEY="$(access_secret "${PREFIX}-openai-api-key" || true)"
 MISTRAL_API_KEY="$(access_secret "${PREFIX}-mistral-api-key" || true)"
+# Envelope key for saved provider credentials. Secret Manager wins when it
+# holds a real version. Otherwise the host file is reused. It is created once
+# and never replaced: a new value makes every saved credential unreadable.
+SECRETS_KEY_FILE="${INSTALL_ROOT}/secrets/edgequake-secrets-key"
+SECRETS_KEY_ERR="$(mktemp)"
+set +e
+SECRETS_KEY="$(access_secret "${PREFIX}-secrets-key" 2>"${SECRETS_KEY_ERR}")"
+SECRETS_KEY_RC=$?
+set -e
+if [[ "${SECRETS_KEY_RC}" -ne 0 ]]; then
+  if grep -Eq 'PERMISSION_DENIED|IAM_PERMISSION_DENIED' "${SECRETS_KEY_ERR}"; then
+    echo "render-env.sh: the runtime service account cannot read ${PREFIX}-secrets-key" >&2
+    rm -f "${SECRETS_KEY_ERR}"
+    exit 1
+  fi
+  SECRETS_KEY=""
+fi
+rm -f "${SECRETS_KEY_ERR}"
+SECRETS_KEY="${SECRETS_KEY//$'\n'/}"
+SECRETS_KEY="${SECRETS_KEY//$'\r'/}"
+if [[ -z "${SECRETS_KEY}" || "${SECRETS_KEY}" == "UNSET" ]]; then
+  SECRETS_KEY=""
+fi
+HOST_SECRETS_KEY=""
+if [[ -s "${SECRETS_KEY_FILE}" ]]; then
+  HOST_SECRETS_KEY="$(tr -d '\n\r' < "${SECRETS_KEY_FILE}")"
+fi
+if [[ -n "${SECRETS_KEY}" && -n "${HOST_SECRETS_KEY}" && "${SECRETS_KEY}" != "${HOST_SECRETS_KEY}" ]]; then
+  echo "render-env.sh: ${PREFIX}-secrets-key does not match ${SECRETS_KEY_FILE}. Refusing to rotate." >&2
+  exit 1
+fi
+if [[ -z "${SECRETS_KEY}" ]]; then
+  SECRETS_KEY="${HOST_SECRETS_KEY}"
+fi
+if [[ -z "${SECRETS_KEY}" ]]; then
+  install -d -m 0700 "${INSTALL_ROOT}/secrets"
+  umask 077
+  openssl rand -hex 32 | tr -d '\n' > "${SECRETS_KEY_FILE}.tmp"
+  chmod 600 "${SECRETS_KEY_FILE}.tmp"
+  mv "${SECRETS_KEY_FILE}.tmp" "${SECRETS_KEY_FILE}"
+  SECRETS_KEY="$(tr -d '\n\r' < "${SECRETS_KEY_FILE}")"
+elif [[ -z "${HOST_SECRETS_KEY}" ]]; then
+  install -d -m 0700 "${INSTALL_ROOT}/secrets"
+  umask 077
+  printf '%s' "${SECRETS_KEY}" > "${SECRETS_KEY_FILE}.tmp"
+  chmod 600 "${SECRETS_KEY_FILE}.tmp"
+  mv "${SECRETS_KEY_FILE}.tmp" "${SECRETS_KEY_FILE}"
+fi
+if ! printf '%s' "${SECRETS_KEY}" | python3 -c '
+import base64, binascii, sys
+raw = sys.stdin.read().strip()
+ok = False
+if len(raw) == 64:
+    try:
+        ok = len(binascii.unhexlify(raw)) == 32
+    except binascii.Error:
+        ok = False
+elif len(raw) == 32:
+    ok = True
+else:
+    try:
+        ok = len(base64.b64decode(raw, validate=True)) == 32
+    except Exception:
+        ok = False
+sys.exit(0 if ok else 1)
+'; then
+  echo "render-env.sh: EDGEQUAKE_SECRETS_KEY must be 32 bytes (64 hex, base64, or 32 raw bytes)" >&2
+  exit 1
+fi
 # Placeholder version is "UNSET" (Terraform). v0.27.0 forbids mock as the server
 # default unless EDGEQUAKE_ALLOW_MOCK_PROVIDER=1 (test hatch; LAW-148 smoke only).
 LLM_PROVIDER="mock"
@@ -80,6 +149,8 @@ EDGEQUAKE_BOOTSTRAP_ADMIN_USERNAME=admin
 EDGEQUAKE_BOOTSTRAP_ADMIN_PASSWORD=${BOOTSTRAP_ADMIN_PASSWORD}
 EDGEQUAKE_BOOTSTRAP_ADMIN_EMAIL=admin@elitizon.local
 EDGEQUAKE_MASTER_API_KEY=${MASTER_API_KEY}
+EDGEQUAKE_SECRETS_KEY=${SECRETS_KEY}
+EDGEQUAKE_SECRETS_KEY_ID=v1
 EDGEQUAKE_API_URL=${ORIGIN}
 EDGEQUAKE_PUBLIC_URL=${ORIGIN}
 EDGEQUAKE_CORS_ORIGINS=${ORIGIN}

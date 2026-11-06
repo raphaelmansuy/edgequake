@@ -124,7 +124,7 @@ class G eqLlm
 
 Read it from the top: the key is encrypted once on write and decrypted only inside the server process when a model call needs it.
 
-- `EDGEQUAKE_SECRETS_KEY` must be 32 bytes: 32 raw bytes, base64, or 64 hex characters. Generate one with `openssl rand -base64 32`.
+- `EDGEQUAKE_SECRETS_KEY` must be 32 bytes: 32 raw bytes, base64, or 64 hex characters. Generate one with `openssl rand -base64 32`. On the GCP demo host, `render-env.sh` keeps that key in `/opt/edgequake/secrets/edgequake-secrets-key` and passes it to the API. See [Provider envelope key](../../deploy/gcp/README.md#provider-envelope-key).
 - The fingerprint is a short, non-secret label (`eqk_` plus 16 hex digits) so you can tell keys apart. It is not a cryptographic hash.
 - The server decrypts with the single key in the environment. `EDGEQUAKE_SECRETS_KEY_ID` (default `v1`) only labels rows. Key rotation is not supported yet: changing the key makes old rows unreadable, and they are treated as having no key.
 - Keep other secrets (`JWT_SECRET`, `DATABASE_URL`, `OPENAI_API_KEY`) in your environment or a secret manager. Do not commit them to Git.
