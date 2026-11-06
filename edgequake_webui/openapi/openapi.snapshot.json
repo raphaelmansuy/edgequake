@@ -9,7 +9,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "0.40.4"
+    "version": "0.40.5"
   },
   "servers": [
     {
@@ -5649,8 +5649,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "reanalyze_multimodal"
+        "x-edgequake-v2-job-type": "reanalyze_multimodal",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/documents/{document_id}/retry-chunks": {
@@ -13193,8 +13193,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "rebuild_knowledge_graph"
+        "x-edgequake-v2-job-type": "rebuild_knowledge_graph",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/reprocess-documents": {
@@ -13267,8 +13267,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "reprocess_all",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "reprocess_all"
       }
     },
     "/api/v1/workspaces/{workspace_id}/restore": {
@@ -13952,8 +13952,8 @@
             "description": "Track not found for this workspace"
           }
         },
-        "x-edgequake-upgrade": "RFC6455",
-        "x-edgequake-transport": "websocket"
+        "x-edgequake-transport": "websocket",
+        "x-edgequake-upgrade": "RFC6455"
       }
     }
   },
@@ -39488,7 +39488,7 @@
     "asyncapi": "2.6.0",
     "info": {
       "title": "EdgeQuake WebSocket Progress",
-      "version": "0.40.4",
+      "version": "0.40.5",
       "description": "Real-time pipeline and document processing progress over WebSocket (RFC 6455). SPEC-149: clients subscribe to owned track_ids on the global channel; events use a tagged {type,data} envelope."
     },
     "defaultContentType": "application/json",

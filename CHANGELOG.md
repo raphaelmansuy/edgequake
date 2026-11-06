@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.5] — 2026-11-06
+
+Patch on v0.40.4. Schema stays **227**. `edgequake migrate` is a no-op on a database that is
+already at schema 227. Roll the images. Do not change the schema.
+
+### Fixed
+
+- **Add, remove, and update models were not on the page.** Organization › Providers now has
+  **Add a provider**, and each row has **Remove** and **Update models**. A saved connection whose
+  test passed has **Update models** next to **Test and offer**. Deployment › Providers labels the
+  hide action **Remove** and the model row **Add model**.
+- **A tested connection stayed hidden when `EDGEQUAKE_ALLOWED_PROVIDERS` omitted it.** The allowlist
+  still hides built-in cards. A fleet connection whose test passed is offered anyway, unless an
+  admin removes it.
+
+**SPEC-001 Acc:** not re-scored. Mix retrieval is unchanged. The latest valid pack remains
+`medical-mid-20261024T031725Z` (`valid: true`): EdgeQuake **0.8084**, LightRAG **0.7681**, delta
+**+0.0403**, 95% CI **[-0.0241, +0.1036]** (n_paired 72). The interval includes 0, so this is a
+statistical tie. EdgeQuake does not claim a win.
+
 ## [0.40.4] — 2026-11-06
 
 Patch on v0.40.3. Schema stays **227**. `edgequake migrate` is a no-op on a database that is
