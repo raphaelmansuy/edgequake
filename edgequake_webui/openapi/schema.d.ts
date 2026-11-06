@@ -18819,7 +18819,10 @@ export interface operations {
     };
     create_connection: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description deployment stores a fleet connection */
+                scope?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -18843,9 +18846,13 @@ export interface operations {
     };
     update_connection: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description deployment edits a fleet connection */
+                scope?: string;
+            };
             header?: never;
             path: {
+                /** @description Connection id */
                 id: string;
             };
             cookie?: never;
@@ -18859,9 +18866,15 @@ export interface operations {
     };
     delete_connection: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Required when assignments still use the slug */
+                confirm?: boolean;
+                /** @description deployment deletes a fleet connection */
+                scope?: string;
+            };
             header?: never;
             path: {
+                /** @description Connection id */
                 id: string;
             };
             cookie?: never;
@@ -18871,9 +18884,13 @@ export interface operations {
     };
     test_stored_connection: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description deployment tests a fleet connection */
+                scope?: string;
+            };
             header?: never;
             path: {
+                /** @description Connection id */
                 id: string;
             };
             cookie?: never;

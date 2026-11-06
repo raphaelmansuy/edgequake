@@ -8,7 +8,7 @@
 # (SPEC-174 clearance through SPEC-179 provider refresh).
 # v0.39.0 owns schema 226 (SPEC-180 Normal RAG, SPEC-181 admin).
 # v0.39.1 serves that same set. It adds no migration.
-# v0.40.0 owns schema 227. v0.40.1 and v0.40.2 serve that same set. Neither adds a migration.
+# v0.40.0 owns schema 227. v0.40.1, v0.40.2 and v0.40.3 serve that same set. None adds a migration.
 
 [unreleased]
 hash = "7491afd4e3a729e7"
@@ -405,5 +405,5 @@ key = true
 replay = true
 # max mig 227 (SPEC-180 BM25 document-frequency stats, migration 227)
 # hash 7491afd4e3a729e7 (225 numbered migration files)
-# v0.40.1 and v0.40.2 serve this same set. Their tags are covered by this hash
-# until a later cut adds its own row.
+# v0.40.1, v0.40.2 and v0.40.3 serve this same set. Their tags are covered by
+# this hash until a later cut adds its own row.

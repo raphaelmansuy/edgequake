@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.3] — 2026-11-06
+
+Patch on v0.40.2. Schema stays **227**. `edgequake migrate` is a no-op on a database that is
+already at schema 227. Roll the images. Do not change the schema.
+
+### Fixed
+
+- **A signed-in admin could not save a provider connection.** Auth writes the session tenant into
+  the request even when the browser omits `X-Tenant-ID`, so create, update, delete and test always
+  returned `422 connection_scope_global` ("Providers are added on the deployment."). Those four
+  routes now honor `?scope=deployment` for a platform admin and store a fleet row (`tenant_id` is
+  null). A tenant header without that scope still returns `connection_scope_global`. A caller who
+  is not an admin and passes `scope=deployment` receives `403 deployment_admin_required`.
+- **`make dev` had no key for stored secrets.** A save that got past the scope check then failed
+  with `EDGEQUAKE_SECRETS_KEY is required`. Dev mode now fills that variable from a gitignored
+  `.edgequake-dev-secrets.env`, generated once and never overwritten. An operator-supplied key
+  wins. `make dev-auth` does not load the file.
+
+**SPEC-001 Acc:** not re-scored. Mix retrieval is unchanged. The latest valid pack remains
+`medical-mid-20261024T031725Z` (`valid: true`): EdgeQuake **0.8084**, LightRAG **0.7681**, delta
+**+0.0403**, 95% CI **[-0.0241, +0.1036]** (n_paired 72). The interval includes 0, so this is a
+statistical tie. EdgeQuake does not claim a win.
+
 ## [0.40.2] — 2026-11-05
 
 Patch on v0.40.1. Schema stays **227**. `edgequake migrate` is a no-op on a database that is
