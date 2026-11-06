@@ -60,6 +60,8 @@ Set GitHub Actions variables from outputs:
 
 Saving a connection credential needs `EDGEQUAKE_SECRETS_KEY` (32 bytes: 64 hex characters, base64, or 32 raw bytes). The API still boots without it. The Connections form then returns `400` with `EDGEQUAKE_SECRETS_KEY is required to store API keys`.
 
+Every deploy runs `render-env.sh --ensure`. That updates an existing `/opt/edgequake/.env` in place. A missing key line is filled. A key that is already there is left as it is.
+
 `render-env.sh` resolves the key in this order:
 
 1. Secret Manager secret `edgequake-secrets-key`, when it has a version other than the placeholder `UNSET`.

@@ -24,6 +24,11 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   STACK_ENV_FILE="${ENV_FILE}" "${ROOT}/scripts/render-env.sh"
 fi
 
+# An existing .env is kept across deploys. Fill a missing envelope key in
+# place so a later image roll still lets Connections save a credential.
+log "ensure provider secrets key"
+STACK_ENV_FILE="${ENV_FILE}" "${ROOT}/scripts/render-env.sh" --ensure
+
 # A version bump must still attach the originals key. A missing secret
 # leaves the server on database mode.
 log "render originals key"

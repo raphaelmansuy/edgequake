@@ -45,61 +45,55 @@ access_secret() {
   gcloud secrets versions access latest --secret="${name}" --project="${PROJECT}"
 }
 
-POSTGRES_PASSWORD="$(access_secret "${PREFIX}-postgres-password")"
-JWT_SECRET="$(access_secret "${PREFIX}-jwt")"
-BOOTSTRAP_ADMIN_PASSWORD="$(access_secret "${PREFIX}-bootstrap-admin-password")"
-MASTER_API_KEY="$(access_secret "${PREFIX}-master-api-key")"
-OPENAI_API_KEY="$(access_secret "${PREFIX}-openai-api-key" || true)"
-MISTRAL_API_KEY="$(access_secret "${PREFIX}-mistral-api-key" || true)"
-# Envelope key for saved provider credentials. Secret Manager wins when it
-# holds a real version. Otherwise the host file is reused. It is created once
-# and never replaced: a new value makes every saved credential unreadable.
-SECRETS_KEY_FILE="${INSTALL_ROOT}/secrets/edgequake-secrets-key"
-SECRETS_KEY_ERR="$(mktemp)"
-set +e
-SECRETS_KEY="$(access_secret "${PREFIX}-secrets-key" 2>"${SECRETS_KEY_ERR}")"
-SECRETS_KEY_RC=$?
-set -e
-if [[ "${SECRETS_KEY_RC}" -ne 0 ]]; then
-  if grep -Eq 'PERMISSION_DENIED|IAM_PERMISSION_DENIED' "${SECRETS_KEY_ERR}"; then
-    echo "render-env.sh: the runtime service account cannot read ${PREFIX}-secrets-key" >&2
-    rm -f "${SECRETS_KEY_ERR}"
+# Sets SECRETS_KEY. Creates the host file once. Never replaces a different key.
+resolve_secrets_key() {
+  local host_key=""
+  SECRETS_KEY_FILE="${INSTALL_ROOT}/secrets/edgequake-secrets-key"
+  local err rc
+  err="$(mktemp)"
+  set +e
+  SECRETS_KEY="$(access_secret "${PREFIX}-secrets-key" 2>"${err}")"
+  rc=$?
+  set -e
+  if [[ "${rc}" -ne 0 ]]; then
+    if grep -Eq 'PERMISSION_DENIED|IAM_PERMISSION_DENIED' "${err}"; then
+      echo "render-env.sh: the runtime service account cannot read ${PREFIX}-secrets-key" >&2
+      rm -f "${err}"
+      exit 1
+    fi
+    SECRETS_KEY=""
+  fi
+  rm -f "${err}"
+  SECRETS_KEY="${SECRETS_KEY//$'\n'/}"
+  SECRETS_KEY="${SECRETS_KEY//$'\r'/}"
+  if [[ -z "${SECRETS_KEY}" || "${SECRETS_KEY}" == "UNSET" ]]; then
+    SECRETS_KEY=""
+  fi
+  if [[ -s "${SECRETS_KEY_FILE}" ]]; then
+    host_key="$(tr -d '\n\r' < "${SECRETS_KEY_FILE}")"
+  fi
+  if [[ -n "${SECRETS_KEY}" && -n "${host_key}" && "${SECRETS_KEY}" != "${host_key}" ]]; then
+    echo "render-env.sh: ${PREFIX}-secrets-key does not match ${SECRETS_KEY_FILE}. Refusing to rotate." >&2
     exit 1
   fi
-  SECRETS_KEY=""
-fi
-rm -f "${SECRETS_KEY_ERR}"
-SECRETS_KEY="${SECRETS_KEY//$'\n'/}"
-SECRETS_KEY="${SECRETS_KEY//$'\r'/}"
-if [[ -z "${SECRETS_KEY}" || "${SECRETS_KEY}" == "UNSET" ]]; then
-  SECRETS_KEY=""
-fi
-HOST_SECRETS_KEY=""
-if [[ -s "${SECRETS_KEY_FILE}" ]]; then
-  HOST_SECRETS_KEY="$(tr -d '\n\r' < "${SECRETS_KEY_FILE}")"
-fi
-if [[ -n "${SECRETS_KEY}" && -n "${HOST_SECRETS_KEY}" && "${SECRETS_KEY}" != "${HOST_SECRETS_KEY}" ]]; then
-  echo "render-env.sh: ${PREFIX}-secrets-key does not match ${SECRETS_KEY_FILE}. Refusing to rotate." >&2
-  exit 1
-fi
-if [[ -z "${SECRETS_KEY}" ]]; then
-  SECRETS_KEY="${HOST_SECRETS_KEY}"
-fi
-if [[ -z "${SECRETS_KEY}" ]]; then
-  install -d -m 0700 "${INSTALL_ROOT}/secrets"
-  umask 077
-  openssl rand -hex 32 | tr -d '\n' > "${SECRETS_KEY_FILE}.tmp"
-  chmod 600 "${SECRETS_KEY_FILE}.tmp"
-  mv "${SECRETS_KEY_FILE}.tmp" "${SECRETS_KEY_FILE}"
-  SECRETS_KEY="$(tr -d '\n\r' < "${SECRETS_KEY_FILE}")"
-elif [[ -z "${HOST_SECRETS_KEY}" ]]; then
-  install -d -m 0700 "${INSTALL_ROOT}/secrets"
-  umask 077
-  printf '%s' "${SECRETS_KEY}" > "${SECRETS_KEY_FILE}.tmp"
-  chmod 600 "${SECRETS_KEY_FILE}.tmp"
-  mv "${SECRETS_KEY_FILE}.tmp" "${SECRETS_KEY_FILE}"
-fi
-if ! printf '%s' "${SECRETS_KEY}" | python3 -c '
+  if [[ -z "${SECRETS_KEY}" ]]; then
+    SECRETS_KEY="${host_key}"
+  fi
+  if [[ -z "${SECRETS_KEY}" ]]; then
+    install -d -m 0700 "${INSTALL_ROOT}/secrets"
+    umask 077
+    openssl rand -hex 32 | tr -d '\n' > "${SECRETS_KEY_FILE}.tmp"
+    chmod 600 "${SECRETS_KEY_FILE}.tmp"
+    mv "${SECRETS_KEY_FILE}.tmp" "${SECRETS_KEY_FILE}"
+    SECRETS_KEY="$(tr -d '\n\r' < "${SECRETS_KEY_FILE}")"
+  elif [[ -z "${host_key}" ]]; then
+    install -d -m 0700 "${INSTALL_ROOT}/secrets"
+    umask 077
+    printf '%s' "${SECRETS_KEY}" > "${SECRETS_KEY_FILE}.tmp"
+    chmod 600 "${SECRETS_KEY_FILE}.tmp"
+    mv "${SECRETS_KEY_FILE}.tmp" "${SECRETS_KEY_FILE}"
+  fi
+  if ! printf '%s' "${SECRETS_KEY}" | python3 -c '
 import base64, binascii, sys
 raw = sys.stdin.read().strip()
 ok = False
@@ -117,9 +111,82 @@ else:
         ok = False
 sys.exit(0 if ok else 1)
 '; then
-  echo "render-env.sh: EDGEQUAKE_SECRETS_KEY must be 32 bytes (64 hex, base64, or 32 raw bytes)" >&2
-  exit 1
+    echo "render-env.sh: EDGEQUAKE_SECRETS_KEY must be 32 bytes (64 hex, base64, or 32 raw bytes)" >&2
+    exit 1
+  fi
+}
+
+upsert_env() {
+  python3 - "$1" "$2" "$3" <<'PY'
+import sys
+path, key, value = sys.argv[1:]
+lines = open(path).read().splitlines()
+found = False
+out = []
+for line in lines:
+    if line.startswith(key + "="):
+        out.append(f"{key}={value}")
+        found = True
+    else:
+        out.append(line)
+if not found:
+    out.append(f"{key}={value}")
+open(path, "w").write("\n".join(out) + "\n")
+PY
+}
+
+env_value() {
+  python3 - "$1" "$2" <<'PY'
+import sys
+path, key = sys.argv[1:]
+for line in open(path):
+    if line.startswith(key + "="):
+        sys.stdout.write(line.split("=", 1)[1].strip())
+        break
+PY
+}
+
+if [[ "${1:-}" == "--ensure" ]]; then
+  ENV_FILE="${STACK_ENV_FILE:-${INSTALL_ROOT}/.env}"
+  if [[ ! -f "${ENV_FILE}" ]]; then
+    echo "render-env.sh: ${ENV_FILE} is missing" >&2
+    exit 1
+  fi
+  existing="$(env_value "${ENV_FILE}" EDGEQUAKE_SECRETS_KEY)"
+  if [[ -n "${existing}" ]]; then
+    host_key=""
+    if [[ -s "${INSTALL_ROOT}/secrets/edgequake-secrets-key" ]]; then
+      host_key="$(tr -d '\n\r' < "${INSTALL_ROOT}/secrets/edgequake-secrets-key")"
+    fi
+    if [[ -n "${host_key}" && "${host_key}" != "${existing}" ]]; then
+      echo "render-env.sh: ${ENV_FILE} does not match the host secrets key. Refusing to rotate." >&2
+      exit 1
+    fi
+    if [[ -z "${host_key}" ]]; then
+      install -d -m 0700 "${INSTALL_ROOT}/secrets"
+      umask 077
+      printf '%s' "${existing}" > "${INSTALL_ROOT}/secrets/edgequake-secrets-key.tmp"
+      chmod 600 "${INSTALL_ROOT}/secrets/edgequake-secrets-key.tmp"
+      mv "${INSTALL_ROOT}/secrets/edgequake-secrets-key.tmp" "${INSTALL_ROOT}/secrets/edgequake-secrets-key"
+    fi
+  else
+    resolve_secrets_key
+    upsert_env "${ENV_FILE}" EDGEQUAKE_SECRETS_KEY "${SECRETS_KEY}"
+  fi
+  if [[ -z "$(env_value "${ENV_FILE}" EDGEQUAKE_SECRETS_KEY_ID)" ]]; then
+    upsert_env "${ENV_FILE}" EDGEQUAKE_SECRETS_KEY_ID v1
+  fi
+  chmod 600 "${ENV_FILE}"
+  exit 0
 fi
+
+POSTGRES_PASSWORD="$(access_secret "${PREFIX}-postgres-password")"
+JWT_SECRET="$(access_secret "${PREFIX}-jwt")"
+BOOTSTRAP_ADMIN_PASSWORD="$(access_secret "${PREFIX}-bootstrap-admin-password")"
+MASTER_API_KEY="$(access_secret "${PREFIX}-master-api-key")"
+OPENAI_API_KEY="$(access_secret "${PREFIX}-openai-api-key" || true)"
+MISTRAL_API_KEY="$(access_secret "${PREFIX}-mistral-api-key" || true)"
+resolve_secrets_key
 # Placeholder version is "UNSET" (Terraform). v0.27.0 forbids mock as the server
 # default unless EDGEQUAKE_ALLOW_MOCK_PROVIDER=1 (test hatch; LAW-148 smoke only).
 LLM_PROVIDER="mock"
