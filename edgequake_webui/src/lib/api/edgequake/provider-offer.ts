@@ -24,6 +24,10 @@ export interface DeploymentProvider {
    */
   auth?: string;
   accepts_saved_key?: boolean;
+  /** Fleet connection the card can test. Absent for an environment provider. */
+  connection_id?: string | null;
+  /** Why the last test failed. Absent until a test has failed. */
+  probe_error?: string | null;
   /** Human name for `api_shape` ("OpenAI-compatible"), from the shape registry. */
   api_shape_label?: string;
   models: OfferModel[];

@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FleetModels } from "@/components/settings/providers/fleet-models";
 import { ProviderCard } from "@/components/settings/providers/provider-card";
 import { providerOfferKeys, useDeploymentProviders, useWithdrawProvider } from "@/hooks/use-provider-offer";
+import { apiClient } from "@/lib/api/client";
 import { refreshDynamicModels, useAvailableProviders } from "@/hooks/use-providers";
 import {
   needsConfirm,
@@ -81,6 +82,52 @@ function EnvRefresh({ row }: { row: DeploymentProvider }) {
       onClick={() => void run()}
     >
       {busy ? t("settings.providers.refreshing", "Refreshing…") : t("settings.providers.refresh", "Refresh models")}
+    </Button>
+  );
+}
+
+function FleetTest({ row }: { row: DeploymentProvider }) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  if (row.origin !== "fleet" || !row.connection_id || row.probe === "ok") return null;
+
+  const run = async () => {
+    setBusy(true);
+    try {
+      const result = await apiClient<{ ok: boolean; message?: string }>(
+        `/connections/${row.connection_id}/test?scope=deployment`,
+        { method: "POST", omitTenant: true },
+      );
+      await queryClient.invalidateQueries({ queryKey: providerOfferKeys.deployment });
+      await queryClient.invalidateQueries({ queryKey: ["tenant-provider-offer"] });
+      if (result.ok) {
+        toast.success(
+          t("settings.providers.testOffered", "{{name}} is offered to organizations.", {
+            name: row.display_name,
+          }),
+        );
+      } else {
+        toast.error(result.message || t("settings.providers.testFailed", "The connection test failed."));
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("settings.providers.testFailed", "The connection test failed."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Button
+      type="button"
+      size="sm"
+      disabled={busy}
+      data-testid={`test-provider-${row.slug}`}
+      onClick={() => void run()}
+    >
+      {busy
+        ? t("settings.providers.testing", "Testing…")
+        : t("settings.providers.testConnection", "Test connection")}
     </Button>
   );
 }
@@ -160,10 +207,15 @@ export function DeploymentProviders() {
                 row={row}
                 busy={withdraw.isPending}
                 onToggleWithdraw={() => void toggle(row)}
-                actions={row.origin === "env" ? <EnvRefresh row={row} /> : null}
+                actions={row.origin === "env" ? <EnvRefresh row={row} /> : <FleetTest row={row} />}
                 editor={
                   row.origin === "fleet" ? (
-                    <FleetModels slug={row.slug} models={row.models} enabled={row.probe === "ok"} />
+                    <FleetModels
+                      slug={row.slug}
+                      models={row.models}
+                      enabled={row.probe === "ok"}
+                      canTest={row.probe !== "ok" && Boolean(row.connection_id)}
+                    />
                   ) : undefined
                 }
               />

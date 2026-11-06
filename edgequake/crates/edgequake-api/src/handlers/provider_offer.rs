@@ -72,6 +72,12 @@ pub struct DeploymentProviderDto {
     pub auth: String,
     /// Whether a stored key is meaningful here. `false` means "identity, not a secret".
     pub accepts_saved_key: bool,
+    /// Fleet connection this card can test. Absent for environment providers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connection_id: Option<Uuid>,
+    /// Why the last probe failed. Absent until a test has failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub probe_error: Option<String>,
     /// Last per-provider refresh (SPEC-179). Absent until the first refresh.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refresh: Option<ProviderRefreshState>,
@@ -259,6 +265,8 @@ pub async fn get_deployment_providers(
             key_configured: row.key_configured,
             auth,
             accepts_saved_key,
+            connection_id: None,
+            probe_error: None,
             refresh: None,
         });
     }
@@ -269,8 +277,8 @@ pub async fn get_deployment_providers(
     }
     #[cfg(feature = "postgres")]
     if let Some(pool) = state.optional_pg_pool() {
-        let rows: Vec<(String, String, String, Option<bool>, bool)> = sqlx::query_as(
-            "SELECT slug, display_name, api_shape, last_test_ok, \
+        let rows: Vec<(Uuid, String, String, String, Option<bool>, Option<String>, bool)> = sqlx::query_as(
+            "SELECT id, slug, display_name, api_shape, last_test_ok, last_test_error, \
                     (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL) AS key_configured \
              FROM provider_connections WHERE tenant_id IS NULL ORDER BY slug",
         )
@@ -284,7 +292,7 @@ pub async fn get_deployment_providers(
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
         let withdrawn: BTreeSet<String> = withdrawn.into_iter().map(|(s,)| s).collect();
-        for (slug, display_name, api_shape, last_test_ok, key_configured) in rows {
+        for (id, slug, display_name, api_shape, last_test_ok, probe_error, key_configured) in rows {
             let Some(slug) = parse_slug(&slug) else {
                 continue;
             };
@@ -311,6 +319,8 @@ pub async fn get_deployment_providers(
                 key_configured,
                 auth,
                 accepts_saved_key,
+                connection_id: Some(id),
+                probe_error: probe_error.filter(|message| !message.is_empty()),
                 refresh: None,
             });
         }

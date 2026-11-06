@@ -279,6 +279,11 @@ export function ProviderCard({
         </div>
       </div>
       <StatusBadges row={row} />
+      {row.probe_error ? (
+        <p className="text-xs text-destructive" role="alert" data-testid={`probe-error-${row.slug}`}>
+          {row.probe_error}
+        </p>
+      ) : null}
       <RefreshLine row={row} />
       {editor ?? <ModelChips row={row} />}
     </li>

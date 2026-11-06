@@ -110,8 +110,15 @@ export function ConnectionRow({
           >
             {t("settings.connections.update", "Update")}
           </Button>
-          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onTest}>
-            {t("settings.connections.test", "Test")}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            data-testid={`connection-test-${row.slug}`}
+            onClick={onTest}
+          >
+            {t("settings.connections.test", "Test and offer")}
           </Button>
           <Button
             type="button"

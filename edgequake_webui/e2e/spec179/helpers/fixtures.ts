@@ -19,10 +19,15 @@ export interface FixtureProvider {
   display_name: string;
   origin: "env" | "fleet";
   api_shape: string;
+  api_shape_label?: string;
+  auth?: string;
+  accepts_saved_key?: boolean;
   offered: boolean;
   withdrawn: boolean;
-  probe: "ok" | "failed" | "";
+  probe: "ok" | "failed" | "unchecked" | "";
   key_configured: boolean;
+  connection_id?: string;
+  probe_error?: string | null;
   models: Model[];
   refresh?: { refreshed_at: string; status: "ok" | "error"; error?: string | null; added: number; removed: number };
 }
@@ -82,6 +87,10 @@ export interface FixtureOptions {
   impactMessage?: string;
   /** Deleting the `acme` connection first answers 409 confirm_required with this text. */
   connectionImpactMessage?: string;
+  /** Extra deployment rows, for a provider that still needs a test. */
+  extraProviders?: FixtureProvider[];
+  /** Organization offer mode. The default stays constrained so existing specs keep their ceiling. */
+  offerMode?: "unconstrained" | "constrained";
 }
 
 export interface FixtureRecorder {
@@ -89,18 +98,23 @@ export interface FixtureRecorder {
   modelPuts: { slug: string; body: unknown }[];
   refreshes: string[];
   connectionDeletes: { id: string; confirm: boolean }[];
+  tests: { id: string }[];
   offerPuts: { parent: "tenant" | "workspace"; ifMatch: string | null; body: unknown }[];
   deployment: FixtureProvider[];
 }
 
-function offerFor(rows: FixtureProvider[], parent: "tenant" | "workspace") {
+function offerFor(
+  rows: FixtureProvider[],
+  parent: "tenant" | "workspace",
+  mode: "unconstrained" | "constrained" = "constrained",
+) {
   const visible = rows.filter((row) => row.offered && !row.withdrawn);
   return {
     tenant_id: TENANT,
     workspace_id: parent === "workspace" ? "00000000-0000-0000-0000-000000000003" : null,
-    offer_mode: "constrained",
+    offer_mode: mode,
     parent_count: visible.length,
-    enabled_count: 1,
+    enabled_count: mode === "unconstrained" ? visible.length : 1,
     can_manage: true,
     revision: 3,
     legacy: [],
@@ -108,7 +122,7 @@ function offerFor(rows: FixtureProvider[], parent: "tenant" | "workspace") {
       slug: row.slug,
       display_name: row.display_name,
       offered_by_parent: true,
-      enabled: index === 0,
+      enabled: mode === "unconstrained" || index === 0,
       models: row.models,
     })),
   };
@@ -117,7 +131,15 @@ function offerFor(rows: FixtureProvider[], parent: "tenant" | "workspace") {
 const slugOf = (route: Route) => decodeURIComponent(new URL(route.request().url()).pathname.split("/").filter(Boolean).at(-1) ?? "");
 
 export async function installProviderFixture(page: Page, options: FixtureOptions = {}): Promise<FixtureRecorder> {
-  const recorder: FixtureRecorder = { withdraws: [], modelPuts: [], refreshes: [], connectionDeletes: [], offerPuts: [], deployment: providers() };
+  const recorder: FixtureRecorder = {
+    withdraws: [],
+    modelPuts: [],
+    refreshes: [],
+    connectionDeletes: [],
+    tests: [],
+    offerPuts: [],
+    deployment: [...providers(), ...(options.extraProviders ?? [])],
+  };
   const { deployment } = recorder;
 
   await page.route(/\/api\/v1\/deployment\/providers\/?$/, (route) => route.fulfill({ json: { providers: deployment } }));
@@ -159,18 +181,32 @@ export async function installProviderFixture(page: Page, options: FixtureOptions
     await route.fulfill({ status: 204, body: "" });
   });
 
+  await page.route(/\/api\/v1\/connections\/[^/]+\/test(\?.*)?$/, async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    const id = decodeURIComponent(new URL(route.request().url()).pathname.split("/").at(-2) ?? "");
+    recorder.tests.push({ id });
+    const row = deployment.find((item) => item.connection_id === id);
+    if (!row) return route.fulfill({ status: 404, json: { message: "connection not found" } });
+    row.probe = "ok";
+    row.offered = true;
+    row.probe_error = null;
+    return route.fulfill({
+      json: { ok: true, message: "Minted a Google access token.", latency_ms: 80, kind: "ok" },
+    });
+  });
+
   const offerRoute = (parent: "tenant" | "workspace") => (route: Route) => {
     const request = route.request();
     if (request.method() === "PUT") {
       recorder.offerPuts.push({ parent, ifMatch: request.headers()["if-match"] ?? null, body: request.postDataJSON() });
       const body = request.postDataJSON() as { offer_mode: "unconstrained" | "constrained"; slugs: string[] };
-      const next = offerFor(deployment, parent);
+      const next = offerFor(deployment, parent, options.offerMode ?? "constrained");
       next.offer_mode = body.offer_mode;
       next.revision = 4;
       next.providers = next.providers.map((row) => ({ ...row, enabled: body.offer_mode === "unconstrained" || body.slugs.includes(row.slug) }));
       return route.fulfill({ json: next });
     }
-    return route.fulfill({ json: offerFor(deployment, parent) });
+    return route.fulfill({ json: offerFor(deployment, parent, options.offerMode ?? "constrained") });
   };
   await page.route(/\/api\/v1\/tenants\/[^/]+\/provider-offer\/?$/, offerRoute("tenant"));
   await page.route(/\/api\/v1\/workspaces\/[^/]+\/provider-offer\/?$/, offerRoute("workspace"));

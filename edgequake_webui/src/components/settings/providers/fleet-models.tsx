@@ -78,10 +78,13 @@ export function FleetModels({
   slug,
   models: saved,
   enabled,
+  canTest = false,
 }: {
   slug: string;
   models: OfferModel[];
   enabled: boolean;
+  /** The card header has a Test connection button. */
+  canTest?: boolean;
 }) {
   const { t } = useTranslation();
   const save = useSaveConnectionModels(slug);
@@ -201,6 +204,25 @@ export function FleetModels({
       className="flex w-full flex-col gap-2"
       data-testid={`fleet-models-${slug}`}
     >
+      {!enabled && canTest ? (
+        <p className="text-sm text-muted-foreground" data-testid={`test-first-${slug}`}>
+          {t(
+            "settings.providers.testBeforeModels",
+            "Test the connection above. A passing test offers this provider to every organization, and then these models can be saved.",
+          )}
+        </p>
+      ) : null}
+      {!enabled && !canTest ? (
+        <p className="text-xs text-muted-foreground" data-testid={`test-first-${slug}`}>
+          {t(
+            "settings.providers.fixConnection",
+            "Models can be registered once the connection test passes.",
+          )}{" "}
+          <Link href={sectionHref("connections")} className="underline">
+            {t("settings.providers.openConnections", "Open Connections")}
+          </Link>
+        </p>
+      ) : null}
       {draft.length > 0 ? (
         <ul
           className="flex flex-col gap-1"
@@ -233,29 +255,33 @@ export function FleetModels({
                   aria-invalid={!(entry.dimension && entry.dimension > 0)}
                   value={entry.dimension ?? ""}
                   placeholder="dim"
+                  disabled={!enabled || save.isPending}
                   onChange={(event) =>
                     setDimension(entry.id, event.target.value)
                   }
                 />
               ) : null}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                aria-label={t(
-                  "settings.providers.removeModel",
-                  "Remove {{id}}",
-                  { id: entry.id },
-                )}
-                onClick={() =>
-                  setDraft((current) =>
-                    current.filter((item) => item.id !== entry.id),
-                  )
-                }
-              >
-                <X className="h-3.5 w-3.5" aria-hidden />
-              </Button>
+              {enabled ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  disabled={save.isPending}
+                  aria-label={t(
+                    "settings.providers.removeModel",
+                    "Remove {{id}}",
+                    { id: entry.id },
+                  )}
+                  onClick={() =>
+                    setDraft((current) =>
+                      current.filter((item) => item.id !== entry.id),
+                    )
+                  }
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                </Button>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -317,32 +343,27 @@ export function FleetModels({
           ))}
         </ul>
       ) : null}
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          id={fieldId}
-          aria-label={t(
-            "settings.providers.modelIdFor",
-            "Model id for {{slug}}",
-            { slug },
-          )}
-          className="min-w-0 flex-1 basis-40"
-          value={newId}
-          disabled={!enabled || save.isPending}
-          placeholder={
-            enabled
-              ? t("settings.providers.modelId", "Model id")
-              : t("settings.providers.testFirst", "Test the connection first")
-          }
-          onChange={(event) => setNewId(event.target.value)}
-        />
-        {enabled ? (
-          <>
-            <select
+      {enabled ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            id={fieldId}
+            aria-label={t(
+              "settings.providers.modelIdFor",
+              "Model id for {{slug}}",
+              { slug },
+            )}
+            className="min-w-0 flex-1 basis-40"
+            value={newId}
+            disabled={save.isPending}
+            placeholder={t("settings.providers.modelId", "Model id")}
+            onChange={(event) => setNewId(event.target.value)}
+          />
+          <select
               aria-label={t("settings.providers.kindFor", "Type for {{slug}}", {
                 slug,
               })}
               className="h-9 rounded-md border bg-background px-2 text-sm"
-              disabled={!enabled || save.isPending}
+              disabled={save.isPending}
               value={newKind}
               onChange={(event) =>
                 setNewKind(
@@ -378,19 +399,7 @@ export function FleetModels({
             >
               {t("settings.providers.add", "Add")}
             </Button>
-          </>
-        ) : null}
-      </div>
-      {!enabled ? (
-        <p className="text-xs text-muted-foreground">
-          {t(
-            "settings.providers.fixConnection",
-            "Models can be registered once the connection test passes.",
-          )}{" "}
-          <Link href={sectionHref("connections")} className="underline">
-            {t("settings.providers.openConnections", "Open Connections")}
-          </Link>
-        </p>
+        </div>
       ) : null}
       {missing.length > 0 ? (
         <p className="text-xs text-amber-700 dark:text-amber-400" role="status">
