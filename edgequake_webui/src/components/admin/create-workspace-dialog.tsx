@@ -406,9 +406,10 @@ export function CreateWorkspaceDialog({
                 ? "Your plan's workspace limit was reached. Archive a workspace and try again."
                 : error.kind === "slug"
                   ? "A workspace with that address already exists here. Change the name."
-                  : error.kind === "models"
-                    ? "That model cannot be used for this workspace. Check the model policy."
-                    : "Could not create the workspace. Your input is kept, so you can retry."}
+                  : error.message ||
+                    (error.kind === "models"
+                      ? "That model cannot be used for this workspace. Check the model policy."
+                      : "Could not create the workspace. Your input is kept, so you can retry.")}
             </span>
           </div>
         ) : null}

@@ -57,19 +57,24 @@ async fn vertex_embed(spec: &ConnectionSpec) -> Result<Arc<dyn EmbeddingProvider
         .clone()
         .unwrap_or_else(|| spec.model.clone());
     if crate::embeddings::is_vertex_multimodal(&spec.shape, &model) {
-        if let Some(provider) = multimodal_from_stored(spec, &model)? {
-            return Ok(provider);
+        if let Some(embedder) = vertex_multimodal_embedder(spec)? {
+            return Ok(Arc::new(
+                crate::embeddings::vertex_gemini::VertexTextEmbedder(embedder),
+            ));
         }
     }
     let provider = vertex_gemini(spec).await?;
     Ok(Arc::new(provider.with_embedding_model(&model)))
 }
 
-/// `gemini-embedding-2` is served by `:embedContent`, not the chat client's `:predict`.
-fn multimodal_from_stored(
+/// `gemini-embedding-2` over `:embedContent`, using the project id inside a stored service account.
+pub fn vertex_multimodal_embedder(
     spec: &ConnectionSpec,
-    model: &str,
-) -> Result<Option<Arc<dyn EmbeddingProvider>>, ApiError> {
+) -> Result<Option<Arc<crate::embeddings::vertex_gemini::VertexGeminiEmbedder>>, ApiError> {
+    let model = spec
+        .embedding_model
+        .clone()
+        .unwrap_or_else(|| spec.model.clone());
     let Some(raw) = spec
         .api_key
         .as_deref()
@@ -95,12 +100,10 @@ fn multimodal_from_stored(
     }
     let dimension = spec.embedding_dimension.unwrap_or(1536);
     let embedder = crate::embeddings::vertex_gemini::VertexGeminiEmbedder::from_service_account(
-        &project, &material, model, dimension,
+        &project, &material, &model, dimension,
     )
     .map_err(|error| crate::embeddings::api_error(&error))?;
-    Ok(Some(Arc::new(
-        crate::embeddings::vertex_gemini::VertexTextEmbedder(Arc::new(embedder)),
-    )))
+    Ok(Some(Arc::new(embedder)))
 }
 
 async fn vertex_gemini(spec: &ConnectionSpec) -> Result<GeminiProvider, ApiError> {

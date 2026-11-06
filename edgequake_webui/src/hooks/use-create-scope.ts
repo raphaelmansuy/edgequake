@@ -121,7 +121,11 @@ const MODEL_REASON_CODES = new Set([
   'capability_mismatch',
   'model_pair_incomplete',
   'embedding_dimension_mismatch',
+  'embedding_dimension_rejected',
   'embedding_not_multimodal',
+  'embedding_model_not_multimodal',
+  'embedding_auth',
+  'embedding_request_failed',
   'usage_locked',
 ]);
 
@@ -154,11 +158,19 @@ export function classifyCreateFailure(error: unknown): {
   }
   if (/scope_inactive|archived/i.test(message)) return { kind: 'inactive', message };
   if (
-    /models?_not_eligible|not_multimodal|embedding_dimension_mismatch|model_pair_incomplete|usage_locked|not offered to this/i.test(
+    /models?_not_eligible|not_multimodal|embedding_dimension_mismatch|embedding_dimension_rejected|model_pair_incomplete|usage_locked|embedding_auth|embedding_request_failed|not offered to this/i.test(
       message,
     )
   ) {
-    return { kind: 'models', message };
+    return { kind: 'models', message: readableCreateMessage(message) };
   }
-  return { kind: 'server', message };
+  return { kind: 'server', message: readableCreateMessage(message) };
+}
+
+/** Drop the transport prefix so the dialog can print the server's sentence. */
+function readableCreateMessage(message: string): string {
+  return message.replace(
+    /^(Bad request|Conflict|Validation error|Configuration error|Internal error):\s*/i,
+    '',
+  );
 }

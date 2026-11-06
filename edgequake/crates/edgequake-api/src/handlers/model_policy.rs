@@ -384,11 +384,22 @@ pub async fn get_embedding_support(
         return Ok(Json(answer));
     }
     // A live answer. The probe is cached, so opening the step and saving share one call.
-    match crate::services::embed_capability_probe::probe_image_for_picker(
-        &provider, &model, dimension,
+    match tokio::time::timeout(
+        crate::services::embed_capability_probe::PICKER_TIMEOUT,
+        crate::services::multimodal_policy::probe_image_embedding(
+            &state, &provider, &model, dimension,
+        ),
     )
     .await
-    {
+    .unwrap_or_else(|_| {
+        Some(Err(edgequake_core::multimodal_embed::EmbedError::new(
+            edgequake_core::multimodal_embed::embed_codes::REQUEST,
+            format!(
+                "the image embedding probe did not answer within {}s",
+                crate::services::embed_capability_probe::PICKER_TIMEOUT.as_secs()
+            ),
+        )))
+    }) {
         Some(Ok(())) => answer.embeds_images = Some(true),
         Some(Err(error)) => {
             answer.embeds_images = Some(false);

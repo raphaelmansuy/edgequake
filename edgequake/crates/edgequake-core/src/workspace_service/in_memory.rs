@@ -273,10 +273,7 @@ impl WorkspaceService for InMemoryWorkspaceService {
                 .values()
                 .any(|ws| ws.tenant_id == tenant_id && ws.slug == slug)
             {
-                return Err(Error::validation(format!(
-                    "Workspace with slug '{}' already exists in this tenant",
-                    slug
-                )));
+                return Err(Error::conflict("workspace_slug_taken"));
             }
         }
 
@@ -511,10 +508,7 @@ impl WorkspaceService for InMemoryWorkspaceService {
                     && ws.slug == workspace.slug
                     && ws.workspace_id != workspace.workspace_id
             }) {
-                return Err(Error::validation(format!(
-                    "Workspace with slug '{}' already exists in this tenant",
-                    workspace.slug
-                )));
+                return Err(Error::conflict("workspace_slug_taken"));
             }
         }
 

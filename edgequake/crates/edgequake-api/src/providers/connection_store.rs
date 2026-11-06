@@ -215,6 +215,28 @@ pub async fn fleet_llm(
         .map_err(|err| err.to_string())
 }
 
+/// Image embedder for `gemini-embedding-2` from the saved Vertex service account.
+///
+/// `Ok(None)` means there is no stored service account, so the caller may use
+/// the process environment. A stored account that cannot be opened is an error.
+#[cfg(feature = "postgres")]
+pub async fn fleet_vertex_embedder(
+    pool: &sqlx::PgPool,
+    model: &str,
+    dimension: usize,
+) -> Result<Option<Arc<crate::embeddings::vertex_gemini::VertexGeminiEmbedder>>, String> {
+    let Some(id) = fleet_connection_id(pool, "vertexai").await else {
+        return Ok(None);
+    };
+    let mut spec = load_connection_spec(pool, id, model)
+        .await
+        .map_err(|err| err.to_string())?;
+    spec.embedding_model = Some(model.to_string());
+    spec.embedding_dimension = Some(dimension);
+    crate::providers::connection_factory::vertex_multimodal_embedder(&spec)
+        .map_err(|err| err.to_string())
+}
+
 /// Embedding client built from the fleet connection for `provider`.
 #[cfg(feature = "postgres")]
 pub async fn fleet_embedding(

@@ -43,10 +43,8 @@ pub fn probe_skipped() -> bool {
 /// Embed one small image with the real client. The workspace is asking it to read images for
 /// the life of the workspace, so an image is what the probe must send: a text embed passes on
 /// a deployment the image endpoint refuses, and the wizard then fails on the last step.
-async fn probe(provider: &str, model: &str, dimension: usize) -> ApiResult<()> {
-    let Some(outcome) =
-        super::embed_capability_probe::probe_image(provider, model, dimension).await
-    else {
+async fn probe(state: &AppState, provider: &str, model: &str, dimension: usize) -> ApiResult<()> {
+    let Some(outcome) = probe_image_embedding(state, provider, model, dimension).await else {
         // A pair this build cannot probe keeps the catalog-only answer from `judge_catalog`.
         return Ok(());
     };
@@ -56,6 +54,47 @@ async fn probe(provider: &str, model: &str, dimension: usize) -> ApiResult<()> {
             super::embed_capability_probe::action_message(&error),
         )
     })
+}
+
+/// Live image probe. A saved Vertex service account is used before the process environment,
+/// so a deployment without `GOOGLE_CLOUD_PROJECT` can still prove `gemini-embedding-2`.
+pub async fn probe_image_embedding(
+    state: &AppState,
+    provider: &str,
+    model: &str,
+    dimension: usize,
+) -> Option<Result<(), edgequake_core::multimodal_embed::EmbedError>> {
+    use edgequake_core::multimodal_embed::{
+        embed_codes, EmbedError, EmbedInput, MultimodalEmbedder,
+    };
+
+    #[cfg(feature = "postgres")]
+    if crate::embeddings::is_vertex_multimodal(provider, model) {
+        if let Some(pool) = state.optional_pg_pool() {
+            match crate::providers::connection_store::fleet_vertex_embedder(pool, model, dimension)
+                .await
+            {
+                Ok(Some(client)) => {
+                    let outcome = client
+                        .embed(&[EmbedInput::image(
+                            "image/png",
+                            super::embed_capability_probe::probe_png().to_vec(),
+                        )])
+                        .await
+                        .map(|_| ());
+                    super::embed_capability_probe::remember(provider, model, &outcome);
+                    return Some(outcome);
+                }
+                Ok(None) => {}
+                Err(message) => {
+                    let outcome = Err(EmbedError::new(embed_codes::AUTH, message));
+                    super::embed_capability_probe::remember(provider, model, &outcome);
+                    return Some(outcome);
+                }
+            }
+        }
+    }
+    super::embed_capability_probe::probe_image(provider, model, dimension).await
 }
 
 /// Judge the embedding pair of a workspace against its modalities.
@@ -78,7 +117,7 @@ pub async fn ensure_embedding_matches_modalities(
     let entries: Vec<CatalogEntry> = catalog.into_iter().map(|item| item.entry).collect();
     judge_catalog(&entries, provider, model)?;
     if !probe_skipped() {
-        probe(provider, model, dimension).await?;
+        probe(state, provider, model, dimension).await?;
     }
     Ok(())
 }

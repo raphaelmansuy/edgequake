@@ -90,10 +90,7 @@ impl WorkspaceServiceImpl {
         .map_err(|e| Error::internal(format!("Failed to check workspace slug: {}", e)))?;
 
         if existing.is_some() {
-            return Err(Error::validation(format!(
-                "Workspace with slug '{}' already exists in this tenant",
-                slug
-            )));
+            return Err(Error::conflict("workspace_slug_taken"));
         }
 
         let mut workspace = Workspace::new(tenant_id, &request.name, &slug);
