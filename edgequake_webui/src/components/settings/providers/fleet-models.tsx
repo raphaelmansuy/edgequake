@@ -204,6 +204,7 @@ export function FleetModels({
       className="flex w-full flex-col gap-2"
       data-testid={`fleet-models-${slug}`}
     >
+      <p className="text-sm font-medium">{t("settings.providers.modelsHeading", "Models")}</p>
       {!enabled && canTest ? (
         <p className="text-sm text-muted-foreground" data-testid={`test-first-${slug}`}>
           {t(
@@ -395,9 +396,10 @@ export function FleetModels({
               size="sm"
               variant="outline"
               disabled={addDisabled}
+              data-testid={`add-model-${slug}`}
               onClick={addEntry}
             >
-              {t("settings.providers.add", "Add")}
+              {t("settings.providers.addModel", "Add model")}
             </Button>
         </div>
       ) : null}

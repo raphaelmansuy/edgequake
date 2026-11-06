@@ -99,6 +99,7 @@ export interface FixtureRecorder {
   refreshes: string[];
   connectionDeletes: { id: string; confirm: boolean }[];
   tests: { id: string }[];
+  connectionRows: { id: string; last_test_ok?: boolean | null }[];
   offerPuts: { parent: "tenant" | "workspace"; ifMatch: string | null; body: unknown }[];
   deployment: FixtureProvider[];
 }
@@ -137,6 +138,7 @@ export async function installProviderFixture(page: Page, options: FixtureOptions
     refreshes: [],
     connectionDeletes: [],
     tests: [],
+    connectionRows: [],
     offerPuts: [],
     deployment: [...providers(), ...(options.extraProviders ?? [])],
   };
@@ -190,6 +192,8 @@ export async function installProviderFixture(page: Page, options: FixtureOptions
     row.probe = "ok";
     row.offered = true;
     row.probe_error = null;
+    const saved = recorder.connectionRows.find((item) => item.id === id);
+    if (saved) saved.last_test_ok = true;
     return route.fulfill({
       json: { ok: true, message: "Minted a Google access token.", latency_ms: 80, kind: "ok" },
     });
@@ -300,7 +304,22 @@ async function installConnections(page: Page, recorder: FixtureRecorder, options
       key_configured: false,
       last_test_ok: false,
     },
+    ...(options.extraProviders ?? [])
+      .filter((row) => row.connection_id)
+      .map((row) => ({
+        id: row.connection_id as string,
+        slug: row.slug,
+        display_name: row.display_name,
+        api_shape: row.api_shape,
+        base_url: "https://aiplatform.googleapis.com",
+        source: "user",
+        key_configured: row.key_configured,
+        auth_scheme: "service_account",
+        secret_backend: "database",
+        last_test_ok: row.probe === "ok",
+      })),
   ];
+  recorder.connectionRows = rows;
   await page.route("**/api/v1/connections/shapes", (route) => route.fulfill({ json: SHAPES }));
   await page.route(/\/api\/v1\/connections\/?$/, (route) => route.fulfill({ json: rows }));
   await page.route(/\/api\/v1\/connections\/[^/?]+(\?.*)?$/, (route) => {

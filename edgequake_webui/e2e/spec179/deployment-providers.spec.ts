@@ -52,7 +52,7 @@ test.describe("SPEC-179 deployment providers @spec179", () => {
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText("4 assignments still use openai.");
     await shot(page, "deployment-withdraw-confirm", { theme: "light", width: 1440 });
-    await dialog.getByRole("button", { name: "Withdraw" }).click();
+    await dialog.getByRole("button", { name: "Remove" }).click();
     await expect(page.getByTestId("offer-state-openai")).toHaveText("Hidden from organizations");
     expect(recorder.withdraws).toEqual([
       { slug: "openai", confirm: false, withdrawn: true },
@@ -81,9 +81,9 @@ test.describe("SPEC-179 deployment providers @spec179", () => {
     const acme = page.getByTestId("fleet-models-acme");
     await acme.getByLabel("Model id for acme").fill("embed-new");
     await acme.getByLabel("Type for acme").selectOption("embedding");
-    await expect(acme.getByRole("button", { name: "Add", exact: true })).toBeDisabled();
+    await expect(acme.getByRole("button", { name: "Add model", exact: true })).toBeDisabled();
     await acme.getByLabel("Dimension", { exact: true }).fill("1024");
-    await acme.getByRole("button", { name: "Add", exact: true }).click();
+    await acme.getByRole("button", { name: "Add model", exact: true }).click();
     await expect(page.getByTestId("fleet-model-acme-embed-new")).toBeVisible();
     await shot(page, "deployment-fleet-models-draft", { theme: "light", width: 1440 });
     await acme.getByRole("button", { name: "Save", exact: true }).click();

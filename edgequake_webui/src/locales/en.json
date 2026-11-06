@@ -1359,7 +1359,8 @@
       "key": "key",
       "keySet": "set",
       "update": "Update",
-      "test": "Test"
+      "test": "Test and offer",
+      "updateModels": "Update models"
     }
   },
   "context": {

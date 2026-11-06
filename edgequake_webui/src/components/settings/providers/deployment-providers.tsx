@@ -177,7 +177,7 @@ export function DeploymentProviders() {
     <div className="space-y-4" data-testid="deployment-providers-card">
       <div className="space-y-4">
         <div className="flex justify-end">
-          <Button type="button" variant="outline" size="sm" asChild>
+          <Button type="button" size="sm" asChild>
             <Link href={addHref} data-testid="add-provider-link">
               {t("settings.providers.add_provider", "Add a provider")}
             </Link>
@@ -227,7 +227,7 @@ export function DeploymentProviders() {
         <AlertDialogContent data-testid="withdraw-confirm">
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {t("settings.providers.withdrawTitle", "Withdraw {{name}}?", { name: pending?.name ?? "" })}
+              {t("settings.providers.removeTitle", "Remove {{name}}?", { name: pending?.name ?? "" })}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {pending?.message}{" "}
@@ -240,7 +240,7 @@ export function DeploymentProviders() {
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel", "Cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={() => void confirmWithdraw()}>
-              {t("settings.providers.withdraw", "Withdraw")}
+              {t("settings.providers.remove", "Remove")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

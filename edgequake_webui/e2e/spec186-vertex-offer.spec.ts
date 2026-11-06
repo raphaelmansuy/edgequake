@@ -61,6 +61,8 @@ test.describe("untested fleet provider becomes an offer @spec186", () => {
     await expect(card).toBeVisible();
     await expect(page.getByTestId("probe-vertexai")).toHaveText("Not tested");
     await expect(page.getByTestId("offer-state-vertexai")).toHaveText("Not offered");
+    await expect(page.getByTestId("add-provider-link")).toHaveText("Add a provider");
+    await expect(page.getByTestId("withdraw-vertexai")).toHaveText("Remove");
     await expect(page.getByTestId("test-provider-vertexai")).toHaveText("Test connection");
     await expect(page.getByTestId("test-first-vertexai")).toContainText("offers this provider");
     await expect(card.getByRole("button", { name: "Remove gemini-2.5-flash" })).toHaveCount(0);
@@ -73,6 +75,8 @@ test.describe("untested fleet provider becomes an offer @spec186", () => {
     await expect(page.getByTestId("probe-vertexai")).toHaveText("Healthy");
     await expect(page.getByTestId("offer-state-vertexai")).toHaveText("Offered");
     await expect(page.getByTestId("test-provider-vertexai")).toHaveCount(0);
+    await expect(card.getByText("Models", { exact: true })).toBeVisible();
+    await expect(card.getByTestId("add-model-vertexai")).toHaveText("Add model");
     await expect(card.getByPlaceholder("Model id")).toBeVisible();
     await expect(card.getByRole("button", { name: "Remove gemini-2.5-flash" })).toBeEnabled();
     expect(recorder.tests).toEqual([{ id: VERTEX_ID }]);
@@ -88,9 +92,24 @@ test.describe("untested fleet provider becomes an offer @spec186", () => {
     await expect(row).toContainText("Vertex AI");
     await expect(row).toContainText("gemini-2.5-flash");
     await expect(page.getByTestId("provider-toggle-vertexai")).toBeChecked();
+    await expect(page.getByTestId("add-provider")).toHaveText("Add a provider");
+    await expect(page.getByTestId("remove-provider-vertexai")).toHaveText("Remove");
+    await expect(page.getByTestId("update-models-vertexai")).toHaveText("Update models");
     fs.mkdirSync(SHOTS, { recursive: true });
-    await page.getByTestId("provider-row-vertexai").screenshot({
+    await page.getByTestId("provider-offer-card").screenshot({
       path: path.join(SHOTS, "03-organization-vertex-light-1440.png"),
+      animations: "disabled",
+      caret: "hide",
+    });
+
+    await page.goto("/settings/deployment/connections");
+    await expect(h1(page)).toHaveText("Connections", { timeout: 30_000 });
+    const saved = page.getByTestId("connection-row-vertexai");
+    await expect(saved).toBeVisible();
+    await expect(page.getByTestId("connection-models-vertexai")).toHaveText("Update models");
+    await expect(page.getByTestId("connection-delete-vertexai")).toHaveText("Delete");
+    await saved.screenshot({
+      path: path.join(SHOTS, "04-connection-models-light-1440.png"),
       animations: "disabled",
       caret: "hide",
     });

@@ -251,6 +251,7 @@ export function ProviderCard({
   return (
     <li
       className="space-y-3 rounded-xl border bg-card p-4 shadow-xs"
+      id={`deployment-provider-${row.slug}`}
       data-testid={`deployment-provider-${row.slug}`}
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -274,7 +275,7 @@ export function ProviderCard({
           >
             {row.withdrawn
               ? t("settings.providers.restore", "Restore")
-              : t("settings.providers.withdraw", "Withdraw")}
+              : t("settings.providers.remove", "Remove")}
           </Button>
         </div>
       </div>

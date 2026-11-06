@@ -160,7 +160,7 @@ test.describe("SPEC-177 provider cascade @spec177", () => {
       "placeholder",
       "Test the connection first",
     );
-    await page.getByRole("button", { name: "Withdraw" }).first().click();
+    await page.getByTestId("withdraw-openai").click();
     await expect(page.getByTestId("deployment-provider-openai")).toContainText("Hidden from organizations");
     await shot(page, "deployment-providers");
     await applyTheme(page, "dark");

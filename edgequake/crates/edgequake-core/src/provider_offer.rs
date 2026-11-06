@@ -67,6 +67,32 @@ pub fn global_offer(
     offer
 }
 
+/// The deployment offer, including a fleet connection whose test passed.
+///
+/// `EDGEQUAKE_ALLOWED_PROVIDERS` hides built-in cards. It does not hide a
+/// connection an admin saved and tested. A failed probe and a withdrawal
+/// still keep the slug out.
+pub fn global_offer_including_tested(
+    candidates: &[ProviderCandidate],
+    withdrawn: &BTreeSet<String>,
+    allowlist: Option<&BTreeSet<String>>,
+) -> BTreeSet<String> {
+    let mut offer = global_offer(candidates, withdrawn, allowlist);
+    for candidate in candidates {
+        if candidate.from_env || candidate.last_test_ok != Some(true) {
+            continue;
+        }
+        let Some(slug) = parse_slug(&candidate.slug) else {
+            continue;
+        };
+        if withdrawn.contains(&slug) {
+            continue;
+        }
+        offer.insert(slug);
+    }
+    offer
+}
+
 /// The child sees every parent slug, or only the enabled intersection once
 /// `constrained` is set. Enabled slugs outside the parent are ignored.
 pub fn child_offer(
@@ -151,6 +177,36 @@ mod tests {
         let got = global_offer(&[env("openai"), env("ollama")], &withdrawn, None);
         assert!(!got.contains("openai"));
         assert!(got.contains("ollama"));
+    }
+
+    #[test]
+    fn a_tested_connection_survives_the_allowlist() {
+        let allow = BTreeSet::from(["ollama".into(), "openai".into()]);
+        let got = global_offer_including_tested(
+            &[
+                env("openai"),
+                fleet("vertexai", Some(true)),
+                fleet("broken", Some(false)),
+            ],
+            &BTreeSet::new(),
+            Some(&allow),
+        );
+        assert!(got.contains("openai"));
+        assert!(got.contains("vertexai"));
+        assert!(!got.contains("broken"));
+        assert!(!got.contains("ollama"));
+    }
+
+    #[test]
+    fn a_withdrawn_tested_connection_stays_out() {
+        let allow = BTreeSet::from(["openai".into()]);
+        let withdrawn = BTreeSet::from(["vertexai".into()]);
+        let got = global_offer_including_tested(
+            &[fleet("vertexai", Some(true))],
+            &withdrawn,
+            Some(&allow),
+        );
+        assert!(!got.contains("vertexai"));
     }
 
     #[test]

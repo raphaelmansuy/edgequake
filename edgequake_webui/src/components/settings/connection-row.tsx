@@ -2,11 +2,13 @@
 
 /** SPEC-179 — one saved connection: name, state badges, where it points, and its actions. */
 
+import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { connectionSourceLabel, connectionShapeLabel, connectionCredentialLabel } from "@/lib/settings/connection-summary";
+import { sectionHref } from "@/lib/settings/registry";
 
 export interface ConnectionRowData {
   id: string;
@@ -120,6 +122,16 @@ export function ConnectionRow({
           >
             {t("settings.connections.test", "Test and offer")}
           </Button>
+          {row.last_test_ok ? (
+            <Button type="button" variant="outline" size="sm" asChild>
+              <Link
+                href={`${sectionHref("providers")}#deployment-provider-${row.slug}`}
+                data-testid={`connection-models-${row.slug}`}
+              >
+                {t("settings.connections.updateModels", "Update models")}
+              </Link>
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"

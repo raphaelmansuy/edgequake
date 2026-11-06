@@ -6,6 +6,7 @@
  */
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ModelSaveBar, saveWithToast } from "@/components/settings/models/model-save-bar";
 import { useDirtyGuard } from "@/hooks/use-dirty-guard";
+import { useSettingsContext } from "@/hooks/use-settings-context";
+import { sectionHref } from "@/lib/settings/registry";
 import { useServerBackedDraft } from "@/hooks/use-server-backed-draft";
 import {
   useSaveTenantOffer,
@@ -107,12 +110,14 @@ function ProviderRow({
   on,
   readOnly,
   canManage,
+  showModels,
   onToggle,
 }: {
   row: OfferProvider;
   on: boolean;
   readOnly: boolean;
   canManage: boolean;
+  showModels: boolean;
   onToggle: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -124,7 +129,7 @@ function ProviderRow({
   return (
     <li
       data-testid={`provider-row-${row.slug}`}
-      className="grid grid-cols-1 items-start gap-x-6 gap-y-2 px-3 py-3 lg:grid-cols-[minmax(11rem,14rem)_minmax(0,1fr)]"
+      className="grid grid-cols-1 items-start gap-x-6 gap-y-2 px-3 py-3 lg:grid-cols-[minmax(11rem,14rem)_minmax(0,1fr)_auto]"
     >
       <label className="flex items-start gap-3">
         <Checkbox
@@ -168,12 +173,37 @@ function ProviderRow({
           ) : null}
         </div>
       ) : null}
+      <div className="flex flex-wrap gap-2 lg:justify-end">
+        {showModels ? (
+          <Button type="button" size="sm" variant="outline" asChild>
+            <Link
+              href={`${sectionHref("providers")}#deployment-provider-${row.slug}`}
+              data-testid={`update-models-${row.slug}`}
+            >
+              Update models
+            </Link>
+          </Button>
+        ) : null}
+        {canManage && !readOnly ? (
+          <Button
+            type="button"
+            size="sm"
+            variant={on ? "outline" : "default"}
+            data-testid={on ? `remove-provider-${row.slug}` : `add-provider-row-${row.slug}`}
+            onClick={onToggle}
+          >
+            {on ? "Remove" : "Add"}
+          </Button>
+        ) : null}
+      </div>
     </li>
   );
 }
 
 function GrantEditor({ parent, offer, pending, readOnly, loadError, onRetry, onSave }: GrantEditorProps) {
   const { t } = useTranslation();
+  const { access } = useSettingsContext(null);
+  const canAddProvider = parent === "tenant" && access.instanceAdmin && !readOnly;
   const saved = offer?.providers ? offer : EMPTY;
   const { draft, setDraft, reset } = useServerBackedDraft(saved, toDraft);
   const dirty = !sameDraft(draft, toDraft(saved));
@@ -214,7 +244,7 @@ function GrantEditor({ parent, offer, pending, readOnly, loadError, onRetry, onS
 
   return (
     <Card data-testid="provider-offer-card">
-      <CardHeader className="pb-2">
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0 pb-2">
         {loadError ? (
           <div role="alert" className="flex flex-wrap items-center justify-between gap-3">
             <CardDescription data-testid="provider-offer-lead" className="text-destructive">
@@ -227,6 +257,13 @@ function GrantEditor({ parent, offer, pending, readOnly, loadError, onRetry, onS
         ) : (
           <CardDescription data-testid="provider-offer-lead">{sentence}</CardDescription>
         )}
+        {canAddProvider ? (
+          <Button type="button" size="sm" asChild>
+            <Link href={sectionHref("connections")} data-testid="add-provider">
+              {t("settings.providers.add_provider", "Add a provider")}
+            </Link>
+          </Button>
+        ) : null}
       </CardHeader>
       <CardContent className="space-y-4">
         {pending ? (
@@ -251,6 +288,7 @@ function GrantEditor({ parent, offer, pending, readOnly, loadError, onRetry, onS
                   on={enabled.has(row.slug)}
                   readOnly={readOnly}
                   canManage={saved.can_manage}
+                  showModels={access.instanceAdmin}
                   onToggle={() => setDraft((current) => toggleSlug(current, row.slug, parentSlugs))}
                 />
               ))}

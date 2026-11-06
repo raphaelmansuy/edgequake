@@ -2,7 +2,9 @@
 
 use std::collections::BTreeSet;
 
-use edgequake_core::provider_offer::{child_offer, global_offer, parse_slug, ProviderCandidate};
+use edgequake_core::provider_offer::{
+    child_offer, global_offer_including_tested, parse_slug, ProviderCandidate,
+};
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
@@ -126,7 +128,11 @@ async fn global_offer_from_pool(pool: &sqlx::PgPool) -> ApiResult<BTreeSet<Strin
     }
     let withdrawn: BTreeSet<String> = withdrawn_rows.into_iter().map(|(slug,)| slug).collect();
     let allow = active_provider_names().map(|names| names.into_iter().collect());
-    Ok(global_offer(&candidates, &withdrawn, allow.as_ref()))
+    Ok(global_offer_including_tested(
+        &candidates,
+        &withdrawn,
+        allow.as_ref(),
+    ))
 }
 
 #[cfg(feature = "postgres")]
