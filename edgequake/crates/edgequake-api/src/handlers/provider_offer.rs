@@ -26,6 +26,18 @@ use crate::state::AppState;
 
 #[cfg(feature = "postgres")]
 #[derive(Debug, sqlx::FromRow)]
+struct FleetConnectionRow {
+    id: Uuid,
+    slug: String,
+    display_name: String,
+    api_shape: String,
+    last_test_ok: Option<bool>,
+    last_test_error: Option<String>,
+    key_configured: bool,
+}
+
+#[cfg(feature = "postgres")]
+#[derive(Debug, sqlx::FromRow)]
 struct WorkspaceProviderPin {
     workspace_id: Uuid,
     llm_provider: Option<String>,
@@ -277,15 +289,7 @@ pub async fn get_deployment_providers(
     }
     #[cfg(feature = "postgres")]
     if let Some(pool) = state.optional_pg_pool() {
-        let rows: Vec<(
-            Uuid,
-            String,
-            String,
-            String,
-            Option<bool>,
-            Option<String>,
-            bool,
-        )> = sqlx::query_as(
+        let rows: Vec<FleetConnectionRow> = sqlx::query_as(
             "SELECT id, slug, display_name, api_shape, last_test_ok, last_test_error, \
                     (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL) AS key_configured \
              FROM provider_connections WHERE tenant_id IS NULL ORDER BY slug",
@@ -300,14 +304,14 @@ pub async fn get_deployment_providers(
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
         let withdrawn: BTreeSet<String> = withdrawn.into_iter().map(|(s,)| s).collect();
-        for (id, slug, display_name, api_shape, last_test_ok, probe_error, key_configured) in rows {
-            let Some(slug) = parse_slug(&slug) else {
+        for row in rows {
+            let Some(slug) = parse_slug(&row.slug) else {
                 continue;
             };
             if !seen.insert(slug.clone()) {
                 continue;
             }
-            let probe = match last_test_ok {
+            let probe = match row.last_test_ok {
                 Some(true) => "ok",
                 Some(false) => "failed",
                 None => "unchecked",
@@ -319,16 +323,16 @@ pub async fn get_deployment_providers(
                 withdrawn: withdrawn.contains(&slug),
                 models: models_for(&catalog, &slug),
                 slug,
-                display_name,
+                display_name: row.display_name,
                 origin: "fleet".into(),
                 api_shape_label,
-                api_shape,
+                api_shape: row.api_shape,
                 probe: probe.into(),
-                key_configured,
+                key_configured: row.key_configured,
                 auth,
                 accepts_saved_key,
-                connection_id: Some(id),
-                probe_error: probe_error.filter(|message| !message.is_empty()),
+                connection_id: Some(row.id),
+                probe_error: row.last_test_error.filter(|message| !message.is_empty()),
                 refresh: None,
             });
         }
