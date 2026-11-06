@@ -136,7 +136,7 @@ release: ## Bump all crate versions and tag release using cargo-release (uses VE
 	cd edgequake && cargo release $$VERSION --workspace --no-publish --execute
 
 
-.PHONY: help install dev migrate dev-auth dev-bg dev-auth-bg dev-langfuse dev-bg-langfuse dev-memory kill-app stop clean build test lint format sync-dev-ports \
+.PHONY: help install dev migrate dev-auth dev-bg dev-auth-bg dev-secrets-key dev-langfuse dev-bg-langfuse dev-memory kill-app stop clean build test lint format sync-dev-ports \
         ops17-smoke spec046-acc data-access-perf-matrix data-access-perf-matrix-release data-access-perf-matrix-prod data-access-perf-capacity-ladder ann-scale-battle ceiling-proof recall-pareto dedicated-midscale diskann-battle diskann-recall-pareto diskann-rescore-smoke filtered-recall-gate precision-layers-gate binary-quantize-bakeoff filtered-diskann-labels-bakeoff midscale-quantize-labels tiny-slice-exact-gate serving-view-check push-scale-ladder wave2-greenfield-env product-limits-check compare-eq-perf \
         postgres-image-build-pg18-vectorscale \
         dev-pg16 dev-pg17 dev-pg18 dev-bg-pg16 dev-bg-pg17 dev-bg-pg18 \
@@ -284,6 +284,18 @@ DEFAULT_BACKEND_PORT ?= 8090
 DEFAULT_FRONTEND_PORT ?= 3010
 PORT_SCAN_WINDOW ?= 20
 DEV_PORTS_ENV := $(ROOT_DIR)/.edgequake-dev-ports.env
+# Stable local key for stored provider secrets. Generated once, never committed.
+DEV_SECRETS_ENV := $(ROOT_DIR)/.edgequake-dev-secrets.env
+
+# Fill EDGEQUAKE_SECRETS_KEY from the gitignored file when dev mode is on and the
+# operator has not exported one. An existing file is never rewritten: rotating it
+# would make rows encrypted with the old key unreadable.
+define LOAD_DEV_SECRETS_KEY
+if [ "$(DEV_EDGEQUAKE_DEV_MODE)" = "true" ] && [ -z "$${EDGEQUAKE_SECRETS_KEY:-}" ]; then \
+	$(MAKE) dev-secrets-key --no-print-directory; \
+	set -a && . "$(DEV_SECRETS_ENV)" && set +a; \
+fi
+endef
 
 # User secrets / LLM keys — loaded first.
 -include $(ROOT_DIR)/.env
@@ -556,6 +568,7 @@ endef
 # WHY EDGEQUAKE_MODELS_CONFIG: the binary reads ./models.toml, then ~/.edgequake/models.toml. Started from
 # the repo root it silently used a stale home copy and offered no Vertex/Gemini embedding. Pin the repo catalog.
 define BACKEND_STABILITY_EXPORTS
+printf '%s\n' 'if [ "$(DEV_EDGEQUAKE_DEV_MODE)" = "true" ] && [ -z "$${EDGEQUAKE_SECRETS_KEY:-}" ] && [ -f "$(DEV_SECRETS_ENV)" ]; then set -a; . "$(DEV_SECRETS_ENV)"; set +a; fi' >> /tmp/edgequake-start.sh; \
 printf '%s\n' "export EDGEQUAKE_MODELS_CONFIG=\"$${EDGEQUAKE_MODELS_CONFIG:-$(BACKEND_DIR)/models.toml}\"" >> /tmp/edgequake-start.sh; \
 printf '%s\n' "export GOOGLE_CLOUD_PROJECT=\"$${_VX_PROJECT:-$${GOOGLE_CLOUD_PROJECT:-}}\"" >> /tmp/edgequake-start.sh; \
 printf '%s\n' "export WORKER_THREADS=\"$(WORKER_THREADS)\"" >> /tmp/edgequake-start.sh; \
@@ -688,6 +701,7 @@ help: ## Show this help message
 	@echo "  $(GREEN)make dev-pg17$(RESET)     Start dev stack with PostgreSQL 17"
 	@echo "  $(GREEN)make dev-pg18$(RESET)     Start dev stack with PostgreSQL 18 (same as make dev)"
 	@echo "  $(GREEN)make dev-auth$(RESET)     Start full development stack with authentication enabled"
+	@echo "  $(GREEN)make dev-secrets-key$(RESET)  Generate a stable local EDGEQUAKE_SECRETS_KEY (dev mode)"
 	@echo "  $(GREEN)make dev-bg$(RESET)       Start full stack in BACKGROUND without authentication"
 	@echo "  $(GREEN)make dev-bg-langfuse$(RESET) Background stack + local Langfuse v4 (UI :3310)"
 	@echo "  $(GREEN)make dev-bg-pg16$(RESET)  Background dev with PostgreSQL 16"
@@ -980,6 +994,7 @@ dev: kill-app check-deps check-ports ## Start full development stack without aut
 	$(SAFE_KILL_LISTEN_PORTS) "$$BACKEND_PORT"; \
 	sleep 0.3; \
 	echo "$(YELLOW)→ Starting backend on port $$BACKEND_PORT (DATABASE_URL port: $$(printf '%s' $$_EFF_DB_URL | sed -E 's|.*:([0-9]+)/.*|\1|'))...$(RESET)"; \
+	$(LOAD_DEV_SECRETS_KEY); \
 	$(APPLY_LANGFUSE_ENV_EFFECTIVE); \
 	_DETECT="$$(bash "$(ROOT_DIR)/scripts/dev_provider_detect.sh")"; \
 	_DETECTED_PROVIDER="$${_DETECT%% *}"; \
@@ -1121,6 +1136,20 @@ endef
 $(foreach p,$(PG_PROFILES),$(eval $(call PG_DEV_RULE,$(p))))
 $(foreach p,$(PG_PROFILES),$(eval $(call PG_DEV_BG_RULE,$(p))))
 $(foreach p,$(PG_PROFILES),$(eval $(call PG_DB_START_RULE,$(p))))
+
+dev-secrets-key: ## Generate a stable local EDGEQUAKE_SECRETS_KEY (gitignored; never overwritten)
+	@if [ -n "$${EDGEQUAKE_SECRETS_KEY:-}" ]; then \
+		echo "EDGEQUAKE_SECRETS_KEY is already set; leaving $(DEV_SECRETS_ENV) alone."; \
+		exit 0; \
+	fi; \
+	if [ -s "$(DEV_SECRETS_ENV)" ]; then \
+		echo "Dev secrets key already exists: $(DEV_SECRETS_ENV)"; \
+		exit 0; \
+	fi; \
+	umask 077; \
+	printf 'EDGEQUAKE_SECRETS_KEY=%s\n' "$$(openssl rand -hex 32)" > "$(DEV_SECRETS_ENV)"; \
+	chmod 600 "$(DEV_SECRETS_ENV)"; \
+	echo "Generated a dev secrets key in $(DEV_SECRETS_ENV)"
 
 dev-auth: ## Start full development stack with authentication enabled
 	@$(MAKE) dev --no-print-directory DEV_AUTH_ENABLED=true DEV_DISABLE_DEMO_LOGIN=true
@@ -1554,6 +1583,7 @@ backend-dev: db-wait ## Run backend in development mode with PostgreSQL (uses .e
 	elif [ -x "$(BACKEND_DIR)/target/debug/edgequake" ]; then _EQ_BIN="$(BACKEND_DIR)/target/debug/edgequake"; fi; \
 	if [ -n "$$_EQ_BIN" ]; then echo "$(GREEN)→ Using binary $$_EQ_BIN (no second compile)$(RESET)"; fi; \
 	_run_server() { if [ -n "$$_EQ_BIN" ]; then exec "$$_EQ_BIN"; else exec cargo run; fi; }; \
+	$(LOAD_DEV_SECRETS_KEY); \
 	$(APPLY_LANGFUSE_ENV_EFFECTIVE); \
 	cd $(BACKEND_DIR) && \
 		PORT="$(BACKEND_PORT)" \
@@ -1589,6 +1619,7 @@ backend-db: db-wait ## Run backend with PostgreSQL storage (uses .env configurat
 	elif [ -x "$(BACKEND_DIR)/target/debug/edgequake" ]; then _EQ_BIN="$(BACKEND_DIR)/target/debug/edgequake"; fi; \
 	if [ -n "$$_EQ_BIN" ]; then echo "$(GREEN)→ Using binary $$_EQ_BIN (no second compile)$(RESET)"; fi; \
 	_run_server() { if [ -n "$$_EQ_BIN" ]; then exec "$$_EQ_BIN"; else exec cargo run; fi; }; \
+	$(LOAD_DEV_SECRETS_KEY); \
 	$(APPLY_LANGFUSE_ENV_EFFECTIVE); \
 	cd $(BACKEND_DIR) && \
 		PORT="$(BACKEND_PORT)" \
@@ -1668,6 +1699,7 @@ backend-bg: sync-dev-ports db-wait ## Run backend in background with PostgreSQL 
 	$(APPLY_LANGFUSE_ENV_EFFECTIVE); \
 	$(VISIBLE_MIGRATE_STEP); \
 	set -a && [ -f "$(DEV_PORTS_ENV)" ] && . "$(DEV_PORTS_ENV)" && set +a; \
+	$(LOAD_DEV_SECRETS_KEY); \
 	echo "$(YELLOW)→ Freeing port $${BACKEND_PORT:-$(BACKEND_PORT)} before backend-bg start (OrbStack/Docker skipped)$(RESET)"; \
 	$(SAFE_KILL_LISTEN_PORTS) "$${BACKEND_PORT:-$(BACKEND_PORT)}"; \
 	sleep 0.3; \

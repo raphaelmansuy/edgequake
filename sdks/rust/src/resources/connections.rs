@@ -16,29 +16,37 @@ impl<'a> ConnectionsResource<'a> {
         self.client.get("/api/v1/connections").await
     }
 
-    /// `POST /api/v1/connections`
+    /// `POST /api/v1/connections?scope=deployment`
     pub async fn create(&self, body: &UpsertConnection) -> Result<Connection> {
-        self.client.post("/api/v1/connections", Some(body)).await
+        self.client
+            .post("/api/v1/connections?scope=deployment", Some(body))
+            .await
     }
 
-    /// `PUT /api/v1/connections/{id}`
+    /// `PUT /api/v1/connections/{id}?scope=deployment`
     pub async fn update(&self, id: &str, body: &UpsertConnection) -> Result<Connection> {
         self.client
-            .put(&format!("/api/v1/connections/{id}"), Some(body))
+            .put(
+                &format!("/api/v1/connections/{id}?scope=deployment"),
+                Some(body),
+            )
             .await
     }
 
-    /// `DELETE /api/v1/connections/{id}`
+    /// `DELETE /api/v1/connections/{id}?scope=deployment`
     pub async fn delete(&self, id: &str) -> Result<()> {
         self.client
-            .delete_no_content(&format!("/api/v1/connections/{id}"))
+            .delete_no_content(&format!("/api/v1/connections/{id}?scope=deployment"))
             .await
     }
 
-    /// `POST /api/v1/connections/{id}/test`
+    /// `POST /api/v1/connections/{id}/test?scope=deployment`
     pub async fn test(&self, id: &str) -> Result<ProbeResult> {
         self.client
-            .post(&format!("/api/v1/connections/{id}/test"), None::<&()>)
+            .post(
+                &format!("/api/v1/connections/{id}/test?scope=deployment"),
+                None::<&()>,
+            )
             .await
     }
 

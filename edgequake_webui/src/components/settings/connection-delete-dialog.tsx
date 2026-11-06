@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { apiClient } from "@/lib/api/client";
+import { ApiRequestError, apiClient } from "@/lib/api/client";
 import { needsConfirm } from "@/lib/api/edgequake/provider-offer";
 
 export interface DeletableConnection {
@@ -48,13 +48,19 @@ export function ConnectionDeleteDialog({
     if (!connection) return;
     setBusy(true);
     try {
-      const confirm = inUse !== null ? "?confirm=true" : "";
-      await apiClient(`/connections/${connection.id}${confirm}`, { method: "DELETE", omitTenant: true });
+      const confirm = inUse !== null ? "&confirm=true" : "";
+      await apiClient(`/connections/${connection.id}?scope=deployment${confirm}`, { method: "DELETE", omitTenant: true });
       await onDeleted();
       close();
     } catch (error) {
       if (needsConfirm(error)) setInUse(error.message);
-      else toast.error(error instanceof Error ? error.message : t("settings.connections.deleteFailed", "Delete failed"));
+      else if (error instanceof ApiRequestError && error.code === "deployment_admin_required") {
+        toast.error(
+          error.message && error.message !== "Forbidden"
+            ? error.message
+            : t("settings.connections.deploymentAdmin", "Only a platform admin can add a provider on the deployment."),
+        );
+      } else toast.error(error instanceof Error ? error.message : t("settings.connections.deleteFailed", "Delete failed"));
     } finally {
       setBusy(false);
     }

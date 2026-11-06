@@ -69,7 +69,7 @@ class TestConnectionsResource:
             api_key="secret",
             allow_private_network=False,
         )
-        assert mock_req.call_args[0] == ("POST", "/api/v1/connections")
+        assert mock_req.call_args[0] == ("POST", "/api/v1/connections?scope=deployment")
         body = mock_req.call_args[1]["json"]
         assert body["slug"] == "my-ollama"
         assert body["api_key"] == "secret"
@@ -95,12 +95,12 @@ class TestConnectionsResource:
         )
         assert mock_req.call_args[0] == (
             "PUT",
-            f"/api/v1/connections/{CONNECTION['id']}",
+            f"/api/v1/connections/{CONNECTION['id']}?scope=deployment",
         )
         client.connections.delete(CONNECTION["id"])
         assert mock_req.call_args[0] == (
             "DELETE",
-            f"/api/v1/connections/{CONNECTION['id']}",
+            f"/api/v1/connections/{CONNECTION['id']}?scope=deployment",
         )
         client.close()
 
@@ -114,7 +114,7 @@ class TestConnectionsResource:
         stored = client.connections.test(CONNECTION["id"])
         assert mock_req.call_args[0] == (
             "POST",
-            f"/api/v1/connections/{CONNECTION['id']}/test",
+            f"/api/v1/connections/{CONNECTION['id']}/test?scope=deployment",
         )
         assert stored.ok is True
         assert stored.kind == "ok"

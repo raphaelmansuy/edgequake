@@ -46,6 +46,7 @@ sdks/**/bin/
 # Environment files
 .env
 .edgequake-dev-ports.env
+.edgequake-dev-secrets.env
 edgequake_webui/.env.local.ports
 target/
 edgequake/target/

@@ -19,7 +19,7 @@ test.describe("SPEC-176 live secret backend", () => {
     );
 
     const slug = `spec176-${Date.now()}`;
-    const created = await request.post("/api/v1/connections", {
+    const created = await request.post("/api/v1/connections?scope=deployment", {
       data: {
         slug,
         display_name: slug,
@@ -40,8 +40,8 @@ test.describe("SPEC-176 live secret backend", () => {
     expect(saved.api_key).toBeUndefined();
     expect(saved.secret_backend).toBe("database");
 
-    const probe = await request.post(`/api/v1/connections/${saved.id}/test`);
+    const probe = await request.post(`/api/v1/connections/${saved.id}/test?scope=deployment`);
     expect(probe.status()).toBeLessThan(500);
-    await request.delete(`/api/v1/connections/${saved.id}`);
+    await request.delete(`/api/v1/connections/${saved.id}?scope=deployment&confirm=true`);
   });
 });

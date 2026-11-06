@@ -19,24 +19,24 @@ export class ConnectionsResource extends Resource {
     return this._get("/api/v1/connections");
   }
 
-  /** POST /api/v1/connections */
+  /** POST /api/v1/connections?scope=deployment */
   async create(body: UpsertConnection): Promise<Connection> {
-    return this._post("/api/v1/connections", body);
+    return this._post("/api/v1/connections?scope=deployment", body);
   }
 
-  /** PUT /api/v1/connections/{id} */
+  /** PUT /api/v1/connections/{id}?scope=deployment */
   async update(id: string, body: UpsertConnection): Promise<Connection> {
-    return this._put(`/api/v1/connections/${id}`, body);
+    return this._put(`/api/v1/connections/${id}?scope=deployment`, body);
   }
 
-  /** DELETE /api/v1/connections/{id} */
+  /** DELETE /api/v1/connections/{id}?scope=deployment */
   async delete(id: string): Promise<void> {
-    await this._del(`/api/v1/connections/${id}`);
+    await this._del(`/api/v1/connections/${id}?scope=deployment`);
   }
 
-  /** POST /api/v1/connections/{id}/test */
+  /** POST /api/v1/connections/{id}/test?scope=deployment */
   async test(id: string): Promise<ProbeResult> {
-    return this._post(`/api/v1/connections/${id}/test`);
+    return this._post(`/api/v1/connections/${id}/test?scope=deployment`);
   }
 
   /** POST /api/v1/providers/test — probe without storing a connection. */

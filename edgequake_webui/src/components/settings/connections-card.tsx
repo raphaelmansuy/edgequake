@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { apiClient } from '@/lib/api/client';
+import { ApiRequestError, apiClient } from '@/lib/api/client';
 import { ConnectionRow, type ConnectionRowData } from '@/components/settings/connection-row';
 import { ConnectionDeleteDialog, type DeletableConnection } from '@/components/settings/connection-delete-dialog';
 import { connectionLocality } from '@/components/settings/connection-locality';
@@ -16,6 +16,17 @@ import { toast } from 'sonner';
 
 const CONNECTIONS_KEY = ['connections'] as const;
 const DEFAULT_SLUG = 'local';
+/** Fleet credentials are deployment-scoped. Auth fills a tenant even when the header is omitted. */
+const DEPLOYMENT_SCOPE = '?scope=deployment';
+
+function connectionError(err: unknown, fallback: string): string {
+  if (err instanceof ApiRequestError && err.code === 'deployment_admin_required') {
+    return err.message && err.message !== 'Forbidden'
+      ? err.message
+      : 'Only a platform admin can add a provider on the deployment.';
+  }
+  return err instanceof Error ? err.message : fallback;
+}
 
 type ConnectionView = ConnectionRowData;
 
@@ -177,12 +188,15 @@ export function ConnectionsCard() {
   const testStored = async (id: string) => {
     setBusy(true);
     try {
-      const result = await apiClient<ProbeResponse>(`/connections/${id}/test`, { method: 'POST' });
+      const result = await apiClient<ProbeResponse>(`/connections/${id}/test${DEPLOYMENT_SCOPE}`, {
+        method: 'POST',
+        omitTenant: true,
+      });
       if (result.ok) toast.success(`Connected (${result.latency_ms} ms)`);
       else toast.error(result.kind || 'Test failed', { description: result.message });
       await refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Test failed');
+      toast.error(connectionError(err, 'Test failed'));
     } finally {
       setBusy(false);
     }
@@ -241,14 +255,14 @@ export function ConnectionsCard() {
         allow_private_network: place.allowPrivate,
       };
       if (editingId) {
-        await apiClient(`/connections/${editingId}`, {
+        await apiClient(`/connections/${editingId}${DEPLOYMENT_SCOPE}`, {
           method: 'PUT',
           omitTenant: true,
           body: JSON.stringify(body),
         });
         toast.success('Connection updated');
       } else {
-        await apiClient('/connections', {
+        await apiClient(`/connections${DEPLOYMENT_SCOPE}`, {
           method: 'POST',
           omitTenant: true,
           body: JSON.stringify(body),
@@ -259,7 +273,7 @@ export function ConnectionsCard() {
       setEditingId(null);
       await refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Save failed');
+      toast.error(connectionError(err, 'Save failed'));
     } finally {
       setBusy(false);
     }

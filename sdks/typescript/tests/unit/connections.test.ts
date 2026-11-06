@@ -67,7 +67,7 @@ describe("ConnectionsResource", () => {
       allow_private_network: false,
     });
     expect(mock.lastRequest?.method).toBe("POST");
-    expect(mock.lastRequest?.path).toBe("/api/v1/connections");
+    expect(mock.lastRequest?.path).toBe("/api/v1/connections?scope=deployment");
     expect(mock.lastRequest?.body).toMatchObject({
       slug: "my-ollama",
       api_key: "secret",
@@ -84,18 +84,18 @@ describe("ConnectionsResource", () => {
       base_url: "http://127.0.0.1:11434",
     });
     expect(mock.lastRequest?.method).toBe("PUT");
-    expect(mock.lastRequest?.path).toBe(`/api/v1/connections/${id}`);
+    expect(mock.lastRequest?.path).toBe(`/api/v1/connections/${id}?scope=deployment`);
 
     await connections.delete(id);
     expect(mock.lastRequest?.method).toBe("DELETE");
-    expect(mock.lastRequest?.path).toBe(`/api/v1/connections/${id}`);
+    expect(mock.lastRequest?.path).toBe(`/api/v1/connections/${id}?scope=deployment`);
   });
 
   it("probes a stored connection and an unsaved provider", async () => {
     const stored = await connections.test(connection.id);
     expect(mock.lastRequest?.method).toBe("POST");
     expect(mock.lastRequest?.path).toBe(
-      `/api/v1/connections/${connection.id}/test`,
+      `/api/v1/connections/${connection.id}/test?scope=deployment`,
     );
     expect(stored.kind).toBe("ok");
 

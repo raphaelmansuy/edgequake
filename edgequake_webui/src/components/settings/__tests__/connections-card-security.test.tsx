@@ -123,4 +123,24 @@ describe("ConnectionsCard security requirements", () => {
     expect(screen.getByTestId("connection-service-account")).toBeInTheDocument();
     expect(screen.queryByLabelText(/^api key$/i)).not.toBeInTheDocument();
   });
+
+  it("saves on the deployment and does not send a tenant header", async () => {
+    await renderCard();
+    await waitFor(() => expect(screen.getByTestId("connection-shape")).toBeInTheDocument());
+    await act(async () => {
+      fireEvent.change(screen.getByTestId("connection-shape"), { target: { value: "ollama" } });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("connection-save"));
+    });
+
+    await waitFor(() => {
+      const save = vi.mocked(fetch).mock.calls.find((call) =>
+        String(call[0]).includes("/connections?scope=deployment"),
+      );
+      expect(save, "save must name deployment scope").toBeTruthy();
+      const headers = new Headers((save?.[1] as RequestInit | undefined)?.headers);
+      expect(headers.get("x-tenant-id")).toBeNull();
+    });
+  });
 });

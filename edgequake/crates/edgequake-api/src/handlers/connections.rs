@@ -205,6 +205,42 @@ pub(crate) fn scoped_tenant(
     }
 }
 
+/// `scope=deployment` names a fleet write. Anything else is not a scope.
+#[derive(Debug, Default, Deserialize)]
+pub struct ConnectionScopeQuery {
+    /// `deployment` stores the row with `tenant_id` null. A tenant header alone does not.
+    #[serde(default)]
+    pub scope: Option<String>,
+}
+
+/// Fleet writes are deployment-scoped on purpose.
+///
+/// Login fills `TenantContext` from the JWT even when the client omits `X-Tenant-ID`, so
+/// "no header" cannot mean "the deployment". `scope=deployment` is that statement, and only a
+/// platform admin may make it. Without it, a resolved tenant stays a tenant: create refuses,
+/// and update, delete and test keep the per-row owner check.
+pub fn connection_scope(
+    admin: &ApiRequireAdmin,
+    ctx: &crate::middleware::TenantContext,
+    query: &ConnectionScopeQuery,
+) -> Result<Option<Uuid>, ApiError> {
+    let deployment = query
+        .scope
+        .as_deref()
+        .is_some_and(|value| value.eq_ignore_ascii_case("deployment"));
+    if deployment {
+        if admin.context().role != edgequake_auth::Role::Admin {
+            return Err(ApiError::Coded {
+                code: "deployment_admin_required",
+                message: "Only a platform admin can add a provider on the deployment.".into(),
+                status: StatusCode::FORBIDDEN,
+            });
+        }
+        return Ok(None);
+    }
+    scoped_tenant(ctx)
+}
+
 #[utoipa::path(get, path = "/api/v1/connections/shapes", tag = "Providers")]
 pub async fn list_connection_shapes(_admin: ApiRequireAdmin) -> Json<Vec<serde_json::Value>> {
     let shapes = crate::providers::connection_shapes::CONNECTION_SHAPES
@@ -319,14 +355,22 @@ impl ConnectionRow {
     }
 }
 
-#[utoipa::path(post, path = "/api/v1/connections", tag = "Providers")]
+#[utoipa::path(
+    post,
+    path = "/api/v1/connections",
+    params(("scope" = Option<String>, Query, description = "deployment stores a fleet connection")),
+    tag = "Providers"
+)]
 pub async fn create_connection(
     State(state): State<AppState>,
-    _admin: ApiRequireAdmin,
+    admin: ApiRequireAdmin,
     tenant_ctx: crate::middleware::TenantContext,
+    Query(scope): Query<ConnectionScopeQuery>,
     Json(body): Json<UpsertConnection>,
 ) -> Result<(StatusCode, Json<ConnectionView>), ApiError> {
-    if scoped_tenant(&tenant_ctx)?.is_some() {
+    // A resolved tenant with no explicit deployment scope is still a tenant write.
+    // `scope=deployment` is the only way to say "fleet" once auth has filled the context.
+    if connection_scope(&admin, &tenant_ctx, &scope)?.is_some() {
         return Err(ApiError::unprocessable_coded(
             "connection_scope_global",
             "Providers are added on the deployment.",
@@ -336,15 +380,24 @@ pub async fn create_connection(
     Ok((StatusCode::CREATED, Json(view)))
 }
 
-#[utoipa::path(put, path = "/api/v1/connections/{id}", tag = "Providers")]
+#[utoipa::path(
+    put,
+    path = "/api/v1/connections/{id}",
+    params(
+        ("id" = Uuid, Path, description = "Connection id"),
+        ("scope" = Option<String>, Query, description = "deployment edits a fleet connection")
+    ),
+    tag = "Providers"
+)]
 pub async fn update_connection(
     State(state): State<AppState>,
-    _admin: ApiRequireAdmin,
+    admin: ApiRequireAdmin,
     tenant_ctx: crate::middleware::TenantContext,
+    Query(scope): Query<ConnectionScopeQuery>,
     Path(id): Path<Uuid>,
     Json(body): Json<UpsertConnection>,
 ) -> ApiResult<Json<ConnectionView>> {
-    let header = scoped_tenant(&tenant_ctx)?;
+    let header = connection_scope(&admin, &tenant_ctx, &scope)?;
     if let Some(tenant_id) = header {
         #[cfg(feature = "postgres")]
         {
@@ -382,16 +435,36 @@ pub async fn update_connection(
 pub struct DeleteConfirm {
     #[serde(default)]
     pub confirm: bool,
+    /// `deployment` deletes a fleet connection. Combined with `confirm` in one query.
+    #[serde(default)]
+    pub scope: Option<String>,
 }
 
-#[utoipa::path(delete, path = "/api/v1/connections/{id}", tag = "Providers")]
+#[utoipa::path(
+    delete,
+    path = "/api/v1/connections/{id}",
+    params(
+        ("id" = Uuid, Path, description = "Connection id"),
+        ("confirm" = Option<bool>, Query, description = "Required when assignments still use the slug"),
+        ("scope" = Option<String>, Query, description = "deployment deletes a fleet connection")
+    ),
+    tag = "Providers"
+)]
 pub async fn delete_connection(
     State(state): State<AppState>,
-    _admin: ApiRequireAdmin,
+    admin: ApiRequireAdmin,
     tenant_ctx: crate::middleware::TenantContext,
     Query(confirm): Query<DeleteConfirm>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
+    // Role first. A missing database must not turn "not an admin" into "unavailable".
+    let tenant = connection_scope(
+        &admin,
+        &tenant_ctx,
+        &ConnectionScopeQuery {
+            scope: confirm.scope.clone(),
+        },
+    )?;
     #[cfg(feature = "postgres")]
     {
         let pool = state
@@ -421,7 +494,6 @@ pub async fn delete_connection(
                 }
             }
         }
-        let tenant = scoped_tenant(&tenant_ctx)?;
         let found = if let Some(tenant_id) = tenant {
             let owner: Option<Option<Uuid>> = sqlx::query_scalar(
                 "SELECT tenant_id FROM provider_connections WHERE id = $1",
@@ -482,7 +554,7 @@ pub async fn delete_connection(
     }
     #[cfg(not(feature = "postgres"))]
     {
-        let _ = (state, id, tenant_ctx);
+        let _ = (state, id, tenant_ctx, admin, confirm, tenant);
         Err(ApiError::ServiceUnavailable {
             message: "PostgreSQL required".into(),
             retry_after_secs: 5,
@@ -490,13 +562,23 @@ pub async fn delete_connection(
     }
 }
 
-#[utoipa::path(post, path = "/api/v1/connections/{id}/test", tag = "Providers")]
+#[utoipa::path(
+    post,
+    path = "/api/v1/connections/{id}/test",
+    params(
+        ("id" = Uuid, Path, description = "Connection id"),
+        ("scope" = Option<String>, Query, description = "deployment tests a fleet connection")
+    ),
+    tag = "Providers"
+)]
 pub async fn test_stored_connection(
     State(state): State<AppState>,
-    _admin: ApiRequireAdmin,
+    admin: ApiRequireAdmin,
     tenant_ctx: crate::middleware::TenantContext,
+    Query(scope): Query<ConnectionScopeQuery>,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<ProbeResponse>> {
+    let tenant = connection_scope(&admin, &tenant_ctx, &scope)?;
     #[cfg(feature = "postgres")]
     {
         let pool = state
@@ -506,7 +588,6 @@ pub async fn test_stored_connection(
                 message: "PostgreSQL required".into(),
                 retry_after_secs: 5,
             })?;
-        let tenant = scoped_tenant(&tenant_ctx)?;
         let row = if let Some(tenant_id) = tenant {
             let owner: Option<Option<Uuid>> = sqlx::query_scalar(
                 "SELECT tenant_id FROM provider_connections WHERE id = $1",
@@ -591,7 +672,7 @@ pub async fn test_stored_connection(
     }
     #[cfg(not(feature = "postgres"))]
     {
-        let _ = (state, id, tenant_ctx);
+        let _ = (state, id, tenant_ctx, admin, scope, tenant);
         Err(ApiError::ServiceUnavailable {
             message: "PostgreSQL required".into(),
             retry_after_secs: 5,
@@ -1003,7 +1084,64 @@ fn map_sql(e: sqlx::Error) -> ApiError {
 
 #[cfg(test)]
 mod tests {
-    use super::{connection_list_sql, connection_update_sql};
+    use super::{
+        connection_list_sql, connection_scope, connection_update_sql, ConnectionScopeQuery,
+    };
+    use crate::handlers::auth::{ApiRequireAdmin, RequestAuthContext};
+    use crate::middleware::TenantContext;
+    use axum::http::StatusCode;
+
+    fn principal(role: edgequake_auth::Role) -> ApiRequireAdmin {
+        ApiRequireAdmin(RequestAuthContext {
+            user_id: "tester".into(),
+            role,
+        })
+    }
+
+    fn tenant() -> TenantContext {
+        TenantContext {
+            tenant_id: Some("00000000-0000-0000-0000-000000000002".into()),
+            ..TenantContext::default()
+        }
+    }
+
+    #[test]
+    fn deployment_scope_clears_a_resolved_tenant_for_an_admin() {
+        let scope = connection_scope(
+            &principal(edgequake_auth::Role::Admin),
+            &tenant(),
+            &ConnectionScopeQuery {
+                scope: Some("deployment".into()),
+            },
+        )
+        .expect("admin");
+        assert!(scope.is_none());
+    }
+
+    #[test]
+    fn deployment_scope_without_admin_role_is_403() {
+        let err = connection_scope(
+            &principal(edgequake_auth::Role::User),
+            &tenant(),
+            &ConnectionScopeQuery {
+                scope: Some("Deployment".into()),
+            },
+        )
+        .expect_err("member");
+        assert_eq!(err.code(), "deployment_admin_required");
+        assert_eq!(err.status_code(), StatusCode::FORBIDDEN);
+    }
+
+    #[test]
+    fn a_tenant_without_deployment_scope_stays_resolved() {
+        let scope = connection_scope(
+            &principal(edgequake_auth::Role::Admin),
+            &tenant(),
+            &ConnectionScopeQuery { scope: None },
+        )
+        .expect("tenant");
+        assert!(scope.is_some());
+    }
 
     #[test]
     fn scoped_connection_list_requires_the_tenant() {

@@ -92,9 +92,9 @@ class ConnectionsResource(SyncResource):
         timeout_secs: int | None = None,
         allow_private_network: bool | None = None,
     ) -> Connection:
-        """POST /api/v1/connections"""
+        """POST /api/v1/connections?scope=deployment"""
         return self._post(
-            "/api/v1/connections",
+            "/api/v1/connections?scope=deployment",
             json=_upsert_body(
                 slug=slug,
                 display_name=display_name,
@@ -123,9 +123,9 @@ class ConnectionsResource(SyncResource):
         timeout_secs: int | None = None,
         allow_private_network: bool | None = None,
     ) -> Connection:
-        """PUT /api/v1/connections/{id}. Omit api_key to keep the stored key."""
+        """PUT /api/v1/connections/{id}?scope=deployment. Omit api_key to keep the stored key."""
         return self._put(
-            f"/api/v1/connections/{connection_id}",
+            f"/api/v1/connections/{connection_id}?scope=deployment",
             json=_upsert_body(
                 slug=slug,
                 display_name=display_name,
@@ -141,13 +141,13 @@ class ConnectionsResource(SyncResource):
         )
 
     def delete(self, connection_id: str) -> None:
-        """DELETE /api/v1/connections/{id}"""
-        self._delete(f"/api/v1/connections/{connection_id}")
+        """DELETE /api/v1/connections/{id}?scope=deployment"""
+        self._delete(f"/api/v1/connections/{connection_id}?scope=deployment")
 
     def test(self, connection_id: str) -> ProbeResult:
-        """POST /api/v1/connections/{id}/test"""
+        """POST /api/v1/connections/{id}/test?scope=deployment"""
         return self._post(
-            f"/api/v1/connections/{connection_id}/test",
+            f"/api/v1/connections/{connection_id}/test?scope=deployment",
             response_type=ProbeResult,
         )
 
@@ -201,7 +201,7 @@ class AsyncConnectionsResource(AsyncResource):
         allow_private_network: bool | None = None,
     ) -> Connection:
         return await self._post(
-            "/api/v1/connections",
+            "/api/v1/connections?scope=deployment",
             json=_upsert_body(
                 slug=slug,
                 display_name=display_name,
@@ -231,7 +231,7 @@ class AsyncConnectionsResource(AsyncResource):
         allow_private_network: bool | None = None,
     ) -> Connection:
         return await self._put(
-            f"/api/v1/connections/{connection_id}",
+            f"/api/v1/connections/{connection_id}?scope=deployment",
             json=_upsert_body(
                 slug=slug,
                 display_name=display_name,
@@ -247,11 +247,11 @@ class AsyncConnectionsResource(AsyncResource):
         )
 
     async def delete(self, connection_id: str) -> None:
-        await self._delete(f"/api/v1/connections/{connection_id}")
+        await self._delete(f"/api/v1/connections/{connection_id}?scope=deployment")
 
     async def test(self, connection_id: str) -> ProbeResult:
         return await self._post(
-            f"/api/v1/connections/{connection_id}/test",
+            f"/api/v1/connections/{connection_id}/test?scope=deployment",
             response_type=ProbeResult,
         )
 
