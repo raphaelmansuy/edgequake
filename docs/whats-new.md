@@ -3,7 +3,7 @@ title: "What's new"
 description: "Per-release highlights moved out of the README."
 ---
 
-This page lists the highlights of each release from v0.40.3 back to v0.24.0, newest first. Most entries name the schema number, so you can plan a database migration before you upgrade. For the full change list, see the [CHANGELOG](CHANGELOG.md), and for the upgrade steps, see the linked upgrade guide. A plain-English [picture tour](https://edgequake.com/tutorial/) of the UI is on the marketing site.
+This page lists the highlights of each release from v0.40.4 back to v0.24.0, newest first. Most entries name the schema number, so you can plan a database migration before you upgrade. For the full change list, see the [CHANGELOG](CHANGELOG.md), and for the upgrade steps, see the linked upgrade guide. A plain-English [picture tour](https://edgequake.com/tutorial/) of the UI is on the marketing site.
 
 ## Schema train at a glance
 
@@ -35,15 +35,20 @@ timeline
     v0.38.3 : 224 pinned
     v0.38.4 : 224 pinned
     v0.39.0 : 226
+    v0.40.4 : 227
     v0.40.3 : 227
     v0.40.2 : 227
     v0.40.1 : 227
     v0.40.0 : 227
 ```
 
-The timeline shows the schema number each release leaves the database at, from v0.23.0 through v0.40.3.
+The timeline shows the schema number each release leaves the database at, from v0.23.0 through v0.40.4.
 
 Run `edgequake migrate` when you move to a release with a higher number. The [upgrading guide](operations/upgrading.md) covers the steps.
+
+### What's new in 0.40.4
+
+Test connection on a saved provider offers it to organizations and unlocks its models. Schema stays **227**. `edgequake migrate` is a no-op. See [upgrade-to-0.40.4.md](operations/upgrade-to-0.40.4.md).
 
 ### What's new in 0.40.3
 

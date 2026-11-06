@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.4] — 2026-11-06
+
+Patch on v0.40.3. Schema stays **227**. `edgequake migrate` is a no-op on a database that is
+already at schema 227. Roll the images. Do not change the schema.
+
+### Fixed
+
+- **A saved provider could not be offered.** A fleet connection enters the deployment offer only
+  after its connection test passes. Deployment › Providers showed the models and a Withdraw button,
+  and the test lived on Connections, so Vertex stayed "Not tested" and never appeared under
+  Organization › Providers. The provider card now has **Test connection**. A passing test offers the
+  provider to every organization and unlocks model registration. The card returns the connection id
+  and, when a test fails, the error.
+
+**SPEC-001 Acc:** not re-scored. Mix retrieval is unchanged. The latest valid pack remains
+`medical-mid-20261024T031725Z` (`valid: true`): EdgeQuake **0.8084**, LightRAG **0.7681**, delta
+**+0.0403**, 95% CI **[-0.0241, +0.1036]** (n_paired 72). The interval includes 0, so this is a
+statistical tie. EdgeQuake does not claim a win.
+
 ## [0.40.3] — 2026-11-06
 
 Patch on v0.40.2. Schema stays **227**. `edgequake migrate` is a no-op on a database that is

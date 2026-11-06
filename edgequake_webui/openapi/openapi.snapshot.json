@@ -9,7 +9,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "0.40.3"
+    "version": "0.40.4"
   },
   "servers": [
     {
@@ -4285,8 +4285,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "recover_stuck"
+        "x-edgequake-v2-job-type": "recover_stuck",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/documents/reprocess": {
@@ -4343,8 +4343,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "reprocess_failed"
+        "x-edgequake-v2-job-type": "reprocess_failed",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/documents/scan": {
@@ -13119,8 +13119,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "rebuild_embeddings"
+        "x-edgequake-v2-job-type": "rebuild_embeddings",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph": {
@@ -13193,8 +13193,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "rebuild_knowledge_graph",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "rebuild_knowledge_graph"
       }
     },
     "/api/v1/workspaces/{workspace_id}/reprocess-documents": {
@@ -13952,8 +13952,8 @@
             "description": "Track not found for this workspace"
           }
         },
-        "x-edgequake-transport": "websocket",
-        "x-edgequake-upgrade": "RFC6455"
+        "x-edgequake-upgrade": "RFC6455",
+        "x-edgequake-transport": "websocket"
       }
     }
   },
@@ -19226,6 +19226,14 @@
             "type": "string",
             "description": "SPEC-184 — how this provider authenticates, from the shape registry.\n\nWHY it is on the DTO: the card used to print \"Key set\" for any provider with a stored\nsecret, so a Vertex AI row claimed a key it cannot use (Vertex authenticates as the server's\nGoogle identity). The UI cannot infer this from `key_configured`, and guessing from the slug\nis the kind of duplication that drifts. One field, one source of truth."
           },
+          "connection_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Fleet connection this card can test. Absent for environment providers."
+          },
           "display_name": {
             "type": "string"
           },
@@ -19246,6 +19254,13 @@
           },
           "probe": {
             "type": "string"
+          },
+          "probe_error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the last probe failed. Absent until a test has failed."
           },
           "refresh": {
             "oneOf": [
@@ -19270,12 +19285,14 @@
           "api_shape": {},
           "api_shape_label": {},
           "auth": {},
+          "connection_id": {},
           "display_name": {},
           "key_configured": {},
           "models": [],
           "offered": {},
           "origin": {},
           "probe": {},
+          "probe_error": {},
           "refresh": {},
           "slug": {},
           "withdrawn": {}
@@ -39471,7 +39488,7 @@
     "asyncapi": "2.6.0",
     "info": {
       "title": "EdgeQuake WebSocket Progress",
-      "version": "0.40.3",
+      "version": "0.40.4",
       "description": "Real-time pipeline and document processing progress over WebSocket (RFC 6455). SPEC-149: clients subscribe to owned track_ids on the global channel; events use a tagged {type,data} envelope."
     },
     "defaultContentType": "application/json",

@@ -7318,12 +7318,14 @@ export interface components {
          *       "api_shape": {},
          *       "api_shape_label": {},
          *       "auth": {},
+         *       "connection_id": {},
          *       "display_name": {},
          *       "key_configured": {},
          *       "models": [],
          *       "offered": {},
          *       "origin": {},
          *       "probe": {},
+         *       "probe_error": {},
          *       "refresh": {},
          *       "slug": {},
          *       "withdrawn": {}
@@ -7351,12 +7353,19 @@ export interface components {
              *     is the kind of duplication that drifts. One field, one source of truth.
              */
             auth: string;
+            /**
+             * Format: uuid
+             * @description Fleet connection this card can test. Absent for environment providers.
+             */
+            connection_id?: string | null;
             display_name: string;
             key_configured: boolean;
             models: components["schemas"]["OfferModelDto"][];
             offered: boolean;
             origin: string;
             probe: string;
+            /** @description Why the last probe failed. Absent until a test has failed. */
+            probe_error?: string | null;
             refresh?: null | components["schemas"]["ProviderRefreshState"];
             slug: string;
             withdrawn: boolean;
