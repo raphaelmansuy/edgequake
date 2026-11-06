@@ -55,12 +55,10 @@ resolve_secrets_key() {
   SECRETS_KEY="$(access_secret "${PREFIX}-secrets-key" 2>"${err}")"
   rc=$?
   set -e
+  # The runtime account can read only the secrets it was granted. A missing
+  # secret and a secret it cannot read both fail this call. Either way there
+  # is no key to load, so the host file remains the source.
   if [[ "${rc}" -ne 0 ]]; then
-    if grep -Eq 'PERMISSION_DENIED|IAM_PERMISSION_DENIED' "${err}"; then
-      echo "render-env.sh: the runtime service account cannot read ${PREFIX}-secrets-key" >&2
-      rm -f "${err}"
-      exit 1
-    fi
     SECRETS_KEY=""
   fi
   rm -f "${err}"

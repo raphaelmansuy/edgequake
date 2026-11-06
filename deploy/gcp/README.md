@@ -64,7 +64,7 @@ Every deploy runs `render-env.sh --ensure`. That updates an existing `/opt/edgeq
 
 `render-env.sh` resolves the key in this order:
 
-1. Secret Manager secret `edgequake-secrets-key`, when it has a version other than the placeholder `UNSET`.
+1. Secret Manager secret `edgequake-secrets-key`, when the runtime service account can read a version other than the placeholder `UNSET`. A secret it cannot read is treated as absent.
 2. The host file `/opt/edgequake/secrets/edgequake-secrets-key`.
 3. A new host file, created once with `openssl rand -hex 32`, mode `600`.
 
