@@ -1326,7 +1326,8 @@
       "key": "密钥",
       "keySet": "已设置",
       "update": "更新",
-      "test": "测试"
+      "test": "测试并提供",
+      "updateModels": "更新模型"
     }
   },
   "websocket": {

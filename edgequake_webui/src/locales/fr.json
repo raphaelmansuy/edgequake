@@ -1326,7 +1326,8 @@
       "key": "clé",
       "keySet": "définie",
       "update": "Modifier",
-      "test": "Tester"
+      "test": "Tester et proposer",
+      "updateModels": "Mettre à jour les modèles"
     }
   },
   "websocket": {
