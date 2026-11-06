@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.7] — 2026-11-06
+
+Patch on v0.40.6. Schema stays **227**. `edgequake migrate` is a no-op on a database that is
+already at schema 227. Roll the images. Do not change the schema.
+
+### Fixed
+
+- **Creating a workspace pinned to a saved Vertex connection failed with a generic banner.**
+  An Images workspace probes `gemini-embedding-2` before it is saved. That probe still built
+  the client from the process environment, so a deployment without `GOOGLE_CLOUD_PROJECT`
+  returned `embedding_auth` and the dialog discarded the sentence. The probe now uses the
+  stored service account. A duplicate address returns `workspace_slug_taken`, and the dialog
+  shows the server's sentence when create fails.
+
+**SPEC-001 Acc:** not re-scored. Mix retrieval is unchanged. The latest valid pack remains
+`medical-mid-20261024T031725Z` (`valid: true`): EdgeQuake **0.8084**, LightRAG **0.7681**, delta
+**+0.0403**, 95% CI **[-0.0241, +0.1036]** (n_paired 72). The interval includes 0, so this is a
+statistical tie. EdgeQuake does not claim a win.
+
 ## [0.40.6] — 2026-11-06
 
 Patch on v0.40.5. Schema stays **227**. `edgequake migrate` is a no-op on a database that is
