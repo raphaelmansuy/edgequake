@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.6] — 2026-11-06
+
+Patch on v0.40.5. Schema stays **227**. `edgequake migrate` is a no-op on a database that is
+already at schema 227. Roll the images. Do not change the schema.
+
+### Fixed
+
+- **A Vertex workspace failed PDF vision with `GOOGLE_CLOUD_PROJECT not set`.** The server
+  built the vision client from the process environment and never opened the saved fleet
+  connection. Vision, extraction, and embeddings now use that service account, including
+  `gemini-embedding-2`. A deployment with no saved Vertex secret still requires
+  `GOOGLE_CLOUD_PROJECT`.
+
+**SPEC-001 Acc:** not re-scored. Mix retrieval is unchanged. The latest valid pack remains
+`medical-mid-20261024T031725Z` (`valid: true`): EdgeQuake **0.8084**, LightRAG **0.7681**, delta
+**+0.0403**, 95% CI **[-0.0241, +0.1036]** (n_paired 72). The interval includes 0, so this is a
+statistical tie. EdgeQuake does not claim a win.
+
 ## [0.40.5] — 2026-11-06
 
 Patch on v0.40.4. Schema stays **227**. `edgequake migrate` is a no-op on a database that is
