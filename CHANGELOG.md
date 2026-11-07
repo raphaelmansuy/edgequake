@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- The organization model ceiling and the workspace model list are arranged by job. A model shows only the jobs it can do. An open job can use any registered model that fits it, and the first model you allow closes that job to the ones you allow.
+
 ## [0.40.10] — 2026-11-07
 
 Same product as v0.40.9. Schema stays **231**. `edgequake migrate` is a no-op when the database is already at 231.
