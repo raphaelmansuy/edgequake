@@ -31,8 +31,8 @@ fn numbered_sql_versions() -> Vec<i64> {
 fn head_train_includes_160_through_169() {
     let versions = numbered_sql_versions();
     let max = *versions.last().expect("at least one migration");
-    assert_eq!(max, 229, "HEAD schema train must end at 229");
-    for v in 160..=229 {
+    assert_eq!(max, 230, "HEAD schema train must end at 230");
+    for v in 160..=230 {
         assert!(
             versions.contains(&v),
             "missing migration {v} in edgequake/migrations/"
@@ -48,7 +48,7 @@ fn manifest_compat_serve_max_matches_head() {
         .find(|l| l.starts_with("compat_serve_max"))
         .expect("compat_serve_max");
     let digits: String = max_line.chars().filter(|c| c.is_ascii_digit()).collect();
-    assert_eq!(digits, "229");
+    assert_eq!(digits, "230");
 }
 
 #[test]
@@ -1108,4 +1108,38 @@ fn migration_229_makes_scope_indexes_cover_the_clearance_policy() {
     // The surviving unique constraint on conversation_history is never dropped.
     assert!(!code.contains("unique_conversation_message"));
     assert!(!code.contains("DROP INDEX IF EXISTS public.idx_documents_status;"));
+}
+
+#[test]
+fn migration_230_finishes_the_initplan_backfill_from_208() {
+    let manifest = include_str!("../../../migrations/manifest.toml");
+    let v230 = manifest
+        .split("version = 230")
+        .nth(1)
+        .and_then(|rest| rest.split("[[migration]]").next())
+        .expect("migration 230");
+    assert!(v230.contains("phase = \"expand\""));
+    assert!(!v230.contains("serving_floor"));
+
+    let sql = include_str!("../../../migrations/230_rls_initplan_backfill.sql");
+    // Same rewrite shape as 208: unwrap, wrap, then prove the meaning survived.
+    assert!(sql.contains("regexp_replace"));
+    assert!(sql.contains("(SELECT \\1)"));
+    assert!(
+        sql.contains("ALTER POLICY"),
+        "rewrites policy text in place"
+    );
+    assert!(
+        sql.contains("RAISE EXCEPTION"),
+        "each rewrite must be verified against the original expression"
+    );
+    assert!(
+        !sql.contains("DROP POLICY") && !sql.contains("CREATE POLICY"),
+        "roles, commands and RESTRICTIVE must stay untouched"
+    );
+    // It must not touch the clearance predicate migration 228 rebuilt.
+    assert!(
+        !sql.contains("clearance_"),
+        "230 must not rewrite the clearance predicate"
+    );
 }
