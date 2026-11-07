@@ -154,6 +154,9 @@ pub struct ProjectionWorkerCounterSnapshot {
 pub struct ProjectionWorkerConfig {
     pub batch_size: u32,
     pub lease_duration_ms: u64,
+    /// Maximum number of claimed apply attempts before a delivery is quarantined.
+    /// Zero preserves unbounded retries.
+    pub max_attempts: u32,
 }
 
 impl Default for ProjectionWorkerConfig {
@@ -161,6 +164,7 @@ impl Default for ProjectionWorkerConfig {
         Self {
             batch_size: 64,
             lease_duration_ms: 30_000,
+            max_attempts: 10,
         }
     }
 }
@@ -225,7 +229,8 @@ impl ProjectionWorker {
     /// provider call below runs while a queue row lock is held.
     ///
     /// Apply counters and `apply_batch` run once per role present in the claim
-    /// (budget `c*q + c0` with `c = 1`, `c0 = 0`).
+    /// (budget `c*q + c0` with `c = 1`, `c0 = 0`), plus bounded single-item
+    /// isolation for deliveries that reach the retry ceiling in a failed batch.
     pub async fn run_once(&self) -> AccessResult<ProjectionRunReport> {
         self.counters.claim_calls.fetch_add(1, Ordering::Relaxed);
         let items = self
@@ -313,6 +318,18 @@ impl ProjectionWorker {
                 self.quarantine(&item, error.to_string(), report).await?;
                 continue;
             }
+            if self.config.max_attempts > 0 && item.delivery.attempt > self.config.max_attempts {
+                self.quarantine(
+                    &item,
+                    format!(
+                        "projection retry limit {} exceeded after {} claimed attempts",
+                        self.config.max_attempts, item.delivery.attempt
+                    ),
+                    report,
+                )
+                .await?;
+                continue;
+            }
             candidates.push(item);
         }
         if candidates.is_empty() {
@@ -374,8 +391,13 @@ impl ProjectionWorker {
             ProjectionTarget::Vector => self.vector.apply_batch(&pairs).await,
         };
 
-        let receipts = match result {
-            Ok(receipts) => receipts,
+        let mut applied_items = Vec::new();
+        let mut receipts = Vec::new();
+        match result {
+            Ok(batch_receipts) => {
+                applied_items = ready;
+                receipts = batch_receipts;
+            }
             Err(error) if is_poison(&error) => {
                 let reason = format!("poison projection payload: {error}");
                 for item in ready {
@@ -385,41 +407,123 @@ impl ProjectionWorker {
             }
             Err(error) => {
                 report.transient_failures += ready.len() as u64;
-                for item in &ready {
-                    let backoff_ms = self
-                        .config
-                        .lease_duration_ms
-                        .saturating_mul(item.delivery.attempt.max(1) as u64)
-                        .min(60_000);
-                    if let Err(release_error) = self
-                        .ledger
-                        .release_for_retry(
-                            &RenewDelivery {
-                                event_id: item.event.event_id,
-                                binding_id: item.binding_id(),
-                                owner_token: self.owner_token,
-                                epoch: item.delivery.epoch,
-                                lease_duration_ms: self.config.lease_duration_ms,
-                            },
-                            backoff_ms,
+                let batch_len = ready.len();
+                for item in ready {
+                    let exhausted = self.config.max_attempts > 0
+                        && item.delivery.attempt >= self.config.max_attempts;
+                    if !exhausted {
+                        let backoff_ms = self
+                            .config
+                            .lease_duration_ms
+                            .saturating_mul(item.delivery.attempt.max(1) as u64)
+                            .min(60_000);
+                        if let Err(release_error) = self
+                            .ledger
+                            .release_for_retry(
+                                &RenewDelivery {
+                                    event_id: item.event.event_id,
+                                    binding_id: item.binding_id(),
+                                    owner_token: self.owner_token,
+                                    epoch: item.delivery.epoch,
+                                    lease_duration_ms: self.config.lease_duration_ms,
+                                },
+                                backoff_ms,
+                            )
+                            .await
+                        {
+                            tracing::warn!(
+                                event_id = %item.event.event_id,
+                                error = %release_error,
+                                "projection retry release failed"
+                            );
+                        }
+                        continue;
+                    }
+
+                    if batch_len == 1 {
+                        self.quarantine(
+                            &item,
+                            format!(
+                                "projection retry limit {} reached after {} attempts: {error}",
+                                self.config.max_attempts, item.delivery.attempt
+                            ),
+                            report,
                         )
-                        .await
-                    {
-                        tracing::warn!(
-                            event_id = %item.event.event_id,
-                            error = %release_error,
-                            "projection retry release failed"
-                        );
+                        .await?;
+                        continue;
+                    }
+
+                    // A batch-level failure may have been caused by one delivery.
+                    // Isolate exhausted members so healthy deliveries are not
+                    // quarantined with the failing item.
+                    match target {
+                        ProjectionTarget::Graph => {
+                            self.counters
+                                .graph_apply_calls
+                                .fetch_add(1, Ordering::Relaxed);
+                        }
+                        ProjectionTarget::Vector => {
+                            self.counters
+                                .vector_apply_calls
+                                .fetch_add(1, Ordering::Relaxed);
+                        }
+                    }
+                    let single_item = [(&item.event, &item.binding)];
+                    let single_result = match target {
+                        ProjectionTarget::Graph => self.graph.apply_batch(&single_item).await,
+                        ProjectionTarget::Vector => self.vector.apply_batch(&single_item).await,
+                    };
+                    match single_result {
+                        Ok(mut single_receipts) if single_receipts.len() == 1 => {
+                            applied_items.push(item);
+                            receipts.push(single_receipts.remove(0));
+                        }
+                        Ok(single_receipts) => {
+                            self.quarantine(
+                                &item,
+                                format!(
+                                    "projection retry limit {} reached after {} attempts; single-item apply returned {} receipts",
+                                    self.config.max_attempts,
+                                    item.delivery.attempt,
+                                    single_receipts.len()
+                                ),
+                                report,
+                            )
+                            .await?;
+                        }
+                        Err(single_error) if is_poison(&single_error) => {
+                            self.quarantine(
+                                &item,
+                                format!("poison projection payload: {single_error}"),
+                                report,
+                            )
+                            .await?;
+                        }
+                        Err(single_error) => {
+                            self.quarantine(
+                                &item,
+                                format!(
+                                    "projection retry limit {} reached after {} attempts: {single_error}",
+                                    self.config.max_attempts, item.delivery.attempt
+                                ),
+                                report,
+                            )
+                            .await?;
+                        }
                     }
                 }
                 tracing::warn!(
                     error = %error,
-                    count = ready.len(),
+                    count = batch_len,
                     "projection apply_batch failed; deliveries returned to retry"
                 );
-                return Ok(());
             }
-        };
+        }
+
+        let ready = applied_items;
+        if ready.is_empty() {
+            return Ok(());
+        }
 
         if receipts.len() != ready.len() {
             return Err(AccessError::CorruptData(format!(
@@ -710,6 +814,52 @@ mod tests {
             Arc::new(NoopVectorProjectionApplier),
             ProjectionWorkerConfig::default(),
         )
+    }
+
+    struct FailingGraphApplier {
+        calls: AtomicU64,
+    }
+
+    #[async_trait]
+    impl GraphProjectionApplier for FailingGraphApplier {
+        async fn apply_batch(
+            &self,
+            _items: &[(&ProjectionEvent, &DataBindingDescriptor)],
+        ) -> AccessResult<Vec<ProjectionApplyReceipt>> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            Err(AccessError::Unavailable("projection apply failed".into()))
+        }
+    }
+
+    #[tokio::test]
+    async fn exhausted_single_delivery_is_quarantined_instead_of_retried() {
+        let max_attempts = 3;
+        let mut item = work(PROJECTION_SCHEMA_V1);
+        item.delivery.attempt = max_attempts;
+        let ledger = Arc::new(FakeLedger {
+            item: Mutex::new(Some(item)),
+            ack_result: Mutex::new(None),
+            quarantines: AtomicU64::new(0),
+        });
+        let graph = Arc::new(FailingGraphApplier {
+            calls: AtomicU64::new(0),
+        });
+        let worker = ProjectionWorker::new(
+            Uuid::from_u128(3),
+            ledger.clone(),
+            graph.clone(),
+            Arc::new(NoopVectorProjectionApplier),
+            ProjectionWorkerConfig {
+                max_attempts,
+                ..ProjectionWorkerConfig::default()
+            },
+        );
+
+        let report = worker.run_once().await.unwrap();
+
+        assert_eq!(report.quarantined, 1);
+        assert_eq!(ledger.quarantines.load(Ordering::Relaxed), 1);
+        assert_eq!(graph.calls.load(Ordering::Relaxed), 1);
     }
 
     struct AlternateGraphApplier;
