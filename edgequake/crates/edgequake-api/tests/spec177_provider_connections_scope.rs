@@ -404,6 +404,27 @@ async fn a_saved_project_embeds_without_google_cloud_project() {
         .await
         .expect("embedder uses the saved project");
 
+    let mut workspace = edgequake_core::Workspace::new(uuid::Uuid::new_v4(), "image2", "image2");
+    workspace.embedding_provider = "vertexai".into();
+    workspace.embedding_model = "gemini-embedding-2".into();
+    workspace.embedding_dimension = 1536;
+    let client =
+        edgequake_api::embeddings::multimodal_embedder_for_workspace(Some(&pool), &workspace)
+            .await
+            .expect("vertex pair")
+            .expect("query embedder uses the saved project");
+    let _ = client;
+
+    let fleet = edgequake_api::providers::connection_store::fleet_vertex_embedder(
+        &pool,
+        "gemini-embedding-2",
+        1536,
+    )
+    .await
+    .expect("fleet lookup")
+    .expect("saved project");
+    assert_eq!(fleet.project(), "mobioos-506015");
+
     let visible: bool = sqlx::query_scalar(
         "SELECT EXISTS( \
             SELECT 1 FROM provider_connections \

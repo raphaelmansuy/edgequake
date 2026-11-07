@@ -172,6 +172,7 @@ async fn run_context_retrieval(
         llm_model: None,
         reasoning_effort: None,
         normal_plan: crate::services::query_image::normal_plan(
+            state.optional_pg_pool(),
             workspace.as_ref(),
             query,
             document_filter.as_ref(),

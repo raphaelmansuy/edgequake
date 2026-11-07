@@ -184,6 +184,21 @@ impl VertexGeminiEmbedder {
         )
     }
 
+    /// Project this client calls. The query path uses it to reuse one HTTP pool.
+    pub fn project(&self) -> &str {
+        &self.config.project
+    }
+
+    /// Identity of this client in the process-wide pool.
+    pub(crate) fn shared_key(&self) -> (String, usize, String, String) {
+        (
+            self.config.model.clone(),
+            self.config.dimension,
+            self.config.project.clone(),
+            self.config.base_url.clone(),
+        )
+    }
+
     /// A client for `model` at `dimension`, with credentials from the environment.
     pub fn from_env(model: &str, dimension: usize) -> Result<Self, EmbedError> {
         Self::new(

@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.11] — 2026-11-07
+
+Patch on v0.40.10. Schema stays **231**. `edgequake migrate` is a no-op when the database is already at 231.
+
+### Fixed
+
+- **A Normal or image query still said `GOOGLE_CLOUD_PROJECT` is not set after the project was saved.** The query built its `gemini-embedding-2` client from the process environment and never opened the Vertex connection. Query, chat, and image ingest now use the project saved on that connection. A stored service account is used when one is saved.
+
 ### Changed
 
 - The organization model ceiling and the workspace model list are arranged by job. A model shows only the jobs it can do. An open job can use any registered model that fits it, and the first model you allow closes that job to the ones you allow.

@@ -213,6 +213,7 @@ pub async fn chat_completion(
         }
     }
     if let Some(plan) = crate::services::query_image::normal_plan(
+        state.optional_pg_pool(),
         workspace.as_ref(),
         &request.message,
         request.document_filter.as_ref(),
