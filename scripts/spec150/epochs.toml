@@ -9,13 +9,8 @@
 # v0.39.0 owns schema 226 (SPEC-180 Normal RAG, SPEC-181 admin).
 # v0.39.1 serves that same set. It adds no migration.
 # v0.40.0 owns schema 227. v0.40.1 through v0.40.7 serve that same set. None adds a migration.
-# unreleased: 228/229/230 harden the RLS request path (clearance InitPlan split,
-# covering scope indexes, InitPlan backfill) — schema 230, 228 numbered files.
-
-[unreleased]
-hash = "db2868e7660eaf55"
-max = 230
-files = 228
+# v0.40.8 owns schema 231 (migrations 228–231). 229 numbered files.
+# hash ba0c9db9d18d39c1.
 
 [[epoch]]
 tag = "v0.2.0"
@@ -409,3 +404,12 @@ replay = true
 # hash 7491afd4e3a729e7 (225 numbered migration files)
 # v0.40.1 through v0.40.7 serve this same set. Their tags are covered by
 # this hash until a later cut adds its own row.
+
+[[epoch]]
+tag = "v0.40.8"
+mode = "replay"
+pg_majors = [16,17,18]
+key = true
+replay = true
+# max mig 231 (clearance InitPlan, covering indexes, InitPlan backfill, saved Vertex project)
+# hash ba0c9db9d18d39c1 (229 numbered migration files)

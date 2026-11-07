@@ -9,7 +9,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "0.40.7"
+    "version": "0.40.8"
   },
   "servers": [
     {
@@ -13119,8 +13119,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "rebuild_embeddings"
+        "x-edgequake-v2-job-type": "rebuild_embeddings",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph": {
@@ -13267,8 +13267,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "reprocess_all"
+        "x-edgequake-v2-job-type": "reprocess_all",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/restore": {
@@ -13952,8 +13952,8 @@
             "description": "Track not found for this workspace"
           }
         },
-        "x-edgequake-upgrade": "RFC6455",
-        "x-edgequake-transport": "websocket"
+        "x-edgequake-transport": "websocket",
+        "x-edgequake-upgrade": "RFC6455"
       }
     }
   },
@@ -16449,6 +16449,13 @@
           "display_name": {
             "type": "string"
           },
+          "google_project": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Saved Google Cloud project. Absent for every provider except Vertex."
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -16512,6 +16519,7 @@
           "auth_scheme": {},
           "base_url": {},
           "display_name": {},
+          "google_project": {},
           "id": {},
           "key_configured": {},
           "key_fingerprint": {},
@@ -19237,6 +19245,13 @@
           "display_name": {
             "type": "string"
           },
+          "google_project": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Saved Google Cloud project for a Vertex connection. Not a secret."
+          },
           "key_configured": {
             "type": "boolean"
           },
@@ -19287,6 +19302,7 @@
           "auth": {},
           "connection_id": {},
           "display_name": {},
+          "google_project": {},
           "key_configured": {},
           "models": [],
           "offered": {},
@@ -38501,6 +38517,13 @@
           "display_name": {
             "type": "string"
           },
+          "google_project": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Google Cloud project id. Saved on the connection. Not a secret."
+          },
           "locality": {
             "type": [
               "string",
@@ -38526,6 +38549,7 @@
           "base_url": {},
           "credential_region": {},
           "display_name": {},
+          "google_project": {},
           "locality": {},
           "slug": {},
           "timeout_secs": {}
@@ -39488,7 +39512,7 @@
     "asyncapi": "2.6.0",
     "info": {
       "title": "EdgeQuake WebSocket Progress",
-      "version": "0.40.7",
+      "version": "0.40.8",
       "description": "Real-time pipeline and document processing progress over WebSocket (RFC 6455). SPEC-149: clients subscribe to owned track_ids on the global channel; events use a tagged {type,data} envelope."
     },
     "defaultContentType": "application/json",

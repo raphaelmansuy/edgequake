@@ -31,8 +31,8 @@ fn numbered_sql_versions() -> Vec<i64> {
 fn head_train_includes_160_through_169() {
     let versions = numbered_sql_versions();
     let max = *versions.last().expect("at least one migration");
-    assert_eq!(max, 230, "HEAD schema train must end at 230");
-    for v in 160..=230 {
+    assert_eq!(max, 231, "HEAD schema train must end at 231");
+    for v in 160..=231 {
         assert!(
             versions.contains(&v),
             "missing migration {v} in edgequake/migrations/"
@@ -48,7 +48,7 @@ fn manifest_compat_serve_max_matches_head() {
         .find(|l| l.starts_with("compat_serve_max"))
         .expect("compat_serve_max");
     let digits: String = max_line.chars().filter(|c| c.is_ascii_digit()).collect();
-    assert_eq!(digits, "230");
+    assert_eq!(digits, "231");
 }
 
 #[test]
@@ -1142,4 +1142,11 @@ fn migration_230_finishes_the_initplan_backfill_from_208() {
         !sql.contains("clearance_"),
         "230 must not rewrite the clearance predicate"
     );
+}
+
+#[test]
+fn migration_231_saves_the_google_cloud_project() {
+    let sql = include_str!("../../../migrations/231_vertex_google_project.sql");
+    assert!(sql.contains("ADD COLUMN IF NOT EXISTS google_project TEXT"));
+    assert!(!sql.to_ascii_lowercase().contains("drop column"));
 }

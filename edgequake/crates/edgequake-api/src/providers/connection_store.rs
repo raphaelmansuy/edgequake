@@ -96,6 +96,7 @@ struct StoredConnectionRow {
     api_key_nonce: Option<Vec<u8>>,
     key_id: Option<String>,
     secret_ref: Option<serde_json::Value>,
+    google_project: Option<String>,
 }
 
 /// Decrypt a `provider_connections` row into a runtime spec.
@@ -109,7 +110,8 @@ pub async fn load_connection_spec(
     use crate::providers::connection_factory::ConnectionSpec;
 
     let row = sqlx::query_as::<_, StoredConnectionRow>(
-        r#"SELECT tenant_id, api_shape, base_url, api_key_ciphertext, api_key_nonce, key_id, secret_ref
+        r#"SELECT tenant_id, api_shape, base_url, api_key_ciphertext, api_key_nonce, key_id, secret_ref,
+                  google_project
            FROM provider_connections WHERE id = $1"#,
     )
     .bind(id)
@@ -135,6 +137,7 @@ pub async fn load_connection_spec(
         model: model.to_string(),
         embedding_model: None,
         embedding_dimension: None,
+        google_project: row.google_project,
     })
 }
 
@@ -185,7 +188,8 @@ pub async fn fleet_connection_id(pool: &sqlx::PgPool, provider: &str) -> Option<
         "SELECT id FROM provider_connections \
          WHERE tenant_id IS NULL \
            AND (lower(slug) = ANY($1) OR lower(api_shape) = ANY($1)) \
-           AND (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL) \
+           AND (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL \
+                OR NULLIF(btrim(google_project), '') IS NOT NULL) \
          ORDER BY (COALESCE(last_test_ok, false)) DESC \
          LIMIT 1",
     )
@@ -233,8 +237,24 @@ pub async fn fleet_vertex_embedder(
         .map_err(|err| err.to_string())?;
     spec.embedding_model = Some(model.to_string());
     spec.embedding_dimension = Some(dimension);
-    crate::providers::connection_factory::vertex_multimodal_embedder(&spec)
-        .map_err(|err| err.to_string())
+    if let Some(embedder) = crate::providers::connection_factory::vertex_multimodal_embedder(&spec)
+        .map_err(|err| err.to_string())?
+    {
+        return Ok(Some(embedder));
+    }
+    let Some(project) = spec
+        .google_project
+        .as_deref()
+        .map(str::trim)
+        .filter(|project| !project.is_empty())
+    else {
+        return Ok(None);
+    };
+    crate::embeddings::vertex_gemini::VertexGeminiEmbedder::for_saved_project(
+        project, model, dimension,
+    )
+    .map(|embedder| Some(Arc::new(embedder)))
+    .map_err(|err| err.to_string())
 }
 
 /// Embedding client built from the fleet connection for `provider`.

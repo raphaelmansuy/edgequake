@@ -156,6 +156,34 @@ impl VertexGeminiEmbedder {
         )
     }
 
+    /// A client for a project saved on the connection.
+    ///
+    /// The token is this server's Google identity, checked against `project`.
+    /// `GOOGLE_CLOUD_PROJECT` is not read.
+    pub fn for_saved_project(
+        project: &str,
+        model: &str,
+        dimension: usize,
+    ) -> Result<Self, EmbedError> {
+        let base_url = std::env::var("EDGEQUAKE_VERTEX_BASE_URL")
+            .ok()
+            .map(|u| u.trim().trim_end_matches('/').to_string())
+            .filter(|u| !u.is_empty())
+            .unwrap_or_else(|| DEFAULT_BASE_URL.to_string());
+        let max_image_bytes = edgequake_pdf::image_guard::max_image_bytes_from_env();
+        Self::new(
+            VertexGeminiConfig::new(
+                project,
+                base_url,
+                model,
+                dimension,
+                DEFAULT_CONCURRENCY,
+                max_image_bytes,
+            )?,
+            VertexTokenProvider::for_project(project),
+        )
+    }
+
     /// A client for `model` at `dimension`, with credentials from the environment.
     pub fn from_env(model: &str, dimension: usize) -> Result<Self, EmbedError> {
         Self::new(
@@ -576,6 +604,23 @@ mod tests {
         assert_eq!(err.code, embed_codes::AUTH);
         if let Some(p) = saved {
             std::env::set_var("GOOGLE_CLOUD_PROJECT", p);
+        }
+    }
+
+    #[test]
+    fn a_saved_project_builds_the_client_without_the_environment() {
+        let saved = std::env::var("GOOGLE_CLOUD_PROJECT").ok();
+        std::env::remove_var("GOOGLE_CLOUD_PROJECT");
+        let client =
+            VertexGeminiEmbedder::for_saved_project("mobioos-506015", "gemini-embedding-2", 1536)
+                .expect("saved project");
+        assert!(client
+            .config
+            .endpoint()
+            .contains("/projects/mobioos-506015/"));
+        assert!(VertexGeminiConfig::from_env("gemini-embedding-2", 1536).is_err());
+        if let Some(project) = saved {
+            std::env::set_var("GOOGLE_CLOUD_PROJECT", project);
         }
     }
 

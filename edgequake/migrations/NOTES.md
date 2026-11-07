@@ -3,7 +3,7 @@
 > **IMMUTABILITY RULE**: All `.sql` files in this directory are checksum-locked  
 > (`checksums.lock`). Never edit an existing `.sql` migration file.  
 > New schema changes must be new numbered migration files.
-> Schema train head: migration **230** (`230_rls_initplan_backfill.sql`; **229** is `229_tenant_workspace_clearance_indexes.sql`; **228** is `228_clearance_bypass_initplan.sql`; **227** is `227_spec180_bm25_doc_stats.sql`; **226** is `226_spec181_admin.sql`; **225** is `225_spec180_normal_rag.sql`).
+> Schema train head: migration **231**, shipped by **v0.40.8** (`231_vertex_google_project.sql` saves the Google Cloud project on a Vertex connection; `230_rls_initplan_backfill.sql`; **229** is `229_tenant_workspace_clearance_indexes.sql`; **228** is `228_clearance_bypass_initplan.sql`; **227** is `227_spec180_bm25_doc_stats.sql`; **226** is `226_spec181_admin.sql`; **225** is `225_spec180_normal_rag.sql`).
 
 ---
 

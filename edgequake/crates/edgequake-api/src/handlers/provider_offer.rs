@@ -34,6 +34,7 @@ struct FleetConnectionRow {
     last_test_ok: Option<bool>,
     last_test_error: Option<String>,
     key_configured: bool,
+    google_project: Option<String>,
 }
 
 #[cfg(feature = "postgres")]
@@ -93,6 +94,9 @@ pub struct DeploymentProviderDto {
     /// Last per-provider refresh (SPEC-179). Absent until the first refresh.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refresh: Option<ProviderRefreshState>,
+    /// Saved Google Cloud project for a Vertex connection. Not a secret.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub google_project: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -149,7 +153,8 @@ fn key_configured_for(state: &AppState, slug: &str) -> bool {
         let found: Option<(bool,)> = tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
                 sqlx::query_as(
-                    "SELECT (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL) \
+                    "SELECT (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL \
+                            OR NULLIF(btrim(google_project), '') IS NOT NULL) \
                      FROM provider_connections WHERE slug = $1 AND tenant_id IS NULL LIMIT 1",
                 )
                 .bind(slug)
@@ -280,6 +285,7 @@ pub async fn get_deployment_providers(
             connection_id: None,
             probe_error: None,
             refresh: None,
+            google_project: None,
         });
     }
     // The offered flag above used the slug before move. Recompute from the set.
@@ -291,7 +297,8 @@ pub async fn get_deployment_providers(
     if let Some(pool) = state.optional_pg_pool() {
         let rows: Vec<FleetConnectionRow> = sqlx::query_as(
             "SELECT id, slug, display_name, api_shape, last_test_ok, last_test_error, \
-                    (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL) AS key_configured \
+                    (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL) AS key_configured, \
+                    google_project \
              FROM provider_connections WHERE tenant_id IS NULL ORDER BY slug",
         )
         .fetch_all(pool)
@@ -334,6 +341,7 @@ pub async fn get_deployment_providers(
                 connection_id: Some(row.id),
                 probe_error: row.last_test_error.filter(|message| !message.is_empty()),
                 refresh: None,
+                google_project: row.google_project.filter(|project| !project.is_empty()),
             });
         }
     }

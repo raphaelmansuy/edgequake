@@ -114,6 +114,23 @@ describe("ConnectionsCard security requirements", () => {
     });
     expect(screen.getByTestId("connection-no-api-key").textContent).toMatch(/Google Cloud identity/i);
     expect(screen.queryByTestId("connection-service-account")).not.toBeInTheDocument();
+    const project = screen.getByTestId("connection-google-project") as HTMLInputElement;
+    expect(screen.getByTestId("connection-save")).toBeDisabled();
+    await act(async () => {
+      fireEvent.change(project, { target: { value: "mobioos-506015" } });
+    });
+    expect(screen.getByTestId("connection-save")).toBeEnabled();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("connection-save"));
+    });
+    await waitFor(() => {
+      const save = vi.mocked(fetch).mock.calls.find((call) =>
+        String(call[0]).includes("/connections?scope=deployment"),
+      );
+      expect(save, "save must include the project").toBeTruthy();
+      const body = JSON.parse(String((save?.[1] as RequestInit).body));
+      expect(body.google_project).toBe("mobioos-506015");
+    });
 
     await act(async () => {
       fireEvent.change(screen.getByTestId("connection-credential-kind"), {

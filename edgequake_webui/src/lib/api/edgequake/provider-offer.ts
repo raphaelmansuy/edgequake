@@ -28,6 +28,8 @@ export interface DeploymentProvider {
   connection_id?: string | null;
   /** Why the last test failed. Absent until a test has failed. */
   probe_error?: string | null;
+  /** Saved Google Cloud project. Present on a Vertex connection that has one. */
+  google_project?: string | null;
   /** Human name for `api_shape` ("OpenAI-compatible"), from the shape registry. */
   api_shape_label?: string;
   models: OfferModel[];

@@ -41,6 +41,9 @@ pub struct ConnectionView {
     /// True when the row was created on a tenant before fleet-only creates.
     #[serde(default)]
     pub legacy: bool,
+    /// Saved Google Cloud project. Absent for every provider except Vertex.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub google_project: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
@@ -58,6 +61,9 @@ pub struct UpsertConnection {
     /// Vertex location (`us-central1`, `global`). Not a secret.
     #[serde(default)]
     pub credential_region: Option<String>,
+    /// Google Cloud project id. Saved on the connection. Not a secret.
+    #[serde(default)]
+    pub google_project: Option<String>,
     #[serde(default)]
     pub timeout_secs: Option<i32>,
     #[serde(default)]
@@ -89,6 +95,7 @@ pub(crate) fn env_connections() -> Vec<ConnectionView> {
             last_test_ok: None,
             last_test_error: None,
             legacy: false,
+            google_project: None,
         });
     };
     let non_empty = |key: &str| std::env::var(key).ok().filter(|s| !s.is_empty());
@@ -328,6 +335,7 @@ struct ConnectionRow {
     allow_private_network: bool,
     last_test_ok: Option<bool>,
     last_test_error: Option<String>,
+    google_project: Option<String>,
 }
 
 #[cfg(feature = "postgres")]
@@ -351,6 +359,7 @@ impl ConnectionRow {
             last_test_ok: self.last_test_ok,
             last_test_error: self.last_test_error,
             legacy: self.tenant_id.is_some(),
+            google_project: self.google_project,
         }
     }
 }
@@ -680,6 +689,40 @@ pub async fn test_stored_connection(
     }
 }
 
+/// The project to store. `Ok(None)` on an update means keep the current value.
+fn saved_google_project(
+    body: &UpsertConnection,
+    updating: bool,
+) -> Result<Option<String>, ApiError> {
+    use crate::providers::credential_material::{
+        google_project_id, is_vertex, project_id_in_google_json,
+    };
+    if !is_vertex(&body.api_shape) {
+        return Ok(None);
+    }
+    if let Some(explicit) = body
+        .google_project
+        .as_deref()
+        .map(str::trim)
+        .filter(|project| !project.is_empty())
+    {
+        return google_project_id(explicit)
+            .map(Some)
+            .map_err(ApiError::BadRequest);
+    }
+    if let Some(from_file) = body.api_key.as_deref().and_then(project_id_in_google_json) {
+        return google_project_id(&from_file)
+            .map(Some)
+            .map_err(ApiError::BadRequest);
+    }
+    if updating {
+        return Ok(None);
+    }
+    Err(ApiError::BadRequest(
+        "Set the Google Cloud project. It is saved on the connection and used for queries, so the server does not need GOOGLE_CLOUD_PROJECT.".into(),
+    ))
+}
+
 async fn upsert(
     state: &AppState,
     id: Option<Uuid>,
@@ -712,6 +755,8 @@ async fn upsert(
     let slug = parse_slug(&body.slug).ok_or_else(|| {
         ApiError::unprocessable_coded("slug_invalid", "provider slug is not valid")
     })?;
+    let google_project = saved_google_project(&body, id.is_some())?;
+    let vertex = crate::providers::credential_material::is_vertex(&body.api_shape);
     let connection_id = id.unwrap_or_else(Uuid::new_v4);
     // Reject a duplicate before storing a secret, so a 409 does not leave an orphan key.
     #[cfg(feature = "postgres")]
@@ -897,6 +942,8 @@ async fn upsert(
                     .bind(tenant)
                     .bind(replace_secret)
                     .bind(&secret_ref)
+                    .bind(google_project.as_deref())
+                    .bind(vertex)
                     .fetch_one(pool)
                     .await
             } else {
@@ -917,6 +964,8 @@ async fn upsert(
                     .bind(None::<Uuid>)
                     .bind(replace_secret)
                     .bind(&secret_ref)
+                    .bind(google_project.as_deref())
+                    .bind(vertex)
                     .fetch_one(pool)
                     .await
             }
@@ -927,13 +976,14 @@ async fn upsert(
                 r#"INSERT INTO provider_connections (
                     id, tenant_id, slug, display_name, api_shape, locality, base_url, auth_scheme,
                     api_key_ciphertext, api_key_nonce, key_id, key_fingerprint, timeout_secs,
-                    allow_private_network, secret_ref
-                   ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+                    allow_private_network, secret_ref, google_project
+                   ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
                    RETURNING id, tenant_id, slug, display_name, api_shape, locality, base_url,
                              auth_scheme, key_fingerprint,
                              (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL) AS key_configured,
                              COALESCE(secret_ref->>'backend', CASE WHEN api_key_ciphertext IS NOT NULL THEN 'legacy' END) AS secret_backend,
-                             timeout_secs, allow_private_network, last_test_ok, last_test_error"#,
+                             timeout_secs, allow_private_network, last_test_ok, last_test_error,
+                             google_project"#,
             )
             .bind(connection_id)
             .bind(tenant_id)
@@ -950,6 +1000,7 @@ async fn upsert(
             .bind(timeout)
             .bind(allow_private)
             .bind(&secret_ref)
+            .bind(google_project.as_deref())
             .fetch_one(pool)
             .await;
             match inserted {
@@ -983,6 +1034,8 @@ async fn upsert(
             replace_secret,
             connection_id,
             sealed_scheme,
+            google_project,
+            vertex,
         );
         Err(ApiError::ServiceUnavailable {
             message: "PostgreSQL required".into(),
@@ -1018,12 +1071,12 @@ const CONNECTION_COLUMNS: &str =
      auth_scheme, key_fingerprint, \
      (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL) AS key_configured, \
      COALESCE(secret_ref->>'backend', CASE WHEN api_key_ciphertext IS NOT NULL THEN 'legacy' END) AS secret_backend, \
-     timeout_secs, allow_private_network, last_test_ok, last_test_error";
+     timeout_secs, allow_private_network, last_test_ok, last_test_error, google_project";
 
 const CONNECTION_PAGE_COLUMNS: &str =
     "id, tenant_id, slug, display_name, api_shape, locality, base_url, \
      auth_scheme, key_fingerprint, key_configured, secret_backend, \
-     timeout_secs, allow_private_network, last_test_ok, last_test_error";
+     timeout_secs, allow_private_network, last_test_ok, last_test_error, google_project";
 
 /// A generic plan cannot use `($1 IS NULL OR tenant_id IS NULL OR tenant_id = $1)`
 /// as an index condition, so a tenant list seq-scans every connection. When the
@@ -1062,6 +1115,7 @@ pub fn connection_update_sql(scoped: bool) -> String {
             key_id = CASE WHEN $15 THEN $10 ELSE COALESCE($10, key_id) END, \
             key_fingerprint = CASE WHEN $15 THEN $11 ELSE COALESCE($11, key_fingerprint) END, \
             secret_ref = CASE WHEN $15 THEN $16::jsonb ELSE secret_ref END, \
+            google_project = CASE WHEN NOT $18 THEN NULL WHEN $17::text IS NULL THEN google_project ELSE $17 END, \
             timeout_secs = $12, allow_private_network = $13, \
             last_test_ok = CASE WHEN base_url IS DISTINCT FROM $6 OR api_shape IS DISTINCT FROM $4 OR $15 THEN NULL ELSE last_test_ok END, \
             last_test_error = CASE WHEN base_url IS DISTINCT FROM $6 OR api_shape IS DISTINCT FROM $4 OR $15 THEN NULL ELSE last_test_error END, \
@@ -1085,7 +1139,8 @@ fn map_sql(e: sqlx::Error) -> ApiError {
 #[cfg(test)]
 mod tests {
     use super::{
-        connection_list_sql, connection_scope, connection_update_sql, ConnectionScopeQuery,
+        connection_list_sql, connection_scope, connection_update_sql, saved_google_project,
+        ConnectionScopeQuery, UpsertConnection,
     };
     use crate::handlers::auth::{ApiRequireAdmin, RequestAuthContext};
     use crate::middleware::TenantContext;
@@ -1141,6 +1196,32 @@ mod tests {
         )
         .expect("tenant");
         assert!(scope.is_some());
+    }
+
+    #[test]
+    fn a_vertex_connection_requires_a_project_unless_the_key_file_has_one() {
+        let mut body = UpsertConnection {
+            slug: "vertexai".into(),
+            display_name: "Vertex".into(),
+            api_shape: "vertexai".into(),
+            base_url: "https://aiplatform.googleapis.com".into(),
+            locality: None,
+            auth_scheme: None,
+            api_key: None,
+            credential_region: None,
+            google_project: None,
+            timeout_secs: None,
+            allow_private_network: None,
+        };
+        assert!(saved_google_project(&body, false).is_err());
+        assert!(saved_google_project(&body, true).unwrap().is_none());
+        body.google_project = Some("mobioos-506015".into());
+        assert_eq!(
+            saved_google_project(&body, false).unwrap().as_deref(),
+            Some("mobioos-506015")
+        );
+        body.google_project = Some("Not A Project".into());
+        assert!(saved_google_project(&body, false).is_err());
     }
 
     #[test]

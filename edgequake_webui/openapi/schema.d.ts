@@ -5939,6 +5939,7 @@ export interface components {
          *       "auth_scheme": {},
          *       "base_url": {},
          *       "display_name": {},
+         *       "google_project": {},
          *       "id": {},
          *       "key_configured": {},
          *       "key_fingerprint": {},
@@ -5959,6 +5960,8 @@ export interface components {
             auth_scheme: string;
             base_url: string;
             display_name: string;
+            /** @description Saved Google Cloud project. Absent for every provider except Vertex. */
+            google_project?: string | null;
             /** Format: uuid */
             id: string;
             key_configured: boolean;
@@ -7320,6 +7323,7 @@ export interface components {
          *       "auth": {},
          *       "connection_id": {},
          *       "display_name": {},
+         *       "google_project": {},
          *       "key_configured": {},
          *       "models": [],
          *       "offered": {},
@@ -7359,6 +7363,8 @@ export interface components {
              */
             connection_id?: string | null;
             display_name: string;
+            /** @description Saved Google Cloud project for a Vertex connection. Not a secret. */
+            google_project?: string | null;
             key_configured: boolean;
             models: components["schemas"]["OfferModelDto"][];
             offered: boolean;
@@ -16920,6 +16926,7 @@ export interface components {
          *       "base_url": {},
          *       "credential_region": {},
          *       "display_name": {},
+         *       "google_project": {},
          *       "locality": {},
          *       "slug": {},
          *       "timeout_secs": {}
@@ -16934,6 +16941,8 @@ export interface components {
             /** @description Vertex location (`us-central1`, `global`). Not a secret. */
             credential_region?: string | null;
             display_name: string;
+            /** @description Google Cloud project id. Saved on the connection. Not a secret. */
+            google_project?: string | null;
             locality?: string | null;
             slug: string;
             /** Format: int32 */
