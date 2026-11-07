@@ -3,7 +3,7 @@ title: "What's new"
 description: "Per-release highlights moved out of the README."
 ---
 
-This page lists the highlights of each release from v0.40.9 back to v0.24.0, newest first. Most entries name the schema number, so you can plan a database migration before you upgrade. For the full change list, see the [CHANGELOG](CHANGELOG.md), and for the upgrade steps, see the linked upgrade guide. A plain-English [picture tour](https://edgequake.com/tutorial/) of the UI is on the marketing site.
+This page lists the highlights of each release from v0.40.10 back to v0.24.0, newest first. Most entries name the schema number, so you can plan a database migration before you upgrade. For the full change list, see the [CHANGELOG](CHANGELOG.md), and for the upgrade steps, see the linked upgrade guide. A plain-English [picture tour](https://edgequake.com/tutorial/) of the UI is on the marketing site.
 
 ## Schema train at a glance
 
@@ -35,6 +35,7 @@ timeline
     v0.38.3 : 224 pinned
     v0.38.4 : 224 pinned
     v0.39.0 : 226
+    v0.40.10 : 231 pinned
     v0.40.9 : 231 pinned
     v0.40.8 : 231
     v0.40.7 : 227
@@ -47,9 +48,13 @@ timeline
     v0.40.0 : 227
 ```
 
-The timeline shows the schema number each release leaves the database at, from v0.23.0 through v0.40.9.
+The timeline shows the schema number each release leaves the database at, from v0.23.0 through v0.40.10.
 
 Run `edgequake migrate` when you move to a release with a higher number. The [upgrading guide](operations/upgrading.md) covers the steps.
+
+### What's new in 0.40.10
+
+Same product as v0.40.9. The v0.40.9 image publish was cancelled when the release job hit its 90 minute limit. This cut raises that limit to 180 minutes so the image can publish. Schema stays **231**. See [upgrade-to-0.40.10.md](operations/upgrade-to-0.40.10.md).
 
 ### What's new in 0.40.9
 

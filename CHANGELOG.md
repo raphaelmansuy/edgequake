@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.10] — 2026-11-07
+
+Same product as v0.40.9. Schema stays **231**. `edgequake migrate` is a no-op when the database is already at 231.
+
+The v0.40.9 image publish was cancelled: Release — Docker quality-gates hit its 90 minute limit during a cold compile, after the tests had passed and while the WebUI typecheck was still running. The cache was not saved. This cut raises that job limit to 180 minutes so the image can publish. The provider Edit from v0.40.9 is in this image.
+
 ## [0.40.9] — 2026-11-07
 
 Patch on v0.40.8. Schema stays **231**. `edgequake migrate` is a no-op when the database is already at 231.
