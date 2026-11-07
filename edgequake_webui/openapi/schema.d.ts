@@ -7321,6 +7321,7 @@ export interface components {
          *       "api_shape": {},
          *       "api_shape_label": {},
          *       "auth": {},
+         *       "base_url": {},
          *       "connection_id": {},
          *       "display_name": {},
          *       "google_project": {},
@@ -7357,9 +7358,11 @@ export interface components {
              *     is the kind of duplication that drifts. One field, one source of truth.
              */
             auth: string;
+            /** @description Where this provider is called. The edit form starts from this value. */
+            base_url: string;
             /**
              * Format: uuid
-             * @description Fleet connection this card can test. Absent for environment providers.
+             * @description Saved connection this card can edit. An environment provider gains one after it is updated.
              */
             connection_id?: string | null;
             display_name: string;

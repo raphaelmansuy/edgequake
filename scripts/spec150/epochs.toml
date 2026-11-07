@@ -10,6 +10,7 @@
 # v0.39.1 serves that same set. It adds no migration.
 # v0.40.0 owns schema 227. v0.40.1 through v0.40.7 serve that same set. None adds a migration.
 # v0.40.8 owns schema 231 (migrations 228–231). 229 numbered files.
+# v0.40.9 serves that same set. It adds no migration.
 # hash ba0c9db9d18d39c1.
 
 [[epoch]]
@@ -413,3 +414,4 @@ key = true
 replay = true
 # max mig 231 (clearance InitPlan, covering indexes, InitPlan backfill, saved Vertex project)
 # hash ba0c9db9d18d39c1 (229 numbered migration files)
+# v0.40.9 serves this same set. It adds no migration.

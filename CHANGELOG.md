@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.9] — 2026-11-07
+
+Patch on v0.40.8. Schema stays **231**. `edgequake migrate` is a no-op when the database is already at 231.
+
+### Fixed
+
+- **A provider on Deployment › Providers could not be edited.** Each card now has Edit. Update saves the name, base URL, API key, and, for Vertex, the Google Cloud project. An environment provider keeps its current key when the key field is left blank.
+
 ## [0.40.8] — 2026-11-07
 
 Patch on v0.40.7. Schema moves **227 → 231**. Run `edgequake migrate` before the new API
