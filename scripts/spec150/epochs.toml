@@ -9,11 +9,13 @@
 # v0.39.0 owns schema 226 (SPEC-180 Normal RAG, SPEC-181 admin).
 # v0.39.1 serves that same set. It adds no migration.
 # v0.40.0 owns schema 227. v0.40.1 through v0.40.7 serve that same set. None adds a migration.
+# unreleased: 228/229/230 harden the RLS request path (clearance InitPlan split,
+# covering scope indexes, InitPlan backfill) — schema 230, 228 numbered files.
 
 [unreleased]
-hash = "7491afd4e3a729e7"
-max = 227
-files = 225
+hash = "db2868e7660eaf55"
+max = 230
+files = 228
 
 [[epoch]]
 tag = "v0.2.0"
