@@ -96,6 +96,7 @@ struct StoredConnectionRow {
     api_key_nonce: Option<Vec<u8>>,
     key_id: Option<String>,
     secret_ref: Option<serde_json::Value>,
+    google_project: Option<String>,
 }
 
 /// Decrypt a `provider_connections` row into a runtime spec.
@@ -109,7 +110,8 @@ pub async fn load_connection_spec(
     use crate::providers::connection_factory::ConnectionSpec;
 
     let row = sqlx::query_as::<_, StoredConnectionRow>(
-        r#"SELECT tenant_id, api_shape, base_url, api_key_ciphertext, api_key_nonce, key_id, secret_ref
+        r#"SELECT tenant_id, api_shape, base_url, api_key_ciphertext, api_key_nonce, key_id, secret_ref,
+                  google_project
            FROM provider_connections WHERE id = $1"#,
     )
     .bind(id)
@@ -135,6 +137,7 @@ pub async fn load_connection_spec(
         model: model.to_string(),
         embedding_model: None,
         embedding_dimension: None,
+        google_project: row.google_project,
     })
 }
 
@@ -185,7 +188,8 @@ pub async fn fleet_connection_id(pool: &sqlx::PgPool, provider: &str) -> Option<
         "SELECT id FROM provider_connections \
          WHERE tenant_id IS NULL \
            AND (lower(slug) = ANY($1) OR lower(api_shape) = ANY($1)) \
-           AND (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL) \
+           AND (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL \
+                OR NULLIF(btrim(google_project), '') IS NOT NULL) \
          ORDER BY (COALESCE(last_test_ok, false)) DESC \
          LIMIT 1",
     )
@@ -215,10 +219,49 @@ pub async fn fleet_llm(
         .map_err(|err| err.to_string())
 }
 
+/// Image embedder for `gemini-embedding-2` from one saved Vertex connection.
+///
+/// `Ok(None)` means that row has no service account and no project, so the
+/// caller may try another row or the process environment. A stored account
+/// that cannot be opened is an error.
+#[cfg(feature = "postgres")]
+async fn embedder_from_connection(
+    pool: &sqlx::PgPool,
+    id: Uuid,
+    model: &str,
+    dimension: usize,
+) -> Result<Option<Arc<crate::embeddings::vertex_gemini::VertexGeminiEmbedder>>, String> {
+    let mut spec = load_connection_spec(pool, id, model)
+        .await
+        .map_err(|err| err.to_string())?;
+    spec.embedding_model = Some(model.to_string());
+    spec.embedding_dimension = Some(dimension);
+    if let Some(embedder) = crate::providers::connection_factory::vertex_multimodal_embedder(&spec)
+        .map_err(|err| err.to_string())?
+    {
+        return Ok(Some(embedder));
+    }
+    let Some(project) = spec
+        .google_project
+        .as_deref()
+        .map(str::trim)
+        .filter(|project| !project.is_empty())
+    else {
+        return Ok(None);
+    };
+    crate::embeddings::vertex_gemini::VertexGeminiEmbedder::for_saved_project(
+        project, model, dimension,
+    )
+    .map(|embedder| Some(Arc::new(embedder)))
+    .map_err(|err| err.to_string())
+}
+
 /// Image embedder for `gemini-embedding-2` from the saved Vertex service account.
 ///
-/// `Ok(None)` means there is no stored service account, so the caller may use
-/// the process environment. A stored account that cannot be opened is an error.
+/// `Ok(None)` means there is no stored service account and no saved project, so
+/// the caller may use the process environment. A stored account that cannot be
+/// opened is an error: falling through would report a missing
+/// `GOOGLE_CLOUD_PROJECT`.
 #[cfg(feature = "postgres")]
 pub async fn fleet_vertex_embedder(
     pool: &sqlx::PgPool,
@@ -228,13 +271,36 @@ pub async fn fleet_vertex_embedder(
     let Some(id) = fleet_connection_id(pool, "vertexai").await else {
         return Ok(None);
     };
-    let mut spec = load_connection_spec(pool, id, model)
-        .await
-        .map_err(|err| err.to_string())?;
-    spec.embedding_model = Some(model.to_string());
-    spec.embedding_dimension = Some(dimension);
-    crate::providers::connection_factory::vertex_multimodal_embedder(&spec)
-        .map_err(|err| err.to_string())
+    embedder_from_connection(pool, id, model, dimension).await
+}
+
+/// Image embedder for a workspace: its own embedding connection, then the fleet card.
+///
+/// A saved project is enough. The process environment is not read here.
+#[cfg(feature = "postgres")]
+pub async fn vertex_embedder_for_workspace(
+    pool: &sqlx::PgPool,
+    workspace: &edgequake_core::Workspace,
+    model: &str,
+    dimension: usize,
+) -> Result<Option<Arc<crate::embeddings::vertex_gemini::VertexGeminiEmbedder>>, String> {
+    let mut saved_error = None;
+    if let Some(raw) = edgequake_core::metadata_connection_id(workspace, "embedding") {
+        if let Some(id) = parse_connection_id(&raw) {
+            match embedder_from_connection(pool, id, model, dimension).await {
+                Ok(Some(embedder)) => return Ok(Some(embedder)),
+                Ok(None) => {}
+                Err(error) => saved_error = Some(error),
+            }
+        }
+    }
+    match fleet_vertex_embedder(pool, model, dimension).await? {
+        Some(embedder) => Ok(Some(embedder)),
+        None => match saved_error {
+            Some(error) => Err(error),
+            None => Ok(None),
+        },
+    }
 }
 
 /// Embedding client built from the fleet connection for `provider`.

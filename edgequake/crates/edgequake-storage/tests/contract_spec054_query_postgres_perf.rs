@@ -144,9 +144,18 @@ fn contract_escape_ssot_and_bound_cypher_hot_reads() {
         "cypher_format must delegate to escape SSOT"
     );
     let read = include_str!("../src/adapters/postgres/graph/nodes_ops/read.rs");
+    // IMP-031: hot node reads moved off Cypher onto native SQL against the
+    // UNIQUE node_id expression index (Cypher property MATCH is an AGE catalog
+    // anti-pattern). `cypher_query_bound` is retained only for debug/fallback.
     assert!(
-        read.contains("cypher_query_bound"),
-        "hot node reads must use bound Cypher"
+        read.contains("native PK-style lookup")
+            || read.contains("not used on the request path")
+            || read.contains("native SQL"),
+        "hot node reads must use native SQL, not Cypher property MATCH"
+    );
+    assert!(
+        !read.contains("cypher_query_bound"),
+        "hot node reads must not call bound Cypher on the request path"
     );
     let isp = include_str!("../src/adapters/postgres/graph/nodes_ops/mod.rs");
     assert!(isp.contains("GraphStorageReadOps") || isp.contains("read"));

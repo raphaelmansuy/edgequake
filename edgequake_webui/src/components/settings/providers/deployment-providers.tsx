@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FleetModels } from "@/components/settings/providers/fleet-models";
 import { ProviderCard } from "@/components/settings/providers/provider-card";
+import { ProviderEditForm } from "@/components/settings/providers/provider-edit-form";
 import { providerOfferKeys, useDeploymentProviders, useWithdrawProvider } from "@/hooks/use-provider-offer";
 import { apiClient } from "@/lib/api/client";
 import { refreshDynamicModels, useAvailableProviders } from "@/hooks/use-providers";
@@ -147,6 +148,7 @@ export function DeploymentProviders() {
   const query = useDeploymentProviders();
   const withdraw = useWithdrawProvider();
   const [pending, setPending] = useState<PendingWithdraw | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const rows = query.data?.providers ?? [];
   const addHref = sectionHref("connections");
 
@@ -207,15 +209,35 @@ export function DeploymentProviders() {
                 row={row}
                 busy={withdraw.isPending}
                 onToggleWithdraw={() => void toggle(row)}
-                actions={row.origin === "env" ? <EnvRefresh row={row} /> : <FleetTest row={row} />}
+                actions={
+                  <>
+                    {row.origin === "env" ? <EnvRefresh row={row} /> : <FleetTest row={row} />}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      data-testid={`edit-provider-${row.slug}`}
+                      onClick={() => setEditing((current) => (current === row.slug ? null : row.slug))}
+                    >
+                      {t("settings.providers.edit", "Edit")}
+                    </Button>
+                  </>
+                }
                 editor={
-                  row.origin === "fleet" ? (
-                    <FleetModels
-                      slug={row.slug}
-                      models={row.models}
-                      enabled={row.probe === "ok"}
-                      canTest={row.probe !== "ok" && Boolean(row.connection_id)}
-                    />
+                  editing === row.slug || row.origin === "fleet" ? (
+                    <>
+                      {editing === row.slug ? (
+                        <ProviderEditForm row={row} onClose={() => setEditing(null)} />
+                      ) : null}
+                      {row.origin === "fleet" ? (
+                        <FleetModels
+                          slug={row.slug}
+                          models={row.models}
+                          enabled={row.probe === "ok"}
+                          canTest={row.probe !== "ok" && Boolean(row.connection_id)}
+                        />
+                      ) : null}
+                    </>
                   ) : undefined
                 }
               />

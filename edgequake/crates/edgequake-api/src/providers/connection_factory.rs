@@ -24,6 +24,16 @@ pub struct ConnectionSpec {
     pub model: String,
     pub embedding_model: Option<String>,
     pub embedding_dimension: Option<usize>,
+    /// Saved Google Cloud project. Used instead of `GOOGLE_CLOUD_PROJECT`.
+    pub google_project: Option<String>,
+}
+
+fn saved_project(spec: &ConnectionSpec) -> Option<String> {
+    spec.google_project
+        .as_deref()
+        .map(str::trim)
+        .filter(|project| !project.is_empty())
+        .map(str::to_string)
 }
 
 /// Build a provider, minting a Vertex token from a stored service-account file when one is saved.
@@ -62,6 +72,17 @@ async fn vertex_embed(spec: &ConnectionSpec) -> Result<Arc<dyn EmbeddingProvider
                 crate::embeddings::vertex_gemini::VertexTextEmbedder(embedder),
             ));
         }
+        if let Some(project) = saved_project(spec) {
+            let dimension = spec.embedding_dimension.unwrap_or(1536);
+            let embedder =
+                crate::embeddings::vertex_gemini::VertexGeminiEmbedder::for_saved_project(
+                    &project, &model, dimension,
+                )
+                .map_err(|error| crate::embeddings::api_error(&error))?;
+            return Ok(Arc::new(
+                crate::embeddings::vertex_gemini::VertexTextEmbedder(Arc::new(embedder)),
+            ));
+        }
     }
     let provider = vertex_gemini(spec).await?;
     Ok(Arc::new(provider.with_embedding_model(&model)))
@@ -92,10 +113,11 @@ pub fn vertex_multimodal_embedder(
             "The stored Google credential is not a service-account or authorized-user file.".into(),
         )
     })?;
-    let project = creds.project_id().unwrap_or("").trim().to_string();
+    let project =
+        saved_project(spec).unwrap_or_else(|| creds.project_id().unwrap_or("").trim().to_string());
     if project.is_empty() {
         return Err(ApiError::BadRequest(
-            "The stored Google credential has no project_id.".into(),
+            "Set the Google Cloud project. It is saved on the connection, so the server does not need GOOGLE_CLOUD_PROJECT.".into(),
         ));
     }
     let dimension = spec.embedding_dimension.unwrap_or(1536);
@@ -113,6 +135,9 @@ async fn vertex_gemini(spec: &ConnectionSpec) -> Result<GeminiProvider, ApiError
         .map(str::trim)
         .filter(|s| !s.is_empty())
     else {
+        if let Some(project) = saved_project(spec) {
+            return vertex_from_saved_project(&project, &spec.model).await;
+        }
         return GeminiProvider::from_env_vertex_ai_adc()
             .await
             .map_err(|err| ApiError::BadRequest(err.to_string()));
@@ -125,10 +150,11 @@ async fn vertex_gemini(spec: &ConnectionSpec) -> Result<GeminiProvider, ApiError
                         .into(),
                 )
             })?;
-            let project = creds.project_id().unwrap_or("").trim().to_string();
+            let project = saved_project(spec)
+                .unwrap_or_else(|| creds.project_id().unwrap_or("").trim().to_string());
             if project.is_empty() {
                 return Err(ApiError::BadRequest(
-                    "The stored Google credential has no project_id.".into(),
+                    "Set the Google Cloud project. It is saved on the connection, so the server does not need GOOGLE_CLOUD_PROJECT.".into(),
                 ));
             }
             let principal = creds.principal().to_string();
@@ -143,6 +169,20 @@ async fn vertex_gemini(spec: &ConnectionSpec) -> Result<GeminiProvider, ApiError
             Ok(GeminiProvider::new(material))
         }
     }
+}
+
+/// Chat client for a saved project, using this server's Google identity.
+///
+/// The project comes from the connection. `GOOGLE_CLOUD_PROJECT` is not read.
+async fn vertex_from_saved_project(project: &str, model: &str) -> Result<GeminiProvider, ApiError> {
+    let access = crate::providers::vertex_identity::select_identity(project, model)
+        .await
+        .map_err(ApiError::BadRequest)?;
+    Ok(GeminiProvider::vertex_ai(
+        project,
+        crate::providers::vertex_identity::vertex_region(),
+        access.token,
+    ))
 }
 
 pub fn llm_from_connection(spec: &ConnectionSpec) -> Result<Arc<dyn LLMProvider>, ApiError> {
@@ -379,6 +419,7 @@ mod tests {
             model: "gpt-4o".into(),
             embedding_model: None,
             embedding_dimension: None,
+            google_project: None,
         };
         assert!(llm_from_connection(&spec).is_ok());
         let keyless = ConnectionSpec {
@@ -416,6 +457,7 @@ mod tests {
             model: "default".into(),
             embedding_model: None,
             embedding_dimension: None,
+            google_project: None,
         };
         assert!(llm_from_connection(&spec).is_ok());
         assert!(embedding_from_connection(&spec).is_ok());
@@ -430,6 +472,7 @@ mod tests {
             model: "custom-chat".into(),
             embedding_model: Some("custom-embed".into()),
             embedding_dimension: Some(32),
+            google_project: None,
         };
         let built = build_ollama(&spec).expect("builder");
         assert_eq!(built.host(), "http://127.0.0.1:19999");
@@ -448,6 +491,7 @@ mod tests {
                 model: "default".into(),
                 embedding_model: None,
                 embedding_dimension: None,
+                google_project: None,
             };
             assert!(llm_from_connection(&spec).is_ok(), "{shape}");
             assert!(embedding_from_connection(&spec).is_ok(), "{shape}");
@@ -464,6 +508,7 @@ mod tests {
             model: "gemini-3-8-flash".into(),
             embedding_model: None,
             embedding_dimension: None,
+            google_project: None,
         };
         assert!(llm_from_connection(&key_spec).is_ok());
 
