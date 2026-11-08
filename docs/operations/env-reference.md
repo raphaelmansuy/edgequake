@@ -118,6 +118,7 @@ Provider-specific details are in [Providers](../providers/index.md) and [Configu
 | `EDGEQUAKE_REPLICAS` | `1` | Intended API process count. |
 | `EDGEQUAKE_TASK_DELIVERY` | `local` | `local`, `bridged` or `notify_only`. Required when replicas is above 1. |
 | `EDGEQUAKE_STARTUP_AUTO_RESUME` | on | Reclaim interrupted tasks at boot. `0` marks them Failed. |
+| `EDGEQUAKE_PROJECTION_MAX_ATTEMPTS` | `10` | Claimed graph/vector projection attempts before a delivery is quarantined. `0` retries forever. |
 | `TASK_PROCESSING_TIMEOUT_SECS` | per-document profile | Overrides the convert and ingest timeouts. |
 
 ## Caches and data layer
