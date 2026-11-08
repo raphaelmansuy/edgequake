@@ -580,7 +580,7 @@ impl AppState {
             Arc::clone(&projection_ledger),
             Arc::clone(&materialized.graph.projection_applier),
             Arc::clone(&materialized.vector.projection_applier),
-            edgequake_storage::ProjectionWorkerConfig::default(),
+            edgequake_storage::ProjectionWorkerConfig::from_env(),
             std::time::Duration::from_millis(500),
         )));
 
