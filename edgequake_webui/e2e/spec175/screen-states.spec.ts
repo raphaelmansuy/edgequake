@@ -71,9 +71,11 @@ test.describe("SPEC-175 screen states @spec175", () => {
 
   test("Connections labels every field and keeps the summary free of doubled separators @spec175", async ({ page }) => {
     await openSettings(page, "platform_admin", "/settings/deployment/connections");
-    for (const label of ["Name", "API shape", "Base URL", "API key"]) {
+    for (const label of ["Name", "API shape", "Base URL"]) {
       await expect(page.getByLabel(label, { exact: true })).toBeVisible();
     }
+    // OpenAI does not set requires_key, so the field says the key is optional.
+    await expect(page.getByLabel("API key (optional)", { exact: true })).toBeVisible();
     const summaries = page.locator("li span.text-xs");
     const count = await summaries.count();
     for (let i = 0; i < count; i += 1) {
