@@ -39,13 +39,11 @@ lib="${dest}/${name}"
 if [[ ! -s "$lib" ]]; then
   mkdir -p "$dest"
   tmp="$(mktemp)"
+  # A workflow GITHUB_TOKEN is rejected with HTTP 403 on another repo's
+  # release asset. The public asset endpoint redirects without a token.
   url="https://api.github.com/repos/bblanchon/pdfium-binaries/releases/assets/${asset}"
-  auth=()
-  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
-  fi
   curl -fL --retry 5 --retry-all-errors --retry-delay 2 \
-    -H "Accept: application/octet-stream" "${auth[@]}" \
+    -H "Accept: application/octet-stream" \
     -o "$tmp" "$url"
   tar -xzf "$tmp" -C "$dest" "$member"
   mv "${dest}/${member}" "$lib"

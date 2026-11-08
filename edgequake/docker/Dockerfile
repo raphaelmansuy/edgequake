@@ -79,8 +79,12 @@ RUN arch="$(uname -m)"; \
       "https://api.github.com/repos/bblanchon/pdfium-binaries/releases/assets/${asset}"; \
     tar -xzf /tmp/pdfium.tgz -C /opt/pdfium lib/libpdfium.so; \
     mv /opt/pdfium/lib/libpdfium.so /opt/pdfium/libpdfium.so; \
-    rm -rf /tmp/pdfium.tgz /opt/pdfium/lib
+    rm -rf /tmp/pdfium.tgz /opt/pdfium/lib; \
+    curl -fL --retry 5 --retry-all-errors --retry-delay 2 \
+      -o /opt/pdfium/swagger-ui-v5.17.14.zip \
+      "https://codeload.github.com/swagger-api/swagger-ui/zip/refs/tags/v5.17.14"
 ENV PDFIUM_BUNDLE_LIB=/opt/pdfium/libpdfium.so
+ENV SWAGGER_UI_DOWNLOAD_URL=file:///opt/pdfium/swagger-ui-v5.17.14.zip
 
 # Build release binary with SQLx offline mode (no database needed at build time).
 # pdfium-auto embeds the library from PDFIUM_BUNDLE_LIB for TARGETPLATFORM.

@@ -111,7 +111,9 @@ jobs:
           version: 10.13.1
 
       - name: Install bun
-        run: echo "$(bash scripts/ci/install-bun.sh)" >> "$GITHUB_PATH"
+        run: |
+          bin="$(bash scripts/ci/install-bun.sh)"
+          echo "$bin" >> "$GITHUB_PATH"
 
       - name: Install frontend dependencies
         working-directory: edgequake_webui

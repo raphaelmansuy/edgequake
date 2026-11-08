@@ -20,15 +20,12 @@ dest="${BUN_PREFETCH_DIR:-${HOME}/.cache/edgequake-bun}"
 bin="${dest}/bin"
 if [[ ! -x "${bin}/bun" ]]; then
   mkdir -p "$bin"
-  auth=()
-  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
-  fi
+  # A workflow GITHUB_TOKEN is rejected with HTTP 403 on another repo's
+  # release asset. The public API redirects without a token.
   meta="$(mktemp)"
   curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
     -H "Accept: application/vnd.github+json" \
     -H "User-Agent: edgequake-ci" \
-    "${auth[@]}" \
     -o "$meta" \
     "https://api.github.com/repos/oven-sh/bun/releases/latest"
   asset_id="$(python3 -c '
@@ -46,7 +43,6 @@ raise SystemExit("install-bun: %s missing from %s" % (want, release.get("tag_nam
   curl -fL --retry 5 --retry-all-errors --retry-delay 2 \
     -H "Accept: application/octet-stream" \
     -H "User-Agent: edgequake-ci" \
-    "${auth[@]}" \
     -o "$tmp" \
     "https://api.github.com/repos/oven-sh/bun/releases/assets/${asset_id}"
   work="$(mktemp -d)"

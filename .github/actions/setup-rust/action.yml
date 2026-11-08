@@ -40,8 +40,8 @@ runs:
         key: ${{ inputs.cache-key }}
         save-if: ${{ inputs.save-if }}
 
-    # pdfium-auto 0.3.1 fetches chromium%2F7961. That URL returns HTTP 504.
-    # The script downloads the same chromium/7961 asset through the release API.
-    - name: Prefetch pdfium
+    # pdfium-auto fetches chromium%2F7961 (HTTP 504). utoipa-swagger-ui fetches
+    # its zip once and aborts on a dropped connection. Both are prefetched.
+    - name: Prefetch native build downloads
       shell: bash
-      run: echo "PDFIUM_BUNDLE_LIB=$(bash "$GITHUB_WORKSPACE/scripts/ci/prefetch-pdfium.sh")" >> "$GITHUB_ENV"
+      run: bash "$GITHUB_WORKSPACE/scripts/ci/export-native-deps.sh" "$GITHUB_ENV"

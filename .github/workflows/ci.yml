@@ -142,7 +142,9 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/edgequake-main' || github.ref == 'refs/heads/main' }}
 
       - name: Install bun
-        run: echo "$(bash scripts/ci/install-bun.sh)" >> "$GITHUB_PATH"
+        run: |
+          bin="$(bash scripts/ci/install-bun.sh)"
+          echo "$bin" >> "$GITHUB_PATH"
 
       - name: Install frontend dependencies
         working-directory: edgequake_webui
