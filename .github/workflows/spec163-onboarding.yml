@@ -63,12 +63,15 @@ jobs:
         with:
           toolchain: 1.95.0
       - name: Apply connection schema
-        # The live insert writes secret_ref (migration 222). A database that
-        # stops at 169 cannot store a connection the current binary creates.
-        # The rest of 222 needs tenant roles this job does not provision.
+        # The live insert writes secret_ref (migration 222) and google_project
+        # (migration 231). A database that stops at 169 cannot store a
+        # connection the current binary creates. The rest of 222 needs tenant
+        # roles this job does not provision, so those two columns are applied
+        # on their own.
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f edgequake/migrations/169_spec163_provider_connections.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER TABLE public.provider_connections ADD COLUMN IF NOT EXISTS secret_ref JSONB;"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER TABLE public.provider_connections ADD COLUMN IF NOT EXISTS google_project TEXT;"
       - name: SPEC-163 postgres role wiring
         working-directory: edgequake
         run: |
