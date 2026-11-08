@@ -397,7 +397,7 @@ jobs:
           node-version: "20"
 
       - name: Install bun
-        uses: oven-sh/setup-bun@v2
+        run: echo "$(bash scripts/ci/install-bun.sh)" >> "$GITHUB_PATH"
 
       - name: Install frontend dependencies
         working-directory: edgequake_webui

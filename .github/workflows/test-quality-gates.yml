@@ -110,9 +110,6 @@ jobs:
         with:
           version: 10.13.1
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
-
       - name: Install frontend dependencies
         working-directory: edgequake_webui
         run: pnpm install --frozen-lockfile
