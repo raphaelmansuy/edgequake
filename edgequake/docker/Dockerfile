@@ -35,7 +35,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # WHY: Build context is the monorepo root. edgequake-pdf2md is a crates.io
@@ -62,27 +61,28 @@ COPY edgequake/models.toml models.toml
 # introduced the shared include without adding it to the build context.
 COPY edgequake/build_meta.rs build_meta.rs
 
-# pdfium-auto 0.3.1 downloads chromium%2F7961. That URL, and the slash-form
-# HTML download, return HTTP 504 often enough to fail the image build. The
-# release-asset API for chromium/7961 redirects to a copy that downloads.
-# Asset ids: 483237356 linux-x64, 483237422 linux-arm64.
-RUN arch="$(uname -m)"; \
+# pdfium-auto 0.3.1 and utoipa-swagger-ui download from GitHub during the
+# build. Those URLs return HTTP 502/503/504 often enough to fail the image.
+# The chromium/7961 archives and Swagger UI v5.17.14 are vendored in-tree.
+ARG TARGETARCH
+COPY edgequake/third_party/pdfium/ /opt/pdfium-src/
+COPY edgequake/third_party/swagger-ui/swagger-ui-v5.17.14.zip /opt/pdfium/swagger-ui-v5.17.14.zip
+RUN arch="${TARGETARCH:-}"; \
+    if [ -z "$arch" ]; then \
+      case "$(uname -m)" in \
+        x86_64) arch=amd64 ;; \
+        aarch64) arch=arm64 ;; \
+        *) echo "unsupported pdfium arch: $(uname -m)" >&2; exit 1 ;; \
+      esac; \
+    fi; \
     case "$arch" in \
-      x86_64) asset=483237356 ;; \
-      aarch64) asset=483237422 ;; \
+      amd64) archive=pdfium-linux-x64.tgz ;; \
+      arm64) archive=pdfium-linux-arm64.tgz ;; \
       *) echo "unsupported pdfium arch: $arch" >&2; exit 1 ;; \
     esac; \
-    mkdir -p /opt/pdfium; \
-    curl -fL --retry 5 --retry-all-errors --retry-delay 2 \
-      -H "Accept: application/octet-stream" \
-      -o /tmp/pdfium.tgz \
-      "https://api.github.com/repos/bblanchon/pdfium-binaries/releases/assets/${asset}"; \
-    tar -xzf /tmp/pdfium.tgz -C /opt/pdfium lib/libpdfium.so; \
+    tar -xzf "/opt/pdfium-src/${archive}" -C /opt/pdfium lib/libpdfium.so; \
     mv /opt/pdfium/lib/libpdfium.so /opt/pdfium/libpdfium.so; \
-    rm -rf /tmp/pdfium.tgz /opt/pdfium/lib; \
-    curl -fL --retry 5 --retry-all-errors --retry-delay 2 \
-      -o /opt/pdfium/swagger-ui-v5.17.14.zip \
-      "https://codeload.github.com/swagger-api/swagger-ui/zip/refs/tags/v5.17.14"
+    rm -rf /opt/pdfium/lib /opt/pdfium-src
 ENV PDFIUM_BUNDLE_LIB=/opt/pdfium/libpdfium.so
 ENV SWAGGER_UI_DOWNLOAD_URL=file:///opt/pdfium/swagger-ui-v5.17.14.zip
 

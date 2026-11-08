@@ -6,6 +6,18 @@
 set -euo pipefail
 
 version=v5.17.14
+sha=481244d0812097b11fbaeef79f71d942b171617f9c9f9514e63acbe13e71ccdc
+repo="$(cd "$(dirname "$0")/../.." && pwd)"
+vendor="${repo}/edgequake/third_party/swagger-ui/swagger-ui-${version}.zip"
+if [[ -s "$vendor" ]]; then
+  actual="$(sha256sum "$vendor" | awk '{print $1}')"
+  if [[ "$actual" != "$sha" ]]; then
+    echo "prefetch-swagger-ui: sha256 ${actual} != ${sha}" >&2
+    exit 1
+  fi
+  printf '%s\n' "$vendor"
+  exit 0
+fi
 dest="${SWAGGER_UI_PREFETCH_DIR:-${HOME}/.cache/edgequake-swagger-ui}"
 zip="${dest}/swagger-ui-${version}.zip"
 if [[ ! -s "$zip" ]]; then
