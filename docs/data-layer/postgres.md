@@ -279,7 +279,7 @@ The 18 `DATA-PG-KV-*` entries below describe the legacy adapter. They stay in th
 
 A write commits a projection event and one delivery row per target binding in `projection_deliveries`. The projection worker claims due rows with `FOR UPDATE SKIP LOCKED`, applies them to the graph and vector stores, and records the outcome with `applied`, `quarantined` or `retry`. Claiming increments `attempts`, so that counter is durable and survives a restart.
 
-`EDGEQUAKE_PROJECTION_MAX_ATTEMPTS` bounds how many claims one delivery may consume before the worker stops retrying it. The default is `10`; `0` restores the pre-0.41 behaviour of unbounded retries. The ceiling exists because a deterministic failure (a payload that times out on every attempt, an oversized edge lookup) would otherwise retry forever and drive memory use and restarts. Note what the counter is: claims, not completed applies. A crash or OOM during an apply still spends one claim, so a crash-looping delivery converges and stops, but the ceiling does not bound the size of a single attempt.
+`EDGEQUAKE_PROJECTION_MAX_ATTEMPTS` bounds how many claims one delivery may consume before the worker stops retrying it. The default is `10`; `0` restores the unbounded retries from v0.40.11 and earlier. The ceiling exists because a deterministic failure (a payload that times out on every attempt, an oversized edge lookup) would otherwise retry forever and drive memory use and restarts. Note what the counter is: claims, not completed applies. A crash or OOM during an apply still spends one claim, so a crash-looping delivery converges and stops, but the ceiling does not bound the size of a single attempt.
 
 Three rules decide the outcome of a failed claim:
 

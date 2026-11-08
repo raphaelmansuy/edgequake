@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.12] — 2026-11-08
+
+Patch on v0.40.11. Schema stays **231**. `edgequake migrate` is a no-op when the database is already at 231. Roll the images. Do not change the schema.
+
+### Fixed
+
+- **A projection delivery retried a deterministic failure forever.** The worker now quarantines a delivery after 10 claimed attempts (`EDGEQUAKE_PROJECTION_MAX_ATTEMPTS`, `0` keeps the old unbounded retries). A failed batch re-applies only the exhausted deliveries, so one bad document does not quarantine the healthy ones, and a one-delivery batch does not pay the failing provider call twice. The reason is stored on the delivery. See [Projection deliveries and the retry ceiling](docs/data-layer/postgres.md#projection-deliveries-and-the-retry-ceiling).
+
+**SPEC-001 Acc:** not re-scored. Mix retrieval is unchanged. The latest valid pack remains `medical-mid-20261024T031725Z` (`valid: true`): EdgeQuake **0.8084**, LightRAG **0.7681**, delta **+0.0403**, 95% CI **[-0.0241, +0.1036]** (n_paired 72). The interval includes 0, so this is a statistical tie. EdgeQuake does not claim a win.
+
 ## [0.40.11] — 2026-11-07
 
 Patch on v0.40.10. Schema stays **231**. `edgequake migrate` is a no-op when the database is already at 231.
