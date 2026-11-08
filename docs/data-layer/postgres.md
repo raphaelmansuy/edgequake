@@ -289,7 +289,7 @@ Three rules decide the outcome of a failed claim:
 
 A failed batch does not quarantine healthy members. In a multi-delivery batch, each delivery that reached the ceiling is re-applied alone: if the isolated call succeeds, only the batch pass failed and that delivery is acknowledged normally; if it fails, only that delivery is quarantined. A one-delivery batch skips that second call, because the failed call already was that delivery's only call this attempt. This keeps one bad document from stopping the rest of the queue without paying a known-failing provider call twice.
 
-A quarantined delivery leaves `receipt` holding the reason. Nothing re-drives it automatically, and a document whose deliveries are quarantined is not served for the missing target. To retry it after fixing the cause, reset the counters. The reason is raw bytes, so decode it with `convert_from(d.receipt, 'UTF8')`.
+A quarantined delivery leaves `receipt` holding the reason. Nothing re-drives it automatically. A settled document still opens its serving fence, so the rest of the document serves, but the quarantined target never receives that payload. To retry it after fixing the cause, reset the counters. The reason is raw bytes, so decode it with `convert_from(d.receipt, 'UTF8')`.
 
 ```sql
 UPDATE public.projection_deliveries
