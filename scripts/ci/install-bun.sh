@@ -61,4 +61,10 @@ raise SystemExit("install-bun: %s missing from %s" % (want, release.get("tag_nam
   chmod +x "${bin}/bun"
   rm -rf "$work"
 fi
+# release_gates.sh calls bunx. The official zip ships that name as a symlink
+# to bun, and bun dispatches on argv0. A cache hit that only copied bun
+# still needs the name.
+if [[ ! -e "${bin}/bunx" ]]; then
+  ln -s bun "${bin}/bunx"
+fi
 printf '%s\n' "$bin"

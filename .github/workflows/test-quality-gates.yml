@@ -110,6 +110,9 @@ jobs:
         with:
           version: 10.13.1
 
+      - name: Install bun
+        run: echo "$(bash scripts/ci/install-bun.sh)" >> "$GITHUB_PATH"
+
       - name: Install frontend dependencies
         working-directory: edgequake_webui
         run: pnpm install --frozen-lockfile
