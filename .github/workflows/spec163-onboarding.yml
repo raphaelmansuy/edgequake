@@ -28,6 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Prefetch pdfium
+        run: echo "PDFIUM_BUNDLE_LIB=$(bash scripts/ci/prefetch-pdfium.sh)" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.95.0
@@ -59,6 +61,8 @@ jobs:
       EDGEQUAKE_ALLOW_MOCK_PROVIDER: "1"
     steps:
       - uses: actions/checkout@v4
+      - name: Prefetch pdfium
+        run: echo "PDFIUM_BUNDLE_LIB=$(bash scripts/ci/prefetch-pdfium.sh)" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.95.0

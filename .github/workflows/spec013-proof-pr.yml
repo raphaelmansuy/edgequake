@@ -45,6 +45,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Prefetch pdfium
+        run: echo "PDFIUM_BUNDLE_LIB=$(bash scripts/ci/prefetch-pdfium.sh)" >> "$GITHUB_ENV"
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:

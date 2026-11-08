@@ -35,6 +35,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # WHY: Build context is the monorepo root. edgequake-pdf2md is a crates.io
@@ -61,8 +62,28 @@ COPY edgequake/models.toml models.toml
 # introduced the shared include without adding it to the build context.
 COPY edgequake/build_meta.rs build_meta.rs
 
+# pdfium-auto 0.3.1 downloads chromium%2F7961. That URL, and the slash-form
+# HTML download, return HTTP 504 often enough to fail the image build. The
+# release-asset API for chromium/7961 redirects to a copy that downloads.
+# Asset ids: 483237356 linux-x64, 483237422 linux-arm64.
+RUN arch="$(uname -m)"; \
+    case "$arch" in \
+      x86_64) asset=483237356 ;; \
+      aarch64) asset=483237422 ;; \
+      *) echo "unsupported pdfium arch: $arch" >&2; exit 1 ;; \
+    esac; \
+    mkdir -p /opt/pdfium; \
+    curl -fL --retry 5 --retry-all-errors --retry-delay 2 \
+      -H "Accept: application/octet-stream" \
+      -o /tmp/pdfium.tgz \
+      "https://api.github.com/repos/bblanchon/pdfium-binaries/releases/assets/${asset}"; \
+    tar -xzf /tmp/pdfium.tgz -C /opt/pdfium lib/libpdfium.so; \
+    mv /opt/pdfium/lib/libpdfium.so /opt/pdfium/libpdfium.so; \
+    rm -rf /tmp/pdfium.tgz /opt/pdfium/lib
+ENV PDFIUM_BUNDLE_LIB=/opt/pdfium/libpdfium.so
+
 # Build release binary with SQLx offline mode (no database needed at build time).
-# pdfium-auto downloads and embeds the correct pdfium binary for TARGETPLATFORM.
+# pdfium-auto embeds the library from PDFIUM_BUNDLE_LIB for TARGETPLATFORM.
 # OTLP (`otel`) is on by default (SPEC-124 Langfuse / Jaeger). Set ENABLE_OTEL=false
 # only if you need a deliberately slimmer image without the OTEL feature.
 ARG ENABLE_OTEL=true

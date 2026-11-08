@@ -53,6 +53,10 @@ jobs:
             echo "SKIP_SPEC013_PROOF=1" >> "$GITHUB_ENV"
           fi
 
+      - name: Prefetch pdfium
+        if: env.SKIP_SPEC013_PROOF != '1'
+        run: echo "PDFIUM_BUNDLE_LIB=$(bash scripts/ci/prefetch-pdfium.sh)" >> "$GITHUB_ENV"
+
       - name: Install Rust
         if: env.SKIP_SPEC013_PROOF != '1'
         uses: dtolnay/rust-toolchain@master
