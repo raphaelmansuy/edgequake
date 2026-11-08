@@ -5939,6 +5939,7 @@ export interface components {
          *       "auth_scheme": {},
          *       "base_url": {},
          *       "display_name": {},
+         *       "google_project": {},
          *       "id": {},
          *       "key_configured": {},
          *       "key_fingerprint": {},
@@ -5959,6 +5960,8 @@ export interface components {
             auth_scheme: string;
             base_url: string;
             display_name: string;
+            /** @description Saved Google Cloud project. Absent for every provider except Vertex. */
+            google_project?: string | null;
             /** Format: uuid */
             id: string;
             key_configured: boolean;
@@ -7318,8 +7321,10 @@ export interface components {
          *       "api_shape": {},
          *       "api_shape_label": {},
          *       "auth": {},
+         *       "base_url": {},
          *       "connection_id": {},
          *       "display_name": {},
+         *       "google_project": {},
          *       "key_configured": {},
          *       "models": [],
          *       "offered": {},
@@ -7353,12 +7358,16 @@ export interface components {
              *     is the kind of duplication that drifts. One field, one source of truth.
              */
             auth: string;
+            /** @description Where this provider is called. The edit form starts from this value. */
+            base_url: string;
             /**
              * Format: uuid
-             * @description Fleet connection this card can test. Absent for environment providers.
+             * @description Saved connection this card can edit. An environment provider gains one after it is updated.
              */
             connection_id?: string | null;
             display_name: string;
+            /** @description Saved Google Cloud project for a Vertex connection. Not a secret. */
+            google_project?: string | null;
             key_configured: boolean;
             models: components["schemas"]["OfferModelDto"][];
             offered: boolean;
@@ -16920,6 +16929,7 @@ export interface components {
          *       "base_url": {},
          *       "credential_region": {},
          *       "display_name": {},
+         *       "google_project": {},
          *       "locality": {},
          *       "slug": {},
          *       "timeout_secs": {}
@@ -16934,6 +16944,8 @@ export interface components {
             /** @description Vertex location (`us-central1`, `global`). Not a secret. */
             credential_region?: string | null;
             display_name: string;
+            /** @description Google Cloud project id. Saved on the connection. Not a secret. */
+            google_project?: string | null;
             locality?: string | null;
             slug: string;
             /** Format: int32 */

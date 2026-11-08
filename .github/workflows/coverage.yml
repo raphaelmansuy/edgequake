@@ -35,6 +35,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Prefetch pdfium
+        run: bash scripts/ci/export-native-deps.sh "$GITHUB_ENV"
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:

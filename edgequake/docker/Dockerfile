@@ -61,8 +61,33 @@ COPY edgequake/models.toml models.toml
 # introduced the shared include without adding it to the build context.
 COPY edgequake/build_meta.rs build_meta.rs
 
+# pdfium-auto 0.3.1 and utoipa-swagger-ui download from GitHub during the
+# build. Those URLs return HTTP 502/503/504 often enough to fail the image.
+# The chromium/7961 archives and Swagger UI v5.17.14 are vendored in-tree.
+ARG TARGETARCH
+COPY edgequake/third_party/pdfium/ /opt/pdfium-src/
+COPY edgequake/third_party/swagger-ui/swagger-ui-v5.17.14.zip /opt/pdfium/swagger-ui-v5.17.14.zip
+RUN arch="${TARGETARCH:-}"; \
+    if [ -z "$arch" ]; then \
+      case "$(uname -m)" in \
+        x86_64) arch=amd64 ;; \
+        aarch64) arch=arm64 ;; \
+        *) echo "unsupported pdfium arch: $(uname -m)" >&2; exit 1 ;; \
+      esac; \
+    fi; \
+    case "$arch" in \
+      amd64) archive=pdfium-linux-x64.tgz ;; \
+      arm64) archive=pdfium-linux-arm64.tgz ;; \
+      *) echo "unsupported pdfium arch: $arch" >&2; exit 1 ;; \
+    esac; \
+    tar -xzf "/opt/pdfium-src/${archive}" -C /opt/pdfium lib/libpdfium.so; \
+    mv /opt/pdfium/lib/libpdfium.so /opt/pdfium/libpdfium.so; \
+    rm -rf /opt/pdfium/lib /opt/pdfium-src
+ENV PDFIUM_BUNDLE_LIB=/opt/pdfium/libpdfium.so
+ENV SWAGGER_UI_DOWNLOAD_URL=file:///opt/pdfium/swagger-ui-v5.17.14.zip
+
 # Build release binary with SQLx offline mode (no database needed at build time).
-# pdfium-auto downloads and embeds the correct pdfium binary for TARGETPLATFORM.
+# pdfium-auto embeds the library from PDFIUM_BUNDLE_LIB for TARGETPLATFORM.
 # OTLP (`otel`) is on by default (SPEC-124 Langfuse / Jaeger). Set ENABLE_OTEL=false
 # only if you need a deliberately slimmer image without the OTEL feature.
 ARG ENABLE_OTEL=true

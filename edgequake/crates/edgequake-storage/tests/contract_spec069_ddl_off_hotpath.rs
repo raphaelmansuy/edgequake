@@ -17,10 +17,21 @@ fn contract_ensure_indexes_single_flight_and_verified_flag() {
         life.contains("indexes_verified.load") && life.contains("indexes_verified.store"),
         "ensure_indexes must early-exit / set indexes_verified when eq_* ready"
     );
+    // SPEC-069/098: ensure_eq_id_columns must short-circuit on an O(1) catalog
+    // probe. The probe is `eq_id_schema_ready`; the log line has been reworded
+    // since (now "eq_* schema present"), so assert the structure, not the prose.
+    let ensure_fn = life
+        .split("async fn ensure_eq_id_columns")
+        .nth(1)
+        .expect("ensure_eq_id_columns");
+    let early_exit_head = &ensure_fn[..ensure_fn.len().min(600)];
     assert!(
-        life.contains("eq_id_schema_ready")
-            && life.contains("SPEC-069: eq_* schema already present"),
+        early_exit_head.contains("eq_id_schema_ready"),
         "ensure_eq_id_columns must catalog early-exit when columns/indexes/triggers exist"
+    );
+    assert!(
+        early_exit_head.contains("return Ok(())"),
+        "the catalog probe must short-circuit before any DDL"
     );
     // D-30: readiness must require multigraph arbiter (not legacy 2-col alone).
     let ready_fn = life
@@ -42,10 +53,18 @@ fn contract_ensure_indexes_single_flight_and_verified_flag() {
             && !life.contains("DROP TRIGGER IF EXISTS trg_eq_sync_edge_ids"),
         "must not DROP TRIGGER on every ensure (hot-path race under query timeout)"
     );
-    // Triggers only when missing
+    // Triggers moved to helpers::sync_triggers and use CREATE OR REPLACE, so
+    // the original `if !node_trig` form is gone. The invariant that mattered —
+    // never DROP TRIGGER on the hot path — is asserted above and still holds.
+    let sync_triggers = include_str!("../src/adapters/postgres/graph/helpers/sync_triggers.rs");
     assert!(
-        life.contains("if !node_trig") && life.contains("if !edge_trig"),
-        "triggers must be created only when missing"
+        sync_triggers.contains("CREATE OR REPLACE TRIGGER trg_eq_sync_node_id")
+            && sync_triggers.contains("CREATE OR REPLACE TRIGGER trg_eq_sync_edge_ids"),
+        "sync triggers must be created with CREATE OR REPLACE (no DROP on the hot path)"
+    );
+    assert!(
+        !sync_triggers.contains("DROP TRIGGER"),
+        "sync trigger module must never DROP TRIGGER on the hot path"
     );
 }
 

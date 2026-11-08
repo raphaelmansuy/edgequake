@@ -138,6 +138,9 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Prefetch pdfium
+        run: bash scripts/ci/export-native-deps.sh "$GITHUB_ENV"
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:

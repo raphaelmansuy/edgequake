@@ -155,11 +155,11 @@ test.describe("SPEC-177 provider cascade @spec177", () => {
         { id: "acme-extra", supports_chat: true, supports_vision: false, supports_embedding: false },
       ],
     });
-    await expect(page.getByTestId("fleet-models-stale").getByRole("textbox")).toBeDisabled();
-    await expect(page.getByTestId("fleet-models-stale").getByRole("textbox")).toHaveAttribute(
-      "placeholder",
-      "Test the connection first",
-    );
+    // A failed probe does not offer a model id. The card says why, and the
+    // textbox stays absent until the connection test passes.
+    const stale = page.getByTestId("fleet-models-stale");
+    await expect(stale.getByTestId("test-first-stale")).toBeVisible();
+    await expect(stale.getByRole("textbox")).toHaveCount(0);
     await page.getByTestId("withdraw-openai").click();
     await expect(page.getByTestId("deployment-provider-openai")).toContainText("Hidden from organizations");
     await shot(page, "deployment-providers");
@@ -227,7 +227,9 @@ test.describe("SPEC-177 provider cascade @spec177", () => {
     await openSettings(page, "platform_admin", "/settings/deployment/connections");
     await installOfferRoutes(page);
     const headers: string[] = [];
-    await page.route("**/api/v1/connections", async (route) => {
+    // The save posts to /connections?scope=deployment. A pattern without the
+    // query never sees that request, so the header list stays empty.
+    await page.route(/\/api\/v1\/connections(?:\?|$)/, async (route) => {
       if (route.request().method() === "POST") {
         headers.push(route.request().headers()["x-tenant-id"] ?? "");
         await route.fulfill({

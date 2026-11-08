@@ -142,7 +142,9 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/edgequake-main' || github.ref == 'refs/heads/main' }}
 
       - name: Install bun
-        uses: oven-sh/setup-bun@v2
+        run: |
+          bin="$(bash scripts/ci/install-bun.sh)"
+          echo "$bin" >> "$GITHUB_PATH"
 
       - name: Install frontend dependencies
         working-directory: edgequake_webui
@@ -195,14 +197,16 @@ jobs:
       - name: Run security audit
         working-directory: edgequake
         # SPEC-083 / X-32: audit is a blocking gate (no continue-on-error).
-        # zip extract() advisories (0367/0368/0369) are patched only in zip >= 9.
-        # edgeparse-core 0.3.2 requires zip ^2.2 and only writes archives.
-        # utoipa-swagger-ui 9 requires zip ^3 and copies entries itself; it does
-        # not call ZipArchive::extract(). Neither parent can select zip 9 yet.
+        # zip extract() advisories (0367/0368/0369/0429) are patched only in zip >= 9.
+        # 0429 is the same ZipArchive::extract symlink abort under a new id.
+        # edgeparse-core 0.3.2 (latest) requires zip ^2.2 and only writes archives.
+        # utoipa-swagger-ui 9 requires zip ^3 as a build dependency and copies
+        # the upstream Swagger UI archive itself; it does not call extract().
+        # swagger-ui 10 pulls zip 9, and also utoipa 6. That upgrade is separate.
         # crypto-bigint 0.5.5 (RUSTSEC-2026-0387) is pinned by elliptic-curve 0.13
         # through p256, which openidconnect 4.0.1 requires. The fix is
         # crypto-bigint >=0.7.6, and that curve stack cannot select it.
-        run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0173 --ignore RUSTSEC-2026-0367 --ignore RUSTSEC-2026-0368 --ignore RUSTSEC-2026-0369 --ignore RUSTSEC-2026-0387
+        run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0173 --ignore RUSTSEC-2026-0367 --ignore RUSTSEC-2026-0368 --ignore RUSTSEC-2026-0369 --ignore RUSTSEC-2026-0387 --ignore RUSTSEC-2026-0429
 
   docs:
     name: Documentation

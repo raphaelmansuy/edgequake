@@ -18,7 +18,7 @@ jobs:
   # ── Preflight: fmt, clippy, tests, SPEC-006 + SPEC-018 proofs ─────────────────
   quality-gates:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v6
         with:
@@ -37,7 +37,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ripgrep
 
       - name: Install bun
-        uses: oven-sh/setup-bun@v2
+        run: |
+          bin="$(bash scripts/ci/install-bun.sh)"
+          echo "$bin" >> "$GITHUB_PATH"
 
       - name: Install frontend dependencies
         working-directory: edgequake_webui

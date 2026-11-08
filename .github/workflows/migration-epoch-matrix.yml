@@ -38,6 +38,9 @@ jobs:
         with:
           fetch-depth: 0 # need all tags for git archive replay
 
+      - name: Prefetch pdfium
+        run: bash scripts/ci/export-native-deps.sh "$GITHUB_ENV"
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:

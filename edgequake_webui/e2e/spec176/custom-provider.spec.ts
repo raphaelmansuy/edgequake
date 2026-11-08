@@ -74,7 +74,7 @@ test.describe("SPEC-176 custom providers @spec176", () => {
     });
 
     await page.getByLabel("Name", { exact: true }).fill("openai-prod");
-    await page.getByLabel("API key", { exact: true }).fill("sk-openai-secret");
+    await page.getByLabel("API key (optional)", { exact: true }).fill("sk-openai-secret");
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect(page.getByText("Stored in the database")).toBeVisible();
     expect(creates[0]?.api_shape).toBe("openai");
@@ -84,12 +84,12 @@ test.describe("SPEC-176 custom providers @spec176", () => {
     await page.getByTestId("connection-shape").selectOption("anthropic");
     await expect(page.getByLabel("Base URL")).toHaveValue("https://api.anthropic.com");
     await page.getByLabel("Name", { exact: true }).fill("claude-prod");
-    await page.getByLabel("API key", { exact: true }).fill("sk-ant-secret");
+    await page.getByLabel("API key (optional)", { exact: true }).fill("sk-ant-secret");
     await page.getByRole("button", { name: "Save", exact: true }).click();
     expect(creates[1]?.api_shape).toBe("anthropic");
     expect(creates[1]?.api_key).toBe("sk-ant-secret");
     await expect(page.getByText("sk-ant-secret")).toHaveCount(0);
-    await expect(page.getByLabel("API key", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("API key (optional)", { exact: true })).toHaveValue("");
   });
 
   test("Infisical is optional and its client secret is not returned @spec176", async ({ page }) => {
@@ -161,10 +161,10 @@ test.describe("SPEC-176 custom providers @spec176", () => {
       });
     });
     await page.getByLabel("Name", { exact: true }).fill("openai-prod");
-    await page.getByLabel("API key", { exact: true }).fill("sk-refused");
+    await page.getByLabel("API key (optional)", { exact: true }).fill("sk-refused");
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect(page.getByText("EDGEQUAKE_SECRETS_KEY is required to store API keys")).toBeVisible();
-    await expect(page.getByLabel("API key", { exact: true })).toHaveValue("sk-refused");
+    await expect(page.getByLabel("API key (optional)", { exact: true })).toHaveValue("sk-refused");
     await expect(page.getByTestId("connection-stored-in")).toHaveCount(0);
   });
 });

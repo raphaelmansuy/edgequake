@@ -36,6 +36,10 @@ test.describe("@spec184 default questions", () => {
   }) => {
     await openNormalWorkspace(page, { path: "/query", images: true, withPicture: true });
     await expect(page.getByTestId("query-composer")).toBeVisible({ timeout: 20_000 });
+    // The corpus query resolves after the composer mounts. Reading the cards
+    // in that gap sees an empty list.
+    const picture = suggestions(page).filter({ hasText: /picture/i });
+    await expect(picture.first()).toBeVisible({ timeout: 20_000 });
 
     const joined = (await suggestions(page).allInnerTexts()).join(" ");
     expect(joined).toMatch(/picture/i);
