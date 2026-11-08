@@ -273,7 +273,41 @@ Before SPEC-091, a per-workspace table `eq_<prefix>_kv` held chunks, metadata, c
 | Chunk text | `chunks.content` |
 | Chunk vectors | `chunk_embeddings.embedding` |
 
-The 18 `DATA-PG-KV-*` entries below describe the legacy adapter. They stay in the registry because Ref IDs never change.
+The 18 `DATA-PG-KV-*` entries below describe the legacy adapter. They stay in the registry because ref IDs never change.
+
+## Projection deliveries and the retry ceiling
+
+A write commits a projection event and one delivery row per target binding in `projection_deliveries`. The projection worker claims due rows with `FOR UPDATE SKIP LOCKED`, applies them to the graph and vector stores, and records the outcome with `applied`, `quarantined` or `retry`. Claiming increments `attempts`, so that counter is durable and survives a restart.
+
+`EDGEQUAKE_PROJECTION_MAX_ATTEMPTS` bounds how many claims one delivery may consume before the worker stops retrying it. The default is `10`; `0` restores the pre-0.41 behaviour of unbounded retries. The ceiling exists because a deterministic failure (a payload that times out on every attempt, an oversized edge lookup) would otherwise retry forever and drive memory use and restarts.
+
+Three rules decide the outcome of a failed claim:
+
+- **Below the ceiling**: `state = 'retry'` with a backoff of `lease * attempts`, capped at 60 s.
+- **On the last allowed attempt**: the delivery still gets its apply call, because it can legitimately succeed. If that call fails, the delivery is quarantined.
+- **Over the ceiling**: the claim consumes an attempt without a provider call (a crash or OOM after the claim does this), so the delivery is quarantined on sight.
+
+A failed batch does not quarantine healthy members. In a multi-delivery batch, each delivery that reached the ceiling is re-applied alone: if the isolated call succeeds, only the batch pass failed and that delivery is acknowledged normally; if it fails, only that delivery is quarantined. A one-delivery batch skips that second call, because the failed call already was that delivery's only call this attempt. This keeps one bad document from stopping the rest of the queue without paying a known-failing provider call twice.
+
+A quarantined delivery leaves `receipt` holding the reason. Nothing re-drives it automatically, and a document whose deliveries are quarantined is not served for the missing target. To retry it after fixing the cause, reset the counters:
+
+```sql
+UPDATE public.projection_deliveries
+SET state = 'pending', next_attempt_at = now(), attempts = 0
+WHERE state = 'quarantined'
+  AND event_id IN (
+    SELECT event_id FROM public.projection_events WHERE object_id = $1
+  );
+```
+
+Inspect first with the reason text so the fix is not guessed:
+
+```sql
+SELECT d.event_id, d.binding_id, d.attempts, convert_from(d.receipt, 'UTF8') AS reason
+FROM public.projection_deliveries d
+WHERE d.state = 'quarantined'
+ORDER BY d.attempts DESC;
+```
 
 ## Operation catalog
 

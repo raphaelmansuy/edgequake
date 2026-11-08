@@ -85,3 +85,8 @@ purpose = "Explicit auth on/off; wins over DEV_MODE"
 name = "JWT_SECRET"
 docs = ["docs/providers/security.md"]
 purpose = "JWT HMAC secret (≥32 bytes)"
+
+[[var]]
+name = "EDGEQUAKE_PROJECTION_MAX_ATTEMPTS"
+docs = ["docs/operations/env-reference.md", "docs/operations/configuration.md"]
+purpose = "Claimed projection attempts before a delivery is quarantined; 0 retries forever"

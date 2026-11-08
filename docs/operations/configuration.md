@@ -271,6 +271,7 @@ PostgreSQL task rows are the source of truth. The in-memory channel only wakes w
 | `EDGEQUAKE_TASK_DELIVERY` | `local` | `local`, `bridged` or `notify_only`. Boot fails if replicas is above 1 and this is `local`. |
 | `EDGEQUAKE_STARTUP_AUTO_RESUME` | on | Reclaim stale Processing tasks at boot. `0`, `false` or `off` marks them Failed instead. |
 | `EDGEQUAKE_STARTUP_RECONCILE_MAX` | `32` | Maximum orphan rows reconciled at boot. |
+| `EDGEQUAKE_PROJECTION_MAX_ATTEMPTS` | `10` | Claimed applies for one projection delivery before it is quarantined. `0` keeps the old unbounded retries. See [projection deliveries](../data-layer/postgres.md#projection-deliveries-and-the-retry-ceiling). |
 | `EDGEQUAKE_DB_POOL_UTIL_WARN`, `EDGEQUAKE_DB_POOL_UTIL_CRITICAL` | `0.75`, `0.90` | Store contention thresholds. Critical turns `/ready` into 503. |
 | `EDGEQUAKE_COMPENSATION_QUARANTINE_WARN`, `EDGEQUAKE_COMPENSATION_QUARANTINE_CRITICAL` | `1`, `5` | Compensation dead-letter thresholds. Critical turns `/ready` into 503. |
 | `EDGEQUAKE_NATIVE_GRAPH_WRITES` | `1` | Native AGE upserts. `0` falls back to Cypher MERGE. |
