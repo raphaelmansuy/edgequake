@@ -407,7 +407,12 @@ async fn typed_search_server_deadlines_cancel_and_recover_single_connection() {
         .execute(&mut *lock)
         .await
         .unwrap();
-        let result = tokio::time::timeout(Duration::from_secs(3), async {
+        // The client window has to outlast the vector statement budget. The
+        // server cancel is what must win, then the pooled connection is clean.
+        let client = Duration::from_millis(
+            u64::from(edgequake_storage::vector_query_statement_timeout_ms()) + 2_000,
+        );
+        let result = tokio::time::timeout(client, async {
             if table == "chunk_embeddings" {
                 chunk.search(&req).await.map(|_| ())
             } else {

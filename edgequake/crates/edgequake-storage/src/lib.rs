@@ -357,9 +357,9 @@ pub use adapters::postgres::{
     pool_role_max_connections, pool_role_max_connections_with_queue_floor, quantization_allowed,
     resolve_pool_max_connections, resolve_timeout_literal, serving_fence_filtered_total,
     serving_fence_open_changed, serving_fence_opened_total, session_application_name,
-    with_session_hygiene, with_session_hygiene_labeled, AnnExactReorderPolicy,
-    BinaryQuantizePolicy, BudgetMode, FilteredDiskannLabelPolicy, HnswIndexManifest,
-    HnswRuntimePolicy, LocalTimeoutTx, PgBindingRegistry, PgChunkEmbeddingIndex,
+    vector_query_statement_timeout_ms, with_session_hygiene, with_session_hygiene_labeled,
+    AnnExactReorderPolicy, BinaryQuantizePolicy, BudgetMode, FilteredDiskannLabelPolicy,
+    HnswIndexManifest, HnswRuntimePolicy, LocalTimeoutTx, PgBindingRegistry, PgChunkEmbeddingIndex,
     PgFleetEmbeddingIndex, PgIngestionCommitter, PgPoolBundle, PgQuarantineSink,
     PgServingFenceOpener, PgStandaloneEmbeddingStore, PgVectorStorage, PgVisibilityRepository,
     PgWorkspaceVectorRegistry, PoolBudgetReport, PoolRole, PostgresAGEGraphStorage,
@@ -372,7 +372,8 @@ pub use adapters::postgres::{
     LAST_SOURCE_PREFIX_COUNT_LEN, LINEAGE_GIN_INDEXES, LINEAGE_GIN_PENDING_LIST_LIMIT_KB,
     MAX_WORKSPACE_LABELS, PLAIN_GET_NODES_BATCH_SQL, PLAIN_NAMESPACE_NODE_COUNT_SQL,
     PLAIN_NODE_IDS_PRESENT_SQL, PLAIN_NODE_UPSERT_SQL, SOURCE_COUNT_STATEMENT_TIMEOUT_MS,
-    SOURCE_PREFIX_BATCH_LIMIT, SOURCE_PREFIX_DISCOVERY_CALLS, WORKSPACE_MERGE_LOCK_SQL,
+    SOURCE_PREFIX_BATCH_LIMIT, SOURCE_PREFIX_DISCOVERY_CALLS, VECTOR_QUERY_TIMEOUT_MS_DEFAULT,
+    WORKSPACE_MERGE_LOCK_SQL,
 };
 
 // SPEC-091 W3 dual-read counters.

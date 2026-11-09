@@ -86,11 +86,23 @@ mod helper_tests {
     }
 
     #[test]
-    fn test_age_session_setup_is_single_batched_statement() {
+    fn test_age_session_setup_does_not_pin_statement_timeout() {
         let sql = PostgresAGEGraphStorage::age_session_setup_sql();
         assert!(sql.contains("LOAD 'age'"));
         assert!(sql.contains("search_path = ag_catalog"));
-        assert!(sql.contains("statement_timeout"));
-        assert_eq!(sql.matches(';').count(), 3);
+        assert!(
+            !sql.contains("statement_timeout"),
+            "a session SET statement_timeout must not ride on AGE setup: {sql}"
+        );
+        let session = include_str!("session.rs");
+        let setup = session
+            .split("async fn setup_age_session(")
+            .nth(1)
+            .and_then(|tail| tail.split("async fn apply_age_tenant_rls_context").next())
+            .unwrap_or("");
+        assert!(
+            !setup.contains("SET statement_timeout"),
+            "setup_age_session must not pin statement_timeout on the session"
+        );
     }
 }

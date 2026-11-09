@@ -31,8 +31,8 @@ fn numbered_sql_versions() -> Vec<i64> {
 fn head_train_includes_160_through_169() {
     let versions = numbered_sql_versions();
     let max = *versions.last().expect("at least one migration");
-    assert_eq!(max, 225, "HEAD schema train must end at 225");
-    for v in 160..=225 {
+    assert_eq!(max, 231, "HEAD schema train must end at 231");
+    for v in 160..=231 {
         assert!(
             versions.contains(&v),
             "missing migration {v} in edgequake/migrations/"
@@ -48,7 +48,7 @@ fn manifest_compat_serve_max_matches_head() {
         .find(|l| l.starts_with("compat_serve_max"))
         .expect("compat_serve_max");
     let digits: String = max_line.chars().filter(|c| c.is_ascii_digit()).collect();
-    assert_eq!(digits, "225");
+    assert_eq!(digits, "231");
 }
 
 #[test]
@@ -1022,4 +1022,131 @@ fn migrations_213_214_add_spec169_invites_and_access_links() {
     let links = include_str!("../../../migrations/214_spec169_user_access_links.sql");
     assert!(links.contains("CREATE TABLE IF NOT EXISTS user_access_links"));
     assert!(links.contains("uq_user_access_links_open"));
+}
+
+#[test]
+fn migration_228_hoists_the_clearance_bypass_into_an_initplan() {
+    let manifest = include_str!("../../../migrations/manifest.toml");
+    let v228 = manifest
+        .split("version = 228")
+        .nth(1)
+        .and_then(|rest| rest.split("[[migration]]").next())
+        .expect("migration 228");
+    assert!(v228.contains("phase = \"expand\""));
+    assert!(!v228.contains("serving_floor"));
+
+    let sql = include_str!("../../../migrations/228_clearance_bypass_initplan.sql");
+    // The row-independent half must be its own function so the planner can hoist it.
+    assert!(sql.contains("CREATE OR REPLACE FUNCTION public.clearance_bypass()"));
+    assert!(sql.contains("CREATE OR REPLACE FUNCTION public.clearance_rank_covers("));
+    // The public API keeps its name and signature: callers outside policies do not change.
+    assert!(sql.contains("CREATE OR REPLACE FUNCTION public.clearance_covers("));
+    assert!(sql.contains("SELECT (SELECT public.clearance_bypass())"));
+    // Policies must call the bypass as a scalar subquery (InitPlan), never bare.
+    assert!(sql.contains("(SELECT public.clearance_bypass())"));
+    assert!(
+        !sql.contains("public.clearance_covers(classification_rank"),
+        "policy text must use the split predicates, not the combined one"
+    );
+    // Every table migration 220 guarded must be rewritten, tasks keeping its NULL arm.
+    for tbl in [
+        "documents",
+        "chunks",
+        "document_originals",
+        "pdf_documents",
+        "document_mm_assets",
+        "document_pages",
+        "tasks",
+        "graph_contributions",
+    ] {
+        assert!(
+            sql.contains(&format!("'{tbl}'")),
+            "missing {tbl} in the loop"
+        );
+    }
+    assert!(sql.contains("document_id IS NULL OR (%s)"));
+    // Roles and RESTRICTIVE semantics must be preserved exactly.
+    assert!(sql.contains("AS RESTRICTIVE FOR ALL TO edgequake_tenant_access"));
+    // Expand-only: no drops of data, no column changes.
+    assert!(!sql.contains("DROP TABLE"));
+    assert!(!sql.contains("ALTER TABLE"));
+    assert!(!sql.contains("DROP FUNCTION"));
+}
+
+#[test]
+fn migration_229_makes_scope_indexes_cover_the_clearance_policy() {
+    let manifest = include_str!("../../../migrations/manifest.toml");
+    let v229 = manifest
+        .split("version = 229")
+        .nth(1)
+        .and_then(|rest| rest.split("[[migration]]").next())
+        .expect("migration 229");
+    assert!(v229.contains("phase = \"expand\""));
+    assert!(!v229.contains("serving_floor"));
+
+    let sql = include_str!("../../../migrations/229_tenant_workspace_clearance_indexes.sql");
+    // Same key columns, clearance columns in the leaf: index-only for the policy.
+    assert!(sql.contains(
+        "ON public.chunks (tenant_id, workspace_id)\n    INCLUDE (classification_rank, compartment_ids, uploaded_by)"
+    ));
+    assert!(sql.contains(
+        "ON public.documents (tenant_id, workspace_id)\n    INCLUDE (classification_rank, compartment_ids, uploaded_by)"
+    ));
+    // Replace, do not add: the old composite is dropped before the new one is created.
+    assert!(sql.contains("DROP INDEX IF EXISTS public.idx_chunks_tenant_workspace"));
+    assert!(sql.contains("DROP INDEX IF EXISTS public.idx_documents_tenant_workspace"));
+    // Exact duplicate definitions removed.
+    assert!(sql.contains("DROP INDEX IF EXISTS public.idx_documents_status_v2"));
+    assert!(sql.contains("DROP INDEX IF EXISTS public.idx_conversation_history_conversation_id"));
+    // Strip line comments before asserting what is *executed*: the prose above
+    // explains why the unique constraint survives, so it names it.
+    let code: String = sql
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("--"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    // The surviving unique constraint on conversation_history is never dropped.
+    assert!(!code.contains("unique_conversation_message"));
+    assert!(!code.contains("DROP INDEX IF EXISTS public.idx_documents_status;"));
+}
+
+#[test]
+fn migration_230_finishes_the_initplan_backfill_from_208() {
+    let manifest = include_str!("../../../migrations/manifest.toml");
+    let v230 = manifest
+        .split("version = 230")
+        .nth(1)
+        .and_then(|rest| rest.split("[[migration]]").next())
+        .expect("migration 230");
+    assert!(v230.contains("phase = \"expand\""));
+    assert!(!v230.contains("serving_floor"));
+
+    let sql = include_str!("../../../migrations/230_rls_initplan_backfill.sql");
+    // Same rewrite shape as 208: unwrap, wrap, then prove the meaning survived.
+    assert!(sql.contains("regexp_replace"));
+    assert!(sql.contains("(SELECT \\1)"));
+    assert!(
+        sql.contains("ALTER POLICY"),
+        "rewrites policy text in place"
+    );
+    assert!(
+        sql.contains("RAISE EXCEPTION"),
+        "each rewrite must be verified against the original expression"
+    );
+    assert!(
+        !sql.contains("DROP POLICY") && !sql.contains("CREATE POLICY"),
+        "roles, commands and RESTRICTIVE must stay untouched"
+    );
+    // It must not touch the clearance predicate migration 228 rebuilt.
+    assert!(
+        !sql.contains("clearance_"),
+        "230 must not rewrite the clearance predicate"
+    );
+}
+
+#[test]
+fn migration_231_saves_the_google_cloud_project() {
+    let sql = include_str!("../../../migrations/231_vertex_google_project.sql");
+    assert!(sql.contains("ADD COLUMN IF NOT EXISTS google_project TEXT"));
+    assert!(!sql.to_ascii_lowercase().contains("drop column"));
 }

@@ -11,8 +11,9 @@ mod postgres_test_config;
 
 use edgequake_storage::traits::{MetadataFilter, VectorStorage, WorkspaceVectorConfig};
 use edgequake_storage::{
-    calculate_pdf_checksum, vector_upsert_chunk_size, CreatePdfRequest, ListPdfFilter,
-    PdfDocumentStorage, PgVectorStorage, PostgresPdfStorage, PostgresPool,
+    calculate_pdf_checksum, vector_query_statement_timeout_ms, vector_upsert_chunk_size,
+    CreatePdfRequest, ListPdfFilter, LocalTimeoutTx, PdfDocumentStorage, PgVectorStorage,
+    PostgresPdfStorage, PostgresPool, VECTOR_QUERY_TIMEOUT_MS_DEFAULT,
 };
 use postgres_test_config::{contract_pg_pool, require_or_skip_postgres, seed_tenant_and_user};
 use std::fs;
@@ -664,6 +665,83 @@ async fn e2e_spec090_verify_vector_timeout() {
         "statement_timeout must cancel well under sleep duration"
     );
     let _ = tx.rollback().await;
+}
+
+/// Hybrid `query_execute` died at 4.6s because vector `statement_timeout` was 1750ms.
+/// A 3s statement must survive the default budget, and that same statement must
+/// still be cancelled when the old budget is installed.
+///
+/// Connects with `DATABASE_URL` only. `pg_sleep` does not need the schema, so
+/// this does not migrate.
+#[tokio::test]
+async fn e2e_vector_statement_budget_outlives_the_sub_5s_kill() {
+    let url = std::env::var("DATABASE_URL")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    let Some(url) = url else {
+        if postgres_test_config::postgres_tests_required() {
+            panic!("EDGEQUAKE_REQUIRE_POSTGRES_TESTS=1 but DATABASE_URL is unset");
+        }
+        eprintln!("SKIP: DATABASE_URL unset");
+        return;
+    };
+    let prev = std::env::var("EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS").ok();
+    std::env::remove_var("EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS");
+    let budget = vector_query_statement_timeout_ms();
+    match prev {
+        Some(v) => std::env::set_var("EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS", v),
+        None => std::env::remove_var("EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS"),
+    }
+    assert!(
+        budget > 5_000,
+        "default vector kill {budget}ms still sits inside the 4.6s failure"
+    );
+    assert_eq!(
+        budget,
+        VECTOR_QUERY_TIMEOUT_MS_DEFAULT.saturating_sub(250),
+        "headroom stays 250ms under the interactive budget"
+    );
+
+    let raw = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .connect(url.trim())
+        .await
+        .expect("postgres");
+    let mut conn = raw.acquire().await.expect("acquire");
+
+    let mut old = LocalTimeoutTx::begin(&mut conn, 1_750)
+        .await
+        .expect("begin old budget");
+    let started = std::time::Instant::now();
+    let err = sqlx::query("SELECT pg_sleep(3)")
+        .execute(old.as_mut())
+        .await
+        .expect_err("1750ms budget must cancel a 3s statement");
+    let elapsed = started.elapsed();
+    assert!(
+        err.to_string().contains("statement timeout"),
+        "old budget should be a statement timeout, got {err}"
+    );
+    assert!(
+        elapsed < Duration::from_millis(2_500),
+        "old budget must cancel before the statement finishes, took {elapsed:?}"
+    );
+    old.rollback().await.expect("rollback old");
+
+    let mut current = LocalTimeoutTx::begin(&mut conn, budget)
+        .await
+        .expect("begin current budget");
+    let shown: String =
+        sqlx::query_scalar("SELECT setting FROM pg_settings WHERE name = 'statement_timeout'")
+            .fetch_one(current.as_mut())
+            .await
+            .expect("show statement_timeout");
+    assert_eq!(shown, budget.to_string());
+    sqlx::query("SELECT pg_sleep(3)")
+        .execute(current.as_mut())
+        .await
+        .expect("3s statement must survive the default vector budget");
+    current.commit().await.expect("commit");
 }
 
 #[tokio::test]

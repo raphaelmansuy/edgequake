@@ -155,10 +155,8 @@ test.describe("SPEC-177 provider cascade @spec177", () => {
         { id: "acme-extra", supports_chat: true, supports_vision: false, supports_embedding: false },
       ],
     });
-    await expect(page.getByTestId("fleet-models-stale").getByRole("textbox")).toBeDisabled();
-    await expect(page.getByTestId("fleet-models-stale").getByRole("textbox")).toHaveAttribute(
-      "placeholder",
-      "Test the connection first",
+    await expect(page.getByTestId("test-first-stale")).toContainText(
+      "Models can be registered once the connection test passes",
     );
     await page.getByTestId("withdraw-openai").click();
     await expect(page.getByTestId("deployment-provider-openai")).toContainText("Hidden from organizations");
@@ -227,7 +225,7 @@ test.describe("SPEC-177 provider cascade @spec177", () => {
     await openSettings(page, "platform_admin", "/settings/deployment/connections");
     await installOfferRoutes(page);
     const headers: string[] = [];
-    await page.route("**/api/v1/connections", async (route) => {
+    await page.route("**/api/v1/connections**", async (route) => {
       if (route.request().method() === "POST") {
         headers.push(route.request().headers()["x-tenant-id"] ?? "");
         await route.fulfill({

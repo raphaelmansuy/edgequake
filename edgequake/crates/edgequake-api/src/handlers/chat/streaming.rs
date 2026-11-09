@@ -207,6 +207,7 @@ pub async fn chat_completion_stream(
     let request_document_filter = request.document_filter.clone();
     // SPEC-180: validate kind filters before the stream opens (4xx, not a stream error).
     let kind_plan = crate::services::query_image::normal_plan(
+        state.optional_pg_pool(),
         workspace.as_ref(),
         &request.message,
         request_document_filter.as_ref(),

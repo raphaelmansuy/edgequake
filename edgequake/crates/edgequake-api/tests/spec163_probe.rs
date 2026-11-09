@@ -103,6 +103,7 @@ fn spec(shape: &str, base: &str) -> ConnectionSpec {
         model: "fake-chat".into(),
         embedding_model: Some("fake-embed".into()),
         embedding_dimension: Some(8),
+        google_project: None,
     }
 }
 

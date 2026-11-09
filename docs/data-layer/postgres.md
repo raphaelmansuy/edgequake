@@ -215,7 +215,7 @@ Each kind of query has its own time limit. The code subtracts 250 ms so that Pos
 |---|---|---|
 | Graph reads | `EDGEQUAKE_GRAPH_QUERY_TIMEOUT_SECS` | 15 s (applied as 14.75 s) |
 | Document list and reads | `EDGEQUAKE_DOCUMENTS_READ_TIMEOUT_MS` | 2500 ms (500 to 30000) |
-| Vector search | `EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS` | 2000 ms |
+| Vector search | `EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS` | 15000 ms (applied as 14750 ms) |
 | Community detection | `EDGEQUAKE_COMMUNITY_STATEMENT_TIMEOUT_MS` | 30000 ms |
 | Graph DDL lock wait | `EDGEQUAKE_GRAPH_DDL_LOCK_TIMEOUT` | 5 s (120 s when `EDGEQUAKE_EQ_MAINTENANCE` is set) |
 
