@@ -21,6 +21,34 @@ pub trait TokenSource: Send + Sync {
     async fn mint(&self) -> Result<String, EmbedError>;
 }
 
+/// Mint a token that is allowed to call `project`, ignoring `GOOGLE_CLOUD_PROJECT`.
+pub struct SavedProjectSource {
+    project: String,
+}
+
+impl SavedProjectSource {
+    pub fn new(project: impl Into<String>) -> Self {
+        Self {
+            project: project.into(),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl TokenSource for SavedProjectSource {
+    async fn mint(&self) -> Result<String, EmbedError> {
+        let model = std::env::var("EDGEQUAKE_VERTEX_EMBEDDING_MODEL")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "gemini-embedding-2".to_string());
+        crate::providers::vertex_identity::select_identity(&self.project, &model)
+            .await
+            .map(|access| access.token)
+            .map_err(auth_error)
+    }
+}
+
 /// `GOOGLE_ACCESS_TOKEN`, else `gcloud auth print-access-token`.
 pub struct EnvOrGcloudSource;
 
@@ -129,6 +157,11 @@ impl VertexTokenProvider {
             source,
             cached: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// A provider that verifies the token against a saved project, not the environment.
+    pub fn for_project(project: impl Into<String>) -> Self {
+        Self::new(Arc::new(SavedProjectSource::new(project)))
     }
 
     /// The process-wide provider over [`EnvOrGcloudSource`].

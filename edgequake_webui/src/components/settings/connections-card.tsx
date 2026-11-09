@@ -139,6 +139,7 @@ export function ConnectionsCard() {
   const [apiKey, setApiKey] = useState('');
   const [credentialKind, setCredentialKind] = useState('server_identity');
   const [credentialRegion, setCredentialRegion] = useState('us-central1');
+  const [googleProject, setGoogleProject] = useState('');
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<DeletableConnection | null>(null);
@@ -158,6 +159,7 @@ export function ConnectionsCard() {
     : selectedShape?.accepts_saved_key !== false;
   const keyRequired = googleCredential ? credentialKind !== 'server_identity' : selectedShape?.requires_key === true;
   const keyIsJson = googleCredential && credentialKind === 'service_account_json';
+  const projectRequired = googleCredential && credentialKind !== 'service_account_json' && googleProject.trim() === '';
   // The server states whether a Base URL changes anything for this shape. An older server omits
   // the flag, and then the field behaves as it always did.
   const baseUrlLocked =
@@ -165,7 +167,7 @@ export function ConnectionsCard() {
     selectedShape?.auth === 'server_google_identity' ||
     selectedShape?.auth === 'aws_chain' ||
     selectedShape?.auth === 'server_proxy';
-  const canSubmit = !busy && slug.trim() !== '' && (!keyRequired || apiKey.trim() !== '');
+  const canSubmit = !busy && slug.trim() !== '' && (!keyRequired || apiKey.trim() !== '') && !projectRequired;
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: CONNECTIONS_KEY });
 
@@ -182,6 +184,7 @@ export function ConnectionsCard() {
       setSlug(next);
     }
     setApiKey('');
+    setGoogleProject('');
     setCredentialKind(chosen?.secret_kinds?.includes('service_account_json') ? 'server_identity' : 'api_key');
   };
 
@@ -213,6 +216,7 @@ export function ConnectionsCard() {
           base_url: baseUrl,
           api_key: mayTakeKey ? apiKey || undefined : undefined,
           credential_region: googleCredential ? credentialRegion : undefined,
+          google_project: googleCredential ? googleProject.trim() || undefined : undefined,
           allow_private_network: place.allowPrivate,
         }),
       });
@@ -238,6 +242,10 @@ export function ConnectionsCard() {
     setShape(row.api_shape);
     setBaseUrl(row.base_url);
     setApiKey('');
+    setGoogleProject(row.google_project ?? '');
+    if (row.api_shape === 'vertexai' || row.api_shape === 'vertex') {
+      setCredentialKind(row.key_configured ? 'service_account_json' : 'server_identity');
+    }
   };
 
   const save = async () => {
@@ -251,6 +259,7 @@ export function ConnectionsCard() {
         base_url: baseUrl,
         api_key: mayTakeKey ? apiKey || undefined : undefined,
         credential_region: googleCredential ? credentialRegion : undefined,
+        google_project: googleCredential ? googleProject.trim() || undefined : undefined,
         locality: place.locality,
         allow_private_network: place.allowPrivate,
       };
@@ -362,7 +371,7 @@ export function ConnectionsCard() {
                   ? "An Express mode key, or a Google Cloud API key bound to a service account."
                   : credentialKind === 'service_account_json'
                     ? "The key file behind gcloud auth activate-service-account. Needs project_id and private_key."
-                    : "Calls use the identity this server already holds. Nothing is stored."
+                    : "Calls use the identity this server already holds. The project id is saved; the key is not."
               }
               className="md:col-span-2"
             >
@@ -380,6 +389,23 @@ export function ConnectionsCard() {
                 <option value="service_account_json">Service account JSON</option>
                 <option value="api_key">API key</option>
               </select>
+            </ConnectionField>
+          ) : null}
+          {googleCredential ? (
+            <ConnectionField
+              id={`${fieldId}-project`}
+              label="Google Cloud project"
+              hint="Saved with this connection. Queries use it instead of GOOGLE_CLOUD_PROJECT."
+            >
+              <Input
+                id={`${fieldId}-project`}
+                data-testid="connection-google-project"
+                value={googleProject}
+                onChange={(e) => setGoogleProject(e.target.value)}
+                placeholder="my-project"
+                autoComplete="off"
+                spellCheck={false}
+              />
             </ConnectionField>
           ) : null}
           {googleCredential && credentialKind !== 'server_identity' ? (

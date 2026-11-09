@@ -13,6 +13,8 @@ export interface DeploymentProvider {
   display_name: string;
   origin: string;
   api_shape: string;
+  /** Where this provider is called. Older servers omit it. */
+  base_url?: string;
   offered: boolean;
   withdrawn: boolean;
   probe: string;
@@ -24,10 +26,12 @@ export interface DeploymentProvider {
    */
   auth?: string;
   accepts_saved_key?: boolean;
-  /** Fleet connection the card can test. Absent for an environment provider. */
+  /** Saved connection this card can edit and test. */
   connection_id?: string | null;
   /** Why the last test failed. Absent until a test has failed. */
   probe_error?: string | null;
+  /** Saved Google Cloud project. Present on a Vertex connection that has one. */
+  google_project?: string | null;
   /** Human name for `api_shape` ("OpenAI-compatible"), from the shape registry. */
   api_shape_label?: string;
   models: OfferModel[];

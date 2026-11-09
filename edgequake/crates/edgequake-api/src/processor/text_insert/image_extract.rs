@@ -95,17 +95,15 @@ impl DocumentTaskProcessor {
         let ws = self
             .workspace_for_image(prepared.workspace_id.as_deref())
             .await?;
-        let embedder = crate::embeddings::multimodal_embedder_for(
-            &ws.embedding_provider,
-            &ws.embedding_model,
-            ws.embedding_dimension,
-        )
-        .ok_or_else(|| {
-            EmbedError::new(
-                edgequake_core::rag_profile::codes::EMBEDDING_MODEL_NOT_MULTIMODAL,
-                format!("{} cannot embed images", ws.embedding_model),
-            )
-        })??;
+        let embedder =
+            crate::embeddings::multimodal_embedder_for_workspace(self.optional_pg_pool(), &ws)
+                .await
+                .ok_or_else(|| {
+                    EmbedError::new(
+                        edgequake_core::rag_profile::codes::EMBEDDING_MODEL_NOT_MULTIMODAL,
+                        format!("{} cannot embed images", ws.embedding_model),
+                    )
+                })??;
         let (mime, bytes) = self.read_original(prepared).await?;
         let vectors = embedder.embed(&[EmbedInput::image(mime, bytes)]).await?;
         let vector = vectors.into_iter().next().ok_or_else(|| {

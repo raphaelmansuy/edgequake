@@ -443,6 +443,7 @@ mod tests {
                 api_key: Some("secret".into()),
                 timeout_secs: None,
                 allow_private_network: Some(false),
+                google_project: None,
             })
             .await
             .unwrap();

@@ -261,6 +261,9 @@ export function ProviderCard({
             {/* The registry's label, not the raw slug: `openai_chat` is an implementation term. */}
             <span data-testid={`shape-${row.slug}`}>{row.api_shape_label ?? row.api_shape}</span>
             <CredentialLine row={row} />
+            {row.google_project ? (
+              <span data-testid={`project-${row.slug}`}>Project {row.google_project}</span>
+            ) : null}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
