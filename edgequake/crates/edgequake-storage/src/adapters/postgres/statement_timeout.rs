@@ -90,17 +90,47 @@ pub fn interactive_statement_timeout_ms() -> u32 {
     ms.saturating_sub(GRAPH_QUERY_PG_HEADROOM_MS).max(1)
 }
 
-/// Vector ANN search PG kill (SPEC-090 F-090-27).
+/// Interactive vector statement budget before headroom (`EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS`).
 ///
-/// Default 2000ms minus headroom so Postgres cancels before the app abandons
-/// the future (LAW-H2). Override with `EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS`.
-pub(in crate::adapters::postgres) fn vector_query_statement_timeout_ms() -> u32 {
+/// Same ceiling as graph reads. Filtered HNSW on the query path sets
+/// `hnsw.ef_search` up to 1000 and `hnsw.max_scan_tuples` to 20000. A 2s kill
+/// cancelled that scan while hybrid `query_execute` was still under 5s
+/// (keyword + embed, then SQL). This GUC is the kill: there is no separate
+/// tokio deadline on the vector path (LAW-H2 / SPEC-090 F-090-27).
+pub const VECTOR_QUERY_TIMEOUT_MS_DEFAULT: u32 = 15_000;
+
+/// Floor and ceiling for `EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS` (milliseconds).
+const VECTOR_QUERY_TIMEOUT_MS_MIN: u32 = 500;
+const VECTOR_QUERY_TIMEOUT_MS_MAX: u32 = 120_000;
+
+/// Vector ANN / BM25 / FTS statement kill (SPEC-090 F-090-27).
+///
+/// [`VECTOR_QUERY_TIMEOUT_MS_DEFAULT`] minus [`GRAPH_QUERY_PG_HEADROOM_MS`],
+/// so Postgres cancels before any caller waiting on the same budget.
+/// Override with `EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS`.
+pub fn vector_query_statement_timeout_ms() -> u32 {
     let ms = std::env::var("EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS")
         .ok()
         .and_then(|v| v.parse::<u32>().ok())
-        .unwrap_or(2_000)
-        .clamp(500, 30_000);
+        .unwrap_or(VECTOR_QUERY_TIMEOUT_MS_DEFAULT)
+        .clamp(VECTOR_QUERY_TIMEOUT_MS_MIN, VECTOR_QUERY_TIMEOUT_MS_MAX);
     ms.saturating_sub(GRAPH_QUERY_PG_HEADROOM_MS).max(1)
+}
+
+/// Keep SQLSTATE 57014 as [`StorageError::DeadlineExceeded`] and name the budget.
+///
+/// Typed ANN used to surface the bare Postgres message, so a 4.6s hybrid span
+/// did not say which kill fired.
+pub(in crate::adapters::postgres) fn map_vector_query_error(
+    error: sqlx::Error,
+    timeout_ms: u32,
+) -> StorageError {
+    match StorageError::from(error) {
+        StorageError::DeadlineExceeded(message) => StorageError::DeadlineExceeded(format!(
+            "{message} (vector statement_timeout {timeout_ms}ms)"
+        )),
+        other => other,
+    }
 }
 
 /// Env: cap for plain-graph cutover statements (GitHub #494).
@@ -451,13 +481,50 @@ mod tests {
     }
 
     #[test]
-    fn vector_query_timeout_ms_default_is_under_budget() {
+    fn typed_ann_search_uses_the_vector_statement_budget() {
+        let ann = include_str!("typed_ann_search.rs");
+        assert!(
+            ann.contains("vector_query_statement_timeout_ms()"),
+            "typed ANN must install the vector statement budget"
+        );
+        assert!(include_str!("chunk_embedding_index.rs").contains("map_vector_query_error"));
+        assert!(include_str!("fleet_embedding_index.rs").contains("map_vector_query_error"));
+    }
+
+    #[test]
+    fn vector_query_timeout_ms_default_covers_hybrid_and_stays_under_budget() {
         let prev = std::env::var("EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS").ok();
         std::env::remove_var("EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS");
-        assert_eq!(vector_query_statement_timeout_ms(), 1_750);
-        assert!(vector_query_statement_timeout_ms() < 2_000);
-        if let Some(v) = prev {
-            std::env::set_var("EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS", v);
+        let budget = vector_query_statement_timeout_ms();
+        // Production hybrid `query_execute` died at 4.6s on a 1.75s kill.
+        assert!(
+            budget > 5_000,
+            "vector kill {budget}ms is inside the failure window"
+        );
+        assert_eq!(
+            budget,
+            VECTOR_QUERY_TIMEOUT_MS_DEFAULT - GRAPH_QUERY_PG_HEADROOM_MS
+        );
+        assert!(budget < VECTOR_QUERY_TIMEOUT_MS_DEFAULT);
+
+        std::env::set_var("EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS", "8000");
+        assert_eq!(vector_query_statement_timeout_ms(), 7_750);
+        // Below the floor: clamp, then subtract headroom.
+        std::env::set_var("EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS", "10");
+        assert_eq!(
+            vector_query_statement_timeout_ms(),
+            VECTOR_QUERY_TIMEOUT_MS_MIN - GRAPH_QUERY_PG_HEADROOM_MS
+        );
+        // Above the ceiling: same shape as the graph interactive max (120s).
+        std::env::set_var("EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS", "999999");
+        assert_eq!(
+            vector_query_statement_timeout_ms(),
+            VECTOR_QUERY_TIMEOUT_MS_MAX - GRAPH_QUERY_PG_HEADROOM_MS
+        );
+
+        match prev {
+            Some(v) => std::env::set_var("EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS", v),
+            None => std::env::remove_var("EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS"),
         }
     }
 

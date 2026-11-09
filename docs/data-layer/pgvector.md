@@ -89,7 +89,7 @@ The settings in step D are all `SET LOCAL`, so they end with the transaction:
 
 | Setting | Value | Override |
 |---|---|---|
-| `statement_timeout` | Budget of 2000 ms, minus 250 ms of headroom, so PostgreSQL gives up before the application does (1750 ms by default) | `EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS` |
+| `statement_timeout` | Budget of 15000 ms, minus 250 ms of headroom, so PostgreSQL gives up before a caller waiting on the same budget (14750 ms by default). Filtered HNSW (`ef_search` up to 1000, `max_scan_tuples` 20000) does not finish in the old 1750 ms kill | `EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS` |
 | `plan_cache_mode` | `force_custom_plan` (filters vary a lot per workspace) | none |
 | `hnsw.ef_search` | `4 x K`, clamped to 40..1000 | `EDGEQUAKE_HNSW_EF_SEARCH` (1..1000) |
 | `hnsw.iterative_scan` | `relaxed_order` (filtered queries, pgvector 0.8 or later) | `EDGEQUAKE_HNSW_ITERATIVE_SCAN` = `strict`, `off`, or default |
