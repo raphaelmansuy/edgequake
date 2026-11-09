@@ -105,8 +105,8 @@ const VECTOR_QUERY_TIMEOUT_MS_MAX: u32 = 120_000;
 
 /// Vector ANN / BM25 / FTS statement kill (SPEC-090 F-090-27).
 ///
-/// [`VECTOR_QUERY_TIMEOUT_MS_DEFAULT`] minus [`GRAPH_QUERY_PG_HEADROOM_MS`],
-/// so Postgres cancels before any caller waiting on the same budget.
+/// [`VECTOR_QUERY_TIMEOUT_MS_DEFAULT`] minus the 250ms headroom shared with
+/// graph reads, so Postgres cancels before any caller waiting on the same budget.
 /// Override with `EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS`.
 pub fn vector_query_statement_timeout_ms() -> u32 {
     let ms = std::env::var("EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS")

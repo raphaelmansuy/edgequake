@@ -90,7 +90,9 @@ jobs:
 
   e2e-ui:
     name: E2E UI Gate (chromium, no backend)
-    runs-on: ubuntu-latest
+    # @playwright/test 1.58.2 has no Chromium build for ubuntu-latest (26.04).
+    # 1.61.0 added that build. Stay on 24.04 until the lockfile moves to 1.61.
+    runs-on: ubuntu-24.04
     # Suite ~565 chromium tests with retries=2; 45m canceled mid-run after
     # cascading failures. Keep headroom once failures are fixed (not a blank check).
     timeout-minutes: 60

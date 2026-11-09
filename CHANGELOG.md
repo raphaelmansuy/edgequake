@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.12] — 2026-11-09
+
+Patch on v0.40.11. Schema stays **231**. `edgequake migrate` is a no-op when the database is already at 231.
+
+### Fixed
+
+- **Hybrid query died in under 5 seconds with `canceling statement due to statement timeout`.** Typed chunk and fleet search used a 1750ms Postgres statement budget. Keyword extraction and embedding run before that statement, so the HTTP span was still under 5 seconds. The default is now 15 seconds, applied as 14750ms, the same budget graph reads use. Postgres still cancels the statement. Set `EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS` to keep a shorter budget.
+- **A graph read could still scan Apache AGE after the plain tables existed.** When `eq_graph_cutover` is not `ready`, those reads now fail closed. A ready ledger keeps using `eq_graph_nodes` and `eq_graph_edges`. The one-time migrate copy still reads existing AGE label tables. The Cypher session prefix no longer sets `statement_timeout` on the pooled connection.
+
 ## [0.40.11] — 2026-11-07
 
 Patch on v0.40.10. Schema stays **231**. `edgequake migrate` is a no-op when the database is already at 231.
