@@ -336,11 +336,14 @@ async fn prove_age_ledger_delete(pool: &sqlx::PgPool, config: PostgresConfig) {
         .delete_edges_batch(&[("AGE_A".into(), "AGE_B".into(), "KNOWS".into())])
         .await
         .expect("age batch delete");
-    assert!(storage
+    let refused = storage
         .get_edge("AGE_A", "AGE_B")
         .await
-        .expect("read")
-        .is_none());
+        .expect_err("a red ledger must not read Apache AGE");
+    assert!(
+        refused.to_string().contains("Apache AGE is not used"),
+        "{refused}"
+    );
     assert!(
         edge_row(pool, "AGE_A", "AGE_B", "KNOWS").await.is_none(),
         "AGE delete must mirror away the plain row"
