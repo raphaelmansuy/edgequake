@@ -77,6 +77,8 @@ Every upgrade guide and CHANGELOG entry must answer these questions:
 
 `scripts/release_gates.sh` fails if checksums drift, if a published tag lacks an epoch, or if the docs claim a schema maximum other than the highest numbered migration.
 
+Epoch coverage only applies to tags this tree can actually upgrade *from*. A tag whose migration set is a strict superset of `HEAD` is not an upgrade origin: HEAD's `migrate` preflight refuses a newer ledger (`PREFLIGHT_BINARY_OLDER`), so the epoch matrix cannot replay it, and an epoch row for it would make the nightly matrix replay a downgrade. `check_epoch_coverage.sh` lists those tags separately ("TAGS AHEAD OF HEAD") and does not require an epoch for them. They belong to release branches that have not merged; merge the branch, or cut this tree past their schema, and the tag becomes a normal covered epoch.
+
 ### Gate options
 
 - **Clippy:** `make release-gates` runs workspace clippy. It also runs a slower per-crate clippy loop unless `RELEASE_SKIP_PER_CRATE_CLIPPY=1` is set.

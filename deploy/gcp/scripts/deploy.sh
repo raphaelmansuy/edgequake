@@ -9,6 +9,11 @@ LOG="${STACK_LOG:-/var/log/edgequake-deploy.log}"
 
 log() { echo "[$(date -Is)] $*" | tee -a "${LOG}"; }
 
+# Consent for the irreversible Apache AGE drop is read from the invoking shell
+# before `${ENV_FILE}` is sourced, so a value inside a shared env file can never
+# authorize it.
+DEPLOY_AGE_DROP="${EDGEQUAKE_DEPLOY_AGE_DROP:-}"
+
 if [[ "${EUID}" -ne 0 ]]; then
   echo "deploy.sh must run as root (sudo)" >&2
   exit 1
@@ -117,29 +122,84 @@ raise SystemExit(0 if parts >= (0, 35, 5) else 1)
 PY
 }
 
+# Dropping Apache AGE (migration 171) is irreversible: it removes the
+# extension and every AGE graph, and no down-migration exists. Consent for it
+# is a deliberate operator act, never an inference:
+#
+#   sudo EDGEQUAKE_DEPLOY_AGE_DROP=drop /opt/edgequake/scripts/deploy.sh
+#
+# Every other value — including unset — keeps Apache AGE and stops the deploy
+# with that instruction instead of destroying data. A value in the shared
+# `.env` (sourced below for the compose stack) does not count: on this host
+# `.env` is rewritten by render-env.sh on every deploy, so only the invoking
+# shell can carry the operator's decision.
+age_drop_consented() {
+  local raw
+  raw="$(printf '%s' "${DEPLOY_AGE_DROP:-}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+  case "${raw}" in
+    drop | yes | 1 | true | on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Apache AGE must be settled before the 0.35.5+ postgres image opens this
+# volume: a data directory that loaded `age` cannot open on an image without
+# age.so (docs/operations/upgrade-to-0.35.5.md). Only the 0.35.4 image can read
+# it, so probe there. Reading the fact is safe; destroying the extension is
+# irreversible, so migration 171 runs only when the operator says so on the
+# command line.
+AGE_CUTOVER_IMAGE="0.35.4"
+PGDATA_DIR="${ELITIZON_DATA_MOUNT:-/mnt/elitizon-db-data}/pgdata"
+
+age_installed_on_image() {
+  local tag="$1" out
+  out="$(EDGEQUAKE_POSTGRES_TAG="${tag}" EDGEQUAKE_VERSION="${tag}" \
+    "${COMPOSE[@]}" exec -T postgres psql -U edgequake -d edgequake -tAc \
+    "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')" 2>/dev/null)" || out=""
+  printf '%s' "${out}" | tr -d '[:space:]'
+}
+
+age_must_be_dropped=""
+# An initialized data directory is the only case that can still carry the
+# extension; a fresh one cannot, so greenfield deploys skip the probe.
+if postgres_has_no_age_library && [[ -f "${PGDATA_DIR}/PG_VERSION" ]]; then
+  log "probe Apache AGE on the ${AGE_CUTOVER_IMAGE} image (the last one with age.so)"
+  docker pull "ghcr.io/raphaelmansuy/edgequake-postgres:${AGE_CUTOVER_IMAGE}"
+  EDGEQUAKE_POSTGRES_TAG="${AGE_CUTOVER_IMAGE}" EDGEQUAKE_VERSION="${AGE_CUTOVER_IMAGE}" \
+    "${COMPOSE[@]}" up -d postgres
+  wait_postgres
+  if [[ "$(age_installed_on_image "${AGE_CUTOVER_IMAGE}")" == "t" ]]; then
+    if age_drop_consented; then
+      age_must_be_dropped="t"
+    else
+      log "REFUSING to drop Apache AGE without operator consent"
+      log "  this volume still has the age extension"
+      log "  ${EDGEQUAKE_VERSION} has no age library, so it cannot open this volume"
+      log "  migration 171 would drop the extension and every AGE graph. There is no undo SQL."
+      log "  nothing was dropped; the stack is still on the ${AGE_CUTOVER_IMAGE} postgres image"
+      log "  take a backup, then re-run and say so on the command line:"
+      log "    sudo EDGEQUAKE_DEPLOY_AGE_DROP=drop ${ROOT}/scripts/deploy.sh"
+      log "  to stay on Apache AGE, keep the ${AGE_CUTOVER_IMAGE} pin instead of ${EDGEQUAKE_VERSION}"
+      exit 2
+    fi
+  fi
+fi
+
+# Drop before the requested image starts: while the extension is installed, only
+# the cutover image can open this volume, so the new one must not try first.
+if [[ "${age_must_be_dropped}" == "t" ]]; then
+  log "operator consented (EDGEQUAKE_DEPLOY_AGE_DROP); dropping Apache AGE"
+  docker pull "ghcr.io/raphaelmansuy/edgequake:${AGE_CUTOVER_IMAGE}"
+  EDGEQUAKE_POSTGRES_TAG="${AGE_CUTOVER_IMAGE}" EDGEQUAKE_VERSION="${AGE_CUTOVER_IMAGE}" \
+    "${COMPOSE[@]}" run --rm --no-deps -T api migrate --drop-age
+  log "Apache AGE dropped; starting ${EDGEQUAKE_VERSION} postgres"
+fi
+
 log "start postgres"
 "${COMPOSE[@]}" up -d postgres
 
 log "wait for postgres healthy"
 wait_postgres
-
-if postgres_has_no_age_library; then
-  age_installed="$("${COMPOSE[@]}" exec -T postgres psql -U edgequake -d edgequake -tAc \
-    "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')")"
-  age_installed="$(printf '%s' "${age_installed}" | tr -d '[:space:]')"
-  if [[ "${age_installed}" == "t" ]]; then
-    log "dropping Apache AGE with the 0.35.4 image before ${EDGEQUAKE_VERSION} opens this volume"
-    docker pull ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4
-    docker pull ghcr.io/raphaelmansuy/edgequake:0.35.4
-    EDGEQUAKE_POSTGRES_TAG=0.35.4 EDGEQUAKE_VERSION=0.35.4 "${COMPOSE[@]}" up -d postgres
-    wait_postgres
-    EDGEQUAKE_POSTGRES_TAG=0.35.4 EDGEQUAKE_VERSION=0.35.4 \
-      "${COMPOSE[@]}" run --rm --no-deps -T api migrate --drop-age
-    log "Apache AGE dropped; starting ${EDGEQUAKE_VERSION} postgres"
-    "${COMPOSE[@]}" up -d postgres
-    wait_postgres
-  fi
-fi
 
 log "LD-15 migrate dry-run"
 "${COMPOSE[@]}" run --rm --no-deps -T api migrate dry-run || true

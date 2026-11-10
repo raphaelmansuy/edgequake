@@ -49,17 +49,27 @@ on:
       - "scripts/spec150/epochs.toml"
       - "scripts/test_migration_e2e.sh"
       - ".github/workflows/migration-guard.yml"
-  # Run Layer 1 on every PR to main (checksum check is fast, no DB needed)
-  pull_request_target:
-    branches: [main, edgequake-main]
-    types: [opened, synchronize, reopened]
+      # Layer 1 also asserts the schema number the docs claim, so a docs-only
+      # edit has to run it. (pull_request_target used to be here to catch these;
+      # it checked out the BASE branch, so it only ever re-tested merged code and
+      # could never go green on a PR that fixes the base.)
+      - "docs/operations/upgrading.md"
+      - "edgequake/docs/migrations.md"
+      - "edgequake/migrations/NOTES.md"
+  # No pull_request_target: it resolved the BASE branch's workflow file and
+  # checked out base code, so it re-tested already-merged code and could not go
+  # green on a PR that fixes the base. The pull_request trigger above covers
+  # every path it was meant to cover, and runs the PR's own code.
   workflow_dispatch:
 
 concurrency:
-  # Keep PRs and event types separate: migration paths trigger both PR events,
-  # and pull_request_target's github.ref is shared by unrelated PRs.
+  # PR events share a group per PR number; pushes group by ref.
   group: migration-guard-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+# These guards only read the tree and print, so the token stays read-only.
+permissions:
+  contents: read
 
 env:
   RUST_TOOLCHAIN: 1.95.0

@@ -81,6 +81,11 @@ async function installOfferRoutes(page: Page, mode: "unconstrained" | "constrain
         withdrawn: false,
         probe: "failed",
         key_configured: true,
+        // A failed probe can only be retried when there is a connection row to
+        // retry. `FleetModels` keys `canTest` off this id, so without it the
+        // stale card renders no explanation at all and the assertion below
+        // silently had nothing to read.
+        connection_id: "00000000-0000-0000-0000-0000000000aa",
         models: [],
       },
     ],
@@ -155,10 +160,8 @@ test.describe("SPEC-177 provider cascade @spec177", () => {
         { id: "acme-extra", supports_chat: true, supports_vision: false, supports_embedding: false },
       ],
     });
-    await expect(page.getByTestId("fleet-models-stale").getByRole("textbox")).toBeDisabled();
-    await expect(page.getByTestId("fleet-models-stale").getByRole("textbox")).toHaveAttribute(
-      "placeholder",
-      "Test the connection first",
+    await expect(page.getByTestId("fleet-models-stale")).toContainText(
+      "Test the connection above",
     );
     await page.getByTestId("withdraw-openai").click();
     await expect(page.getByTestId("deployment-provider-openai")).toContainText("Hidden from organizations");
@@ -227,7 +230,9 @@ test.describe("SPEC-177 provider cascade @spec177", () => {
     await openSettings(page, "platform_admin", "/settings/deployment/connections");
     await installOfferRoutes(page);
     const headers: string[] = [];
-    await page.route("**/api/v1/connections", async (route) => {
+    // The card posts to `/connections?scope=deployment`, so a glob anchored on
+    // `/connections` never matched and the assertion below read an empty array.
+    await page.route("**/api/v1/connections?*", async (route) => {
       if (route.request().method() === "POST") {
         headers.push(route.request().headers()["x-tenant-id"] ?? "");
         await route.fulfill({

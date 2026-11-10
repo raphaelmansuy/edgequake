@@ -72,6 +72,33 @@ No change made; the finding is recorded so nobody re-opens it from a docs quote.
 
 ## Deliberately not fixed
 
+Each advisory below is passed to `cargo audit --ignore` in CI, and
+`scripts/check_audit_ignores.sh` fails if an id is ignored without an entry
+here. The method is the three questions above: does it ship, is it reachable,
+what does the fix cost.
+
+### The audit ignore list (2026-11-10)
+
+| Advisory | Crate | Why it is ignored | Reachability |
+|----------|-------|-------------------|--------------|
+| RUSTSEC-2026-0429 | `zip` 2.4.2 / 3.0.0 | `ZipArchive::extract` aborts on a symlink entry with a large declared size. Patched only in 9.x; `edgeparse-core` pins `^2.2` and `utoipa-swagger-ui` pins `^3`, so neither parent can select it. | Not reachable. `edgeparse-core` 0.3.2 imports only `zip::write::ZipWriter` (verified in its `src/output/docx.rs`); `utoipa-swagger-ui` 9 uses `ZipArchive` only in its build script over the Swagger UI archive it fetches itself, never over uploaded bytes. DOCX and ZIP uploads are rejected by `file_validation.rs`. |
+| RUSTSEC-2026-0459 | `libsqlite3-sys` 0.30.1 | C SQLite CVE, fixed in 0.39. Reached only through the optional `sqlite` feature; `sqlx-sqlite` pins `^0.30`, so the fix needs `sqlx` 0.9 across the workspace. | Does not ship. The image builds `--no-default-features --features "postgres,vision"` and `cargo tree` for that set contains no sqlite crate. `sqlite` exists for the optional-feature clippy gate and the adapter unit tests. |
+| RUSTSEC-2026-0367 | `zip` 2.4.2 / 3.0.0 | Same `zip` selection problem as 0429; no patched 2.x or 3.x exists. | Not reachable, same reasoning as 0429. |
+| RUSTSEC-2026-0368 | `zip` 2.4.2 / 3.0.0 | Same `zip` selection problem as 0429; no patched 2.x or 3.x exists. | Not reachable, same reasoning as 0429. |
+| RUSTSEC-2026-0369 | `zip` 2.4.2 / 3.0.0 | Same `zip` selection problem as 0429; no patched 2.x or 3.x exists. | Not reachable, same reasoning as 0429. |
+| RUSTSEC-2023-0071 | `rsa` 0.9.10 | Marvin attack; no fixed release exists. | Not used for our signing path. |
+| RUSTSEC-2026-0387 | `crypto-bigint` 0.5.5 | Pinned by `elliptic-curve` 0.13 through `p256`, which `openidconnect` 4.0.1 requires. The fix is `crypto-bigint` >= 0.7.6 and that curve stack cannot select it. | Not directly reachable; the affected curve arithmetic is not on our trust path. |
+| RUSTSEC-2026-0173 | `proc-macro-error2` 2.0.1 | No fixed release. | Build-time macro plumbing only; not in the shipped binary's call path. |
+
+Unmaintained-crate advisories (`backoff`, `instant`, `paste`, `pin-utils`,
+`rustls-pemfile`, `ttf-parser`, `unsafe-libyaml`, and the newer `event-listener`,
+`lru`, `tokio`, `spin` entries) are **warnings**, not vulnerabilities. They do
+not fail the gate, and every one is transitive; none is a crate we chose. The
+`tokio`, `lru`, and `event-listener` entries are real advisories with fixes
+available and are tracked as a separate dependency bump, not an ignore.
+
+### Earlier decisions
+
 | Package | Why not | Reachability |
 |---------|---------|--------------|
 | `zip` 2.4.2 (critical) | The fix landed only in 9.0.5; `edgeparse-core` pins `2.2`. No patched 2.x exists, and a `[patch]` would mean forking an upstream PDF library for a code path we never call. | `edgeparse` uses **only** `zip::write::ZipWriter` to emit DOCX. The advisory is in `ZipArchive`/`ZipStreamReader` — readers of untrusted archives. Not reachable. |

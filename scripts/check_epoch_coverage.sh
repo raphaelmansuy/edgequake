@@ -60,6 +60,21 @@ def mig_hash(ref: str):
         h.update(b"\0")
     return h.hexdigest()[:16], maxv, len(entries)
 
+def mig_names(ref: str):
+    """Numbered migration file names at `ref`, or None when unreadable."""
+    try:
+        out = subprocess.check_output(
+            ["git", "ls-tree", "-r", ref, "--name-only", "--", "edgequake/migrations"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError:
+        return None
+    return frozenset(
+        p.rsplit("/", 1)[-1] for p in out.splitlines()
+        if re.match(r"^\d{3}_.+\.sql$", p.rsplit("/", 1)[-1])
+    )
+
 def parse_unreleased(raw: str):
     """Working-tree pin. Not a product tag and not an epoch-matrix replay."""
     match = re.search(r"(?m)^\[unreleased\]\s*$", raw)
@@ -107,6 +122,8 @@ tags = sorted([t for t in tags if pat.match(t)], key=lambda t: tuple(map(int, t[
 
 uncovered = []
 covered = []
+ahead_of_head = []
+head_names = mig_names("HEAD") or frozenset()
 for t in tags:
     r = mig_hash(t)
     if r is None:
@@ -116,7 +133,16 @@ for t in tags:
     if h in epoch_hashes:
         covered.append({"tag": t, "hash": h, "max": maxv, "n": n, "epoch": epoch_hashes[h]})
     else:
-        uncovered.append({"tag": t, "hash": h, "max": maxv, "n": n, "reason": "no_matching_epoch"})
+        # A tag whose migration set is a strict superset of HEAD is not an
+        # upgrade origin for this tree: replaying it lands a schema the HEAD
+        # binary predates, which its preflight refuses (PREFLIGHT_BINARY_OLDER).
+        # Such a tag belongs to an unmerged release branch, so it cannot be an
+        # epoch the matrix can prove. Report it, do not fail the gate on it.
+        names = mig_names(t)
+        if names is not None and head_names and names > head_names:
+            ahead_of_head.append({"tag": t, "hash": h, "max": maxv, "n": n})
+        else:
+            uncovered.append({"tag": t, "hash": h, "max": maxv, "n": n, "reason": "no_matching_epoch"})
 
 # HEAD matches a published epoch, or the [unreleased] pin for a train
 # that does not have a product tag yet.
@@ -145,6 +171,7 @@ result = {
     "product_tags": len(tags),
     "covered": len(covered),
     "uncovered": uncovered,
+    "ahead_of_head": ahead_of_head,
     "missing_epoch_refs": missing_epochs,
     "head": {
         "hash": None if head is None else head[0],
@@ -168,6 +195,8 @@ else:
     print(f"  product tags (vX.Y.Z): {len(tags)}")
     print(f"  covered             : {len(covered)}")
     print(f"  uncovered           : {len(uncovered)}")
+    if ahead_of_head:
+        print(f"  ahead of HEAD       : {len(ahead_of_head)} (not upgrade origins)")
     if head is not None:
         if head[0] in epoch_hashes:
             status = "OK"
@@ -182,6 +211,13 @@ else:
         print("  epoch tags not in git:")
         for t in missing_epochs:
             print(f"    - {t}")
+    if ahead_of_head:
+        print("  TAGS AHEAD OF HEAD (their schema is newer than this tree):")
+        for u in ahead_of_head:
+            print(f"    - {u['tag']}  max={u['max']} n={u['n']} hash={u['hash']}")
+        print("    These are not upgrade origins: HEAD's preflight refuses a newer")
+        print("    ledger, so the epoch matrix cannot replay them. No epoch row.")
+        print("    Merge the release branch, or cut this tree past that schema.")
     if uncovered:
         print("  UNCOVERED tags (add a matching [[epoch]] to epochs.toml):")
         for u in uncovered:
