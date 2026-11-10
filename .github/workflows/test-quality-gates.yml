@@ -90,7 +90,10 @@ jobs:
 
   e2e-ui:
     name: E2E UI Gate (chromium, no backend)
-    runs-on: ubuntu-latest
+    # Playwright 1.58.2 refuses ubuntu26.04-x64 ("does not support chromium"),
+    # which is what ubuntu-latest resolves to now. Pin the supported image so a
+    # runner roll does not decide whether this gate can run at all.
+    runs-on: ubuntu-24.04
     # Suite ~565 chromium tests with retries=2; 45m canceled mid-run after
     # cascading failures. Keep headroom once failures are fixed (not a blank check).
     timeout-minutes: 60

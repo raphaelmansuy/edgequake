@@ -192,6 +192,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+      # Runs before setup-rust: it is a text check on the workflow and the
+      # policy doc, so a missing justification fails in seconds instead of
+      # after a toolchain install.
+      - name: Every audit ignore is justified
+        run: |
+          chmod +x scripts/check_audit_ignores.sh
+          ./scripts/check_audit_ignores.sh
       - uses: ./.github/actions/setup-rust
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
@@ -207,14 +214,37 @@ jobs:
       - name: Run security audit
         working-directory: edgequake
         # SPEC-083 / X-32: audit is a blocking gate (no continue-on-error).
-        # zip extract() advisories (0367/0368/0369) are patched only in zip >= 9.
-        # edgeparse-core 0.3.2 requires zip ^2.2 and only writes archives.
-        # utoipa-swagger-ui 9 requires zip ^3 and copies entries itself; it does
-        # not call ZipArchive::extract(). Neither parent can select zip 9 yet.
-        # crypto-bigint 0.5.5 (RUSTSEC-2026-0387) is pinned by elliptic-curve 0.13
-        # through p256, which openidconnect 4.0.1 requires. The fix is
-        # crypto-bigint >=0.7.6, and that curve stack cannot select it.
-        run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0173 --ignore RUSTSEC-2026-0367 --ignore RUSTSEC-2026-0368 --ignore RUSTSEC-2026-0369 --ignore RUSTSEC-2026-0387
+        # cargo-audit 0.22 has no config file, so the policy lives in this flag
+        # list. Each id is justified in docs/security/dependency-remediation-2026-11.md;
+        # an advisory not listed here fails the gate and needs a human.
+        #
+        # Not reachable from our code:
+        #   2026-0429 zip ZipArchive::extract symlink abort. edgeparse-core 0.3.2
+        #     uses only zip::write::ZipWriter (verified in its source);
+        #     utoipa-swagger-ui 9 opens ZipArchive only in its build script, over
+        #     the Swagger UI archive it fetches, never over uploaded bytes. DOCX
+        #     and ZIP uploads are rejected by file_validation.rs.
+        #   2026-0459 libsqlite3-sys CVE. Reached only through the optional
+        #     `sqlite` feature; the shipped image builds --features "postgres,vision"
+        #     and its graph contains no sqlite crate. sqlx-sqlite pins ^0.30, so
+        #     the 0.39 fix requires sqlx 0.9 across the workspace.
+        # No fix exists for the selected version:
+        #   2026-0367 / 0368 / 0369  zip, patched only in 9.x, which neither
+        #     parent can select.
+        #   2023-0071  rsa Marvin attack, no fixed release.
+        #   2026-0387  crypto-bigint 0.5.5, pinned by elliptic-curve 0.13 via
+        #     p256, required by openidconnect 4.0.1.
+        #   2026-0173  proc-macro-error2, no fixed release.
+        run: |
+          cargo audit \
+            --ignore RUSTSEC-2023-0071 \
+            --ignore RUSTSEC-2026-0173 \
+            --ignore RUSTSEC-2026-0367 \
+            --ignore RUSTSEC-2026-0368 \
+            --ignore RUSTSEC-2026-0369 \
+            --ignore RUSTSEC-2026-0387 \
+            --ignore RUSTSEC-2026-0429 \
+            --ignore RUSTSEC-2026-0459
 
   docs:
     name: Documentation

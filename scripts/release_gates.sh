@@ -222,6 +222,10 @@ echo "== SPEC-150 epoch coverage (every vX.Y.Z tag) =="
 chmod +x "$ROOT/scripts/check_epoch_coverage.sh"
 "$ROOT/scripts/check_epoch_coverage.sh"
 
+echo "== Every cargo audit ignore is justified =="
+chmod +x "$ROOT/scripts/check_audit_ignores.sh"
+"$ROOT/scripts/check_audit_ignores.sh"
+
 echo "== Schema train parity (docs ↔ highest migration) =="
 chmod +x "$ROOT/scripts/check_schema_train_docs.sh"
 "$ROOT/scripts/check_schema_train_docs.sh"
