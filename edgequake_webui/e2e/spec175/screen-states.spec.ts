@@ -71,7 +71,11 @@ test.describe("SPEC-175 screen states @spec175", () => {
 
   test("Connections labels every field and keeps the summary free of doubled separators @spec175", async ({ page }) => {
     await openSettings(page, "platform_admin", "/settings/deployment/connections");
-    for (const label of ["Name", "API shape", "Base URL", "API key"]) {
+    // The key label follows the shape: "API key" only when the shape requires
+    // one, "API key (optional)" otherwise. The default OpenAI shape does not set
+    // `requires_key`, so an exact "API key" lookup could never match and this
+    // guard was asserting the absence of its own field.
+    for (const label of ["Name", "API shape", "Base URL", /^API key( \(optional\))?$/]) {
       await expect(page.getByLabel(label, { exact: true })).toBeVisible();
     }
     const summaries = page.locator("li span.text-xs");

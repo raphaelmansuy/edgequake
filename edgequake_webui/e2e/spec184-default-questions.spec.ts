@@ -12,8 +12,41 @@ import { expect, test } from "@playwright/test";
 import { openNormalWorkspace } from "./spec183/helpers/normal-workspace";
 import { spec183Shot } from "./spec183/helpers/shots";
 
+/**
+ * The suggestion cards, scoped to the empty state's own list.
+ *
+ * A bare `[role="listitem"]` also matches the attachment tray and the citation
+ * tabs, so `allInnerTexts()` could read a list that legitimately has no text and
+ * return `""`. That empty string then failed the positive assertions and made
+ * every `not.toMatch` pass on nothing at all.
+ */
+const suggestionList = (page: import("@playwright/test").Page) =>
+  page.getByRole("list", { name: /suggested queries/i });
+
 const suggestions = (page: import("@playwright/test").Page) =>
-  page.locator('[role="listitem"]');
+  suggestionList(page).getByRole("listitem");
+
+/**
+ * Wait for the list to settle, then read the cards.
+ *
+ * `allInnerTexts()` does not wait: it snapshots whatever is on screen now. The
+ * composer paints first and the suggestion query resolves about two seconds
+ * later, so an immediate read returned `""` — failing the positive assertions
+ * and, worse, letting every `not.toMatch` pass on nothing at all.
+ *
+ * The poll re-reads the joined text until it is non-empty rather than awaiting
+ * a locator assertion, because the list remounts while the query resolves and a
+ * single resolved handle goes stale mid-flight.
+ */
+async function suggestionText(page: import("@playwright/test").Page): Promise<string> {
+  await expect
+    .poll(
+      async () => (await suggestions(page).allInnerTexts()).join(" ").trim(),
+      { timeout: 20_000, intervals: [250, 500, 1000] },
+    )
+    .not.toBe("");
+  return (await suggestions(page).allInnerTexts()).join(" ");
+}
 
 test.describe("@spec184 default questions", () => {
   test.beforeEach(({}, info) => info.setTimeout(120_000));
@@ -22,8 +55,7 @@ test.describe("@spec184 default questions", () => {
     await openNormalWorkspace(page, { path: "/query", images: false });
     await expect(page.getByTestId("query-composer")).toBeVisible({ timeout: 20_000 });
 
-    const cards = await suggestions(page).allInnerTexts();
-    const joined = cards.join(" ");
+    const joined = await suggestionText(page);
     // The workspace cannot embed a picture (EC-180-18), so no card may promise otherwise.
     expect(joined).not.toMatch(/picture|image/i);
     // And no fabricated subject from the old copy.
@@ -37,7 +69,7 @@ test.describe("@spec184 default questions", () => {
     await openNormalWorkspace(page, { path: "/query", images: true, withPicture: true });
     await expect(page.getByTestId("query-composer")).toBeVisible({ timeout: 20_000 });
 
-    const joined = (await suggestions(page).allInnerTexts()).join(" ");
+    const joined = await suggestionText(page);
     expect(joined).toMatch(/picture/i);
     expect(joined).not.toMatch(/refund|onboarding|the handbook/i);
   });
@@ -51,7 +83,7 @@ test.describe("@spec184 default questions", () => {
     await openNormalWorkspace(page, { path: "/query", images: true });
     await expect(page.getByTestId("query-composer")).toBeVisible({ timeout: 20_000 });
 
-    const joined = (await suggestions(page).allInnerTexts()).join(" ");
+    const joined = await suggestionText(page);
     expect(joined).not.toMatch(/picture/i);
   });
 
@@ -61,6 +93,7 @@ test.describe("@spec184 default questions", () => {
     await openNormalWorkspace(page, { path: "/query", images: true });
     await expect(page.getByTestId("query-composer")).toBeVisible({ timeout: 20_000 });
 
+    await expect(suggestions(page).first()).toHaveText(/\S/, { timeout: 20_000 });
     const cards = await suggestions(page).allInnerTexts();
     for (const card of cards) {
       expect(card).not.toContain("{{");
