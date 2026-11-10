@@ -28,9 +28,12 @@ extension is gone (a no-op while Apache AGE stays installed),
 `206` leakproof modality, stage, and node search,
 `207` AGE document-lineage lookup under row security).
 Apply 170 with `edgequake migrate`. When `age` is absent from
-`pg_available_extensions`, the same run records 171. When the package is
-installed, apply 171 only with `--drop-age` after
+`pg_available_extensions` and the extension is not installed, the same run
+records 171 with nothing to drop. When the extension is installed, apply 171
+only with `--drop-age` after
 `PostgresAGEGraphStorage::run_spec164_cutover` marks `eq_graph_cutover` ready.
+A missing AGE package does not answer that question: an installed extension on
+a server that lost the library still holds data and stays pending.
 `--confirm-drop` does not drop Apache AGE.
 Migrations 172 through 207 do not raise the serving floor.
 The released product pin is **v0.35.1** (schema 207). Tag v0.35.0 stops at 206.

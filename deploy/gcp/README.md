@@ -104,6 +104,25 @@ sudo /opt/edgequake/scripts/install-release.sh 0.28.2
 
 `deploy.sh` is LD-15: `migrate dry-run` → `migrate` → `up` → HTTP 301 gate → `/health` → `\dx` (vector + age).
 
+### Apache AGE and the Postgres image
+
+Postgres images from v0.35.5 do not ship the Apache AGE library. A data directory that already loaded `age` cannot open on them (see [upgrade-to-0.35.5.md](../../docs/operations/upgrade-to-0.35.5.md)).
+
+`deploy.sh` never drops Apache AGE on its own. Dropping it is migration 171: it removes the extension and every AGE graph, and there is no undo SQL. A version comparison is not consent, so the script reads the volume on the 0.35.4 image, and then:
+
+- volume has no `age`: the deploy continues normally.
+- volume has `age` and the operator passed `EDGEQUAKE_DEPLOY_AGE_DROP=drop`: the script drops AGE on the 0.35.4 image, then moves to the requested pin.
+- volume has `age` and no consent: the deploy **stops** with exit 2 before any migrate. Nothing is dropped.
+
+```bash
+# Take a backup first; this is irreversible.
+sudo EDGEQUAKE_DEPLOY_AGE_DROP=drop /opt/edgequake/scripts/deploy.sh
+```
+
+Consent must come from the invoking shell. A value in `/opt/edgequake/.env` does not count, because every deploy rewrites that file. To stay on Apache AGE, keep the `0.35.4` pin instead of moving to a later version.
+
+The gate is covered by `deploy/gcp/scripts/tests/age_drop_consent.sh`.
+
 ## Destroy this stack only
 
 ```bash

@@ -51,6 +51,18 @@ jobs:
           chmod +x tools/git-hygiene/check_no_fat_artifacts.sh
           ./tools/git-hygiene/check_no_fat_artifacts.sh
 
+  deploy-script-guards:
+    name: Deploy script guards (irreversible consent)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      # Issue #537: deploy.sh must never run `migrate --drop-age` on its own.
+      - name: AGE drop consent gate
+        run: |
+          chmod +x deploy/gcp/scripts/tests/age_drop_consent.sh
+          ./deploy/gcp/scripts/tests/age_drop_consent.sh
+
   check:
     name: Check (fmt + clippy)
     runs-on: ubuntu-latest

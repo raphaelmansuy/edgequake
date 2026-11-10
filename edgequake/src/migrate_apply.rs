@@ -71,11 +71,37 @@ pub(crate) async fn run_migrate_cli(args: &[String]) -> Result<()> {
     .fetch_one(&bundle.admin)
     .await
     .unwrap_or(true);
-    let drop_age = if age_pending && !age_package_present {
-        println!("Apache AGE is not installable on this server; recording migration 171.");
-        true
+    // A server that cannot load AGE still keeps 171 pending while the extension
+    // is installed: applying it there destroys data and the operator may have
+    // meant to serve this volume on the last image that ships the library.
+    // Recording a version nobody asked for is not consent either, so the
+    // package probe only skips the *question* — never the answer.
+    let age_installed: bool = if age_pending && !age_package_present {
+        sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')")
+            .fetch_one(&bundle.admin)
+            .await
+            .unwrap_or(true)
     } else {
-        resolve_age_drop(args, age_pending)?
+        false
+    };
+    let drop_age = match age_drop_decision(age_pending, age_package_present, age_installed) {
+        AgeDropDecision::RecordAbsent => {
+            println!(
+                "Apache AGE is not installable on this server and is not installed; \
+                 recording migration 171 (nothing to drop)."
+            );
+            age_drop_applies_171(AgeDropDecision::RecordAbsent)
+        }
+        AgeDropDecision::NotPending => age_drop_applies_171(AgeDropDecision::NotPending),
+        AgeDropDecision::Ask => {
+            if age_installed {
+                println!(
+                    "Apache AGE is installed but this server has no AGE package. \
+                     Migration 171 would drop the extension and every AGE graph."
+                );
+            }
+            resolve_age_drop(args, age_pending)?
+        }
     };
     let confirmed = drop_confirmed(args);
 
@@ -366,6 +392,47 @@ async fn acquire_migrate_run_lock_or_exit(pool: &sqlx::PgPool) -> Result<()> {
     }
 }
 
+/// What `edgequake migrate` does about migration 171.
+///
+/// First principles: a version check is not consent. The only case that may
+/// skip the operator is one where there is provably nothing to destroy — the
+/// AGE package is gone *and* no extension is installed. A server that has the
+/// extension but lost the library still holds data, so it asks.
+#[cfg(feature = "postgres")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AgeDropDecision {
+    /// 171 is already applied.
+    NotPending,
+    /// Nothing to drop: no AGE package and no extension. Record the no-op.
+    RecordAbsent,
+    /// There is something to lose; only the operator may answer.
+    Ask,
+}
+
+#[cfg(feature = "postgres")]
+fn age_drop_decision(
+    age_pending: bool,
+    age_package_present: bool,
+    age_installed: bool,
+) -> AgeDropDecision {
+    if !age_pending {
+        return AgeDropDecision::NotPending;
+    }
+    if !age_package_present && !age_installed {
+        return AgeDropDecision::RecordAbsent;
+    }
+    AgeDropDecision::Ask
+}
+
+/// Does this decision put migration 171 in the apply set?
+///
+/// `RecordAbsent` must, or the no-op is never recorded in the ledger and every
+/// later migrate reports 171 as pending again.
+#[cfg(feature = "postgres")]
+fn age_drop_applies_171(decision: AgeDropDecision) -> bool {
+    matches!(decision, AgeDropDecision::RecordAbsent)
+}
+
 /// Answer the Apache AGE question. Default is keep.
 ///
 /// `--drop-age` / `--keep-age` win. `EDGEQUAKE_MIGRATE_DROP_AGE=yes|no` wins
@@ -477,5 +544,60 @@ pub(crate) async fn run_migrate_drain(args: &[String]) -> Result<()> {
         Err(_) => anyhow::bail!(
             "migrate drain timed out after {timeout_secs}s — re-run `edgequake migrate drain`"
         ),
+    }
+}
+
+#[cfg(all(test, feature = "postgres"))]
+mod age_drop_decision_tests {
+    use super::*;
+
+    #[test]
+    fn nothing_pending_needs_no_answer() {
+        assert_eq!(
+            age_drop_decision(false, true, false),
+            AgeDropDecision::NotPending
+        );
+        assert_eq!(
+            age_drop_decision(false, false, true),
+            AgeDropDecision::NotPending
+        );
+    }
+
+    /// Issue #537. The 0.35.5 profile: the image ships no AGE library while the
+    /// volume still has the extension. Applying 171 there drops the extension and
+    /// every AGE graph, so a missing package must not stand in for consent.
+    #[test]
+    fn missing_package_with_installed_extension_asks() {
+        assert_eq!(age_drop_decision(true, false, true), AgeDropDecision::Ask);
+    }
+
+    #[test]
+    fn missing_package_without_extension_records_the_no_op() {
+        assert_eq!(
+            age_drop_decision(true, false, false),
+            AgeDropDecision::RecordAbsent
+        );
+    }
+
+    /// `RecordAbsent` must put 171 in the apply set, otherwise the no-op is
+    /// never recorded and every later migrate keeps reporting 171 pending.
+    #[test]
+    fn record_absent_applies_migration_171() {
+        assert!(age_drop_applies_171(age_drop_decision(true, false, false)));
+    }
+
+    /// Nothing else may put 171 in the apply set, and an installed extension
+    /// must never reach the recording branch.
+    #[test]
+    fn only_a_provably_empty_server_records_171() {
+        assert!(!age_drop_applies_171(age_drop_decision(false, true, true)));
+        assert!(!age_drop_applies_171(age_drop_decision(true, true, true)));
+        assert!(!age_drop_applies_171(age_drop_decision(true, false, true)));
+    }
+
+    #[test]
+    fn installed_package_always_asks() {
+        assert_eq!(age_drop_decision(true, true, true), AgeDropDecision::Ask);
+        assert_eq!(age_drop_decision(true, true, false), AgeDropDecision::Ask);
     }
 }

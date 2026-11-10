@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The GCP deploy dropped Apache AGE without asking (#537).** `deploy.sh` ran `edgequake migrate --drop-age` whenever the requested version was 0.35.5 or later and the volume still had the `age` extension. Migration 171 removes the extension and every AGE graph, and there is no undo SQL, so a routine deploy could destroy graph data with nobody having said yes. A version comparison is not consent and neither is a closed stdin. The script now reads the volume on the 0.35.4 image and stops with exit 2 before any migrate unless the operator passes `EDGEQUAKE_DEPLOY_AGE_DROP=drop` on the command line. A value in `/opt/edgequake/.env` does not count, because every deploy rewrites that file.
+- **`edgequake migrate` treated a missing AGE package as consent to drop.** On a server that cannot load `age` from `pg_available_extensions` while the extension is still installed, migrate recorded migration 171 and dropped the extension and its graphs. It now records 171 only when there is nothing to drop and keeps 171 pending otherwise, asking the same question as on a server that still has the package.
+
 ## [0.40.7] — 2026-11-06
 
 Patch on v0.40.6. Schema stays **227**. `edgequake migrate` is a no-op on a database that is

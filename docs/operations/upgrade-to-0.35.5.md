@@ -13,7 +13,9 @@ The published `edgequake-postgres` images for v0.35.5 (pg16, pg17, and pg18) do 
 
 A data directory created by the v0.35.4 Postgres image has already loaded `age`. The v0.35.5 image has no `age.so`, so Postgres will refuse to open that directory. Use a fresh volume. An existing database that still has the extension must run `edgequake migrate --drop-age` on the v0.35.4 image before the volume moves.
 
-On a server where `age` is not in `pg_available_extensions`, `edgequake migrate` records migration 171 in the same run as the safe schema. Nothing is dropped: migration 170 already marks that database `ready` and `age_absent`. Afterward `/health` reports `pending_count` 0 and `migration_required` false.
+On a server where `age` is not in `pg_available_extensions` **and** the extension is not installed, `edgequake migrate` records migration 171 in the same run as the safe schema. Nothing is dropped: there is nothing to drop. Afterward `/health` reports `pending_count` 0 and `migration_required` false.
+
+A server that cannot load the AGE package but still has the extension installed is different: that database holds data. `edgequake migrate` keeps 171 pending there and asks, exactly as on a server with the package. A missing library is not consent to destroy the extension and its graphs.
 
 On a server where the AGE package is still installed, the default is unchanged. Non-interactive migrate does not drop the extension unless you pass `--drop-age` or set `EDGEQUAKE_MIGRATE_DROP_AGE=yes`. Migration 171 stays pending until then.
 
