@@ -24,9 +24,9 @@ if [[ ! -f "$POLICY" ]]; then
 fi
 
 # Collect every ignored id from every workflow that runs an audit.
+# Plain grep, not ripgrep: this runs on a stock runner before any tool install.
 ids="$(
-  rg -o --no-filename 'RUSTSEC-[0-9]{4}-[0-9]{4}' \
-    .github/workflows/*.yml 2>/dev/null | sort -u
+  grep -hoE 'RUSTSEC-[0-9]{4}-[0-9]{4}' .github/workflows/*.yml 2>/dev/null | sort -u
 )"
 
 if [[ -z "$ids" ]]; then
@@ -37,7 +37,7 @@ fi
 count=0
 for id in $ids; do
   count=$((count + 1))
-  if ! rg -q --fixed-strings "$id" "$POLICY"; then
+  if ! grep -qF -- "$id" "$POLICY"; then
     echo "FAIL: $id is ignored in CI but has no entry in $POLICY" >&2
     echo "      Add why it cannot be fixed or why it is unreachable, then retry." >&2
     fail=1

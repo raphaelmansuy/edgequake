@@ -61,6 +61,11 @@ concurrency:
   group: migration-guard-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# pull_request_target runs untrusted PR code with a token, so the token must not
+# be able to write anything. These guards only read the tree and print.
+permissions:
+  contents: read
+
 env:
   RUST_TOOLCHAIN: 1.95.0
   POSTGRES_DB: edgequake_mig_guard
@@ -82,6 +87,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          # pull_request_target checks out the BASE branch by default, so this
+          # job validated code that had already merged and could never go green
+          # on a PR that fixes the base. Guard the code that will actually land.
+          # refs/pull/<n>/head resolves for fork PRs too, where the head SHA is
+          # not fetchable from the base repository.
+          ref: ${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/head', github.event.pull_request.number) || github.sha }}
           # Epoch coverage hashes git ls-tree <tag> for every published release.
           fetch-depth: 0
 
