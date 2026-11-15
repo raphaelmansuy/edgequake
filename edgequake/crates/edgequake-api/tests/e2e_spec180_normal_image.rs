@@ -203,6 +203,66 @@ async fn image_round_trip() {
     );
 }
 
+/// T-180-image-lineage: an indexed image answers its lineage endpoint with the
+/// one pixel-embedded chunk it actually produced.
+///
+/// WHY a separate test: the image path once returned `lineage: None`, so finalize
+/// never wrote the `<id>-lineage` record and every image document 404'd here
+/// forever — which the UI showed as a permanently empty Data Hierarchy panel.
+/// Kept independent of the retrieval assertions in `image_round_trip` so a
+/// ranking regression there cannot mask a lineage regression here.
+#[test]
+#[serial]
+fn an_image_documents_lineage_is_persisted_and_has_no_graph() {
+    common::spec180::block_on_big_stack(image_lineage());
+}
+
+async fn image_lineage() {
+    let Some(h) = harness().await else {
+        eprintln!("SKIP spec180 image lineage: postgres not reachable");
+        return;
+    };
+    let _fake = start_fake_vertex().await;
+    let (tenant, ws) = create_image_workspace(&h, None).await;
+    let (image_id, _) = upload_image(
+        &h,
+        &tenant,
+        &ws,
+        "heron.png",
+        png([80, 140, 200], Some("heron")),
+    )
+    .await;
+
+    let (st, body) = common::get_with_tenant(
+        &h.app,
+        &format!("/api/v1/documents/{image_id}/lineage"),
+        &tenant,
+        USER_ID,
+        &ws,
+    )
+    .await;
+    assert_eq!(
+        st,
+        StatusCode::OK,
+        "image lineage was not persisted: {body}"
+    );
+
+    let lineage = &body["lineage"];
+    assert_eq!(lineage["document_id"], image_id.as_str(), "{body}");
+    assert_eq!(lineage["total_chunks"], 1, "{body}");
+    let chunks = lineage["chunks"].as_array().expect("chunks array");
+    assert_eq!(chunks.len(), 1, "{body}");
+    // No extraction ran on the pixels, so the graph stays empty.
+    assert_eq!(lineage["total_entities"], 0, "{body}");
+    assert_eq!(lineage["total_relationships"], 0, "{body}");
+    // Only the embedding half of the provenance is real for an image.
+    assert_eq!(lineage["embedding_provider"], "vertexai", "{body}");
+    assert!(
+        lineage.get("extraction_model").is_none() || lineage["extraction_model"].is_null(),
+        "an image must not claim an extraction model: {body}"
+    );
+}
+
 #[test]
 #[serial]
 fn images_are_refused_where_the_workspace_cannot_embed_them() {

@@ -110,6 +110,14 @@ export function DocumentHierarchyTree({
     { isDocumentProcessing },
   );
 
+  // WHY: the backend now separates "not written yet" from "this pipeline writes no
+  // lineage record". Surfacing that message turns a dead end into an explanation.
+  const errorMessage = useMemo(() => {
+    if (!error) return null;
+    const message = (error as { message?: string }).message;
+    return message?.trim() ? message : null;
+  }, [error]);
+
   // WHY: Transform the raw response into normalized arrays.
   // The full-lineage endpoint returns entities as a dict (keyed by entity_id)
   // and chunks as objects with entity_ids arrays.
@@ -205,9 +213,17 @@ export function DocumentHierarchyTree({
       );
     }
     return (
-      <p className="text-xs text-muted-foreground p-2">
-        Hierarchy data not available
-      </p>
+      <div className="p-2 space-y-1">
+        <p className="text-xs text-muted-foreground">
+          Hierarchy data not available
+        </p>
+        {/* WHY show the reason: a 404 here has two very different causes (still
+            pending vs. a pipeline that writes no lineage record), and the server
+            now distinguishes them. Hiding it left users with no next step. */}
+        {errorMessage && (
+          <p className="text-xs text-muted-foreground/70">{errorMessage}</p>
+        )}
+      </div>
     );
   }
 
