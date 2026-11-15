@@ -180,8 +180,6 @@ impl AppState {
     ///
     /// Mock is forbidden as an application default — configure a real provider.
     pub fn new_memory(llm_api_key: Option<impl Into<String>>) -> Self {
-        use edgequake_llm::ProviderFactory;
-
         apply_model_env_aliases();
 
         // If API key provided, set it in environment for factory to use
@@ -196,8 +194,8 @@ impl AppState {
         // Use ProviderFactory for auto-detection.
         // NOTE: `new_memory` is a test/dev helper. Production boots via `new_postgres`,
         // which rejects Mock. Prefer `AppState::test_state()` for intentional mocks.
-        let (llm_provider, embedding_provider) =
-            ProviderFactory::from_env().expect("Failed to create LLM provider from environment");
+        let (llm_provider, embedding_provider) = super::provider_setup::providers_from_env()
+            .expect("Failed to create LLM provider from environment");
 
         if crate::provider_visibility::is_mock_provider(llm_provider.name())
             && !crate::provider_visibility::mock_provider_allowed()

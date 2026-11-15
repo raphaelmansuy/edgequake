@@ -188,6 +188,13 @@ pub const CONNECTION_SHAPES: &[ConnectionShape] = &[
         auth: AuthRequirement::OptionalApiKey,
     },
     ConnectionShape {
+        id: "rapid-mlx",
+        label: "Rapid-MLX",
+        default_base_url: "http://127.0.0.1:8000/v1",
+        hint: "Local Rapid-MLX. A key is optional.",
+        auth: AuthRequirement::OptionalApiKey,
+    },
+    ConnectionShape {
         id: "mtplx",
         label: "MTPLX",
         default_base_url: "http://127.0.0.1:8080/v1",
@@ -274,6 +281,8 @@ const EXTRA_SHAPES: &[&str] = &[
     "lm_studio",
     "o-mlx",
     "o_mlx",
+    "rapid_mlx",
+    "rapidmlx",
     "mtp-lx",
     "llama-server",
     "llama.cpp",
@@ -335,6 +344,9 @@ pub fn is_openai_wire(shape: &str) -> bool {
             | "vllm_mlx"
             | "mlx-lm"
             | "mlx_lm"
+            | "rapid-mlx"
+            | "rapid_mlx"
+            | "rapidmlx"
     )
 }
 
@@ -357,6 +369,9 @@ mod tests {
         assert!(accept_api_shape("openai_chat"));
         assert!(accept_api_shape("Anthropic_Messages"));
         assert!(accept_api_shape("lmstudio"));
+        assert!(accept_api_shape("rapid-mlx"));
+        assert!(accept_api_shape("rapidmlx"));
+        assert!(is_openai_wire("rapid_mlx"));
         assert!(accept_api_shape("openrouter"));
         assert!(accept_api_shape("mistral"));
         assert!(!accept_api_shape(""));
@@ -432,7 +447,14 @@ mod tests {
             assert!(s.auth.stores_secret(), "{id} must encrypt its key");
         }
         for id in [
-            "ollama", "lmstudio", "omlx", "mtplx", "llamacpp", "vllm-mlx", "mlx-lm",
+            "ollama",
+            "lmstudio",
+            "omlx",
+            "mtplx",
+            "llamacpp",
+            "vllm-mlx",
+            "mlx-lm",
+            "rapid-mlx",
         ] {
             let s = shape(id);
             // "No key required" is not "no key accepted": a protected local server must stay

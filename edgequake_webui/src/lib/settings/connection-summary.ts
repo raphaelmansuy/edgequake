@@ -41,6 +41,7 @@ const SHAPE_LABELS: Readonly<Record<string, string>> = {
   ollama: "Ollama",
   lmstudio: "LM Studio",
   omlx: "oMLX",
+  "rapid-mlx": "Rapid-MLX",
   mtplx: "MTPLX",
   llamacpp: "llama.cpp",
   "vllm-mlx": "vLLM-MLX",

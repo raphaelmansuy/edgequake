@@ -146,6 +146,9 @@ services:
       OLLAMA_HOST:                  ${OLLAMA_HOST:-http://host.docker.internal:11434}
       OMLX_HOST:                    ${OMLX_HOST:-}
       OMLX_BASE_URL:                ${OMLX_BASE_URL:-}
+      RAPID_MLX_HOST:               ${RAPID_MLX_HOST:-}
+      RAPID_MLX_BASE_URL:           ${RAPID_MLX_BASE_URL:-}
+      RAPID_MLX_API_KEY:            ${RAPID_MLX_API_KEY:-}
       LMSTUDIO_HOST:                ${LMSTUDIO_HOST:-}
       OPENAI_COMPATIBLE_BASE_URL:   ${OPENAI_COMPATIBLE_BASE_URL:-}
       OPENAI_COMPATIBLE_API_KEY:    ${OPENAI_COMPATIBLE_API_KEY:-}

@@ -655,6 +655,9 @@ pub async fn probe_named_provider_reachable(name: &str) -> bool {
             .ok()
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "http://127.0.0.1:9060".into()),
+        // `/health` is unauthenticated and does not load the model. `/v1/models`
+        // is the catalog and is gated when Rapid-MLX was started with a key.
+        "rapid-mlx" | "rapid_mlx" | "rapidmlx" => return probe_rapid_mlx_health().await,
         _ => return false,
     };
     let req = ProbeRequest {
@@ -672,9 +675,40 @@ pub async fn probe_named_provider_reachable(name: &str) -> bool {
     r.list_ok || r.ok
 }
 
+/// `GET {host}/health`. Success is any 2xx. No bearer: the route ignores API keys.
+async fn probe_rapid_mlx_health() -> bool {
+    let url = edgequake_pdf::rapid_mlx::health_url();
+    let policy = SsrfPolicy {
+        allow_private: true,
+    };
+    if validate_provider_url(&url, policy).is_err() {
+        return false;
+    }
+    if crate::ssrf::enforce_resolved_addresses(&url, policy)
+        .await
+        .is_err()
+    {
+        return false;
+    }
+    let Ok(client) = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+    else {
+        return false;
+    };
+    client
+        .get(&url)
+        .send()
+        .await
+        .map(|response| response.status().is_success())
+        .unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn openai_compatible_url_tolerates_base_that_already_ends_in_v1() {
@@ -725,6 +759,47 @@ mod tests {
     fn parses_openai_model_listing() {
         let body = serde_json::json!({ "data": [{ "id": "gpt-5-nano" }, { "id": "gpt-5.2" }] });
         assert_eq!(extract_model_ids(&body), vec!["gpt-5-nano", "gpt-5.2"]);
+    }
+
+    /// Rapid-MLX process health is `GET /health` on the host, not `/v1/models`.
+    #[tokio::test]
+    #[serial]
+    async fn rapid_mlx_health_probe_reads_get_health() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let port = listener.local_addr().expect("addr").port();
+        let seen = std::sync::Arc::new(tokio::sync::Mutex::new(String::new()));
+        let seen_task = seen.clone();
+        tokio::spawn(async move {
+            let (mut sock, _) = listener.accept().await.expect("accept");
+            let mut buf = vec![0u8; 1024];
+            let n = sock.read(&mut buf).await.unwrap_or(0);
+            *seen_task.lock().await = String::from_utf8_lossy(&buf[..n]).into_owned();
+            let body = br#"{"status":"healthy","ready":false}"#;
+            let header = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            let _ = sock.write_all(header.as_bytes()).await;
+            let _ = sock.write_all(body).await;
+        });
+
+        let previous = std::env::var("RAPID_MLX_HOST").ok();
+        std::env::set_var("RAPID_MLX_HOST", format!("http://127.0.0.1:{port}/v1"));
+        let ok = probe_named_provider_reachable("rapid-mlx").await;
+        match previous {
+            Some(value) => std::env::set_var("RAPID_MLX_HOST", value),
+            None => std::env::remove_var("RAPID_MLX_HOST"),
+        }
+        assert!(ok, "GET /health should count as reachable");
+        let request = seen.lock().await.clone();
+        assert!(
+            request.starts_with("GET /health "),
+            "probed the wrong path: {request}"
+        );
     }
 
     /// `/api/version` carries no model list, which is why it cannot be the refresh source.

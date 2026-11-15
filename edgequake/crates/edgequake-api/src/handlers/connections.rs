@@ -111,6 +111,14 @@ pub(crate) fn env_connections() -> Vec<ConnectionView> {
     if let Some(url) = non_empty("OMLX_HOST").or_else(|| non_empty("OMLX_BASE_URL")) {
         push("omlx", "openai_chat", &url);
     }
+    if let Some(url) = non_empty("RAPID_MLX_HOST").or_else(|| non_empty("RAPID_MLX_BASE_URL")) {
+        push("rapid-mlx", "openai_chat", &url);
+    } else if std::env::var("EDGEQUAKE_LLM_PROVIDER")
+        .ok()
+        .is_some_and(|name| edgequake_pdf::rapid_mlx::is_rapid_mlx(&name))
+    {
+        push("rapid-mlx", "openai_chat", "http://127.0.0.1:8000/v1");
+    }
     if non_empty("ANTHROPIC_API_KEY").is_some() || non_empty("ANTHROPIC_BASE_URL").is_some() {
         let url =
             non_empty("ANTHROPIC_BASE_URL").unwrap_or_else(|| "https://api.anthropic.com".into());

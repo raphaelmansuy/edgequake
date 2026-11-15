@@ -132,6 +132,9 @@ pub fn resolve_embedding_provider(
                     | "vllm_mlx"
                     | "lmstudio"
                     | "mtplx"
+                    | "rapid-mlx"
+                    | "rapid_mlx"
+                    | "rapidmlx"
             );
 
             if is_openai_compatible && (has_custom_base_url || has_custom_api_key) {
@@ -158,6 +161,30 @@ pub fn resolve_embedding_provider(
                     "Embedding provider overridden with dedicated base URL/API key (FIX #163)"
                 );
                 return stamp_embedding_model(provider, &model);
+            }
+
+            if edgequake_pdf::rapid_mlx::is_rapid_mlx(&provider_name)
+                && !has_custom_base_url
+                && !has_custom_api_key
+            {
+                match edgequake_pdf::rapid_mlx::embedding_named(&model) {
+                    Ok(provider) => {
+                        tracing::info!(
+                            provider = %provider_name,
+                            model = %model,
+                            dimension,
+                            "Embedding provider is Rapid-MLX"
+                        );
+                        return stamp_embedding_model(provider, &model);
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            provider = %provider_name,
+                            "Failed to create Rapid-MLX embedding provider; using default"
+                        );
+                    }
+                }
             }
 
             match ProviderFactory::create_embedding_provider(&provider_name, &model, dimension) {
@@ -376,6 +403,52 @@ pub fn normalize_local_provider_hosts_for_docker() {
     } else if std::env::var("LMSTUDIO_HOST").is_err() {
         std::env::set_var("LMSTUDIO_HOST", DOCKER_LMSTUDIO);
     }
+
+    // Rewrite a loopback Rapid-MLX host. Do not invent one for other providers:
+    // an unset host means "not using Rapid-MLX" except when it is the process default.
+    for key in ["RAPID_MLX_HOST", "RAPID_MLX_BASE_URL"] {
+        if let Ok(raw) = std::env::var(key) {
+            if let Some(rewritten) = rewrite_loopback_host_for_docker(&raw) {
+                tracing::info!(
+                    env_var = key,
+                    from = %raw,
+                    to = %rewritten,
+                    "Rewrote loopback Rapid-MLX host for Docker"
+                );
+                std::env::set_var(key, rewritten);
+            }
+        }
+    }
+    let provider = std::env::var("EDGEQUAKE_LLM_PROVIDER").unwrap_or_default();
+    let host_unset = std::env::var("RAPID_MLX_HOST")
+        .ok()
+        .is_none_or(|value| value.trim().is_empty())
+        && std::env::var("RAPID_MLX_BASE_URL")
+            .ok()
+            .is_none_or(|value| value.trim().is_empty());
+    if edgequake_pdf::rapid_mlx::is_rapid_mlx(&provider) && host_unset {
+        tracing::info!(
+            env_var = "RAPID_MLX_HOST",
+            to = edgequake_pdf::rapid_mlx::DOCKER_HOST,
+            "Set default Rapid-MLX host for Docker"
+        );
+        std::env::set_var("RAPID_MLX_HOST", edgequake_pdf::rapid_mlx::DOCKER_HOST);
+    }
+}
+
+/// Process LLM and embedding clients.
+///
+/// `ProviderFactory::from_env` rejects `rapid-mlx` because the published crate
+/// has no such id. Build that pair here and leave every other provider to the factory.
+pub fn providers_from_env() -> LlmResult<(Arc<dyn LLMProvider>, Arc<dyn EmbeddingProvider>)> {
+    let name = std::env::var("EDGEQUAKE_LLM_PROVIDER").unwrap_or_default();
+    if edgequake_pdf::rapid_mlx::is_rapid_mlx(&name) {
+        return Ok((
+            edgequake_pdf::rapid_mlx::chat_from_env()?,
+            edgequake_pdf::rapid_mlx::embedding_from_env()?,
+        ));
+    }
+    ProviderFactory::from_env()
 }
 
 /// Resolve the embedding model name for a named provider.
@@ -416,6 +489,7 @@ fn provider_specific_embedding_env_key(provider_name: &str) -> Option<&'static s
         "openai" | "openai-compatible" | "openai_compatible" => Some("OPENAI_EMBEDDING_MODEL"),
         "ollama" => Some("OLLAMA_EMBEDDING_MODEL"),
         "lmstudio" | "lm-studio" | "lm_studio" => Some("LMSTUDIO_EMBEDDING_MODEL"),
+        "rapid-mlx" | "rapid_mlx" | "rapidmlx" => Some("RAPID_MLX_EMBEDDING_MODEL"),
         "anthropic" => Some("ANTHROPIC_EMBEDDING_MODEL"),
         "gemini" => Some("GEMINI_EMBEDDING_MODEL"),
         _ => None,

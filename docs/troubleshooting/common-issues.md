@@ -405,7 +405,7 @@ The per-chunk limit ended before your model finished. There are two layers. The 
 | Per chunk | `EDGEQUAKE_CHUNK_TIMEOUT_SECS` | 180 s for cloud providers, 600 s for local ones | Minimum 10 |
 | HTTP cap for extraction calls | `EDGEQUAKE_LLM_TIMEOUT_SECS` | 600 s for cloud, 900 s for local | Range 10 to 3600 |
 
-"Local" means Ollama, LM Studio, oMLX, MTPLX, llama.cpp, vLLM-MLX and mlx-lm. Local providers also run one extraction at a time by default. Cloud providers run 16 at a time. `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` accepts 1 to 32. Raising it above 1 for a local provider only has effect when `EDGEQUAKE_ALLOW_LOCAL_HIGH_CONCURRENCY=1` is set.
+"Local" means Ollama, LM Studio, oMLX, Rapid-MLX, MTPLX, llama.cpp, vLLM-MLX and mlx-lm. Local providers also run one extraction at a time by default. Cloud providers run 16 at a time. `EDGEQUAKE_MAX_CONCURRENT_EXTRACTIONS` accepts 1 to 32. Raising it above 1 for a local provider only has effect when `EDGEQUAKE_ALLOW_LOCAL_HIGH_CONCURRENCY=1` is set.
 
 Lowering concurrency often fixes timeouts better than raising limits, because many parallel calls to one GPU all wait behind each other.
 

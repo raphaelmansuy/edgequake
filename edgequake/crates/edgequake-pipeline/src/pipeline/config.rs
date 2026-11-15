@@ -117,6 +117,9 @@ pub fn is_local_extraction_provider(provider_name: &str) -> bool {
                 | "vllm_mlx"
                 | "mlx-lm"
                 | "mlx_lm"
+                | "rapid-mlx"
+                | "rapid_mlx"
+                | "rapidmlx"
         )
 }
 
@@ -718,6 +721,8 @@ mod tests {
     fn local_extraction_provider_detection() {
         assert!(is_local_extraction_provider("ollama"));
         assert!(is_local_extraction_provider("LMStudio"));
+        assert!(is_local_extraction_provider("rapid-mlx"));
+        assert!(is_local_extraction_provider("rapidmlx"));
         assert!(!is_local_extraction_provider("openai"));
         assert!(!is_local_extraction_provider("mistral"));
         assert!(!is_local_extraction_provider("mock"));

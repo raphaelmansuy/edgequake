@@ -98,8 +98,6 @@ impl AppState {
         use super::data_access_providers::{
             PostgresProviderResources, ProviderContext, ProviderFactories,
         };
-        use edgequake_llm::ProviderFactory;
-
         // SPEC-149: validate profile, then refuse non-P0 until adapters are
         // actually selected (honesty gate — no silent AGE+pgvector under a
         // Qdrant/Neo4j/SQLite label).
@@ -130,14 +128,16 @@ impl AppState {
         super::provider_setup::apply_chat_env_aliases();
         super::provider_setup::normalize_local_provider_hosts_for_docker();
 
-        // Create providers via factory (auto-detects from environment)
-        let (llm_provider, embedding_provider) = ProviderFactory::from_env().map_err(|e| {
-            format!(
-                "Failed to create LLM provider from environment: {e}. \
-                 Set EDGEQUAKE_LLM_PROVIDER (ollama, openai, omlx, …) and the matching key or host, \
-                 or run `edgequake doctor`."
-            )
-        })?;
+        // Create providers via factory (auto-detects from environment).
+        // `rapid-mlx` is built beside the factory: the published crate has no such id.
+        let (llm_provider, embedding_provider) = super::provider_setup::providers_from_env()
+            .map_err(|e| {
+                format!(
+                    "Failed to create LLM provider from environment: {e}. \
+                     Set EDGEQUAKE_LLM_PROVIDER (ollama, openai, omlx, rapid-mlx, …) \
+                     and the matching key or host, or run `edgequake doctor`."
+                )
+            })?;
 
         // Application runtime must never serve Mock as the process-wide default
         // unless an explicit test escape hatch is set (EDGEQUAKE_ALLOW_MOCK_PROVIDER=1).

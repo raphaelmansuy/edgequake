@@ -243,6 +243,7 @@ fn local_provider_key(provider_name: &str) -> Option<&'static str> {
         "llamacpp" | "llama-server" | "llama.cpp" => Some("llamacpp"),
         "vllm-mlx" | "vllm_mlx" | "vllmmx" => Some("vllm-mlx"),
         "mlx-lm" | "mlx_lm" | "mlxlm" => Some("mlx-lm"),
+        "rapid-mlx" | "rapid_mlx" | "rapidmlx" => Some("rapid-mlx"),
         _ => None,
     }
 }
@@ -525,6 +526,7 @@ mod tests {
         assert_eq!(local_provider_key("lm-studio"), Some("lmstudio"));
         assert_eq!(local_provider_key("lm_studio"), Some("lmstudio"));
         assert_eq!(local_provider_key("lmstudio"), Some("lmstudio"));
+        assert_eq!(local_provider_key("rapid_mlx"), Some("rapid-mlx"));
         assert_eq!(local_provider_key("openai"), None);
     }
 }

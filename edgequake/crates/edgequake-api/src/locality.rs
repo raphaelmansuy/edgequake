@@ -16,6 +16,9 @@ pub fn is_local_provider(provider_name: &str) -> bool {
             | "vllm_mlx"
             | "mlx-lm"
             | "mlx_lm"
+            | "rapid-mlx"
+            | "rapid_mlx"
+            | "rapidmlx"
             | "openai-compatible"
             | "openai_compatible"
             | "mock"
@@ -39,6 +42,9 @@ pub fn is_slow_local_provider(provider_name: &str) -> bool {
             | "vllm_mlx"
             | "mlx-lm"
             | "mlx_lm"
+            | "rapid-mlx"
+            | "rapid_mlx"
+            | "rapidmlx"
     )
 }
 
@@ -46,6 +52,9 @@ pub fn is_slow_local_provider(provider_name: &str) -> bool {
 pub fn local_health_path(provider_name: &str) -> &'static str {
     match provider_name.trim().to_ascii_lowercase().as_str() {
         "ollama" => "/api/version",
+        // Rapid-MLX `/health` is unauthenticated and does not load a model.
+        // `/v1/models` is the catalog and is gated when an API key is set.
+        "rapid-mlx" | "rapid_mlx" | "rapidmlx" => "/health",
         _ => "/v1/models",
     }
 }
@@ -94,6 +103,7 @@ pub fn default_local_base_url(provider_name: &str) -> Option<&'static str> {
         "llamacpp" | "llama-server" => Some("http://127.0.0.1:8081"),
         "vllm-mlx" | "vllm_mlx" => Some("http://127.0.0.1:8082"),
         "mlx-lm" | "mlx_lm" => Some("http://127.0.0.1:8083"),
+        "rapid-mlx" | "rapid_mlx" | "rapidmlx" => Some("http://127.0.0.1:8000"),
         _ => None,
     }
 }
@@ -105,6 +115,8 @@ mod tests {
     #[test]
     fn omlx_is_slow_local() {
         assert!(is_slow_local_provider("omlx"));
+        assert!(is_slow_local_provider("rapid-mlx"));
+        assert!(is_local_provider("rapidmlx"));
         assert!(is_local_provider("mlx-lm"));
         assert!(!is_slow_local_provider("openai"));
         assert!(!is_slow_local_provider("mock"));
@@ -134,5 +146,11 @@ mod tests {
         assert_eq!(local_models_path("lmstudio"), "/v1/models");
         assert_eq!(local_models_path("omlx"), "/v1/models");
         assert_eq!(local_models_path("llamacpp"), "/v1/models");
+        assert_eq!(local_models_path("rapid-mlx"), "/v1/models");
+        assert_eq!(local_health_path("rapid-mlx"), "/health");
+        assert_eq!(
+            default_local_base_url("rapid-mlx"),
+            Some("http://127.0.0.1:8000")
+        );
     }
 }

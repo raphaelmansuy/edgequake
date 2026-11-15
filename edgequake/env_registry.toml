@@ -47,6 +47,36 @@ docs = ["docs/providers/omlx.md"]
 purpose = "oMLX base URL"
 
 [[var]]
+name = "RAPID_MLX_HOST"
+docs = ["docs/providers/rapid-mlx.md"]
+purpose = "Rapid-MLX base URL"
+
+[[var]]
+name = "RAPID_MLX_BASE_URL"
+docs = ["docs/providers/rapid-mlx.md"]
+purpose = "Alias of RAPID_MLX_HOST"
+
+[[var]]
+name = "RAPID_MLX_API_KEY"
+docs = ["docs/providers/rapid-mlx.md"]
+purpose = "Optional Rapid-MLX bearer token"
+
+[[var]]
+name = "RAPID_MLX_MODEL"
+docs = ["docs/providers/rapid-mlx.md"]
+purpose = "Rapid-MLX chat model id"
+
+[[var]]
+name = "RAPID_MLX_EMBEDDING_MODEL"
+docs = ["docs/providers/rapid-mlx.md"]
+purpose = "Rapid-MLX embedding model id"
+
+[[var]]
+name = "RAPID_MLX_TIMEOUT_SECONDS"
+docs = ["docs/providers/rapid-mlx.md"]
+purpose = "Rapid-MLX HTTP timeout seconds"
+
+[[var]]
 name = "OPENAI_API_KEY"
 docs = ["docs/providers/openai.md"]
 purpose = "OpenAI API key"

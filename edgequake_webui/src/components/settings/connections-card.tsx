@@ -58,6 +58,16 @@ interface ConnectionShape {
  * Vertex lists the secrets it can store: the server identity, a service-account JSON file, or an
  * API key. Bedrock and Copilot list none, because a pasted value would be ignored.
  */
+/** A missing `requires_key` is the older payload: a key is required unless `auth` says otherwise. */
+function shapeRequiresKey(shape: ConnectionShape | undefined): boolean {
+  if (typeof shape?.requires_key === 'boolean') return shape.requires_key;
+  const auth = shape?.auth;
+  return auth !== 'optional_api_key'
+    && auth !== 'aws_chain'
+    && auth !== 'server_proxy'
+    && auth !== 'server_google_identity';
+}
+
 const BUILT_IN_SHAPES: ConnectionShape[] = [
   { id: 'openai', label: 'OpenAI', default_base_url: 'https://api.openai.com/v1', hint: 'API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
   { id: 'anthropic', label: 'Anthropic', default_base_url: 'https://api.anthropic.com', hint: 'API key required. Messages API.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
@@ -70,6 +80,7 @@ const BUILT_IN_SHAPES: ConnectionShape[] = [
   { id: 'ollama', label: 'Ollama', default_base_url: 'http://127.0.0.1:11434', hint: 'Local Ollama. A key is optional.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
   { id: 'lmstudio', label: 'LM Studio', default_base_url: 'http://127.0.0.1:1234/v1', hint: 'Local LM Studio.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
   { id: 'omlx', label: 'oMLX', default_base_url: 'http://127.0.0.1:9050/v1', hint: 'Local oMLX.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
+  { id: 'rapid-mlx', label: 'Rapid-MLX', default_base_url: 'http://127.0.0.1:8000/v1', hint: 'Local Rapid-MLX. A key is optional.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
   { id: 'mtplx', label: 'MTPLX', default_base_url: 'http://127.0.0.1:8080/v1', hint: 'Local MTPLX.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
   { id: 'llamacpp', label: 'llama.cpp', default_base_url: 'http://127.0.0.1:8080/v1', hint: 'llama-server.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
   { id: 'vllm-mlx', label: 'vLLM-MLX', default_base_url: 'http://127.0.0.1:8000/v1', hint: 'Local vLLM-MLX.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
@@ -141,6 +152,7 @@ export function ConnectionsCard() {
   const [credentialRegion, setCredentialRegion] = useState('us-central1');
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingHasKey, setEditingHasKey] = useState(false);
   const [deleting, setDeleting] = useState<DeletableConnection | null>(null);
 
   /*
@@ -156,7 +168,7 @@ export function ConnectionsCard() {
   const mayTakeKey = googleCredential
     ? credentialKind !== 'server_identity'
     : selectedShape?.accepts_saved_key !== false;
-  const keyRequired = googleCredential ? credentialKind !== 'server_identity' : selectedShape?.requires_key === true;
+  const keyRequired = googleCredential ? credentialKind !== 'server_identity' : shapeRequiresKey(selectedShape);
   const keyIsJson = googleCredential && credentialKind === 'service_account_json';
   // The server states whether a Base URL changes anything for this shape. An older server omits
   // the flag, and then the field behaves as it always did.
@@ -165,7 +177,9 @@ export function ConnectionsCard() {
     selectedShape?.auth === 'server_google_identity' ||
     selectedShape?.auth === 'aws_chain' ||
     selectedShape?.auth === 'server_proxy';
-  const canSubmit = !busy && slug.trim() !== '' && (!keyRequired || apiKey.trim() !== '');
+  // An update may leave the key blank: the server keeps the stored one. A new connection cannot.
+  const storedKeyCoversGap = editingId !== null && editingHasKey && apiKey.trim() === '';
+  const canSubmit = !busy && slug.trim() !== '' && (!keyRequired || apiKey.trim() !== '' || storedKeyCoversGap);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: CONNECTIONS_KEY });
 
@@ -238,6 +252,7 @@ export function ConnectionsCard() {
     setShape(row.api_shape);
     setBaseUrl(row.base_url);
     setApiKey('');
+    setEditingHasKey(row.key_configured);
   };
 
   const save = async () => {
@@ -271,6 +286,7 @@ export function ConnectionsCard() {
       }
       setApiKey('');
       setEditingId(null);
+      setEditingHasKey(false);
       await refresh();
     } catch (err) {
       toast.error(connectionError(err, 'Save failed'));
@@ -288,7 +304,7 @@ export function ConnectionsCard() {
         </CardTitle>
         <CardDescription>
           Add a cloud provider (OpenAI, Anthropic, Vertex AI, Azure, Mistral, Bedrock) or a local
-          server (Ollama, LM Studio, oMLX, llama.cpp). A saved key or key file is encrypted at rest
+          server (Ollama, LM Studio, oMLX, Rapid-MLX, llama.cpp). A saved key or key file is encrypted at rest
           and never shown again.
         </CardDescription>
       </CardHeader>
@@ -425,9 +441,15 @@ export function ConnectionsCard() {
                   type="password"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={keyRequired ? "Paste the key" : "Leave empty for local servers"}
+                  placeholder={
+                    editingId
+                      ? "Leave blank to keep the current key"
+                      : keyRequired
+                        ? "Paste the key"
+                        : "Leave empty for local servers"
+                  }
                   autoComplete="off"
-                  required={keyRequired}
+                  required={keyRequired && !storedKeyCoversGap}
                 />
               )}
             </ConnectionField>
@@ -463,6 +485,7 @@ export function ConnectionsCard() {
               disabled={busy}
               onClick={() => {
                 setEditingId(null);
+                setEditingHasKey(false);
                 setApiKey('');
               }}
             >

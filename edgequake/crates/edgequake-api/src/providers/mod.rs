@@ -63,6 +63,7 @@ pub mod credential_material;
 pub mod credentials;
 mod error;
 pub mod probe;
+mod rapid_mlx_discovery;
 mod resolver;
 #[cfg(feature = "postgres")]
 pub mod secret_manager;
@@ -74,6 +75,7 @@ pub use credentials::{
     provider_credentials_configured, vertex_auth_configured_sync, CredentialKind,
 };
 pub use error::ProviderResolutionError;
+pub(crate) use rapid_mlx_discovery::RapidMlxDiscovery;
 pub use resolver::{
     LlmResolutionRequest, ProviderSource, ResolvedEmbeddingProvider, ResolvedLlmProvider,
     WorkspaceProviderResolver,

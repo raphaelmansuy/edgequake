@@ -90,6 +90,9 @@ jobs:
 
   e2e-ui:
     name: E2E UI Gate (chromium, no backend)
+    # Playwright 1.58.2 has no Chromium build for ubuntu26.04-x64, and
+    # ubuntu-latest is that image. 1.61.0 adds the build. Stay on 24.04
+    # until this suite moves to that Playwright.
     runs-on: ubuntu-24.04
     # Suite ~565 chromium tests with retries=2; 45m canceled mid-run after
     # cascading failures. Keep headroom once failures are fixed (not a blank check).

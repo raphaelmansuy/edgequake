@@ -97,6 +97,7 @@ Provider guides, the role matrix and saved Connections are in [Providers](../pro
 | Ollama | `OLLAMA_HOST` (default `http://localhost:11434`), `OLLAMA_MODEL`, `OLLAMA_EMBEDDING_MODEL`, `OLLAMA_EMBEDDING_HOST` (default: `OLLAMA_HOST`) |
 | LM Studio | `LMSTUDIO_HOST` (default `http://localhost:1234`) |
 | oMLX | `OMLX_HOST`, `OMLX_BASE_URL` |
+| Rapid-MLX | `RAPID_MLX_HOST` (default `http://127.0.0.1:8000`), `RAPID_MLX_BASE_URL`, `RAPID_MLX_API_KEY` (optional), `RAPID_MLX_MODEL`, `RAPID_MLX_EMBEDDING_MODEL`, `RAPID_MLX_TIMEOUT_SECONDS` |
 | Anthropic | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL` |
 | Gemini (API key) | `GEMINI_API_KEY` or `GOOGLE_API_KEY` |
 | Vertex AI | `GOOGLE_CLOUD_PROJECT` (required), `GOOGLE_CLOUD_REGION` (default `us-central1`), `GOOGLE_ACCESS_TOKEN` (optional) |

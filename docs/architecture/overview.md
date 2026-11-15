@@ -43,7 +43,7 @@ Key facts:
 
 - **One database.** PostgreSQL holds relational tables, vectors (`pgvector`), and the graph (`Apache AGE`). There is no in-memory server mode; `DATABASE_URL` is required.
 - **One backend binary.** The `edgequake` binary is the API server. It also has the subcommands `migrate`, `doctor`, `healthcheck`, and `pre-stop`.
-- **Providers are pluggable.** LLM providers come from the external `edgequake-llm` crate (version `0.10.9`). Supported provider ids include `openai`, `anthropic`, `ollama`, `lmstudio`, `gemini`, `mistral`, `azure`, `bedrock`, and local servers such as `llamacpp`, `omlx`, and `mlx-lm`. The full list is in `edgequake/models.toml`.
+- **Providers are pluggable.** LLM providers come from the external `edgequake-llm` crate (version `0.10.10`). Supported provider ids include `openai`, `anthropic`, `ollama`, `lmstudio`, `gemini`, `mistral`, `azure`, `bedrock`, and local servers such as `llamacpp`, `omlx`, `mlx-lm`, and `rapid-mlx`. `rapid-mlx` is registered in this repository on the crate's OpenAI-compatible local client, because that crate's factory does not list the id yet. The full list is in `edgequake/models.toml`.
 
 ---
 

@@ -29,6 +29,7 @@ pub const REFRESHABLE_DISCOVERY_PROVIDERS: &[&str] = &[
     "ollama",
     "omlx",
     "openai",
+    "rapid-mlx",
     "openrouter",
     "vertexai",
 ];
@@ -341,8 +342,10 @@ impl Default for ModelCatalog {
 
 impl ModelCatalog {
     pub fn new() -> Self {
+        let mut discovery = ModelDiscoveryService::new();
+        discovery.register(Box::new(crate::providers::RapidMlxDiscovery));
         Self {
-            discovery: Arc::new(ModelDiscoveryService::new()),
+            discovery: Arc::new(discovery),
         }
     }
 

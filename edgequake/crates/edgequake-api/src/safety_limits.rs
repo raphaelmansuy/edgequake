@@ -514,6 +514,9 @@ fn create_inner_llm_provider(
     ctx: Option<ApplicationContext>,
 ) -> Result<Arc<dyn LLMProvider>> {
     let provider = provider_name.to_ascii_lowercase();
+    if edgequake_pdf::rapid_mlx::is_rapid_mlx(&provider) {
+        return edgequake_pdf::rapid_mlx::chat_named(model, ctx);
+    }
     if provider == "vertexai" || provider == "vertex" {
         return create_vertex_llm_via_adc(model, ctx);
     }
@@ -805,10 +808,23 @@ pub fn create_safe_embedding_provider(
     // create the provider with dedicated credentials.
     let is_openai_compatible = matches!(
         provider_name.to_ascii_lowercase().as_str(),
-        "openai" | "openai-compatible" | "openai_compatible"
+        "openai"
+            | "openai-compatible"
+            | "openai_compatible"
+            | "rapid-mlx"
+            | "rapid_mlx"
+            | "rapidmlx"
     );
+    let custom_embed = std::env::var("EDGEQUAKE_EMBEDDING_BASE_URL")
+        .ok()
+        .is_some_and(|value| !value.trim().is_empty())
+        || std::env::var("EDGEQUAKE_EMBEDDING_API_KEY")
+            .ok()
+            .is_some_and(|value| !value.trim().is_empty());
 
-    let inner = if is_openai_compatible {
+    let inner = if edgequake_pdf::rapid_mlx::is_rapid_mlx(&provider_name) && !custom_embed {
+        edgequake_pdf::rapid_mlx::embedding_named(&model)?
+    } else if is_openai_compatible {
         let embed_base_url = std::env::var("EDGEQUAKE_EMBEDDING_BASE_URL").ok();
         let embed_api_key = std::env::var("EDGEQUAKE_EMBEDDING_API_KEY").ok();
 
@@ -1280,7 +1296,8 @@ pub fn is_model_provider_mismatch(provider_name: &str, model: &str) -> bool {
         || model.starts_with("minicpm");
 
     match provider.as_str() {
-        "ollama" | "lmstudio" | "lm-studio" | "lm_studio" => {
+        "ollama" | "lmstudio" | "lm-studio" | "lm_studio" | "rapid-mlx" | "rapid_mlx"
+        | "rapidmlx" => {
             // Local providers cannot run cloud-hosted models.
             is_openai_model || is_anthropic_model || is_gemini_model
         }
@@ -1315,6 +1332,7 @@ pub fn default_model_for_provider(provider_name: &str) -> &'static str {
         "mistral" => "mistral-small-latest",
         "ollama" => "gemma4:latest",
         "lmstudio" | "lm-studio" | "lm_studio" => "gemma-3n-e4b-it",
+        "rapid-mlx" | "rapid_mlx" | "rapidmlx" => "default",
         "minimax" => "MiniMax-M2.7",
         "mock" => "mock-model",
         _ => "gpt-5.6-luna",
@@ -1333,6 +1351,17 @@ mod default_model_tests {
             default_model_for_provider("unknown-provider"),
             "gpt-5.6-luna"
         );
+    }
+
+    #[test]
+    fn rapid_mlx_client_keeps_its_name_and_rejects_a_cloud_model_name() {
+        assert_eq!(default_model_for_provider("rapid-mlx"), "default");
+        assert!(is_model_provider_mismatch("rapid-mlx", "gpt-5.6-luna"));
+        assert!(!is_model_provider_mismatch("rapid-mlx", "qwen3.5-4b-4bit"));
+        let provider =
+            create_safe_llm_provider("rapid-mlx", "qwen3.5-4b-4bit").expect("rapid-mlx client");
+        assert_eq!(provider.name(), "rapid-mlx");
+        assert_eq!(provider.model(), "qwen3.5-4b-4bit");
     }
 }
 
