@@ -50,12 +50,30 @@ mod tests {
     fn bundled_embedded_catalog_has_core_providers() {
         let config = embedded_models_catalog();
         let names: Vec<_> = config.providers.iter().map(|p| p.name.as_str()).collect();
-        for id in ["openai", "ollama", "lmstudio", "mock", "mistral"] {
+        for id in [
+            "openai",
+            "ollama",
+            "lmstudio",
+            "mock",
+            "mistral",
+            "rapid-mlx",
+        ] {
             assert!(
                 names.contains(&id),
                 "missing provider {id} in bundled models.toml"
             );
         }
+        let rapid = config
+            .providers
+            .iter()
+            .find(|provider| provider.name == "rapid-mlx")
+            .expect("rapid-mlx");
+        assert_eq!(
+            rapid.base_url.as_deref(),
+            Some("http://127.0.0.1:8000"),
+            "catalog base_url is the field the deserializer reads"
+        );
+        assert!(rapid.api_key_env.as_deref().unwrap_or("").is_empty());
     }
 
     #[test]

@@ -42,7 +42,7 @@ for _arg in "$@"; do
     --model) : ;;
     --embed-model) : ;;
     --help|-h)
-      printf "Usage: quickstart.sh [--yes] [--provider ollama|openai|omlx|anthropic|lmstudio] [--base-url URL] [--model ID] [--embed-model ID]\n"
+      printf "Usage: quickstart.sh [--yes] [--provider ollama|openai|omlx|rapid-mlx|anthropic|lmstudio] [--base-url URL] [--model ID] [--embed-model ID]\n"
       exit 0
       ;;
   esac
@@ -265,7 +265,7 @@ check_prerequisites() {
   if [ "$NONINTERACTIVE" != "1" ] && [ ! -e /dev/tty ]; then
     ui_blank
     ui_fail "No interactive terminal detected (/dev/tty is not accessible)."
-    ui_info  "Re-run with --yes --provider ollama|openai|omlx|... or set env vars."
+    ui_info  "Re-run with --yes --provider ollama|openai|omlx|rapid-mlx|... or set env vars."
     ui_blank
     exit 1
   fi
@@ -416,6 +416,7 @@ choose_provider() {
     "OpenAI   — cloud API · requires OPENAI_API_KEY" \
     "Ollama   — local OpenAI-shaped daemon on :11434" \
     "oMLX     — Apple Silicon local server on :9050" \
+    "Rapid-MLX — Apple Silicon local server on :8000 (key optional)" \
     "LM Studio — local OpenAI-shaped on :1234" \
     "Anthropic — cloud or Anthropic-shaped local (ANTHROPIC_BASE_URL)"
 
@@ -423,8 +424,9 @@ choose_provider() {
     1) LLM_PROVIDER="openai" ;;
     2) LLM_PROVIDER="ollama" ;;
     3) LLM_PROVIDER="omlx" ;;
-    4) LLM_PROVIDER="lmstudio" ;;
-    5) LLM_PROVIDER="anthropic" ;;
+    4) LLM_PROVIDER="rapid-mlx" ;;
+    5) LLM_PROVIDER="lmstudio" ;;
+    6) LLM_PROVIDER="anthropic" ;;
   esac
 
   ui_ok "Provider: ${C_BOLD}${LLM_PROVIDER}${C_RESET}"
@@ -594,6 +596,9 @@ start_stack() {
   export EDGEQUAKE_VERSION
   export EDGEQUAKE_PORT
   export FRONTEND_PORT
+  case "$LLM_PROVIDER" in
+    rapidmlx|rapid_mlx) LLM_PROVIDER="rapid-mlx" ;;
+  esac
   export EDGEQUAKE_LLM_PROVIDER="$LLM_PROVIDER"
   export EDGEQUAKE_LLM_MODEL="$LLM_MODEL"
   export EDGEQUAKE_EMBEDDING_PROVIDER="$EMBED_PROVIDER"
@@ -601,6 +606,10 @@ start_stack() {
   if [ -n "$QS_BASE_URL" ]; then
     case "$LLM_PROVIDER" in
       omlx) export OMLX_HOST="$QS_BASE_URL"; export OMLX_BASE_URL="$QS_BASE_URL" ;;
+      rapid-mlx|rapidmlx|rapid_mlx)
+        export RAPID_MLX_HOST="$QS_BASE_URL"
+        export RAPID_MLX_BASE_URL="$QS_BASE_URL"
+        ;;
       openai|openai-compatible)
         export OPENAI_BASE_URL="$QS_BASE_URL"
         export OPENAI_COMPATIBLE_BASE_URL="$QS_BASE_URL"

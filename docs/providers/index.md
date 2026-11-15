@@ -16,7 +16,7 @@ EdgeQuake needs two models. A chat model extracts entities and writes answers. A
 | Source | `make dev` | You change the code |
 | Helm | [Deployment](../operations/deployment.md) | Production |
 
-`quickstart.sh` accepts `--provider ollama|openai|omlx|anthropic|lmstudio`, `--base-url URL`, `--model ID` and `--embed-model ID`. Without a terminal it needs `--yes`.
+`quickstart.sh` accepts `--provider ollama|openai|omlx|rapid-mlx|anthropic|lmstudio`, `--base-url URL`, `--model ID` and `--embed-model ID`. Without a terminal it needs `--yes`.
 
 ## Which provider should I use?
 
@@ -30,7 +30,7 @@ flowchart TD
   B -- "No" --> C{"Want a desktop app?"}
   C -- "Yes" --> D["LM Studio"]
   C -- "No" --> E{"Apple Silicon Mac?"}
-  E -- "Yes" --> F["Ollama, oMLX or MLX-LM"]
+  E -- "Yes" --> F["Ollama, oMLX, Rapid-MLX or MLX-LM"]
   E -- "No" --> G["Ollama or llama.cpp"]
   B -- "Yes" --> H{"Need Claude models?"}
   H -- "Yes" --> I["Anthropic plus OpenAI embeddings"]
@@ -80,6 +80,7 @@ Server defaults come from `EDGEQUAKE_LLM_PROVIDER` and `EDGEQUAKE_LLM_MODEL` for
 | `ollama` | [Ollama](ollama.md) | none | `http://localhost:11434` |
 | `lmstudio` | [LM Studio](lmstudio.md) | none | `http://localhost:1234` |
 | `omlx` | [oMLX](omlx.md) | optional | `http://127.0.0.1:9050` |
+| `rapid-mlx` | [Rapid-MLX](rapid-mlx.md) | optional | `http://127.0.0.1:8000` |
 | `mlx-lm` | [MLX-LM](mlx-lm.md) | optional | `http://127.0.0.1:8080` |
 | `vllm-mlx` | [vLLM-MLX](vllm-mlx.md) | optional | `http://127.0.0.1:8000` |
 | `llamacpp` | [llama.cpp](llamacpp.md) | optional | `http://127.0.0.1:8080` |
@@ -104,7 +105,7 @@ curl -sS -X POST http://127.0.0.1:8080/api/v1/providers/test \
 
 `GET /health` reports the state of the default provider. What it checks depends on the provider:
 
-- **Local servers** (Ollama, LM Studio, oMLX, MLX-LM, vLLM-MLX, llama.cpp, MTPLX) get a live request. `llm_provider` is `false` and the status is `degraded` when they do not answer.
+- **Local servers** (Ollama, LM Studio, oMLX, Rapid-MLX, MLX-LM, vLLM-MLX, llama.cpp, MTPLX) get a live request. `llm_provider` is `false` and the status is `degraded` when they do not answer. Rapid-MLX is probed with `GET /health` on the host (no `/v1`). The others are probed with their model-list route.
 - **Cloud providers** (OpenAI, Anthropic and the others) only report whether the key variable is set. They make no network call.
 - **openai-compatible** reports `llm_provider: true` without checking anything. Use the probe above to test it.
 
@@ -121,6 +122,7 @@ Look for `"llm_provider": true` under `components`.
 - [Ollama](ollama.md)
 - [LM Studio](lmstudio.md)
 - [oMLX](omlx.md)
+- [Rapid-MLX](rapid-mlx.md)
 - [MLX-LM](mlx-lm.md)
 - [vLLM-MLX](vllm-mlx.md)
 - [llama.cpp](llamacpp.md)

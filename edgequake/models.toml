@@ -1764,7 +1764,7 @@ image_per_unit = 0.0
 # =============================================================================
 # LOCAL APPLE / OPENAI-COMPATIBLE SERVERS (edgequake-llm 0.10.3+)
 # =============================================================================
-# Catalog coverage for omlx / mtplx / llamacpp / vllm-mlx / mlx-lm.
+# Catalog coverage for omlx / mtplx / llamacpp / vllm-mlx / mlx-lm / rapid-mlx.
 # Defaults match edgequake-llm host constants; override via *_HOST env vars.
 
 [[providers]]
@@ -1918,6 +1918,46 @@ name = "default"
 display_name = "MLX-LM Default"
 model_type = "llm"
 description = "Model loaded in mlx_lm.server (dynamic inventory via /v1/models)"
+deprecated = false
+tags = ["local", "mlx", "apple-silicon"]
+
+[providers.models.capabilities]
+context_length = 128000
+max_output_tokens = 16384
+supports_vision = false
+supports_function_calling = true
+supports_json_mode = true
+supports_streaming = true
+supports_system_message = true
+embedding_dimension = 0
+
+[providers.models.cost]
+input_per_1k = 0.0
+output_per_1k = 0.0
+embedding_per_1k = 0.0
+image_per_unit = 0.0
+
+# Rapid-MLX (https://github.com/raullenchai/Rapid-MLX). Keyless local server.
+# `base_url` is the catalog field. Older blocks use `api_base`, which this
+# deserializer does not read. Health is GET {host}/health, not /v1/models.
+# vLLM-MLX also documents port 8000; set RAPID_MLX_HOST when the two differ.
+[[providers]]
+name = "rapid-mlx"
+display_name = "Rapid-MLX"
+type = "openaicompatible"
+base_url = "http://127.0.0.1:8000"
+base_url_env = "RAPID_MLX_HOST"
+api_key_env = ""
+default_llm_model = "default"
+enabled = true
+priority = 36
+description = "Local Rapid-MLX OpenAI-compatible server (Apple Silicon MLX)"
+
+[[providers.models]]
+name = "default"
+display_name = "Rapid-MLX Default"
+model_type = "llm"
+description = "Model loaded in Rapid-MLX (dynamic inventory via /v1/models)"
 deprecated = false
 tags = ["local", "mlx", "apple-silicon"]
 

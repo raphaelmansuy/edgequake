@@ -41,7 +41,7 @@ Accepted shapes:
 | Shape | Used for |
 |-------|----------|
 | `openai_chat`, `openai`, `openai-compatible`, `openai_compatible` | OpenAI Chat Completions servers |
-| `omlx`, `mlx-lm`, `mlx_lm`, `llamacpp`, `vllm-mlx`, `lmstudio` | Local servers with the same API |
+| `omlx`, `rapid-mlx`, `mlx-lm`, `mlx_lm`, `llamacpp`, `vllm-mlx`, `lmstudio` | Local servers with the same API |
 | `ollama` | Ollama native API |
 | `anthropic_messages`, `anthropic`, `claude` | Anthropic Messages API |
 

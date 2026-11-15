@@ -21,6 +21,7 @@ pub mod page_selection;
 pub mod page_signals;
 pub mod page_walk;
 pub mod pdfium_ready;
+pub mod rapid_mlx;
 pub mod reasoning_effort_inject;
 pub mod region_assets;
 pub mod reprocess_stage;

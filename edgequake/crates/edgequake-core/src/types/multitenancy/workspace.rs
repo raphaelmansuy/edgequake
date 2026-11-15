@@ -538,6 +538,8 @@ impl Workspace {
             "mistral" => "mistral-small-latest".to_string(),
             "xai" => "grok-3-mini".to_string(),
             "lmstudio" | "openai-compatible" => "local-model".to_string(),
+            // The id Rapid-MLX serves until the operator copies one from /v1/models.
+            "rapid-mlx" | "rapid_mlx" | "rapidmlx" => "default".to_string(),
             // ollama and everything else: use the compiled-in Ollama default.
             _ => OLLAMA_DEFAULT_LLM_MODEL.to_string(),
         }
@@ -552,6 +554,7 @@ impl Workspace {
             "lmstudio" => "nomic-embed-text".to_string(),
             // Mistral native embedding — 1024 dimensions, optimised for retrieval.
             "mistral" => "mistral-embed".to_string(),
+            "rapid-mlx" | "rapid_mlx" | "rapidmlx" => "default".to_string(),
             // ollama and everything else: use the compiled-in Ollama default.
             _ => OLLAMA_DEFAULT_EMBEDDING_MODEL.to_string(),
         }
@@ -860,6 +863,18 @@ mod tests {
         assert_eq!(
             Workspace::default_model_for_provider("ollama"),
             OLLAMA_DEFAULT_LLM_MODEL
+        );
+    }
+
+    #[test]
+    fn test_default_model_rapid_mlx_is_the_server_placeholder() {
+        assert_eq!(
+            Workspace::default_model_for_provider("rapid-mlx"),
+            "default"
+        );
+        assert_eq!(
+            Workspace::default_embedding_model_for_provider("rapidmlx"),
+            "default"
         );
     }
 

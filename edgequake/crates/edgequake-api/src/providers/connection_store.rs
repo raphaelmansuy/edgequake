@@ -318,6 +318,9 @@ pub async fn vision_llm_preferring_connection(
             );
         }
     }
+    if edgequake_pdf::rapid_mlx::is_rapid_mlx(provider) {
+        return edgequake_pdf::rapid_mlx::chat_named(model, None).ok();
+    }
     edgequake_llm::ProviderFactory::create_llm_provider(provider, model).ok()
 }
 

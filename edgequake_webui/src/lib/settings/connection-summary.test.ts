@@ -32,6 +32,7 @@ describe("connectionShapeLabel", () => {
     expect(connectionShapeLabel("vertexai")).toBe("Vertex AI");
     expect(connectionShapeLabel("openai_chat")).toBe("OpenAI-compatible");
     expect(connectionShapeLabel("ollama")).toBe("Ollama");
+    expect(connectionShapeLabel("rapid-mlx")).toBe("Rapid-MLX");
   });
 
   it("prefers the server's label and tolerates a missing shape", () => {

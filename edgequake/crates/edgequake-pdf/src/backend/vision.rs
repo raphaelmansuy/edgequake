@@ -91,6 +91,11 @@ impl PdfConverter for VisionPdfConverter {
         {
             let base = match vision.provider.clone() {
                 Some(provider) => provider,
+                // The published factory rejects `rapid-mlx`. Build that client here.
+                None if crate::rapid_mlx::is_rapid_mlx(&provider_name) => {
+                    crate::rapid_mlx::chat_named(&model, None)
+                        .map_err(|error| PdfConversionError::Backend(error.to_string()))?
+                }
                 None => ProviderFactory::create_llm_provider(&provider_name, &model)
                     .map_err(|error| PdfConversionError::Backend(error.to_string()))?,
             };

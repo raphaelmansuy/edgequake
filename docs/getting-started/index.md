@@ -57,7 +57,7 @@ Run it without prompts by passing flags:
 sh quickstart.sh --yes --provider ollama
 ```
 
-The script supports `--provider ollama|openai|omlx|anthropic|lmstudio`, `--base-url`, `--model` and `--embed-model`. Run `sh quickstart.sh --help` for the full list.
+The script supports `--provider ollama|openai|omlx|rapid-mlx|anthropic|lmstudio`, `--base-url`, `--model` and `--embed-model`. Run `sh quickstart.sh --help` for the full list.
 
 ## Steps after install
 

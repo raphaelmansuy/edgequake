@@ -70,6 +70,7 @@ const BUILT_IN_SHAPES: ConnectionShape[] = [
   { id: 'ollama', label: 'Ollama', default_base_url: 'http://127.0.0.1:11434', hint: 'Local Ollama. A key is optional.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
   { id: 'lmstudio', label: 'LM Studio', default_base_url: 'http://127.0.0.1:1234/v1', hint: 'Local LM Studio.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
   { id: 'omlx', label: 'oMLX', default_base_url: 'http://127.0.0.1:9050/v1', hint: 'Local oMLX.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
+  { id: 'rapid-mlx', label: 'Rapid-MLX', default_base_url: 'http://127.0.0.1:8000/v1', hint: 'Local Rapid-MLX. A key is optional.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
   { id: 'mtplx', label: 'MTPLX', default_base_url: 'http://127.0.0.1:8080/v1', hint: 'Local MTPLX.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
   { id: 'llamacpp', label: 'llama.cpp', default_base_url: 'http://127.0.0.1:8080/v1', hint: 'llama-server.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
   { id: 'vllm-mlx', label: 'vLLM-MLX', default_base_url: 'http://127.0.0.1:8000/v1', hint: 'Local vLLM-MLX.', auth: 'optional_api_key', requires_key: false, accepts_saved_key: true, stores_secret: true },
@@ -288,7 +289,7 @@ export function ConnectionsCard() {
         </CardTitle>
         <CardDescription>
           Add a cloud provider (OpenAI, Anthropic, Vertex AI, Azure, Mistral, Bedrock) or a local
-          server (Ollama, LM Studio, oMLX, llama.cpp). A saved key or key file is encrypted at rest
+          server (Ollama, LM Studio, oMLX, Rapid-MLX, llama.cpp). A saved key or key file is encrypted at rest
           and never shown again.
         </CardDescription>
       </CardHeader>

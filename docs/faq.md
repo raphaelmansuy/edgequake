@@ -369,7 +369,7 @@ See the [upload quick reference](api-reference/document-upload-quick-reference.m
 | Anthropic | Claude models (`ANTHROPIC_API_KEY`) |
 | Ollama | Local; default model `gemma4:latest` |
 | LM Studio | OpenAI-compatible local server |
-| oMLX, MLX-LM, vLLM-MLX, llama.cpp | Local servers; see [Providers](providers/index.md) |
+| oMLX, Rapid-MLX, MLX-LM, vLLM-MLX, llama.cpp | Local servers; see [Providers](providers/index.md) |
 | Any OpenAI-compatible server | Set a base URL |
 | Mistral, Gemini, Vertex AI, OpenRouter, xAI and others | In the catalog `edgequake/models.toml`; each reads its key from the variable named in the catalog |
 

@@ -26,7 +26,7 @@
 curl -fsSL https://raw.githubusercontent.com/raphaelmansuy/edgequake/edgequake-main/quickstart.sh | sh
 ```
 
-Then open **http://localhost:3000**. The wizard detects local servers (Ollama, LM Studio, oMLX, MLX-LM, llama.cpp) or takes an OpenAI / Anthropic key. Ports bind to `127.0.0.1` only.
+Then open **http://localhost:3000**. The wizard detects local servers (Ollama, LM Studio, oMLX, Rapid-MLX, MLX-LM, llama.cpp) or takes an OpenAI / Anthropic key. Ports bind to `127.0.0.1` only.
 
 ```bash
 # Headless / CI
@@ -63,7 +63,7 @@ EdgeQuake is not tied to one vendor. Configure a **Connection** (URL + key, encr
 | You want | Use | Guide |
 |----------|-----|-------|
 | Best quality, no hardware | OpenAI, Anthropic, Gemini, Mistral | [providers](docs/providers/index.md) |
-| Private, runs on your Mac/PC | Ollama, LM Studio, oMLX, MLX-LM, llama.cpp, vLLM-MLX | [Ollama](docs/providers/ollama.md) · [oMLX](docs/providers/omlx.md) |
+| Private, runs on your Mac/PC | Ollama, LM Studio, oMLX, Rapid-MLX, MLX-LM, llama.cpp, vLLM-MLX | [Ollama](docs/providers/ollama.md) · [oMLX](docs/providers/omlx.md) · [Rapid-MLX](docs/providers/rapid-mlx.md) |
 | Cloud LLM + local embeddings | Hybrid (`EDGEQUAKE_EMBEDDING_PROVIDER`) | [model roles](docs/providers/roles.md) |
 | Your own gateway | Any OpenAI- or Anthropic-shaped server | [generic](docs/providers/openai-compatible.md) |
 

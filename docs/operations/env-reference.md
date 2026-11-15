@@ -46,6 +46,12 @@ Workspace defaults check the `EDGEQUAKE_DEFAULT_EMBEDDING_*` names first. The bo
 | `OLLAMA_EMBEDDING_HOST` | `OLLAMA_HOST` | Separate Ollama host for embeddings. |
 | `LMSTUDIO_HOST` | `http://localhost:1234` | LM Studio base URL. The name is `LMSTUDIO_HOST`, not `LM_STUDIO_BASE_URL`. |
 | `OMLX_HOST` | unset | oMLX base URL. |
+| `RAPID_MLX_HOST` | `http://127.0.0.1:8000` | Rapid-MLX base URL. A trailing `/v1` is removed. |
+| `RAPID_MLX_BASE_URL` | unset | Alias of `RAPID_MLX_HOST`. `RAPID_MLX_HOST` wins when both are set. |
+| `RAPID_MLX_API_KEY` | unset | Optional Bearer token. Leave unset when the server has no `--api-key`. |
+| `RAPID_MLX_MODEL` | `default` | Chat model id. `EDGEQUAKE_LLM_MODEL` is used when this is unset. |
+| `RAPID_MLX_EMBEDDING_MODEL` | chat model | Embedding model id. `EDGEQUAKE_EMBEDDING_MODEL` is the next fallback. |
+| `RAPID_MLX_TIMEOUT_SECONDS` | `600` | HTTP timeout for the Rapid-MLX client. |
 | `OPENAI_API_KEY` | unset | OpenAI API key. |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI base URL. |
 | `OPENAI_COMPATIBLE_BASE_URL` | unset | Generic OpenAI-shaped server. |

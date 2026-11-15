@@ -124,6 +124,28 @@ describe("ConnectionsCard security requirements", () => {
     expect(screen.queryByLabelText(/^api key$/i)).not.toBeInTheDocument();
   });
 
+  it("offers Rapid-MLX from the built-in list when the server is unreachable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(new Error("offline"))),
+    );
+    await renderCard();
+    await waitFor(() =>
+      expect(screen.getByTestId("connections-shapes-fallback")).toBeInTheDocument(),
+    );
+    const select = screen.getByTestId("connection-shape") as HTMLSelectElement;
+    const rapid = Array.from(select.options).find((option) => option.value === "rapid-mlx");
+    expect(rapid?.textContent).toBe("Rapid-MLX");
+    await act(async () => {
+      fireEvent.change(select, { target: { value: "rapid-mlx" } });
+    });
+    const base = screen.getByLabelText(/base url/i) as HTMLInputElement;
+    expect(base.value).toBe("http://127.0.0.1:8000/v1");
+    const key = screen.getByLabelText(/api key \(optional\)/i) as HTMLInputElement;
+    expect(key).not.toBeRequired();
+    expect(key.placeholder).toMatch(/leave empty/i);
+  });
+
   it("saves on the deployment and does not send a tenant header", async () => {
     await renderCard();
     await waitFor(() => expect(screen.getByTestId("connection-shape")).toBeInTheDocument());
