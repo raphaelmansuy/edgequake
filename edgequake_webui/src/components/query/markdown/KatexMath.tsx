@@ -17,11 +17,11 @@ interface KatexMathProps {
 }
 
 /**
- * SECURITY: this component injects KaTeX's HTML with `dangerouslySetInnerHTML`, so the safety of
- * the output rests entirely on `KATEX_RENDER_OPTIONS.trust` being `false`. With `trust: true`,
- * KaTeX passes `\href` and `\includegraphics` through verbatim and a document chunk or model
- * answer could emit a live `javascript:` link. Do not flip that option; the regression test in
- * `__tests__/KatexMath.test.ts` exists to catch it.
+ * SECURITY: this component injects KaTeX's HTML with `dangerouslySetInnerHTML`. Two gates
+ * sit in front of that: `KATEX_RENDER_OPTIONS.trust` is `false` (so `\href` and
+ * `\includegraphics` are not honoured), and `renderKatexToHtml` sanitizes the markup so a
+ * `javascript:` URL cannot become an anchor even if trust is flipped back on. Do not remove
+ * either gate; the regression tests cover both.
  */
 export const KatexMath = memo(function KatexMath({
   math,

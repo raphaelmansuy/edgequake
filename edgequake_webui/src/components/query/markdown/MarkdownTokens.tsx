@@ -292,6 +292,9 @@ const TokenRenderer = memo(function TokenRenderer({
 
     case 'html': {
       const html = token as Tokens.HTML;
+      // `<equation>` is LaTeX, not HTML. Running `sanitizeHtml` on `html.raw`
+      // would strip the tag and the formula. The rendered KaTeX markup is
+      // sanitized inside `renderKatexToHtml` before injection (issue #536).
       const equation = displayLatexFromEquationHtml(html.raw);
       if (equation) {
         return (

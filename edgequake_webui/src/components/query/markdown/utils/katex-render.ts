@@ -1,4 +1,5 @@
 import katex from "katex";
+import { sanitizeKatexHtml } from "./sanitize-katex-html";
 
 /**
  * Shared KaTeX options — single source for component + tests.
@@ -9,6 +10,10 @@ import katex from "katex";
  * XSS sink in the query view. Verified: `\href{javascript:alert(1)}{x}` renders a `javascript:`
  * href when `trust` is true and is neutralised when it is false.
  *
+ * `trust: false` is not the only gate. `renderKatexToHtml` runs the markup through
+ * `sanitizeKatexHtml` before it is returned, so a trusted-command regression or a future
+ * KaTeX HTML bug still cannot inject a `javascript:` anchor. See issue #536.
+ *
  * `strict: false` stays: it only relaxes typographic warnings, not security.
  */
 export const KATEX_RENDER_OPTIONS = {
@@ -18,13 +23,14 @@ export const KATEX_RENDER_OPTIONS = {
   output: "html" as const,
 };
 
-/** Render LaTeX to an HTML string (inline or display mode). */
+/** Render LaTeX to sanitized HTML (inline or display mode). */
 export function renderKatexToHtml(math: string, block: boolean): string | null {
   try {
-    return katex.renderToString(math, {
+    const html = katex.renderToString(math, {
       ...KATEX_RENDER_OPTIONS,
       displayMode: block,
     });
+    return sanitizeKatexHtml(html);
   } catch {
     return null;
   }

@@ -85,6 +85,7 @@
     "minisearch": "^7.2.0",
     "next": "16.4.3",
     "next-themes": "^0.4.6",
+    "parse5": "7.3.0",
     "pdfjs-dist": "5.4.296",
     "react": "19.2.3",
     "react-dom": "19.2.3",
