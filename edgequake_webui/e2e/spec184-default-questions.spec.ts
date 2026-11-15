@@ -37,6 +37,11 @@ test.describe("@spec184 default questions", () => {
     await openNormalWorkspace(page, { path: "/query", images: true, withPicture: true });
     await expect(page.getByTestId("query-composer")).toBeVisible({ timeout: 20_000 });
 
+    // WHY wait for a suggestion: `query-composer` renders before the corpus queries
+    // settle, so `allInnerTexts()` could read an empty grid and compare "" against
+    // /picture/. The screen now withholds the grid until capabilities are known,
+    // which makes that window wider, not narrower.
+    await expect(suggestions(page).first()).toBeVisible({ timeout: 20_000 });
     const joined = (await suggestions(page).allInnerTexts()).join(" ");
     expect(joined).toMatch(/picture/i);
     expect(joined).not.toMatch(/refund|onboarding|the handbook/i);

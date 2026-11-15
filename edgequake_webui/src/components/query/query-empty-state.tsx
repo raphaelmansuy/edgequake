@@ -23,8 +23,8 @@ import {
 } from "@/lib/query/query-empty-copy";
 import type { QueryMode } from "@/types/query";
 import { getWorkspaceStats } from "@/lib/api/edgequake/workspaces";
-import { useWorkspaceCapabilities } from "@/hooks/use-workspace-capabilities";
 import { useQueryEmptyCorpus } from "@/hooks/use-query-empty-corpus";
+import { useWorkspaceCapabilitiesOrNull } from "@/hooks/use-workspace-capabilities";
 import { useTenantStore } from "@/stores/use-tenant-store";
 
 export interface QueryEmptyStateProps {
@@ -40,11 +40,15 @@ export const QueryEmptyState = memo(function QueryEmptyState({
 }: QueryEmptyStateProps) {
   const { t } = useTranslation();
   const isChat = isChatQueryMode(mode);
-  const { shows_graph_ui: hasGraph } = useWorkspaceCapabilities();
   // SPEC-183/184: the suggestions must be questions this corpus can answer. A picture workspace was
   // being offered "What does the handbook say about refunds?" — unanswerable by construction; a
   // graph workspace was offered four sentences that could not name a single entity it held.
-  const corpus = useQueryEmptyCorpus(!isChat);
+  // WHY `?? null`: until the workspace payload lands, the capability booleans are unknown. They used
+  // to default to graph, so a Normal workspace showed four knowledge-graph questions for the first
+  // frames — a real flash on a slow load, and the reason the SPEC-184 image test was flaky in CI.
+  const caps = useWorkspaceCapabilitiesOrNull();
+  const hasGraph = caps?.shows_graph_ui ?? false;
+  const corpus = useQueryEmptyCorpus(!isChat && caps !== null);
   const copy = getQueryEmptyCopy(mode, corpus);
   const corpusState = corpusStateOf(corpus);
 
@@ -97,7 +101,13 @@ export const QueryEmptyState = memo(function QueryEmptyState({
 
   // An empty workspace has no answerable question, so the grid is not shown at all: four cards
   // that each produce a refusal on the first click is the same lie in a different costume.
-  const showSuggestions = Boolean(onSuggestionClick) && suggestions.length > 0 && corpusState !== "empty";
+  // WHY `caps !== null`: with the capability set unknown the corpus shape is a guess, so an empty
+  // workspace state would render the wrong questions for a frame. Hold the grid until it is real.
+  const showSuggestions =
+    caps !== null &&
+    Boolean(onSuggestionClick) &&
+    suggestions.length > 0 &&
+    corpusState !== "empty";
 
   const hasDocs = (stats?.document_count ?? 0) > 0;
   const figures = hasGraph
