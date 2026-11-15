@@ -1,6 +1,6 @@
 # SPEC-096 Screenshot Run Notes
 
-Generated: 2026-11-02T05:26:34.791Z
+Generated: 2026-11-15T12:11:49.777Z
 Source: `edgequake_webui/e2e/spec096-extraction-language.spec.ts`
 
 ### S01

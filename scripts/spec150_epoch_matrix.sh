@@ -145,7 +145,7 @@ for block in text[1:]:
     tag=d.get("tag","")
     if filt and tag!=filt: continue
     if quick and d.get("key")!="true": continue
-    print(tag, d.get("pg_majors","[16]").strip("[]").replace(" ",""), d.get("mode","replay"))
+    print(tag, d.get("pg_majors","[16]").strip("[]").replace(" ",""), d.get("mode","replay"), d.get("schema_max",""))
 PY
 }
 
@@ -231,7 +231,7 @@ replay_epoch() {
 }
 
 run_one() {
-  local tag="$1" major="$2" mode="$3"
+  local tag="$1" major="$2" mode="$3" schema_max="${4:-}"
   local port container url bin report_dir t0 t1 status started
   report_dir="$REPORT_ROOT/pg${major}"
   RUN_REPORTS+=("$report_dir/${tag}.json")
@@ -253,8 +253,19 @@ run_one() {
   bin=$(resolve_head_bin)
 
   # FORCE_REPLAY=1 skips GHCR image boots (deterministic checksum replay).
+  #
+  # WHY one exception: a replay drives the epoch's ledger with the HEAD binary.
+  # When the epoch's schema is *ahead* of HEAD (v0.40.8+ ship 231 while main
+  # builds 227), the preflight correctly refuses with PREFLIGHT_BINARY_OLDER, so
+  # a replay can only ever fail. Those epochs keep mode=image so the tag's own
+  # binary drives its own ledger. Older epochs replay as before, including the
+  # ones whose images no longer boot under modern runners.
   if [[ "${FORCE_REPLAY:-0}" == "1" ]]; then
-    mode="replay"
+    if [[ -n "$schema_max" ]] && (( schema_max > ${HEAD_SCHEMA_MAX:-227} )); then
+      : # newer-than-HEAD: a replay cannot succeed, keep image mode
+    else
+      mode="replay"
+    fi
   fi
 
   echo "=== $tag → HEAD on PG$major (mode=$mode, port=${port:-none}) ==="
@@ -539,13 +550,13 @@ SQL
 }
 
 FAILS=0
-while read -r tag pg_majors mode; do
+while read -r tag pg_majors mode schema_max; do
   [[ -z "$tag" ]] && continue
   for major in ${pg_majors//,/ }; do
     if ! echo " $PG_LIST " | grep -q " $major "; then
       continue
     fi
-    if ! run_one "$tag" "$major" "$mode"; then
+    if ! run_one "$tag" "$major" "$mode" "$schema_max"; then
       FAILS=$((FAILS + 1))
     fi
   done

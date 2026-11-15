@@ -31,8 +31,11 @@ fn numbered_sql_versions() -> Vec<i64> {
 fn head_train_includes_160_through_169() {
     let versions = numbered_sql_versions();
     let max = *versions.last().expect("at least one migration");
-    assert_eq!(max, 225, "HEAD schema train must end at 225");
-    for v in 160..=225 {
+    // WHY 227: SPEC-180 added 226-227 (normal RAG profile, BM25 doc stats). The
+    // epoch table and manifest.toml both pin 227; this constant had drifted to
+    // 225 and failed the hermetic gate on every branch.
+    assert_eq!(max, 227, "HEAD schema train must end at 227");
+    for v in 160..=227 {
         assert!(
             versions.contains(&v),
             "missing migration {v} in edgequake/migrations/"
@@ -48,7 +51,16 @@ fn manifest_compat_serve_max_matches_head() {
         .find(|l| l.starts_with("compat_serve_max"))
         .expect("compat_serve_max");
     let digits: String = max_line.chars().filter(|c| c.is_ascii_digit()).collect();
-    assert_eq!(digits, "225");
+    // WHY compare against the live train rather than a literal: the manifest and
+    // the migrations directory are the two sources of truth, and a hardcoded
+    // expectation is what let them drift apart (manifest 227, test said 225).
+    let versions = numbered_sql_versions();
+    let max = *versions.last().expect("at least one migration");
+    assert_eq!(
+        digits,
+        max.to_string(),
+        "manifest compat_serve_max must match the highest migration ({max})"
+    );
 }
 
 #[test]
@@ -856,6 +868,13 @@ fn progress_module_release_map_covers_head() {
     assert!(
         src.contains("225 => \"v0.39.0\""),
         "release_for_schema must map 225 to v0.39.0"
+    );
+    // WHY this pair matters: 226-227 previously fell through to
+    // "newer-than-matrix" even though both are shipped in v0.40.0, so a
+    // migrated database reported a release that never existed.
+    assert!(
+        src.contains("226..=227 => \"v0.40.0\""),
+        "release_for_schema must map 226 through 227 to v0.40.0"
     );
     assert!(
         src.contains("149 => \"v0.26.0–v0.26.10\""),

@@ -8,7 +8,10 @@
 use std::time::Duration;
 
 use edgequake_core::multimodal_embed::{embed_codes, EmbedError, EmbedInput};
-use edgequake_pipeline::{ProcessingResult, ProcessingStats, TextChunk, MODALITY_IMAGE};
+use edgequake_pipeline::{
+    DocumentLineage, ExtractionMetadata, LineageBuilder, ProcessingResult, ProcessingStats,
+    TextChunk, MODALITY_IMAGE,
+};
 use tokio_util::sync::CancellationToken;
 
 use super::super::*;
@@ -16,6 +19,13 @@ use super::types::{TextInsertExtracted, TextInsertPrepared};
 
 const ORIGINAL_POLL: Duration = Duration::from_millis(200);
 const ORIGINAL_POLL_ATTEMPTS: u32 = 50;
+
+/// Extraction-model marker for an image chunk.
+///
+/// WHY not a model name: the image path never calls a chat model. Recording the
+/// embedder here would claim an extraction that did not happen, so the field
+/// carries an explicit "none" the UI and audits can read honestly.
+const NO_EXTRACTION_MODEL: &str = "none (no extraction; image embedded from pixels)";
 
 /// The one chunk of an image document: empty content, a pixel vector, the image modality.
 pub(super) fn image_chunk(document_id: &str, vector: Vec<f32>) -> TextChunk {
@@ -45,13 +55,52 @@ pub(super) fn image_result(
         processing_time_ms: started.elapsed().as_millis() as u64,
         ..ProcessingStats::default()
     };
+    let lineage = image_lineage(document_id, &chunk, model, provider, dimensions);
     ProcessingResult {
         document_id: document_id.to_string(),
         chunks: vec![chunk],
         extractions: Vec::new(),
         stats,
-        lineage: None,
+        lineage: Some(lineage),
     }
+}
+
+/// Lineage for an image document: one chunk, no entity graph.
+///
+/// WHY: the lineage endpoints read the `<id>-lineage` record written at pipeline
+/// finalize. Returning `None` here left that record unwritten, so every image
+/// document answered `GET /documents/{id}/lineage` with 404 — and the stored
+/// message ("may not have been processed") actively misled, because the image
+/// *had* been indexed. Recording the single pixel-embedded chunk makes the
+/// Data Hierarchy panel describe what actually exists.
+fn image_lineage(
+    document_id: &str,
+    chunk: &TextChunk,
+    model: &str,
+    provider: &str,
+    dimensions: Option<usize>,
+) -> DocumentLineage {
+    let job_id = uuid::Uuid::new_v4().to_string();
+    let mut builder = LineageBuilder::new(document_id, document_id, &job_id);
+    // WHY no LLM model: an image chunk is embedded from pixels and no chat model
+    // runs, so naming an extraction model here would invent provenance.
+    builder.record_chunk(
+        &chunk.id,
+        chunk.index,
+        chunk.start_line,
+        chunk.end_line,
+        chunk.start_offset,
+        chunk.end_offset,
+        chunk.page_start,
+        ExtractionMetadata::new(NO_EXTRACTION_MODEL),
+    );
+    let mut lineage = builder.build();
+    // Only the embedding half is real for an image, so leave extraction_* unset
+    // rather than mirroring the embedder into it (those fields skip when None).
+    lineage.embedding_provider = Some(provider.to_string());
+    lineage.embedding_model = Some(model.to_string());
+    lineage.embedding_dimension = dimensions;
+    lineage
 }
 
 impl DocumentTaskProcessor {
@@ -211,5 +260,75 @@ mod tests {
         assert_eq!(result.stats.entity_count, 0);
         assert!(result.extractions.is_empty());
         assert_eq!(result.stats.embedding_dimensions, Some(4));
+    }
+
+    // WHY: finalize only writes `<id>-lineage` when the result carries lineage.
+    // A `None` here made every image document answer its lineage endpoint with
+    // 404 forever, so these tests pin the record's existence.
+    #[test]
+    fn an_image_document_carries_lineage_for_its_single_chunk() {
+        let chunk = image_chunk("doc-1", vec![0.5; 4]);
+        let chunk_id = chunk.id.clone();
+        let result = image_result("doc-1", chunk, "m", "p", std::time::Instant::now());
+
+        let lineage = result.lineage.expect("image results must persist lineage");
+        assert_eq!(lineage.document_id, "doc-1");
+        assert_eq!(lineage.total_chunks, 1);
+        assert_eq!(lineage.chunks.len(), 1);
+        assert_eq!(lineage.chunks[0].chunk_id, chunk_id);
+        assert_eq!(lineage.chunks[0].chunk_index, 0);
+    }
+
+    #[test]
+    fn an_image_document_lineage_claims_no_entities_or_relationships() {
+        let chunk = image_chunk("doc-1", vec![0.5; 4]);
+        let result = image_result("doc-1", chunk, "m", "p", std::time::Instant::now());
+
+        let lineage = result.lineage.expect("image results must persist lineage");
+        // WHY: no extraction runs on pixels, so the graph must stay empty rather
+        // than inherit the counts from the (zeroed) stats by accident.
+        assert!(lineage.entities.is_empty());
+        assert!(lineage.relationships.is_empty());
+        assert_eq!(lineage.total_entities, 0);
+        assert_eq!(lineage.total_relationships, 0);
+    }
+
+    #[test]
+    fn an_image_document_lineage_records_the_embedding_provider() {
+        let chunk = image_chunk("doc-1", vec![0.5; 8]);
+        let result = image_result(
+            "doc-1",
+            chunk,
+            "vision-embed",
+            "ollama",
+            std::time::Instant::now(),
+        );
+
+        let lineage = result.lineage.expect("image results must persist lineage");
+        assert_eq!(lineage.embedding_provider.as_deref(), Some("ollama"));
+        assert_eq!(lineage.embedding_model.as_deref(), Some("vision-embed"));
+        assert_eq!(lineage.embedding_dimension, Some(8));
+    }
+
+    #[test]
+    fn an_image_document_lineage_does_not_claim_an_extraction_model() {
+        let chunk = image_chunk("doc-1", vec![0.5; 8]);
+        let result = image_result(
+            "doc-1",
+            chunk,
+            "vision-embed",
+            "ollama",
+            std::time::Instant::now(),
+        );
+
+        let lineage = result.lineage.expect("image results must persist lineage");
+        // WHY: no chat model runs on the image path, so extraction provenance must
+        // stay unset rather than borrowing the embedder's identity.
+        assert_eq!(lineage.extraction_provider, None);
+        assert_eq!(lineage.extraction_model, None);
+        assert_eq!(
+            lineage.chunks[0].extraction_metadata.llm_model,
+            NO_EXTRACTION_MODEL
+        );
     }
 }

@@ -416,6 +416,33 @@ pub async fn get_chunk_lineage(
 // Document Full Lineage Endpoint (OODA-07)
 // ============================================================================
 
+/// The 404 body for a document that exists but has no persisted lineage record.
+///
+/// WHY distinguish the two cases: the lineage record is only written at pipeline
+/// finalize, so a *processing* document legitimately has none yet. A document
+/// that already reached a terminal status and still has no record is a different
+/// fault, and telling the caller "may not have been processed yet" sent them
+/// looking at ingestion when the real answer was "this pipeline never writes one".
+fn lineage_not_found(document_id: &str, metadata: &serde_json::Value) -> ApiError {
+    let status = metadata
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    if crate::document_metadata::is_terminal_document_status(status) {
+        ApiError::NotFound(format!(
+            "Lineage for document '{}' not found, but the document reached terminal status '{}'. \
+             No lineage record was persisted for this pipeline.",
+            document_id, status
+        ))
+    } else {
+        ApiError::NotFound(format!(
+            "Lineage for document '{}' not found yet (status '{}'). \
+             The record is written when processing completes.",
+            document_id, status
+        ))
+    }
+}
+
 /// Get complete document lineage from persisted KV storage.
 ///
 /// OODA-07: Returns the full DocumentLineage tree (chunks, entities, relationships)
@@ -441,18 +468,14 @@ pub async fn get_document_full_lineage(
     Path(document_id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
     // SECURITY: Verify the document belongs to the requesting tenant/workspace.
-    verify_document_access(storage.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
+    let document_metadata =
+        verify_document_access(storage.kv_storage.as_ref(), &document_id, &tenant_ctx).await?;
 
     // OADA-23: Use cached KV lookup for sub-millisecond cache hits
     let lineage_key = format!("{}-lineage", document_id);
     let lineage_data = cached_kv_get(storage.kv_storage.as_ref(), &lineage_key)
         .await?
-        .ok_or_else(|| {
-            ApiError::NotFound(format!(
-                "Lineage for document '{}' not found. Document may not have been processed yet.",
-                document_id
-            ))
-        })?;
+        .ok_or_else(|| lineage_not_found(&document_id, &document_metadata))?;
 
     // SPEC-033: On-the-fly page-lineage enrichment (read-only, zero mutation risk).
     // If the persisted lineage was created before SPEC-033, its chunks lack

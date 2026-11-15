@@ -195,14 +195,22 @@ jobs:
       - name: Run security audit
         working-directory: edgequake
         # SPEC-083 / X-32: audit is a blocking gate (no continue-on-error).
-        # zip extract() advisories (0367/0368/0369) are patched only in zip >= 9.
-        # edgeparse-core 0.3.2 requires zip ^2.2 and only writes archives.
+        # zip extract() advisories (0367/0368/0369/0429) are patched only in zip >= 9.
+        # edgeparse-core 0.3.2 requires zip ^2.2 and only uses `zip::write`
+        # (ZipWriter / SimpleFileOptions); it never calls ZipArchive::extract.
         # utoipa-swagger-ui 9 requires zip ^3 and copies entries itself; it does
         # not call ZipArchive::extract(). Neither parent can select zip 9 yet.
+        # RUSTSEC-2026-0429 is the same extract()-only symlink abort, so both zip
+        # versions stay unreachable from untrusted input here.
+        # libsqlite3-sys 0.30.1 (RUSTSEC-2026-0459) bundles SQLite 3.53.x, below
+        # the 3.54.0 fix. sqlx 0.8.6 pins that major, so it cannot select 0.39.
+        # Exposure needs a process to open a database file *plus* a sibling -wal
+        # written by a less trusted party; this repo only opens operator-supplied
+        # paths via connect_sqlite(path) and never ingests .db/-wal uploads.
         # crypto-bigint 0.5.5 (RUSTSEC-2026-0387) is pinned by elliptic-curve 0.13
         # through p256, which openidconnect 4.0.1 requires. The fix is
         # crypto-bigint >=0.7.6, and that curve stack cannot select it.
-        run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0173 --ignore RUSTSEC-2026-0367 --ignore RUSTSEC-2026-0368 --ignore RUSTSEC-2026-0369 --ignore RUSTSEC-2026-0387
+        run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0173 --ignore RUSTSEC-2026-0367 --ignore RUSTSEC-2026-0368 --ignore RUSTSEC-2026-0369 --ignore RUSTSEC-2026-0387 --ignore RUSTSEC-2026-0429 --ignore RUSTSEC-2026-0459
 
   docs:
     name: Documentation
