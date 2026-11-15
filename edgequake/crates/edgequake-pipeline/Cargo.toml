@@ -33,7 +33,7 @@ unicode-normalization = "0.1"
 # D-53: TokenEstimator SSOT (cl100k)
 tiktoken-rs = { workspace = true }
 # tiktoken_rs::cl100k_base_singleton returns Arc<parking_lot::Mutex<_>>
-parking_lot = "0.12"
+parking_lot = "0.13"
 sha2 = "0.10"
 # SPEC-160: closed-decision KG extraction protocol (Tev1). No `native` feature:
 # EdgeQuake owns the HTTP transport and the cache, so no rusqlite/reqwest-blocking.
