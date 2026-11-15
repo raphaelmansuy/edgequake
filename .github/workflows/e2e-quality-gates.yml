@@ -86,7 +86,7 @@ jobs:
         run: make test-e2e-lint
 
       - name: Download backend
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: backend-binary
           path: ./backend
@@ -176,7 +176,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Download backend
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: backend-binary
           path: ./backend
@@ -280,7 +280,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Download backend
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: backend-binary
           path: ./backend
@@ -383,7 +383,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Download backend
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: backend-binary
           path: ./backend
