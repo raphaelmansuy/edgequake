@@ -348,6 +348,9 @@ export const MarkdownInlineTokens = memo(function MarkdownInlineTokens({
           // can only appear here when mergeInlineHtmlTokens found no opening pair.
           case 'html': {
             const htmlToken = token as Tokens.HTML;
+            // `<equation>` is LaTeX, not HTML. Running `sanitizeHtml` on the
+            // raw token would strip the tag and the formula. The rendered
+            // KaTeX markup is sanitized inside `renderKatexToHtml` (issue #536).
             const equation = displayLatexFromEquationHtml(htmlToken.raw);
             if (equation) {
               return (
@@ -366,7 +369,6 @@ export const MarkdownInlineTokens = memo(function MarkdownInlineTokens({
             return (
               <span
                 key={tokenId}
-                // eslint-disable-next-line react/no-danger
                 dangerouslySetInnerHTML={{ __html: sanitized }}
               />
             );
