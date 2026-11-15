@@ -102,7 +102,7 @@ Or on the VM:
 sudo /opt/edgequake/scripts/install-release.sh 0.28.2
 ```
 
-`deploy.sh` is LD-15: `migrate dry-run` → `migrate` (schema only) → `up` → HTTP 301 gate → `/health` → `\dx` (`vector` is required; Apache AGE is reported and left in place).
+`deploy.sh` is LD-15: `migrate dry-run` → `migrate` (schema only) → `up` → HTTP 301 gate → `/health` → `\dx` (`vector` is required; Apache AGE is reported and left in place). A failed dry-run aborts before `migrate` applies anything and the script exits 1. Drop-readiness RED is not a failure: the CLI still exits 0.
 
 ## Apache AGE on upgrade
 

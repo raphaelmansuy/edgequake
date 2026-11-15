@@ -221,8 +221,15 @@ case "${age_step}" in
     ;;
 esac
 
+# Non-zero means the preview did not finish (connect, ledger, or image).
+# Drop-readiness RED is informational and still exits 0 in the CLI.
+# Do not swallow a failure with `|| true`: apply must not run on an
+# unverified schema.
 log "LD-15 migrate dry-run"
-"${COMPOSE[@]}" run --rm --no-deps -T api migrate dry-run || true
+if ! "${COMPOSE[@]}" run --rm --no-deps -T api migrate dry-run; then
+  log "FAIL: migration dry-run failed"
+  exit 1
+fi
 
 log "LD-15 migrate apply (schema only; does not pass --drop-age)"
 "${COMPOSE[@]}" run --rm --no-deps -T api migrate

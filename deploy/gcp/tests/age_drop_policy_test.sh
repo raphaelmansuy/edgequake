@@ -119,6 +119,10 @@ if "postgres_has_no_age_library" in text:
     raise SystemExit("version check must not be its own drop gate")
 if "age_deploy_step" not in text or "age_drop_decision" not in text:
     raise SystemExit("deploy.sh does not call the consent policy")
+if "migrate dry-run || true" in text:
+    raise SystemExit("dry-run failure is swallowed")
+if "FAIL: migration dry-run failed" not in text:
+    raise SystemExit("dry-run failure is not fail-closed")
 if "drop_age_using_library_image env" not in text:
     raise SystemExit("missing env-consent call")
 if "drop_age_using_library_image terminal" not in text:
