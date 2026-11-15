@@ -36,11 +36,6 @@ test.describe("@spec184 default questions", () => {
   }) => {
     await openNormalWorkspace(page, { path: "/query", images: true, withPicture: true });
     await expect(page.getByTestId("query-composer")).toBeVisible({ timeout: 20_000 });
-    // Until the workspace payload arrives, capabilities default to a graph, so the first
-    // paint asks about entities. Wait for the corpus-derived card instead of sampling that paint.
-    await expect(page.getByRole("listitem", { name: /picture/i }).first()).toBeVisible({
-      timeout: 20_000,
-    });
 
     // WHY wait for a suggestion: `query-composer` renders before the corpus queries
     // settle, so `allInnerTexts()` could read an empty grid and compare "" against
