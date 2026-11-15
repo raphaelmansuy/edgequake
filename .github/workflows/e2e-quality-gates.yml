@@ -62,7 +62,7 @@ jobs:
   # Critical path E2E tests - must pass
   e2e-critical:
     name: "E2E Critical Path (Target: <30s)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: e2e-setup
     timeout-minutes: 5
     services:
@@ -160,7 +160,7 @@ jobs:
   # Tenant/Workspace dialog tests
   e2e-dialogs:
     name: E2E Dialog Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: e2e-setup
     timeout-minutes: 10
     services:
@@ -262,7 +262,7 @@ jobs:
     # timeout on ubuntu-latest runners. Critical Path + Dialog Tests are the
     # real quality gates. Re-enable on scheduled runs when caching is set up.
     if: false
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [e2e-critical, e2e-dialogs]
     timeout-minutes: 30
     # SPEC-083 / X-32: optional/flaky quarantine only — e2e-critical / e2e-dialogs block.
@@ -367,7 +367,7 @@ jobs:
   # SPEC-020 full quality-control proof (manual release gate)
   spec020-qc:
     name: "SPEC-020 QC Proof (24 tests)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: e2e-setup
     timeout-minutes: 20
     services:

@@ -407,3 +407,18 @@ replay = true
 # hash 7491afd4e3a729e7 (225 numbered migration files)
 # v0.40.1 through v0.40.7 serve this same set. Their tags are covered by
 # this hash until a later cut adds its own row.
+
+[[epoch]]
+tag = "v0.40.8"
+mode = "replay"
+pg_majors = [16,17,18]
+key = true
+replay = true
+# max mig 231 (SPEC-174 clearance initplan 228–230, SPEC-181 Vertex project 231)
+# hash ba0c9db9d18d39c1 (229 numbered migration files)
+# v0.40.8 through v0.40.12 serve this same set. Their tags are covered by
+# this hash until a later cut adds its own row.
+# WHY this row exists while main still sits at 227: those five tags were cut on
+# feature branches that have not merged yet, so main cannot reach them by
+# ancestry. Coverage is keyed on the migration-set hash, so one row covers all
+# five, and the epoch-matrix workflow still replays the real v0.40.8 tag.
