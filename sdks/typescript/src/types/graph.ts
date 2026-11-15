@@ -12,7 +12,14 @@ import type { Timestamp } from "./common.js";
 // ── Graph ─────────────────────────────────────────────────────
 
 export interface GraphQuery {
+  /** Alias for `max_nodes` (the server has no `limit` parameter). */
   limit?: number;
+  /** Maximum nodes to return (server query parameter). */
+  max_nodes?: number;
+  /** Starting node ID for traversal (server query parameter). */
+  start_node?: string;
+  /** Maximum traversal depth (server query parameter). */
+  depth?: number;
   labels?: string[];
   search?: string;
 }

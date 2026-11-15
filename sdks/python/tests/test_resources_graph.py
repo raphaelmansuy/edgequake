@@ -65,7 +65,7 @@ class TestGraphResource:
         client.graph.get(label="PERSON", limit=50)
         call_kwargs = mock_req.call_args[1]
         assert call_kwargs["params"]["label"] == "PERSON"
-        assert call_kwargs["params"]["limit"] == 50
+        assert call_kwargs["params"]["max_nodes"] == 50
         client.close()
 
     @patch("edgequake._transport.SyncTransport.request")
