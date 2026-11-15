@@ -9,7 +9,9 @@
 # v0.39.0 owns schema 226 (SPEC-180 Normal RAG, SPEC-181 admin).
 # v0.39.1 serves that same set. It adds no migration.
 # v0.40.0 owns schema 227. v0.40.1 through v0.40.7 serve that same set.
-# v0.40.8 owns schema 231. v0.40.9 through v0.40.12 serve that same set.
+# v0.40.8 through v0.40.12 are published on another line at schema 231.
+# They are not ancestors of this branch. Coverage skips them until that
+# line is merged: HEAD cannot migrate a database that is already at 231.
 
 [unreleased]
 hash = "7491afd4e3a729e7"

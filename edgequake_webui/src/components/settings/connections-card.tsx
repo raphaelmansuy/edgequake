@@ -58,6 +58,16 @@ interface ConnectionShape {
  * Vertex lists the secrets it can store: the server identity, a service-account JSON file, or an
  * API key. Bedrock and Copilot list none, because a pasted value would be ignored.
  */
+/** A missing `requires_key` is the older payload: a key is required unless `auth` says otherwise. */
+function shapeRequiresKey(shape: ConnectionShape | undefined): boolean {
+  if (typeof shape?.requires_key === 'boolean') return shape.requires_key;
+  const auth = shape?.auth;
+  return auth !== 'optional_api_key'
+    && auth !== 'aws_chain'
+    && auth !== 'server_proxy'
+    && auth !== 'server_google_identity';
+}
+
 const BUILT_IN_SHAPES: ConnectionShape[] = [
   { id: 'openai', label: 'OpenAI', default_base_url: 'https://api.openai.com/v1', hint: 'API key required.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
   { id: 'anthropic', label: 'Anthropic', default_base_url: 'https://api.anthropic.com', hint: 'API key required. Messages API.', auth: 'api_key', accepts_saved_key: true, stores_secret: true },
@@ -157,7 +167,7 @@ export function ConnectionsCard() {
   const mayTakeKey = googleCredential
     ? credentialKind !== 'server_identity'
     : selectedShape?.accepts_saved_key !== false;
-  const keyRequired = googleCredential ? credentialKind !== 'server_identity' : selectedShape?.requires_key === true;
+  const keyRequired = googleCredential ? credentialKind !== 'server_identity' : shapeRequiresKey(selectedShape);
   const keyIsJson = googleCredential && credentialKind === 'service_account_json';
   // The server states whether a Base URL changes anything for this shape. An older server omits
   // the flag, and then the field behaves as it always did.

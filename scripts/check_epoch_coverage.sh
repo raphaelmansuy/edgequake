@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# scripts/check_epoch_coverage.sh — every published vX.Y.Z tag must map to an
-# epoch in scripts/spec150/epochs.toml (same numbered-migration set hash).
-# HEAD may match an epoch, or the [unreleased] pin, until the next tag exists.
+# scripts/check_epoch_coverage.sh — every published vX.Y.Z tag whose schema is
+# at most HEAD must map to an epoch in scripts/spec150/epochs.toml (same
+# numbered-migration set hash). A tag with a newer schema is another line:
+# this checkout cannot migrate it. HEAD may match an epoch, or the
+# [unreleased] pin, until the next tag on this line exists.
 #
 # Usage:
 #   ./scripts/check_epoch_coverage.sh
@@ -105,14 +107,23 @@ for tag in epoch_tags:
 tags = subprocess.check_output(["git", "tag", "-l", "v*"], text=True).split()
 tags = sorted([t for t in tags if pat.match(t)], key=lambda t: tuple(map(int, t[1:].split("."))))
 
+# A published tag whose schema is newer than HEAD is another line. This
+# binary cannot migrate that database, so it is not an epoch of this checkout.
+head = mig_hash("HEAD")
+head_max = None if head is None else head[1]
+
 uncovered = []
 covered = []
+other_lines = []
 for t in tags:
     r = mig_hash(t)
     if r is None:
         uncovered.append({"tag": t, "reason": "no_migrations_tree"})
         continue
     h, maxv, n = r
+    if head_max is not None and maxv > head_max:
+        other_lines.append({"tag": t, "hash": h, "max": maxv, "n": n})
+        continue
     if h in epoch_hashes:
         covered.append({"tag": t, "hash": h, "max": maxv, "n": n, "epoch": epoch_hashes[h]})
     else:
@@ -120,7 +131,6 @@ for t in tags:
 
 # HEAD matches a published epoch, or the [unreleased] pin for a train
 # that does not have a product tag yet.
-head = mig_hash("HEAD")
 pin_mismatch = None
 head_pin_ok = False
 if head is not None and unreleased and unreleased.get("hash") == head[0]:
@@ -144,6 +154,7 @@ result = {
     "epoch_tags": epoch_tags,
     "product_tags": len(tags),
     "covered": len(covered),
+    "other_lines": other_lines,
     "uncovered": uncovered,
     "missing_epoch_refs": missing_epochs,
     "head": {
@@ -167,7 +178,12 @@ else:
     print(f"  epochs.toml entries : {len(epoch_tags)}")
     print(f"  product tags (vX.Y.Z): {len(tags)}")
     print(f"  covered             : {len(covered)}")
+    print(f"  other lines         : {len(other_lines)}")
     print(f"  uncovered           : {len(uncovered)}")
+    if other_lines:
+        print("  tags newer than HEAD (skipped):")
+        for u in other_lines:
+            print(f"    - {u['tag']}  max={u['max']} n={u['n']} hash={u['hash']}")
     if head is not None:
         if head[0] in epoch_hashes:
             status = "OK"
@@ -192,7 +208,7 @@ else:
         sys.exit(1)
     if missing_epochs or not head_ok:
         sys.exit(1)
-    print("PASS: every published product tag maps to an epoch; HEAD is covered.")
+    print("PASS: every product tag on this line maps to an epoch; HEAD is covered.")
 
 sys.exit(0 if not uncovered and not missing_epochs and head_ok else 1)
 PY
