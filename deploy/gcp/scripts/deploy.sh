@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # SPEC-148 deploy: pull images, LD-15 migrate, compose up, HTTPS + \dx gates.
+# Migration 171 (drop Apache AGE) runs only with EDGEQUAKE_DEPLOY_DROP_AGE
+# or a yes on a real terminal. A version pin is not consent.
 set -euo pipefail
+
+_DEPLOY_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=deploy/gcp/scripts/age_drop_policy.sh
+source "${_DEPLOY_SCRIPT_DIR}/age_drop_policy.sh"
 
 ROOT="${STACK_ROOT:-/opt/edgequake}"
 COMPOSE_DIR="${ROOT}/compose"
@@ -93,6 +99,7 @@ log "compose pull (EDGEQUAKE_VERSION=${EDGEQUAKE_VERSION})"
 "${COMPOSE[@]}" pull
 
 wait_postgres() {
+  local i
   for i in $(seq 1 60); do
     if "${COMPOSE[@]}" exec -T postgres pg_isready -U edgequake -d edgequake >/dev/null 2>&1; then
       return 0
@@ -100,51 +107,131 @@ wait_postgres() {
     if [[ "${i}" -eq 60 ]]; then
       log "postgres not ready"
       "${COMPOSE[@]}" logs postgres | tail -50 | tee -a "${LOG}"
-      exit 1
+      return 1
     fi
     sleep 2
   done
 }
 
-# 0.35.5 postgres images have no age.so. DROP EXTENSION on that image fails
-# with "could not access file age" when the volume still has the extension.
-# Drop it on the last image that ships the library, then open the new image.
-postgres_has_no_age_library() {
-  python3 - <<'PY' "${EDGEQUAKE_VERSION}"
-import sys
-parts = tuple(int(x) for x in sys.argv[1].split("."))
-raise SystemExit(0 if parts >= (0, 35, 5) else 1)
-PY
+# v0.35.4 is the last published postgres image that ships age.so.
+# DROP EXTENSION on a later image fails with "could not access file age".
+AGE_LIBRARY_IMAGE_TAG="0.35.4"
+
+query_age_installed() {
+  local raw
+  raw="$("${COMPOSE[@]}" exec -T postgres psql -U edgequake -d edgequake -tAc \
+    "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')")"
+  printf '%s' "${raw}" | tr -d '[:space:]'
+}
+
+# consent is "env" (re-checks EDGEQUAKE_DEPLOY_DROP_AGE) or "terminal"
+# (age_drop_decision already returned drop). Any other argument refuses.
+drop_age_using_library_image() {
+  local consent="${1:?consent required}"
+  local target_version="${EDGEQUAKE_VERSION}"
+  local target_pg_tag="${EDGEQUAKE_POSTGRES_TAG:-${target_version}}"
+  local age_installed
+  case "${consent}" in
+    env)
+      if ! age_drop_env_consented; then
+        log "refusing migrate --drop-age: EDGEQUAKE_DEPLOY_DROP_AGE is not set"
+        return 1
+      fi
+      ;;
+    terminal) ;;
+    *)
+      log "refusing migrate --drop-age without operator consent"
+      return 1
+      ;;
+  esac
+  log "dropping Apache AGE with the ${AGE_LIBRARY_IMAGE_TAG} image before ${target_version} opens this volume (consent: ${consent})"
+  docker pull "ghcr.io/raphaelmansuy/edgequake-postgres:${AGE_LIBRARY_IMAGE_TAG}"
+  docker pull "ghcr.io/raphaelmansuy/edgequake:${AGE_LIBRARY_IMAGE_TAG}"
+  EDGEQUAKE_POSTGRES_TAG="${AGE_LIBRARY_IMAGE_TAG}" EDGEQUAKE_VERSION="${AGE_LIBRARY_IMAGE_TAG}" \
+    "${COMPOSE[@]}" up -d postgres
+  wait_postgres
+  age_installed="$(query_age_installed)"
+  if [[ "${age_installed}" != "t" ]]; then
+    log "Apache AGE is not installed; not running migrate --drop-age"
+  else
+    log "running migrate --drop-age (migration 171, irreversible)"
+    EDGEQUAKE_POSTGRES_TAG="${AGE_LIBRARY_IMAGE_TAG}" EDGEQUAKE_VERSION="${AGE_LIBRARY_IMAGE_TAG}" \
+      "${COMPOSE[@]}" run --rm --no-deps -T api migrate --drop-age
+  fi
+  log "starting ${target_version} postgres"
+  EDGEQUAKE_POSTGRES_TAG="${target_pg_tag}" EDGEQUAKE_VERSION="${target_version}" \
+    "${COMPOSE[@]}" up -d postgres
+  wait_postgres
+}
+
+log_age_left_installed() {
+  log "Apache AGE is installed. ${EDGEQUAKE_VERSION} images do not ship age.so."
+  log "Leaving it installed. This deploy will not run migrate --drop-age."
+  log "Safe schema migration still runs. Migration 171 stays pending."
+  log "To drop it (irreversible — take a backup first), re-run with EDGEQUAKE_DEPLOY_DROP_AGE=yes"
+  log "Or on the ${AGE_LIBRARY_IMAGE_TAG} image: edgequake migrate --drop-age"
+}
+
+log_age_volume_wont_open() {
+  log "Images from v0.35.5 have no age.so. A data directory that already loaded Apache AGE cannot open on this image."
+  log "This deploy does not infer consent to drop it from the version pin."
+  log "Back up, then re-run with EDGEQUAKE_DEPLOY_DROP_AGE=yes, or drop it on the ${AGE_LIBRARY_IMAGE_TAG} image: edgequake migrate --drop-age"
 }
 
 log "start postgres"
-"${COMPOSE[@]}" up -d postgres
-
-log "wait for postgres healthy"
-wait_postgres
-
-if postgres_has_no_age_library; then
-  age_installed="$("${COMPOSE[@]}" exec -T postgres psql -U edgequake -d edgequake -tAc \
-    "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'age')")"
-  age_installed="$(printf '%s' "${age_installed}" | tr -d '[:space:]')"
-  if [[ "${age_installed}" == "t" ]]; then
-    log "dropping Apache AGE with the 0.35.4 image before ${EDGEQUAKE_VERSION} opens this volume"
-    docker pull ghcr.io/raphaelmansuy/edgequake-postgres:0.35.4
-    docker pull ghcr.io/raphaelmansuy/edgequake:0.35.4
-    EDGEQUAKE_POSTGRES_TAG=0.35.4 EDGEQUAKE_VERSION=0.35.4 "${COMPOSE[@]}" up -d postgres
-    wait_postgres
-    EDGEQUAKE_POSTGRES_TAG=0.35.4 EDGEQUAKE_VERSION=0.35.4 \
-      "${COMPOSE[@]}" run --rm --no-deps -T api migrate --drop-age
-    log "Apache AGE dropped; starting ${EDGEQUAKE_VERSION} postgres"
+age_step="$(age_deploy_step "${EDGEQUAKE_VERSION}")"
+case "${age_step}" in
+  drop-first)
+    log "consent: EDGEQUAKE_DEPLOY_DROP_AGE (migration 171 may run)"
+    drop_age_using_library_image env
+    ;;
+  *)
+    if [[ "${age_step}" != "decide" && "${age_step}" != "none" ]]; then
+      log "refusing migrate --drop-age (unrecognized age step '${age_step}')"
+    fi
     "${COMPOSE[@]}" up -d postgres
-    wait_postgres
-  fi
+    log "wait for postgres healthy"
+    if ! wait_postgres; then
+      if [[ "${age_step}" == "decide" ]]; then
+        log_age_volume_wont_open
+      fi
+      exit 1
+    fi
+    if [[ "${age_step}" == "decide" ]]; then
+      age_installed="$(query_age_installed)"
+      age_decision="$(age_drop_decision "${EDGEQUAKE_VERSION}" "${age_installed}")"
+      case "${age_decision}" in
+        drop)
+          log "consent: terminal yes (migration 171 may run)"
+          drop_age_using_library_image terminal
+          ;;
+        keep)
+          if [[ "${age_installed}" == "t" ]]; then
+            log_age_left_installed
+          fi
+          ;;
+        *)
+          log "refusing migrate --drop-age (unrecognized decision '${age_decision}')"
+          if [[ "${age_installed}" == "t" ]]; then
+            log_age_left_installed
+          fi
+          ;;
+      esac
+    fi
+    ;;
+esac
+
+# Non-zero means the preview did not finish (connect, ledger, or image).
+# Drop-readiness RED is informational and still exits 0 in the CLI.
+# Do not swallow a failure with `|| true`: apply must not run on an
+# unverified schema.
+log "LD-15 migrate dry-run"
+if ! "${COMPOSE[@]}" run --rm --no-deps -T api migrate dry-run; then
+  log "FAIL: migration dry-run failed"
+  exit 1
 fi
 
-log "LD-15 migrate dry-run"
-"${COMPOSE[@]}" run --rm --no-deps -T api migrate dry-run || true
-
-log "LD-15 migrate apply"
+log "LD-15 migrate apply (schema only; does not pass --drop-age)"
 "${COMPOSE[@]}" run --rm --no-deps -T api migrate
 
 log "compose up"

@@ -102,7 +102,21 @@ Or on the VM:
 sudo /opt/edgequake/scripts/install-release.sh 0.28.2
 ```
 
-`deploy.sh` is LD-15: `migrate dry-run` → `migrate` → `up` → HTTP 301 gate → `/health` → `\dx` (vector + age).
+`deploy.sh` is LD-15: `migrate dry-run` → `migrate` (schema only) → `up` → HTTP 301 gate → `/health` → `\dx` (`vector` is required; Apache AGE is reported and left in place). A failed dry-run aborts before `migrate` applies anything and the script exits 1. Drop-readiness RED is not a failure: the CLI still exits 0.
+
+## Apache AGE on upgrade
+
+Images from v0.35.5 do not ship Apache AGE. `deploy.sh` does not run `migrate --drop-age` because the pin is newer than v0.35.4. A version check is not consent. Migration 171 stays pending and the extension stays installed. The schema migrate that follows is the safe one.
+
+To drop Apache AGE during deploy, take a backup, then consent for that run:
+
+```bash
+sudo EDGEQUAKE_DEPLOY_DROP_AGE=yes /opt/edgequake/scripts/deploy.sh
+```
+
+`yes` is the token. `1`, `true`, and `on` are accepted. The token is consulted when the pinned image does not ship `age.so` (v0.35.5 and later). The script opens the volume on the v0.35.4 image, runs migration 171 only when the extension is installed, then starts the pinned image. On v0.35.4 the image still has the library, so the token does not drop anything; run `edgequake migrate --drop-age` on that image yourself.
+
+On an interactive terminal, when the pinned image has no `age.so` and the extension is installed, the script asks. The default answer is no. A closed stdin or a pipe is not a yes. `EDGEQUAKE_MIGRATE_DROP_AGE` does not consent for this script. Unset `EDGEQUAKE_DEPLOY_DROP_AGE` after the drop so a later deploy does not keep the consent bit.
 
 ## Destroy this stack only
 

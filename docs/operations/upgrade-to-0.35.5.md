@@ -11,7 +11,7 @@ No new migration file. Schema stays **207**. `release_for_schema` still maps 207
 
 The published `edgequake-postgres` images for v0.35.5 (pg16, pg17, and pg18) do not contain the Apache AGE library. pgvector 0.8.5, `pg_trgm`, `btree_gin`, and `uuid-ossp` stay. v0.35.4 is the last image that includes AGE.
 
-A data directory created by the v0.35.4 Postgres image has already loaded `age`. The v0.35.5 image has no `age.so`, so Postgres will refuse to open that directory. Use a fresh volume. An existing database that still has the extension must run `edgequake migrate --drop-age` on the v0.35.4 image before the volume moves.
+A data directory created by the v0.35.4 Postgres image has already loaded `age`. The v0.35.5 image has no `age.so`, so Postgres will refuse to open that directory. Use a fresh volume. An existing database that still has the extension must run `edgequake migrate --drop-age` on the v0.35.4 image before the volume moves. GCP `deploy.sh` does not run that drop from the version pin. Consent for one deploy is `EDGEQUAKE_DEPLOY_DROP_AGE=yes` after a backup. See [Apache AGE on upgrade](../../deploy/gcp/README.md#apache-age-on-upgrade).
 
 On a server where `age` is not in `pg_available_extensions`, `edgequake migrate` records migration 171 in the same run as the safe schema. Nothing is dropped: migration 170 already marks that database `ready` and `age_absent`. Afterward `/health` reports `pending_count` 0 and `migration_required` false.
 
