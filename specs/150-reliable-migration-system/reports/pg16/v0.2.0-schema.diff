@@ -1,0 +1,83 @@
+--- /Users/raphaelmansuy/Github/03-working/edgequake/specs/150-reliable-migration-system/reports/pg16/v0.2.0-fresh.schema	2026-11-15 20:36:55
++++ /Users/raphaelmansuy/Github/03-working/edgequake/specs/150-reliable-migration-system/reports/pg16/v0.2.0-upgraded.schema	2026-11-15 20:36:55
+@@ -4464,6 +4464,8 @@
+ ALTER TABLE ONLY ag_catalog.graph_edges
+ ALTER TABLE ONLY ag_catalog.graph_nodes
+ ALTER TABLE ONLY ag_catalog.graph_nodes
++ALTER TABLE ONLY ag_catalog.workspace_metrics_history
++ALTER TABLE ONLY ag_catalog.workspace_metrics_history
+ ALTER TABLE ONLY edgequake.audit_log
+ ALTER TABLE ONLY edgequake.edgequake_migration_batch
+ ALTER TABLE ONLY edgequake.edgequake_migration_batch
+@@ -4799,8 +4801,6 @@
+ ALTER TABLE ONLY public.vector_provider_cutovers FORCE ROW LEVEL SECURITY;
+ ALTER TABLE ONLY public.workspace_clearance_settings
+ ALTER TABLE ONLY public.workspace_clearance_settings
+-ALTER TABLE ONLY public.workspace_metrics_history
+-ALTER TABLE ONLY public.workspace_metrics_history
+ ALTER TABLE ONLY public.workspace_term_stats
+ ALTER TABLE ONLY public.workspace_term_stats
+ ALTER TABLE ONLY public.workspace_term_stats FORCE ROW LEVEL SECURITY;
+@@ -4930,6 +4930,8 @@
+ BEGIN
+ BEGIN
+ CASE
++COMMENT ON COLUMN ag_catalog.workspace_metrics_history.storage_bytes IS 'Total storage used by workspace in bytes (sum of document file sizes)';
++COMMENT ON COLUMN ag_catalog.workspace_metrics_history.trigger_type IS 'How the sample was triggered: "event" for document operations, "scheduled" for background tasks';
+ COMMENT ON COLUMN public.chunk_embeddings.embedding IS 'SPEC-091: unconstrained halfvec; length must equal dimensions (CHECK). ANN via dim-scoped expression HNSW (768/1024/1536).';
+ COMMENT ON COLUMN public.chunks.content_tsv IS 'SPEC-091 RM2: BM25/tsquery lexical index over chunk content (LAW-D6 generated from content).';
+ COMMENT ON COLUMN public.chunks.context_preamble IS 'SPEC-091 RM2: optional document/section context prepended at embed time when EDGEQUAKE_CONTEXTUAL_CHUNK=on (LAW-RM7 quality contract).';
+@@ -5014,8 +5016,6 @@
+ COMMENT ON COLUMN public.tasks_history.progress IS 'Task progress snapshot (SPEC-090); prefer this column over payload.progress';
+ COMMENT ON COLUMN public.users.failed_login_attempts IS 'Failed login count — synced from KV auth when postgres mode (SPEC-027 SEC-011)';
+ COMMENT ON COLUMN public.users.locked_until IS 'Account lockout expiry — synced from KV auth when postgres mode (SPEC-027 SEC-011)';
+-COMMENT ON COLUMN public.workspace_metrics_history.storage_bytes IS 'Total storage used by workspace in bytes (sum of document file sizes)';
+-COMMENT ON COLUMN public.workspace_metrics_history.trigger_type IS 'How the sample was triggered: "event" for document operations, "scheduled" for background tasks';
+ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
+ COMMENT ON EXTENSION age IS 'AGE database extension';
+ COMMENT ON EXTENSION btree_gin IS 'support for indexing common datatypes in GIN';
+@@ -5030,6 +5030,7 @@
+ COMMENT ON FUNCTION public.set_tenant_context(p_tenant_id uuid, p_workspace_id uuid, p_user_id uuid) IS 'RLS session scope — use with_acquired_tenant_context in API (SPEC-027 SEC-014)';
+ COMMENT ON INDEX public.idx_tasks_claim_pending_workspace_created IS 'SPEC-090: sargable pending arm for workspace-scoped claim_next SKIP LOCKED';
+ COMMENT ON INDEX public.idx_tasks_claim_workspace_created IS 'SPEC-084 / GH-316: workspace-fair claim_next (status + workspace + created_at)';
++COMMENT ON TABLE ag_catalog.workspace_metrics_history IS 'Time-series storage of workspace metrics for monitoring and analysis. 
+ COMMENT ON TABLE edgequake.provider_budget IS 'SPEC-091 QW1 (LAW-Q1): one provider budget row per provider — the capacity SSOT the admission resolver derives from.';
+ COMMENT ON TABLE edgequake.provider_slot IS 'SPEC-091 QW1 (LAW-Q3): cluster-wide provider concurrency slots. Acquire via UPDATE ... FOR UPDATE SKIP LOCKED; TTL + fencing token; reaper reclaims stale leases.';
+ COMMENT ON TABLE public.api_keys IS 'API key SSOT when PG pool exists. Handlers use session_storage — not auth_kv_store directly.';
+@@ -5055,7 +5056,6 @@
+ COMMENT ON TABLE public.report_embeddings IS 'SPEC-091 IW2: typed community-report vector authority; report_id is legacy TEXT key.';
+ COMMENT ON TABLE public.task_events IS 'SPEC-120 P2 append-only task event stream; writers allocate seq per task';
+ COMMENT ON TABLE public.users IS 'Identity SSOT when PG pool exists. Without pool: in-memory AuthMemoryStore (tests). Authentication never stored in KV auth:* keys.';
+-COMMENT ON TABLE public.workspace_metrics_history IS 'Time-series storage of workspace metrics for monitoring and analysis. 
+ COMMENT ON VIEW edgequake.tasks IS 'Alias of public.tasks including fairness_hold_until (SPEC-057 INV-06; refresh after 138)';
+ CREATE CONSTRAINT TRIGGER trg_org_keeps_an_owner AFTER DELETE OR UPDATE ON public.memberships DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.eq_org_keeps_an_owner();
+ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+@@ -5496,9 +5496,9 @@
+ CREATE INDEX idx_messages_conversation ON public.messages USING btree (conversation_id, created_at);
+ CREATE INDEX idx_messages_conversation_created_id ON public.messages USING btree (conversation_id, created_at, message_id);
+ CREATE INDEX idx_messages_parent ON public.messages USING btree (parent_id) WHERE (parent_id IS NOT NULL);
+-CREATE INDEX idx_metrics_recorded_at ON public.workspace_metrics_history USING btree (recorded_at);
+-CREATE INDEX idx_metrics_trigger_type ON public.workspace_metrics_history USING btree (trigger_type);
+-CREATE INDEX idx_metrics_workspace_time ON public.workspace_metrics_history USING btree (workspace_id, recorded_at DESC);
++CREATE INDEX idx_metrics_recorded_at ON ag_catalog.workspace_metrics_history USING btree (recorded_at);
++CREATE INDEX idx_metrics_trigger_type ON ag_catalog.workspace_metrics_history USING btree (trigger_type);
++CREATE INDEX idx_metrics_workspace_time ON ag_catalog.workspace_metrics_history USING btree (workspace_id, recorded_at DESC);
+ CREATE INDEX idx_oauth_refresh_grants_expires ON public.oauth_refresh_grants USING btree (expires_at) WHERE (status = 'active'::text);
+ CREATE INDEX idx_oauth_refresh_grants_family ON public.oauth_refresh_grants USING btree (family_id);
+ CREATE INDEX idx_oidc_login_attempts_expires ON public.oidc_login_attempts USING btree (expires_at);
+@@ -5845,6 +5845,7 @@
+ CREATE SEQUENCE public.task_events_id_seq
+ CREATE TABLE ag_catalog.graph_edges (
+ CREATE TABLE ag_catalog.graph_nodes (
++CREATE TABLE ag_catalog.workspace_metrics_history (
+ CREATE TABLE edgequake.audit_log (
+ CREATE TABLE edgequake.edgequake_migration_batch (
+ CREATE TABLE edgequake.edgequake_migration_job (
+@@ -5977,7 +5978,6 @@
+ CREATE TABLE public.users (
+ CREATE TABLE public.vector_provider_cutovers (
+ CREATE TABLE public.workspace_clearance_settings (
+-CREATE TABLE public.workspace_metrics_history (
+ CREATE TABLE public.workspace_term_stats (
+ CREATE TABLE public.workspaces (
+ CREATE TRIGGER check_document_quota BEFORE INSERT ON public.documents FOR EACH ROW EXECUTE FUNCTION public.check_workspace_quota();

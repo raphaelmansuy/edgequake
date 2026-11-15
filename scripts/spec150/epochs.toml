@@ -410,7 +410,14 @@ replay = true
 
 [[epoch]]
 tag = "v0.40.8"
-mode = "replay"
+# WHY image, not replay: this release ships schema 231, but the HEAD migrator
+# binary the matrix builds is still 227. A replay opens a 231 ledger with a 227
+# binary and the preflight correctly refuses (PREFLIGHT_BINARY_OLDER). Booting
+# the tag's own image drives the ledger with a matching binary.
+# schema_max tells the matrix this epoch is ahead of HEAD, so FORCE_REPLAY must
+# not downgrade it to a replay that can only fail.
+schema_max = 231
+mode = "image"
 pg_majors = [16,17,18]
 key = true
 replay = true
@@ -421,4 +428,4 @@ replay = true
 # WHY this row exists while main still sits at 227: those five tags were cut on
 # feature branches that have not merged yet, so main cannot reach them by
 # ancestry. Coverage is keyed on the migration-set hash, so one row covers all
-# five, and the epoch-matrix workflow still replays the real v0.40.8 tag.
+# five.

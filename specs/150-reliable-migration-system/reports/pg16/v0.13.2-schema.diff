@@ -1,0 +1,536 @@
+--- /Users/raphaelmansuy/Github/03-working/edgequake/specs/150-reliable-migration-system/reports/pg16/v0.13.2-fresh.schema	2026-11-15 20:38:14
++++ /Users/raphaelmansuy/Github/03-working/edgequake/specs/150-reliable-migration-system/reports/pg16/v0.13.2-upgraded.schema	2026-11-15 20:38:14
+@@ -253,6 +253,8 @@
+             ORDER BY n.entity_type
+             ORDER BY n.node_id
+             RAISE EXCEPTION '205: ag_catalog.% is not empty', rel;
++            RETURN NEW;
++            RETURN OLD;
+             SELECT 1 FROM information_schema.columns
+             SELECT 1 FROM information_schema.columns
+             SELECT 1 FROM pg_attribute a WHERE a.attrelid=c.oid AND a.attname='properties' AND NOT a.attisdropped
+@@ -275,6 +277,8 @@
+             SELECT props, source_id, target_id
+             SELECT source_id AS node_id
+             SELECT target_id
++            SET row_count = GREATEST(row_count - 1, 0)
++            SET row_count = row_count + 1
+             THEN (props->>'weight')::double precision
+             UNION
+             UNION ALL
+@@ -284,6 +288,8 @@
+             UNION ALL
+             UNION ALL
+             UNION ALL
++            UPDATE public.eq_eq_default_vectors_stats
++            UPDATE public.eq_eq_default_vectors_stats
+             USING ERRCODE = 'check_violation';
+             USING ERRCODE = 'check_violation';
+             USING ERRCODE = 'check_violation';
+@@ -299,6 +305,8 @@
+             WHERE %s
+             WHERE NOT (endpoint = ANY(visited))
+             WHERE endpoint IS NOT NULL AND NOT (endpoint = ANY($2))
++            WHERE id = 1;
++            WHERE id = 1;
+             WHERE n.namespace = p_namespace
+             WHERE n.namespace = p_namespace
+             WHERE namespace = p_namespace
+@@ -328,11 +336,18 @@
+             v_max_documents, v_current_count;
+             visited := visited || nbr;
+             visited := visited || nbr;
++           'RELATED_TO'
+            AND m.is_active
+            AND m.role = 'owner'
+            AND m.workspace_id IS NULL
+            FROM ( SELECT b.duration_ms
+            FROM public.eq_graph_cutover
++           NEW.eq_node_id := ag_catalog.agtype_to_json(NEW.properties)->>'node_id';
++           NULLIF(TRIM(NEW.eq_rel_type), ''),
++           NULLIF(TRIM(NEW.eq_source_id), ''),
++           NULLIF(TRIM(NEW.eq_target_id), ''),
++           NULLIF(TRIM(ag_catalog.agtype_to_json(NEW.properties)->>'relation_type'), ''),
++           RETURN NEW;
+            SELECT 1
+            SELECT 1 FROM information_schema.columns
+            SELECT 1 FROM information_schema.columns
+@@ -341,6 +356,8 @@
+            WHERE id = 1
+            WHERE table_schema = p_graph AND table_name = 'EDGE' AND column_name = 'eq_source_id'
+            WHERE table_schema = p_graph AND table_name = 'Node' AND column_name = 'eq_node_id'
++           ag_catalog.agtype_to_json(NEW.properties)->>'source_id'
++           ag_catalog.agtype_to_json(NEW.properties)->>'target_id'
+            bm25_total_len = GREATEST(w.bm25_total_len - a.len, 0)
+            bm25_total_len = coalesce((SELECT sum(tf) FROM public.chunk_terms WHERE workspace_id = p_workspace), 0)
+            bm25_total_len = w.bm25_total_len + a.len
+@@ -379,9 +396,21 @@
+           UNION ALL
+           WHERE ct.chunk_id IN (SELECT id FROM old_rows)
+           pname, a, b
++         $$;
++         ));
++         );
++         );
++         BEGIN
++         END;
++         NEW.eq_rel_type := UPPER(COALESCE(
++         NEW.eq_source_id := COALESCE(
++         NEW.eq_target_id := COALESCE(
++         RETURN NEW;
+          WHERE m.tenant_id = t.tenant_id
+          WHERE namespace = ns AND (source_id = nid OR target_id = nid);
+          WHERE namespace = ns AND source_id = src AND target_id = tgt AND rel_type = rel;
++        $$;
++        $$;
+         $q$
+         $q$,
+         $q$, p_graph, 'Node', v_tenant_pred, v_ws_pred);
+@@ -420,6 +449,8 @@
+         );
+         -- Range may already be covered by the historical partition.
+         AND EXISTS (
++        BEGIN
++        BEGIN
+         CASE
+         CASE
+         COALESCE(props->>'tenant_id', ''),
+@@ -442,6 +473,8 @@
+         END LOOP;
+         END,
+         END;
++        END;
++        END;
+         EXECUTE format(
+         EXECUTE format(
+         EXECUTE format(
+@@ -701,6 +734,7 @@
+         weight = EXCLUDED.weight,
+         workspace_id = EXCLUDED.workspace_id,
+         workspace_id = EXCLUDED.workspace_id,
++       $$;
+        )
+        ) THEN
+        ) THEN
+@@ -716,6 +750,8 @@
+        AND n.node_id = sub.node_id
+        AND s.workspace_id IN (SELECT workspace_id FROM old_rows);
+        AND sub.degree IS DISTINCT FROM n.degree;
++       BEGIN
++       END;
+        OR NEW.workspace_id IS DISTINCT FROM binding_workspace THEN
+        OR NEW.workspace_id IS DISTINCT FROM binding_workspace THEN
+        OR NOT EXISTS (
+@@ -926,6 +962,8 @@
+     -- contributed a term is not subtracted here either.
+     -- fence the planner flattens the join and sequential-scans the label.
+     -- image chunk). It must not enter N or the length sum, or avgdl is wrong for every query.
++    ADD CONSTRAINT _ag_label_edge_pkey PRIMARY KEY (id);
++    ADD CONSTRAINT _ag_label_vertex_pkey PRIMARY KEY (id);
+     ADD CONSTRAINT _sqlx_migrations_pkey PRIMARY KEY (version);
+     ADD CONSTRAINT api_keys_pkey PRIMARY KEY (key_id);
+     ADD CONSTRAINT api_keys_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id) ON DELETE CASCADE;
+@@ -1202,6 +1240,10 @@
+     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (workspace_id);
+     ADD CONSTRAINT workspaces_slug_unique UNIQUE (tenant_id, slug);
+     ADD CONSTRAINT workspaces_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(tenant_id) ON DELETE CASCADE;
++    AS $$
++    AS $$
++    AS $$
++    AS $$
+     AS $$
+     AS $$
+     AS $$
+@@ -1284,11 +1326,17 @@
+     AS $_$
+     AS $_$
+     AS $_$
++    AS integer
+     BEGIN
+     BEGIN
+     BEGIN
+     BEGIN RETURN eq_next_graphid(p_graph, 'EDGE'); END;
+     BEGIN RETURN eq_next_graphid(p_graph, 'Node'); END;
++    CACHE 1
++    CACHE 1;
++    CACHE 1;
++    CACHE 1;
++    CACHE 1;
+     CACHE 1;
+     CACHE 1;
+     CONSTRAINT audit_log_valid_action_type CHECK (((action_type)::text = ANY ((ARRAY['entity_created'::character varying, 'entity_updated'::character varying, 'entity_deleted'::character varying, 'entity_merged'::character varying, 'relationship_created'::character varying, 'relationship_updated'::character varying, 'relationship_deleted'::character varying, 'document_created'::character varying, 'document_updated'::character varying, 'document_deleted'::character varying, 'bulk_operation'::character varying])::text[]))),
+@@ -1466,6 +1514,7 @@
+     CONSTRAINT workspaces_rag_profile_chk CHECK ((rag_profile = ANY (ARRAY['graph'::text, 'normal'::text])))
+     CROSS JOIN LATERAL unnest(to_tsvector(cfg, coalesce(c.content, ''))) AS t(lexeme, positions, weights)
+     CROSS JOIN LATERAL unnest(to_tsvector(w.fts_regconfig::regconfig, coalesce(n.content, ''))) AS t(lexeme, positions, weights)
++    CYCLE;
+     DECLARE
+     DECLARE v_id bigint;
+     DELETE FROM edgequake.provider_slot s
+@@ -1712,6 +1761,11 @@
+     IF v_workspace_id IS NULL THEN
+     INCREMENT BY 1
+     INCREMENT BY 1
++    INCREMENT BY 1
++    INCREMENT BY 1
++    INCREMENT BY 1
++    INCREMENT BY 1
++    INCREMENT BY 1
+     INSERT INTO edgequake.provider_slot (provider_key, slot_id)
+     INSERT INTO graph_edges (graph_name, source_node_id, target_node_id, label, properties, tenant_id, workspace_id)
+     INSERT INTO graph_nodes (graph_name, node_id, label, properties, tenant_id, workspace_id)
+@@ -1727,6 +1781,10 @@
+     JOIN pg_class c ON c.oid = i.inhrelid
+     JOIN pg_class p ON p.oid = i.inhparent
+     JOIN public.workspaces w ON w.workspace_id = n.workspace_id AND w.rag_profile = 'normal'
++    LANGUAGE plpgsql
++    LANGUAGE plpgsql
++    LANGUAGE plpgsql
++    LANGUAGE plpgsql
+     LANGUAGE plpgsql
+     LANGUAGE plpgsql
+     LANGUAGE plpgsql
+@@ -1815,6 +1873,11 @@
+     LOOP
+     LOOP
+     LOOP
++    MAXVALUE 281474976710655
++    MAXVALUE 281474976710655
++    MAXVALUE 281474976710655
++    MAXVALUE 281474976710655
++    MAXVALUE 65535
+     NEW.updated_at := now();
+     NEW.updated_at = NOW();
+     NEW.updated_at = NOW();
+@@ -1828,6 +1891,11 @@
+     NO MAXVALUE
+     NO MINVALUE
+     NO MINVALUE
++    NO MINVALUE
++    NO MINVALUE
++    NO MINVALUE
++    NO MINVALUE
++    NO MINVALUE
+     ON CONFLICT (chunk_id, term) DO NOTHING;
+     ON CONFLICT (graph_name) DO UPDATE SET namespace = EXCLUDED.namespace;
+     ON CONFLICT (graph_name, node_id) DO UPDATE SET
+@@ -1975,6 +2043,11 @@
+     SET updated_at = NOW()
+     START WITH 1
+     START WITH 1
++    START WITH 1
++    START WITH 1
++    START WITH 1
++    START WITH 1
++    START WITH 1
+     THEN
+     THEN
+     UNION ALL
+@@ -2417,6 +2490,7 @@
+     enabled boolean DEFAULT true NOT NULL,
+     enabled boolean DEFAULT true NOT NULL,
+     enabled boolean NOT NULL,
++    end_id ag_catalog.graphid NOT NULL,
+     end_offset integer,
+     end_offset,
+     enforcement boolean DEFAULT false NOT NULL,
+@@ -2436,6 +2510,10 @@
+     entity_type,
+     entry_id uuid DEFAULT gen_random_uuid() NOT NULL,
+     epoch bigint DEFAULT 0 NOT NULL,
++    eq_node_id text
++    eq_rel_type text
++    eq_source_id text,
++    eq_target_id text,
+     error jsonb,
+     error jsonb,
+     error jsonb,
+@@ -2634,6 +2712,8 @@
+     has_row boolean;
+     heartbeat_at timestamp with time zone,
+     height_pt double precision NOT NULL,
++    id ag_catalog.graphid NOT NULL,
++    id ag_catalog.graphid NOT NULL,
+     id bigint NOT NULL,
+     id bigint NOT NULL,
+     id integer DEFAULT 1 NOT NULL,
+@@ -3078,6 +3158,8 @@
+     progress jsonb,
+     progress jsonb,
+     progress,
++    properties ag_catalog.agtype DEFAULT ag_catalog.agtype_build_map() NOT NULL
++    properties ag_catalog.agtype DEFAULT ag_catalog.agtype_build_map() NOT NULL
+     properties jsonb DEFAULT '{}'::jsonb NOT NULL
+     properties jsonb DEFAULT '{}'::jsonb NOT NULL,
+     properties jsonb DEFAULT '{}'::jsonb NOT NULL,
+@@ -3383,6 +3465,7 @@
+     src text;
+     staging_bytes bytea,
+     staging_key text,
++    start_id ag_catalog.graphid NOT NULL,
+     start_offset integer,
+     start_offset,
+     started_at timestamp with time zone DEFAULT now() NOT NULL,
+@@ -4065,6 +4148,10 @@
+ $_$;
+ )
+ )
++)
++)
++);
++);
+ );
+ );
+ );
+@@ -4458,12 +4545,18 @@
+ ALTER INDEX public.tasks_pkey ATTACH PARTITION public.tasks_p_2026_12_pkey;
+ ALTER INDEX public.tasks_pkey ATTACH PARTITION public.tasks_p_2027_01_pkey;
+ ALTER INDEX public.tasks_pkey ATTACH PARTITION public.tasks_p_2027_02_pkey;
++ALTER SEQUENCE eq_eq_default_graph."EDGE_id_seq" OWNED BY eq_eq_default_graph."EDGE".id;
++ALTER SEQUENCE eq_eq_default_graph."Node_id_seq" OWNED BY eq_eq_default_graph."Node".id;
++ALTER SEQUENCE eq_eq_default_graph._ag_label_edge_id_seq OWNED BY eq_eq_default_graph._ag_label_edge.id;
++ALTER SEQUENCE eq_eq_default_graph._ag_label_vertex_id_seq OWNED BY eq_eq_default_graph._ag_label_vertex.id;
+ ALTER SEQUENCE public.rls_audit_log_id_seq OWNED BY public.rls_audit_log.id;
+ ALTER SEQUENCE public.task_events_id_seq OWNED BY public.task_events.id;
+ ALTER TABLE ONLY ag_catalog.graph_edges
+ ALTER TABLE ONLY ag_catalog.graph_edges
+ ALTER TABLE ONLY ag_catalog.graph_nodes
+ ALTER TABLE ONLY ag_catalog.graph_nodes
++ALTER TABLE ONLY ag_catalog.workspace_metrics_history
++ALTER TABLE ONLY ag_catalog.workspace_metrics_history
+ ALTER TABLE ONLY edgequake.audit_log
+ ALTER TABLE ONLY edgequake.edgequake_migration_batch
+ ALTER TABLE ONLY edgequake.edgequake_migration_batch
+@@ -4475,6 +4568,18 @@
+ ALTER TABLE ONLY edgequake.provider_budget
+ ALTER TABLE ONLY edgequake.provider_slot
+ ALTER TABLE ONLY edgequake.schema_compat
++ALTER TABLE ONLY eq_eq_default_graph."EDGE" ALTER COLUMN id SET DEFAULT ag_catalog._graphid((ag_catalog._label_id('eq_eq_default_graph'::name, 'EDGE'::name))::integer, nextval('eq_eq_default_graph."EDGE_id_seq"'::regclass));
++ALTER TABLE ONLY eq_eq_default_graph."EDGE" ALTER COLUMN properties SET DEFAULT ag_catalog.agtype_build_map();
++ALTER TABLE ONLY eq_eq_default_graph."EDGE" FORCE ROW LEVEL SECURITY;
++ALTER TABLE ONLY eq_eq_default_graph."Node" ALTER COLUMN id SET DEFAULT ag_catalog._graphid((ag_catalog._label_id('eq_eq_default_graph'::name, 'Node'::name))::integer, nextval('eq_eq_default_graph."Node_id_seq"'::regclass));
++ALTER TABLE ONLY eq_eq_default_graph."Node" ALTER COLUMN properties SET DEFAULT ag_catalog.agtype_build_map();
++ALTER TABLE ONLY eq_eq_default_graph."Node" FORCE ROW LEVEL SECURITY;
++ALTER TABLE ONLY eq_eq_default_graph._ag_label_edge
++ALTER TABLE ONLY eq_eq_default_graph._ag_label_edge ALTER COLUMN id SET DEFAULT ag_catalog._graphid((ag_catalog._label_id('eq_eq_default_graph'::name, '_ag_label_edge'::name))::integer, nextval('eq_eq_default_graph._ag_label_edge_id_seq'::regclass));
++ALTER TABLE ONLY eq_eq_default_graph._ag_label_edge FORCE ROW LEVEL SECURITY;
++ALTER TABLE ONLY eq_eq_default_graph._ag_label_vertex
++ALTER TABLE ONLY eq_eq_default_graph._ag_label_vertex ALTER COLUMN id SET DEFAULT ag_catalog._graphid((ag_catalog._label_id('eq_eq_default_graph'::name, '_ag_label_vertex'::name))::integer, nextval('eq_eq_default_graph._ag_label_vertex_id_seq'::regclass));
++ALTER TABLE ONLY eq_eq_default_graph._ag_label_vertex FORCE ROW LEVEL SECURITY;
+ ALTER TABLE ONLY public._sqlx_migrations
+ ALTER TABLE ONLY public.api_keys
+ ALTER TABLE ONLY public.api_keys
+@@ -4799,8 +4904,6 @@
+ ALTER TABLE ONLY public.vector_provider_cutovers FORCE ROW LEVEL SECURITY;
+ ALTER TABLE ONLY public.workspace_clearance_settings
+ ALTER TABLE ONLY public.workspace_clearance_settings
+-ALTER TABLE ONLY public.workspace_metrics_history
+-ALTER TABLE ONLY public.workspace_metrics_history
+ ALTER TABLE ONLY public.workspace_term_stats
+ ALTER TABLE ONLY public.workspace_term_stats
+ ALTER TABLE ONLY public.workspace_term_stats FORCE ROW LEVEL SECURITY;
+@@ -4809,6 +4912,10 @@
+ ALTER TABLE ONLY public.workspaces
+ ALTER TABLE ag_catalog.graph_edges ENABLE ROW LEVEL SECURITY;
+ ALTER TABLE ag_catalog.graph_nodes ENABLE ROW LEVEL SECURITY;
++ALTER TABLE eq_eq_default_graph."EDGE" ENABLE ROW LEVEL SECURITY;
++ALTER TABLE eq_eq_default_graph."Node" ENABLE ROW LEVEL SECURITY;
++ALTER TABLE eq_eq_default_graph._ag_label_edge ENABLE ROW LEVEL SECURITY;
++ALTER TABLE eq_eq_default_graph._ag_label_vertex ENABLE ROW LEVEL SECURITY;
+ ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+ ALTER TABLE public.chunk_embeddings ENABLE ROW LEVEL SECURITY;
+ ALTER TABLE public.chunk_entity_links ENABLE ROW LEVEL SECURITY;
+@@ -4930,6 +5037,8 @@
+ BEGIN
+ BEGIN
+ CASE
++COMMENT ON COLUMN ag_catalog.workspace_metrics_history.storage_bytes IS 'Total storage used by workspace in bytes (sum of document file sizes)';
++COMMENT ON COLUMN ag_catalog.workspace_metrics_history.trigger_type IS 'How the sample was triggered: "event" for document operations, "scheduled" for background tasks';
+ COMMENT ON COLUMN public.chunk_embeddings.embedding IS 'SPEC-091: unconstrained halfvec; length must equal dimensions (CHECK). ANN via dim-scoped expression HNSW (768/1024/1536).';
+ COMMENT ON COLUMN public.chunks.content_tsv IS 'SPEC-091 RM2: BM25/tsquery lexical index over chunk content (LAW-D6 generated from content).';
+ COMMENT ON COLUMN public.chunks.context_preamble IS 'SPEC-091 RM2: optional document/section context prepended at embed time when EDGEQUAKE_CONTEXTUAL_CHUNK=on (LAW-RM7 quality contract).';
+@@ -5014,8 +5123,6 @@
+ COMMENT ON COLUMN public.tasks_history.progress IS 'Task progress snapshot (SPEC-090); prefer this column over payload.progress';
+ COMMENT ON COLUMN public.users.failed_login_attempts IS 'Failed login count — synced from KV auth when postgres mode (SPEC-027 SEC-011)';
+ COMMENT ON COLUMN public.users.locked_until IS 'Account lockout expiry — synced from KV auth when postgres mode (SPEC-027 SEC-011)';
+-COMMENT ON COLUMN public.workspace_metrics_history.storage_bytes IS 'Total storage used by workspace in bytes (sum of document file sizes)';
+-COMMENT ON COLUMN public.workspace_metrics_history.trigger_type IS 'How the sample was triggered: "event" for document operations, "scheduled" for background tasks';
+ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
+ COMMENT ON EXTENSION age IS 'AGE database extension';
+ COMMENT ON EXTENSION btree_gin IS 'support for indexing common datatypes in GIN';
+@@ -5030,6 +5137,7 @@
+ COMMENT ON FUNCTION public.set_tenant_context(p_tenant_id uuid, p_workspace_id uuid, p_user_id uuid) IS 'RLS session scope — use with_acquired_tenant_context in API (SPEC-027 SEC-014)';
+ COMMENT ON INDEX public.idx_tasks_claim_pending_workspace_created IS 'SPEC-090: sargable pending arm for workspace-scoped claim_next SKIP LOCKED';
+ COMMENT ON INDEX public.idx_tasks_claim_workspace_created IS 'SPEC-084 / GH-316: workspace-fair claim_next (status + workspace + created_at)';
++COMMENT ON TABLE ag_catalog.workspace_metrics_history IS 'Time-series storage of workspace metrics for monitoring and analysis. 
+ COMMENT ON TABLE edgequake.provider_budget IS 'SPEC-091 QW1 (LAW-Q1): one provider budget row per provider — the capacity SSOT the admission resolver derives from.';
+ COMMENT ON TABLE edgequake.provider_slot IS 'SPEC-091 QW1 (LAW-Q3): cluster-wide provider concurrency slots. Acquire via UPDATE ... FOR UPDATE SKIP LOCKED; TTL + fencing token; reaper reclaims stale leases.';
+ COMMENT ON TABLE public.api_keys IS 'API key SSOT when PG pool exists. Handlers use session_storage — not auth_kv_store directly.';
+@@ -5055,7 +5163,6 @@
+ COMMENT ON TABLE public.report_embeddings IS 'SPEC-091 IW2: typed community-report vector authority; report_id is legacy TEXT key.';
+ COMMENT ON TABLE public.task_events IS 'SPEC-120 P2 append-only task event stream; writers allocate seq per task';
+ COMMENT ON TABLE public.users IS 'Identity SSOT when PG pool exists. Without pool: in-memory AuthMemoryStore (tests). Authentication never stored in KV auth:* keys.';
+-COMMENT ON TABLE public.workspace_metrics_history IS 'Time-series storage of workspace metrics for monitoring and analysis. 
+ COMMENT ON VIEW edgequake.tasks IS 'Alias of public.tasks including fairness_hold_until (SPEC-057 INV-06; refresh after 138)';
+ CREATE CONSTRAINT TRIGGER trg_org_keeps_an_owner AFTER DELETE OR UPDATE ON public.memberships DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.eq_org_keeps_an_owner();
+ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+@@ -5095,6 +5202,10 @@
+ CREATE FUNCTION public.eq_bm25_after_chunk_insert() RETURNS trigger
+ CREATE FUNCTION public.eq_drop_empty_ag_catalog() RETURNS void
+ CREATE FUNCTION public.eq_drop_graph_index_if_exists(p_schema text, p_index text) RETURNS void
++CREATE FUNCTION public.eq_eq_default_graph_eq_sync_edge_ids() RETURNS trigger
++CREATE FUNCTION public.eq_eq_default_graph_eq_sync_node_id() RETURNS trigger
++CREATE FUNCTION public.eq_eq_default_vectors_stats_delete() RETURNS trigger
++CREATE FUNCTION public.eq_eq_default_vectors_stats_insert() RETURNS trigger
+ CREATE FUNCTION public.eq_get_label_oid(p_graph text, p_label text) RETURNS bigint
+ CREATE FUNCTION public.eq_graph_degree_on_delete() RETURNS trigger
+ CREATE FUNCTION public.eq_graph_degree_on_insert() RETURNS trigger
+@@ -5422,6 +5533,15 @@
+ CREATE INDEX idx_documents_workspace_tenant_stage_created ON public.documents USING btree (workspace_id, tenant_id, ((metadata ->> 'current_stage'::text)), created_at DESC, id DESC) WHERE ((tenant_id IS NOT NULL) AND ((metadata ->> 'current_stage'::text) IS NOT NULL));
+ CREATE INDEX idx_documents_workspace_tenant_status_created ON public.documents USING btree (workspace_id, tenant_id, status, created_at DESC, id DESC) WHERE (tenant_id IS NOT NULL);
+ CREATE INDEX idx_documents_ws_tenant_stage_col ON public.documents USING btree (workspace_id, tenant_id, current_stage, created_at DESC, id DESC) WHERE ((tenant_id IS NOT NULL) AND (current_stage IS NOT NULL));
++CREATE INDEX idx_edge_end_id ON eq_eq_default_graph."EDGE" USING btree (end_id);
++CREATE INDEX idx_edge_end_id_text ON eq_eq_default_graph."EDGE" USING btree (((end_id)::text));
++CREATE INDEX idx_edge_eq_source_id ON eq_eq_default_graph."EDGE" USING btree (eq_source_id) WHERE (eq_source_id IS NOT NULL);
++CREATE INDEX idx_edge_eq_target_id ON eq_eq_default_graph."EDGE" USING btree (eq_target_id) WHERE (eq_target_id IS NOT NULL);
++CREATE INDEX idx_edge_source_id ON eq_eq_default_graph."EDGE" USING btree (((ag_catalog.agtype_to_json(properties) ->> 'source_id'::text)));
++CREATE INDEX idx_edge_source_ids_gin ON eq_eq_default_graph."EDGE" USING gin ((((ag_catalog.agtype_to_json(properties))::jsonb -> 'source_ids'::text)));
++CREATE INDEX idx_edge_start_id ON eq_eq_default_graph."EDGE" USING btree (start_id);
++CREATE INDEX idx_edge_start_id_text ON eq_eq_default_graph."EDGE" USING btree (((start_id)::text));
++CREATE INDEX idx_edge_target_id ON eq_eq_default_graph."EDGE" USING btree (((ag_catalog.agtype_to_json(properties) ->> 'target_id'::text)));
+ CREATE INDEX idx_edgequake_migration_batch_job_committed ON edgequake.edgequake_migration_batch USING btree (job_id, committed_at DESC);
+ CREATE INDEX idx_edgequake_migration_run_started ON edgequake.migration_run USING btree (started_at DESC);
+ CREATE INDEX idx_embedding_projections_filter_payload ON public.embedding_projections USING gin (filter_payload jsonb_path_ops);
+@@ -5445,6 +5565,20 @@
+ CREATE INDEX idx_entity_embeddings_hnsw_d1536 ON public.entity_embeddings USING hnsw (((embedding)::public.halfvec(1536)) public.halfvec_cosine_ops) WITH (m='16', ef_construction='128') WHERE (dimensions = 1536);
+ CREATE INDEX idx_entity_embeddings_hnsw_d768 ON public.entity_embeddings USING hnsw (((embedding)::public.halfvec(768)) public.halfvec_cosine_ops) WITH (m='16', ef_construction='128') WHERE (dimensions = 768);
+ CREATE INDEX idx_entity_embeddings_workspace ON public.entity_embeddings USING btree (workspace_id, model_id);
++CREATE INDEX idx_eq_eq_default_graph_ag_edge_end_id ON eq_eq_default_graph._ag_label_edge USING btree (end_id);
++CREATE INDEX idx_eq_eq_default_graph_ag_edge_start_id ON eq_eq_default_graph._ag_label_edge USING btree (start_id);
++CREATE INDEX idx_eq_eq_default_graph_edge_source_id ON eq_eq_default_graph._ag_label_edge USING btree (((ag_catalog.agtype_to_json(properties) ->> 'source_id'::text)));
++CREATE INDEX idx_eq_eq_default_graph_edge_source_ids_gin ON eq_eq_default_graph._ag_label_edge USING gin ((((ag_catalog.agtype_to_json(properties))::jsonb -> 'source_ids'::text)));
++CREATE INDEX idx_eq_eq_default_graph_edge_target_id ON eq_eq_default_graph._ag_label_edge USING btree (((ag_catalog.agtype_to_json(properties) ->> 'target_id'::text)));
++CREATE INDEX idx_eq_eq_default_graph_edge_tenant_id ON eq_eq_default_graph._ag_label_edge USING btree (((ag_catalog.agtype_to_json(properties) ->> 'tenant_id'::text)));
++CREATE INDEX idx_eq_eq_default_graph_edge_workspace_id ON eq_eq_default_graph._ag_label_edge USING btree (((ag_catalog.agtype_to_json(properties) ->> 'workspace_id'::text)));
++CREATE INDEX idx_eq_eq_default_graph_entity_type ON eq_eq_default_graph._ag_label_vertex USING btree (((ag_catalog.agtype_to_json(properties) ->> 'entity_type'::text)));
++CREATE INDEX idx_eq_eq_default_graph_node_id ON eq_eq_default_graph._ag_label_vertex USING btree (((ag_catalog.agtype_to_json(properties) ->> 'node_id'::text)));
++CREATE INDEX idx_eq_eq_default_graph_tenant_id ON eq_eq_default_graph._ag_label_vertex USING btree (((ag_catalog.agtype_to_json(properties) ->> 'tenant_id'::text)));
++CREATE INDEX idx_eq_eq_default_graph_tenant_workspace ON eq_eq_default_graph._ag_label_vertex USING btree (((ag_catalog.agtype_to_json(properties) ->> 'tenant_id'::text)), ((ag_catalog.agtype_to_json(properties) ->> 'workspace_id'::text)));
++CREATE INDEX idx_eq_eq_default_graph_vertex_source_id ON eq_eq_default_graph._ag_label_vertex USING btree (((ag_catalog.agtype_to_json(properties) ->> 'source_id'::text)));
++CREATE INDEX idx_eq_eq_default_graph_vertex_source_ids_gin ON eq_eq_default_graph._ag_label_vertex USING gin ((((ag_catalog.agtype_to_json(properties))::jsonb -> 'source_ids'::text)));
++CREATE INDEX idx_eq_eq_default_graph_workspace_id ON eq_eq_default_graph._ag_label_vertex USING btree (((ag_catalog.agtype_to_json(properties) ->> 'workspace_id'::text)));
+ CREATE INDEX idx_eq_graph_edges_pair_key ON public.eq_graph_edges USING btree (namespace, (((source_id || '_'::text) || target_id)));
+ CREATE INDEX idx_eq_graph_edges_prop_id ON public.eq_graph_edges USING btree (namespace, ((properties ->> 'id'::text)));
+ CREATE INDEX idx_eq_graph_edges_rel ON public.eq_graph_edges USING btree (namespace, rel_type, source_id, target_id);
+@@ -5496,9 +5630,15 @@
+ CREATE INDEX idx_messages_conversation ON public.messages USING btree (conversation_id, created_at);
+ CREATE INDEX idx_messages_conversation_created_id ON public.messages USING btree (conversation_id, created_at, message_id);
+ CREATE INDEX idx_messages_parent ON public.messages USING btree (parent_id) WHERE (parent_id IS NOT NULL);
+-CREATE INDEX idx_metrics_recorded_at ON public.workspace_metrics_history USING btree (recorded_at);
+-CREATE INDEX idx_metrics_trigger_type ON public.workspace_metrics_history USING btree (trigger_type);
+-CREATE INDEX idx_metrics_workspace_time ON public.workspace_metrics_history USING btree (workspace_id, recorded_at DESC);
++CREATE INDEX idx_metrics_recorded_at ON ag_catalog.workspace_metrics_history USING btree (recorded_at);
++CREATE INDEX idx_metrics_trigger_type ON ag_catalog.workspace_metrics_history USING btree (trigger_type);
++CREATE INDEX idx_metrics_workspace_time ON ag_catalog.workspace_metrics_history USING btree (workspace_id, recorded_at DESC);
++CREATE INDEX idx_node_id ON eq_eq_default_graph."Node" USING btree (id);
++CREATE INDEX idx_node_props_gin ON eq_eq_default_graph."Node" USING gin (properties);
++CREATE INDEX idx_node_source_id_expr ON eq_eq_default_graph."Node" USING btree (((ag_catalog.agtype_to_json(properties) ->> 'source_id'::text)));
++CREATE INDEX idx_node_source_ids_gin ON eq_eq_default_graph."Node" USING gin ((((ag_catalog.agtype_to_json(properties))::jsonb -> 'source_ids'::text)));
++CREATE INDEX idx_node_tenant_id ON eq_eq_default_graph."Node" USING btree (((ag_catalog.agtype_to_json(properties) ->> 'tenant_id'::text)));
++CREATE INDEX idx_node_workspace_id ON eq_eq_default_graph."Node" USING btree (((ag_catalog.agtype_to_json(properties) ->> 'workspace_id'::text)));
+ CREATE INDEX idx_oauth_refresh_grants_expires ON public.oauth_refresh_grants USING btree (expires_at) WHERE (status = 'active'::text);
+ CREATE INDEX idx_oauth_refresh_grants_family ON public.oauth_refresh_grants USING btree (family_id);
+ CREATE INDEX idx_oidc_login_attempts_expires ON public.oidc_login_attempts USING btree (expires_at);
+@@ -5745,6 +5885,10 @@
+ CREATE POLICY pdf_documents_workspace_update ON public.pdf_documents FOR UPDATE USING ((workspace_id = (current_setting('app.current_workspace_id'::text, true))::uuid)) WITH CHECK ((workspace_id = (current_setting('app.current_workspace_id'::text, true))::uuid));
+ CREATE POLICY relationships_tenant_isolation ON public.relationships USING (((( SELECT public.current_tenant_id() AS current_tenant_id) IS NOT NULL) AND (tenant_id = ( SELECT public.current_tenant_id() AS current_tenant_id)) AND ((( SELECT public.current_workspace_id() AS current_workspace_id) IS NULL) OR (workspace_id = ( SELECT public.current_workspace_id() AS current_workspace_id))))) WITH CHECK (((( SELECT public.current_tenant_id() AS current_tenant_id) IS NOT NULL) AND (tenant_id = ( SELECT public.current_tenant_id() AS current_tenant_id))));
+ CREATE POLICY tasks_tenant_isolation ON public.tasks_history USING (((( SELECT public.current_tenant_id() AS current_tenant_id) IS NOT NULL) AND (tenant_id = ( SELECT public.current_tenant_id() AS current_tenant_id)) AND ((( SELECT public.current_workspace_id() AS current_workspace_id) IS NULL) OR (workspace_id = ( SELECT public.current_workspace_id() AS current_workspace_id))))) WITH CHECK (((( SELECT public.current_tenant_id() AS current_tenant_id) IS NOT NULL) AND (tenant_id = ( SELECT public.current_tenant_id() AS current_tenant_id))));
++CREATE POLICY tenant_access_allow ON eq_eq_default_graph."EDGE" TO edgequake_tenant_access USING (true) WITH CHECK (true);
++CREATE POLICY tenant_access_allow ON eq_eq_default_graph."Node" TO edgequake_tenant_access USING (true) WITH CHECK (true);
++CREATE POLICY tenant_access_allow ON eq_eq_default_graph._ag_label_edge TO edgequake_tenant_access USING (true) WITH CHECK (true);
++CREATE POLICY tenant_access_allow ON eq_eq_default_graph._ag_label_vertex TO edgequake_tenant_access USING (true) WITH CHECK (true);
+ CREATE POLICY tenant_access_allow ON public.chunk_embeddings TO edgequake_tenant_access USING (true) WITH CHECK (true);
+ CREATE POLICY tenant_access_allow ON public.chunk_entity_links TO edgequake_tenant_access USING (true) WITH CHECK (true);
+ CREATE POLICY tenant_access_allow ON public.chunk_relation_links TO edgequake_tenant_access USING (true) WITH CHECK (true);
+@@ -5792,6 +5936,10 @@
+ CREATE POLICY tenant_access_allow ON public.tasks_p_2027_02 TO edgequake_tenant_access USING (true) WITH CHECK (true);
+ CREATE POLICY tenant_access_allow ON public.vector_provider_cutovers TO edgequake_tenant_access USING (true) WITH CHECK (true);
+ CREATE POLICY tenant_access_allow ON public.workspace_term_stats TO edgequake_tenant_access USING (true) WITH CHECK (true);
++CREATE POLICY tenant_access_guard ON eq_eq_default_graph."EDGE" AS RESTRICTIVE USING ((((ag_catalog.agtype_to_json(properties) ->> 'tenant_id'::text) = (public.current_tenant_id())::text) AND ((public.current_workspace_id() IS NULL) OR ((ag_catalog.agtype_to_json(properties) ->> 'workspace_id'::text) = (public.current_workspace_id())::text)))) WITH CHECK ((((ag_catalog.agtype_to_json(properties) ->> 'tenant_id'::text) = (public.current_tenant_id())::text) AND ((public.current_workspace_id() IS NULL) OR ((ag_catalog.agtype_to_json(properties) ->> 'workspace_id'::text) = (public.current_workspace_id())::text))));
++CREATE POLICY tenant_access_guard ON eq_eq_default_graph."Node" AS RESTRICTIVE USING ((((ag_catalog.agtype_to_json(properties) ->> 'tenant_id'::text) = (public.current_tenant_id())::text) AND ((public.current_workspace_id() IS NULL) OR ((ag_catalog.agtype_to_json(properties) ->> 'workspace_id'::text) = (public.current_workspace_id())::text)))) WITH CHECK ((((ag_catalog.agtype_to_json(properties) ->> 'tenant_id'::text) = (public.current_tenant_id())::text) AND ((public.current_workspace_id() IS NULL) OR ((ag_catalog.agtype_to_json(properties) ->> 'workspace_id'::text) = (public.current_workspace_id())::text))));
++CREATE POLICY tenant_access_guard ON eq_eq_default_graph._ag_label_edge AS RESTRICTIVE USING ((((ag_catalog.agtype_to_json(properties) ->> 'tenant_id'::text) = (public.current_tenant_id())::text) AND ((public.current_workspace_id() IS NULL) OR ((ag_catalog.agtype_to_json(properties) ->> 'workspace_id'::text) = (public.current_workspace_id())::text)))) WITH CHECK ((((ag_catalog.agtype_to_json(properties) ->> 'tenant_id'::text) = (public.current_tenant_id())::text) AND ((public.current_workspace_id() IS NULL) OR ((ag_catalog.agtype_to_json(properties) ->> 'workspace_id'::text) = (public.current_workspace_id())::text))));
++CREATE POLICY tenant_access_guard ON eq_eq_default_graph._ag_label_vertex AS RESTRICTIVE USING ((((ag_catalog.agtype_to_json(properties) ->> 'tenant_id'::text) = (public.current_tenant_id())::text) AND ((public.current_workspace_id() IS NULL) OR ((ag_catalog.agtype_to_json(properties) ->> 'workspace_id'::text) = (public.current_workspace_id())::text)))) WITH CHECK ((((ag_catalog.agtype_to_json(properties) ->> 'tenant_id'::text) = (public.current_tenant_id())::text) AND ((public.current_workspace_id() IS NULL) OR ((ag_catalog.agtype_to_json(properties) ->> 'workspace_id'::text) = (public.current_workspace_id())::text))));
+ CREATE POLICY tenant_access_guard ON public.chunk_embeddings AS RESTRICTIVE USING (((workspace_id = ( SELECT public.current_workspace_id() AS current_workspace_id)) AND (EXISTS ( SELECT 1
+ CREATE POLICY tenant_access_guard ON public.chunk_entity_links AS RESTRICTIVE USING (((workspace_id = (( SELECT public.current_workspace_id() AS current_workspace_id))::text) AND (EXISTS ( SELECT 1
+ CREATE POLICY tenant_access_guard ON public.chunk_relation_links AS RESTRICTIVE USING (((workspace_id = (( SELECT public.current_workspace_id() AS current_workspace_id))::text) AND (EXISTS ( SELECT 1
+@@ -5841,10 +5989,17 @@
+ CREATE POLICY tenant_access_guard ON public.workspace_term_stats AS RESTRICTIVE USING (((workspace_id = public.current_workspace_id()) AND (EXISTS ( SELECT 1
+ CREATE SCHEMA ag_catalog;
+ CREATE SCHEMA edgequake;
++CREATE SCHEMA eq_eq_default_graph;
++CREATE SEQUENCE eq_eq_default_graph."EDGE_id_seq"
++CREATE SEQUENCE eq_eq_default_graph."Node_id_seq"
++CREATE SEQUENCE eq_eq_default_graph._ag_label_edge_id_seq
++CREATE SEQUENCE eq_eq_default_graph._ag_label_vertex_id_seq
++CREATE SEQUENCE eq_eq_default_graph._label_id_seq
+ CREATE SEQUENCE public.rls_audit_log_id_seq
+ CREATE SEQUENCE public.task_events_id_seq
+ CREATE TABLE ag_catalog.graph_edges (
+ CREATE TABLE ag_catalog.graph_nodes (
++CREATE TABLE ag_catalog.workspace_metrics_history (
+ CREATE TABLE edgequake.audit_log (
+ CREATE TABLE edgequake.edgequake_migration_batch (
+ CREATE TABLE edgequake.edgequake_migration_job (
+@@ -5853,6 +6008,10 @@
+ CREATE TABLE edgequake.provider_budget (
+ CREATE TABLE edgequake.provider_slot (
+ CREATE TABLE edgequake.schema_compat (
++CREATE TABLE eq_eq_default_graph."EDGE" (
++CREATE TABLE eq_eq_default_graph."Node" (
++CREATE TABLE eq_eq_default_graph._ag_label_edge (
++CREATE TABLE eq_eq_default_graph._ag_label_vertex (
+ CREATE TABLE public._sqlx_migrations (
+ CREATE TABLE public.api_keys (
+ CREATE TABLE public.attempts (
+@@ -5977,7 +6136,6 @@
+ CREATE TABLE public.users (
+ CREATE TABLE public.vector_provider_cutovers (
+ CREATE TABLE public.workspace_clearance_settings (
+-CREATE TABLE public.workspace_metrics_history (
+ CREATE TABLE public.workspace_term_stats (
+ CREATE TABLE public.workspaces (
+ CREATE TRIGGER check_document_quota BEFORE INSERT ON public.documents FOR EACH ROW EXECUTE FUNCTION public.check_workspace_quota();
+@@ -5987,10 +6145,14 @@
+ CREATE TRIGGER eq_graph_degree_insert AFTER INSERT ON public.eq_graph_edges REFERENCING NEW TABLE AS new_edges FOR EACH STATEMENT EXECUTE FUNCTION public.eq_graph_degree_on_insert();
+ CREATE TRIGGER eq_graph_degree_node_insert AFTER INSERT ON public.eq_graph_nodes REFERENCING NEW TABLE AS new_nodes FOR EACH STATEMENT EXECUTE FUNCTION public.eq_graph_degree_on_node_insert();
+ CREATE TRIGGER eq_graph_degree_update AFTER UPDATE ON public.eq_graph_edges REFERENCING OLD TABLE AS old_edges NEW TABLE AS new_edges FOR EACH STATEMENT EXECUTE FUNCTION public.eq_graph_degree_on_update();
++CREATE TRIGGER eq_graph_mirror_edge AFTER INSERT OR DELETE OR UPDATE ON eq_eq_default_graph."EDGE" FOR EACH ROW EXECUTE FUNCTION public.eq_graph_mirror_edge();
++CREATE TRIGGER eq_graph_mirror_node AFTER INSERT OR DELETE OR UPDATE ON eq_eq_default_graph."Node" FOR EACH ROW EXECUTE FUNCTION public.eq_graph_mirror_node();
+ CREATE TRIGGER graph_contribution_copy_label BEFORE INSERT ON public.graph_contributions FOR EACH ROW EXECUTE FUNCTION public.graph_contribution_copy_label();
+ CREATE TRIGGER normalize_edgequake_task_legacy_fields_trigger BEFORE INSERT OR UPDATE ON public.tasks_history FOR EACH ROW EXECUTE FUNCTION public.normalize_edgequake_task_legacy_fields();
+ CREATE TRIGGER original_object_refs_before_delete BEFORE DELETE ON public.original_object_refs FOR EACH ROW EXECUTE FUNCTION public.original_object_refs_enqueue_delete();
+ CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.pdf_documents FOR EACH ROW EXECUTE FUNCTION public.trigger_set_updated_at();
++CREATE TRIGGER trg_eq_sync_edge_ids BEFORE INSERT OR UPDATE OF properties ON eq_eq_default_graph."EDGE" FOR EACH ROW EXECUTE FUNCTION public.eq_eq_default_graph_eq_sync_edge_ids();
++CREATE TRIGGER trg_eq_sync_node_id BEFORE INSERT OR UPDATE OF properties ON eq_eq_default_graph."Node" FOR EACH ROW EXECUTE FUNCTION public.eq_eq_default_graph_eq_sync_node_id();
+ CREATE TRIGGER trg_llm_cache_touch BEFORE UPDATE ON public.llm_cache FOR EACH ROW EXECUTE FUNCTION public.touch_llm_cache_updated_at();
+ CREATE TRIGGER trg_projection_cleanup_intents_same_scope BEFORE INSERT OR UPDATE OF tenant_id, workspace_id, binding_id ON public.projection_cleanup_intents FOR EACH ROW EXECUTE FUNCTION public.provider_access_reject_cross_scope_cleanup();
+ CREATE TRIGGER trg_projection_deliveries_same_scope BEFORE INSERT OR UPDATE OF event_id, binding_id ON public.projection_deliveries FOR EACH ROW EXECUTE FUNCTION public.provider_access_reject_cross_scope_delivery();
+@@ -6018,7 +6180,9 @@
+ CREATE UNIQUE INDEX idx_data_bindings_active ON public.data_bindings USING btree (tenant_id, workspace_id, role, COALESCE(model_descriptor, ''::text)) WHERE (state = 'active'::text);
+ CREATE UNIQUE INDEX idx_document_mm_assets_doc_asset_id ON public.document_mm_assets USING btree (document_id, asset_id);
+ CREATE UNIQUE INDEX idx_documents_workspace_content_hash_unique ON public.documents USING btree (workspace_id, content_hash) WHERE ((workspace_id IS NOT NULL) AND (content_hash IS NOT NULL) AND ((status)::text = 'indexed'::text));
++CREATE UNIQUE INDEX idx_edge_eq_source_target_rel ON eq_eq_default_graph."EDGE" USING btree (eq_source_id, eq_target_id, eq_rel_type) WHERE ((eq_source_id IS NOT NULL) AND (eq_target_id IS NOT NULL) AND (eq_rel_type IS NOT NULL));
+ CREATE UNIQUE INDEX idx_entity_embeddings_legacy_vector_id ON public.entity_embeddings USING btree (workspace_id, legacy_vector_id) WHERE (legacy_vector_id IS NOT NULL);
++CREATE UNIQUE INDEX idx_node_eq_node_id ON eq_eq_default_graph."Node" USING btree (eq_node_id) WHERE (eq_node_id IS NOT NULL);
+ CREATE UNIQUE INDEX idx_pdf_documents_workspace_checksum_unique ON public.pdf_documents USING btree (workspace_id, sha256_checksum);
+ CREATE UNIQUE INDEX idx_refresh_tokens_token_hash ON public.refresh_tokens USING btree (token_hash);
+ CREATE UNIQUE INDEX idx_relationship_embeddings_legacy_vector_id ON public.relationship_embeddings USING btree (workspace_id, legacy_vector_id) WHERE (legacy_vector_id IS NOT NULL);
+@@ -6156,6 +6320,8 @@
+ EXCEPTION WHEN OTHERS THEN
+ EXCEPTION WHEN OTHERS THEN
+ EXCEPTION WHEN OTHERS THEN
++INHERITS (eq_eq_default_graph._ag_label_edge);
++INHERITS (eq_eq_default_graph._ag_label_vertex);
+ PARTITION BY RANGE ("timestamp");
+ PARTITION BY RANGE (created_at);
+ SELECT pg_catalog.set_config('search_path', '', false);
