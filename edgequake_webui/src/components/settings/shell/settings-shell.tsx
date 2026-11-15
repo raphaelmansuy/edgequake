@@ -115,8 +115,13 @@ export function SettingsShell({ workspaceSlug = null }: { workspaceSlug?: string
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <main
+          {/* WHY div, not main: (dashboard)/layout.tsx already renders the page's
+              <main id="main-content">. A second <main> nested inside it is invalid
+              HTML and gives assistive tech two "main" landmarks, so the settings
+              pane is a labelled region instead. Keeps the ids/testids callers use. */}
+          <div
             id="settings-main"
+            role="region"
             aria-label="Settings content"
             data-testid="settings-content"
             data-width={contentWidth}
@@ -133,7 +138,7 @@ export function SettingsShell({ workspaceSlug = null }: { workspaceSlug?: string
             {allowed ? (
               <SettingsSectionRenderer id={section.id} workspaceSlug={workspaceSlug} />
             ) : null}
-          </main>
+          </div>
         </div>
       </div>
     </div>
