@@ -55,7 +55,7 @@ GitHub Actions (workflow_dispatch)
     sudo /opt/edgequake/scripts/install-release.sh X.Y.Z
          snapshot-or-rely-on-schedule
          docker compose pull          # pinned tag
-         edgequake migrate dry-run
+         edgequake migrate dry-run   # non-zero aborts before apply
          edgequake migrate            # LD-15
          compose up -d
          HTTP 301 gate
