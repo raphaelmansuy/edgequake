@@ -884,6 +884,16 @@ final class EntityExtendedTests: XCTestCase {
         XCTAssertTrue(MockURLProtocol.lastRequest!.url.contains("/merge"))
     }
 
+    /// Server MergeEntitiesRequest requires `source_entity` / `target_entity`.
+    func testMergeEntitiesSendsServerFieldNames() async throws {
+        let http = mockHelper(json: #"{"status":"merged"}"#)
+        _ = try await EntityService(http).merge(sourceName: "A", targetName: "B")
+        let body = try XCTUnwrap(MockURLProtocol.lastRequest?.body)
+        let json = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: body) as? [String: String])
+        XCTAssertEqual(json, ["source_entity": "A", "target_entity": "B"])
+    }
+
     func testNeighborhood() async throws {
         let http = mockHelper(json: #"{"nodes":[],"edges":[]}"#)
         _ = try await EntityService(http).neighborhood(name: "ALICE", depth: 2)
