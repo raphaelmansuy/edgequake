@@ -152,6 +152,7 @@ export function ConnectionsCard() {
   const [credentialRegion, setCredentialRegion] = useState('us-central1');
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingHasKey, setEditingHasKey] = useState(false);
   const [deleting, setDeleting] = useState<DeletableConnection | null>(null);
 
   /*
@@ -176,7 +177,9 @@ export function ConnectionsCard() {
     selectedShape?.auth === 'server_google_identity' ||
     selectedShape?.auth === 'aws_chain' ||
     selectedShape?.auth === 'server_proxy';
-  const canSubmit = !busy && slug.trim() !== '' && (!keyRequired || apiKey.trim() !== '');
+  // An update may leave the key blank: the server keeps the stored one. A new connection cannot.
+  const storedKeyCoversGap = editingId !== null && editingHasKey && apiKey.trim() === '';
+  const canSubmit = !busy && slug.trim() !== '' && (!keyRequired || apiKey.trim() !== '' || storedKeyCoversGap);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: CONNECTIONS_KEY });
 
@@ -249,6 +252,7 @@ export function ConnectionsCard() {
     setShape(row.api_shape);
     setBaseUrl(row.base_url);
     setApiKey('');
+    setEditingHasKey(row.key_configured);
   };
 
   const save = async () => {
@@ -282,6 +286,7 @@ export function ConnectionsCard() {
       }
       setApiKey('');
       setEditingId(null);
+      setEditingHasKey(false);
       await refresh();
     } catch (err) {
       toast.error(connectionError(err, 'Save failed'));
@@ -436,9 +441,15 @@ export function ConnectionsCard() {
                   type="password"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={keyRequired ? "Paste the key" : "Leave empty for local servers"}
+                  placeholder={
+                    editingId
+                      ? "Leave blank to keep the current key"
+                      : keyRequired
+                        ? "Paste the key"
+                        : "Leave empty for local servers"
+                  }
                   autoComplete="off"
-                  required={keyRequired}
+                  required={keyRequired && !storedKeyCoversGap}
                 />
               )}
             </ConnectionField>
@@ -474,6 +485,7 @@ export function ConnectionsCard() {
               disabled={busy}
               onClick={() => {
                 setEditingId(null);
+                setEditingHasKey(false);
                 setApiKey('');
               }}
             >

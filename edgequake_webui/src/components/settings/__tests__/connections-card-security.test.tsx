@@ -146,6 +146,42 @@ describe("ConnectionsCard security requirements", () => {
     expect(key.placeholder).toMatch(/leave empty/i);
   });
 
+  it("lets an update keep a stored key when the shape omits requires_key", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (String(url).includes("/connections/shapes")) {
+          return jsonResponse([
+            { id: "ollama", label: "Ollama", default_base_url: "http://127.0.0.1:11434", hint: "Local" },
+          ]);
+        }
+        if (String(url).includes("/connections")) {
+          return jsonResponse([
+            {
+              id: "11111111-1111-4111-8111-111111111111",
+              slug: "local",
+              display_name: "local",
+              api_shape: "ollama",
+              base_url: "http://127.0.0.1:11434",
+              source: "db",
+              key_configured: true,
+            },
+          ]);
+        }
+        return jsonResponse({});
+      }),
+    );
+    await renderCard();
+    await waitFor(() => expect(screen.getByTestId("connection-update-local")).toBeInTheDocument());
+    expect(screen.getByLabelText(/^api key$/i)).toBeRequired();
+    expect(screen.getByTestId("connection-save")).toBeDisabled();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("connection-update-local"));
+    });
+    expect(screen.getByLabelText(/^api key$/i)).not.toBeRequired();
+    expect(screen.getByTestId("connection-save")).toBeEnabled();
+  });
+
   it("saves on the deployment and does not send a tenant header", async () => {
     await renderCard();
     await waitFor(() => expect(screen.getByTestId("connection-shape")).toBeInTheDocument());
