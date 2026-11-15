@@ -13,7 +13,7 @@
 | E2E-148-05 | HTTPS health | `curl -skf https://$IP/health` JSON `status` healthy (self-signed: `-k`) |
 | E2E-148-06 | Auth | Unauthenticated UI/API is not open-admin (`DEV_MODE` false) |
 | E2E-148-07 | Ports | Host has no public listener on 5432 / 8080 / 3000 |
-| E2E-148-08 | Deploy script | `deploy.sh` migrate then up; second run idempotent |
+| E2E-148-08 | Deploy script | `deploy.sh` dry-run then migrate then up; dry-run failure exits 1 before apply; second run idempotent |
 | E2E-148-09 | Isolation | `gcloud run services list` still shows sibling services after apply |
 
 ## Operator runbook
@@ -84,3 +84,4 @@ Static IP **in use** bills at attached-VM rate; reserved unused IPs bill more â€
 | EC7 | Shared-project `terraform destroy` | State prefix `eq148/` only; still **read the plan** |
 | EC8 | OpenAI secret UNSET | `render-env.sh` selects `mock` + `EDGEQUAKE_ALLOW_MOCK_PROVIDER=1` so v0.26.5 can boot; ingest is not a real LLM until a secret version is added and `deploy.sh` is re-run |
 | EC9 | Missing `EDGEQUAKE_CORS_ORIGINS` | v0.26.5 exits: refuse open CORS on non-local `DATABASE_URL`. Overlay always sets it to the public origin |
+| EC10 | `migrate dry-run` exits non-zero | `deploy.sh` logs `FAIL: migration dry-run failed`, exits 1, and does not run `migrate` apply or print `DEPLOY_OK` |
