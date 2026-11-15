@@ -194,14 +194,14 @@
       "h": 900
     },
     "zone": {
-      "w": 696,
+      "w": 612,
       "h": 76,
       "x": 252,
       "y": 186
     },
     "zoneOverflow": {
-      "scrollW": 694,
-      "clientW": 694,
+      "scrollW": 610,
+      "clientW": 610,
       "clippedX": false,
       "scrollH": 74,
       "clientH": 74,
@@ -210,7 +210,7 @@
     "zoneLayout": "stack",
     "zoneDensity": "compact",
     "notice": {
-      "w": 672,
+      "w": 588,
       "h": 26,
       "x": 264,
       "y": 160
@@ -234,14 +234,14 @@
       "h": 900
     },
     "zone": {
-      "w": 216,
+      "w": 206,
       "h": 65,
       "x": 252,
       "y": 249
     },
     "zoneOverflow": {
-      "scrollW": 214,
-      "clientW": 214,
+      "scrollW": 204,
+      "clientW": 204,
       "clippedX": false,
       "scrollH": 63,
       "clientH": 63,
@@ -250,7 +250,7 @@
     "zoneLayout": "stack",
     "zoneDensity": "compact",
     "notice": {
-      "w": 192,
+      "w": 182,
       "h": 26,
       "x": 264,
       "y": 223
@@ -274,52 +274,37 @@
       "h": 900
     },
     "zone": {
-      "w": 732,
+      "w": 642,
       "h": 76,
       "x": 52,
       "y": 186
     },
     "zoneOverflow": {
-      "scrollW": 730,
-      "clientW": 730,
+      "scrollW": 640,
+      "clientW": 640,
       "clippedX": false,
       "scrollH": 74,
       "clientH": 74,
       "clippedY": false
     },
-    "zoneLayout": "row",
-    "zoneDensity": "row",
+    "zoneLayout": "stack",
+    "zoneDensity": "compact",
     "notice": {
-      "w": 708,
+      "w": 618,
       "h": 26,
       "x": 64,
       "y": 160
     },
     "title": {
-      "w": 139,
+      "w": 103,
       "h": 20,
-      "x": 101,
-      "y": 214
+      "x": 103,
+      "y": 199
     },
-    "combo": {
-      "w": 524,
-      "h": 36,
-      "x": 248,
-      "y": 206
-    },
-    "comboOverflow": {
-      "scrollW": 524,
-      "clientW": 524,
-      "clippedX": false,
-      "scrollH": 36,
-      "clientH": 36,
-      "clippedY": false
-    },
+    "combo": null,
+    "comboOverflow": null,
     "hasPopoverBar": false,
-    "hasCompactTrigger": false,
-    "clippedText": [
-      "Drop files or choose them",
-      "Drop files here, or choose them from you"
-    ]
+    "hasCompactTrigger": true,
+    "clippedText": []
   }
 ]

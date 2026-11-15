@@ -7,6 +7,6 @@
 ### S03
 - Paragraphs chip reveals paragraph box from GET layout
 ### S04
-- Zoom 150%; IoU=0.833
+- Zoom 150%; IoU=1.000
 ### S05
 - Noise chip shows abandon (not RAG-indexed)

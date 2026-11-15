@@ -71,9 +71,13 @@ test.describe("SPEC-175 screen states @spec175", () => {
 
   test("Connections labels every field and keeps the summary free of doubled separators @spec175", async ({ page }) => {
     await openSettings(page, "platform_admin", "/settings/deployment/connections");
-    for (const label of ["Name", "API shape", "Base URL", "API key"]) {
+    // WHY exact labels for four and a regex for the fifth: connections-card.tsx
+    // renders "API key (optional)" when the selected shape does not require a
+    // key, so `exact: true` on "API key" cannot match the real label.
+    for (const label of ["Name", "API shape", "Base URL"]) {
       await expect(page.getByLabel(label, { exact: true })).toBeVisible();
     }
+    await expect(page.getByLabel(/^API key/)).toBeVisible();
     const summaries = page.locator("li span.text-xs");
     const count = await summaries.count();
     for (let i = 0; i < count; i += 1) {
