@@ -8,6 +8,7 @@ function expectInert(html: string): void {
   for (const el of doc.body.querySelectorAll("*")) {
     for (const name of el.getAttributeNames()) {
       expect(name.toLowerCase().startsWith("on")).toBe(false);
+      expect(el.getAttribute(name) ?? "").not.toMatch(/[()\\]|javascript:|url\s*\(/i);
     }
     expect(el.getAttribute("href")).toBeNull();
     expect(el.getAttribute("src")).toBeNull();
@@ -23,6 +24,10 @@ describe("sanitizeKatexHtml", () => {
     '<span onclick="alert(1)">x</span>',
     '<span style="background:url(javascript:alert(1))">x</span>',
     '<span style="background:url(&#106;avascript:alert(1))">x</span>',
+    '<span style="background:\\75rl(https://evil.example/x)">x</span>',
+    '<span style="height:\\65xpression(alert(1))">x</span>',
+    '<span style="@import \'https://evil.example/x\'">x</span>',
+    '<svg><path fill="url(https://evil.example/x)" d="M0 0"></path></svg>',
     '<span style="width:expression(alert(1))">x</span>',
     "<svg><script>alert(1)</script><path d=\"M0 0\"></path></svg>",
     '<svg><foreignObject><iframe src="javascript:alert(1)"></iframe></foreignObject></svg>',

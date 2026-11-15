@@ -73,11 +73,16 @@ const DROP_WITH_DESCENDANTS = new Set([
   "xmp",
 ]);
 
-/** CSS KaTeX never needs. `url()` is also a data-exfil sink; math has no images. */
-const UNSAFE_STYLE =
-  /url\s*\(|expression\s*\(|javascript\s*:|vbscript\s*:|data\s*:|@import|behavior\s*:|-moz-binding|mocha\s*:/i;
-
 const UNSAFE_URL = /javascript\s*:|vbscript\s*:|data\s*:/i;
+
+/**
+ * KaTeX's own attributes are lengths, colors, flags, and path data. None of
+ * those need a parenthesis or a backslash. `url(`, `expression(`, and a CSS
+ * escape such as `\75rl(` all use one of those characters, including after
+ * the HTML parser has decoded entities. `@import` has neither and is still
+ * not a metric.
+ */
+const UNSAFE_VALUE = /[()\\]|@import/i;
 
 function isElement(node: ChildNode): node is Element {
   return (
@@ -92,7 +97,7 @@ function keepAttribute(tag: string, name: string, value: string): boolean {
   if (attr.startsWith("on")) return false;
   if (!ALLOWED_ATTRS.has(attr)) return false;
   if (attr === "xmlns") return tag === "svg" && value === SVG_NS;
-  if (attr === "style" && UNSAFE_STYLE.test(value)) return false;
+  if (UNSAFE_VALUE.test(value)) return false;
   if (UNSAFE_URL.test(value)) return false;
   return true;
 }
