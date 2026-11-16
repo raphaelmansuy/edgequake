@@ -50,13 +50,20 @@ fn contract_ensure_dimension_fail_closed_source() {
 
 #[test]
 fn contract_boot_uses_prefer_existing() {
-    let src = include_str!("../../edgequake-api/src/state/postgres.rs");
+    // The reconcile moved with the provider refactor: the vector provider owns
+    // boot-time dimension policy and AppState::new_postgres delegates to it.
+    let provider = include_str!("../../edgequake-api/src/state/data_access_providers/postgres.rs");
     assert!(
-        src.contains("DimensionReconcilePolicy::PreferExisting"),
-        "AppState::new_postgres must PreferExisting on default vector table"
+        provider.contains("DimensionReconcilePolicy::PreferExisting"),
+        "the PostgreSQL vector provider must PreferExisting on the default vector table"
     );
     assert!(
-        src.contains("KeptExisting"),
+        provider.contains("KeptExisting"),
         "boot must rebind on KeptExisting"
+    );
+    let state = include_str!("../../edgequake-api/src/state/postgres.rs");
+    assert!(
+        state.contains("PreferExisting"),
+        "AppState must document that its vector factory reconciles with PreferExisting"
     );
 }

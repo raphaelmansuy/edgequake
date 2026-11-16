@@ -530,10 +530,11 @@ impl FleetEmbeddingIndex for PgFleetEmbeddingIndex {
                 .bind(req.filter_ids.as_deref())
                 .bind(candidate_limit as i64)
         };
+        let timeout_ms = super::statement_timeout::vector_query_statement_timeout_ms();
         let rows = query
             .fetch_all(tx.as_mut())
             .await
-            .map_err(StorageError::from)?;
+            .map_err(|error| super::statement_timeout::map_vector_query_error(error, timeout_ms))?;
         tx.commit().await?;
         let mut out = Vec::with_capacity(rows.len());
         for row in rows {

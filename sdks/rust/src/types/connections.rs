@@ -24,6 +24,9 @@ pub struct Connection {
     pub last_test_ok: Option<bool>,
     #[serde(default)]
     pub last_test_error: Option<String>,
+    /// Google Cloud project saved on a Vertex connection.
+    #[serde(default)]
+    pub google_project: Option<String>,
 }
 
 /// Body for POST and PUT /api/v1/connections.
@@ -44,6 +47,9 @@ pub struct UpsertConnection {
     pub timeout_secs: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_private_network: Option<bool>,
+    /// Google Cloud project. Saved on a Vertex connection and used for queries.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub google_project: Option<String>,
 }
 
 /// Body for POST /api/v1/providers/test.

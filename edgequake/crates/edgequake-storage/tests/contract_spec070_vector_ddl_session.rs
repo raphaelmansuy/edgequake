@@ -4,16 +4,26 @@
 fn contract_vector_ddl_session_gucs() {
     let ddl = include_str!("../src/adapters/postgres/vector/ddl.rs");
     assert!(
-        ddl.contains("setup_vector_ddl_session"),
-        "vector ddl must expose setup_vector_ddl_session"
+        ddl.contains("apply_vector_ddl_gucs"),
+        "vector ddl must expose its DDL session GUC helper"
     );
+    // The clause is assembled from a `set` variable so the same code serves
+    // `SET` and `SET LOCAL`; assert the fragments rather than one literal.
     assert!(
-        ddl.contains("SET statement_timeout = 0"),
+        ddl.contains("statement_timeout = 0"),
         "vector DDL must clear statement_timeout"
     );
     assert!(
-        ddl.contains("lock_timeout") && ddl.contains("maintenance_work_mem"),
-        "vector DDL must set lock_timeout + maintenance_work_mem"
+        ddl.contains("lock_timeout = "),
+        "vector DDL must set lock_timeout"
+    );
+    assert!(
+        ddl.contains("maintenance_work_mem = "),
+        "vector DDL must set maintenance_work_mem"
+    );
+    assert!(
+        ddl.contains("\"SET LOCAL\"") || ddl.contains("SET LOCAL"),
+        "vector DDL must support the transaction-scoped form"
     );
     assert!(
         ddl.contains("EDGEQUAKE_INDEX_MAINTENANCE_WORK_MEM"),

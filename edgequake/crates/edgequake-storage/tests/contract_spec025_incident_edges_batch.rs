@@ -35,7 +35,9 @@ fn contract_incident_edges_batch_uses_edge_child_table() {
         "incident edges batch must NOT use UNION on a json column (no equality operator)"
     );
     assert!(
-        edges.contains("OR ag_catalog"),
+        edges.contains("OR {tgt} IN")
+            || edges.contains("OR ag_catalog")
+            || edges.contains("OR e.source_id"),
         "incident edges batch must use OR (BitmapOr) to combine source_id / target_id scans"
     );
 

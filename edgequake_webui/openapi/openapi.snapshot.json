@@ -9,7 +9,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "0.40.7"
+    "version": "0.40.12"
   },
   "servers": [
     {
@@ -4285,8 +4285,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "recover_stuck",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "recover_stuck"
       }
     },
     "/api/v1/documents/reprocess": {
@@ -5649,8 +5649,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-job-type": "reanalyze_multimodal",
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
+        "x-edgequake-v2-job-type": "reanalyze_multimodal"
       }
     },
     "/api/v1/documents/{document_id}/retry-chunks": {
@@ -13119,8 +13119,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "rebuild_embeddings"
+        "x-edgequake-v2-job-type": "rebuild_embeddings",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/rebuild-knowledge-graph": {
@@ -13267,8 +13267,8 @@
             "workspace_id": []
           }
         ],
-        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog",
-        "x-edgequake-v2-job-type": "reprocess_all"
+        "x-edgequake-v2-job-type": "reprocess_all",
+        "x-edgequake-v2-catalog": "/api/v2/workspaces/{workspace_id}/jobs/catalog"
       }
     },
     "/api/v1/workspaces/{workspace_id}/restore": {
@@ -13952,8 +13952,8 @@
             "description": "Track not found for this workspace"
           }
         },
-        "x-edgequake-upgrade": "RFC6455",
-        "x-edgequake-transport": "websocket"
+        "x-edgequake-transport": "websocket",
+        "x-edgequake-upgrade": "RFC6455"
       }
     }
   },
@@ -16449,6 +16449,13 @@
           "display_name": {
             "type": "string"
           },
+          "google_project": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Saved Google Cloud project. Absent for every provider except Vertex."
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -16512,6 +16519,7 @@
           "auth_scheme": {},
           "base_url": {},
           "display_name": {},
+          "google_project": {},
           "id": {},
           "key_configured": {},
           "key_fingerprint": {},
@@ -19201,6 +19209,7 @@
           "display_name",
           "origin",
           "api_shape",
+          "base_url",
           "api_shape_label",
           "offered",
           "withdrawn",
@@ -19226,16 +19235,27 @@
             "type": "string",
             "description": "SPEC-184 — how this provider authenticates, from the shape registry.\n\nWHY it is on the DTO: the card used to print \"Key set\" for any provider with a stored\nsecret, so a Vertex AI row claimed a key it cannot use (Vertex authenticates as the server's\nGoogle identity). The UI cannot infer this from `key_configured`, and guessing from the slug\nis the kind of duplication that drifts. One field, one source of truth."
           },
+          "base_url": {
+            "type": "string",
+            "description": "Where this provider is called. The edit form starts from this value."
+          },
           "connection_id": {
             "type": [
               "string",
               "null"
             ],
             "format": "uuid",
-            "description": "Fleet connection this card can test. Absent for environment providers."
+            "description": "Saved connection this card can edit. An environment provider gains one after it is updated."
           },
           "display_name": {
             "type": "string"
+          },
+          "google_project": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Saved Google Cloud project for a Vertex connection. Not a secret."
           },
           "key_configured": {
             "type": "boolean"
@@ -19285,8 +19305,10 @@
           "api_shape": {},
           "api_shape_label": {},
           "auth": {},
+          "base_url": {},
           "connection_id": {},
           "display_name": {},
+          "google_project": {},
           "key_configured": {},
           "models": [],
           "offered": {},
@@ -38501,6 +38523,13 @@
           "display_name": {
             "type": "string"
           },
+          "google_project": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Google Cloud project id. Saved on the connection. Not a secret."
+          },
           "locality": {
             "type": [
               "string",
@@ -38526,6 +38555,7 @@
           "base_url": {},
           "credential_region": {},
           "display_name": {},
+          "google_project": {},
           "locality": {},
           "slug": {},
           "timeout_secs": {}
@@ -39488,7 +39518,7 @@
     "asyncapi": "2.6.0",
     "info": {
       "title": "EdgeQuake WebSocket Progress",
-      "version": "0.40.7",
+      "version": "0.40.12",
       "description": "Real-time pipeline and document processing progress over WebSocket (RFC 6455). SPEC-149: clients subscribe to owned track_ids on the global channel; events use a tagged {type,data} envelope."
     },
     "defaultContentType": "application/json",

@@ -8,20 +8,37 @@ use super::super::{native_graph_writes_enabled, PostgresAGEGraphStorage};
 
 impl PostgresAGEGraphStorage {
     /// Plain reads when the cutover ledger is `ready`.
-    /// `EDGEQUAKE_GRAPH_READ` does not reopen Apache AGE in that state.
+    ///
+    /// Once `eq_graph_*` exists, a ledger that is not `ready` is an error.
+    /// Serve does not scan Apache AGE label tables and does not `LOAD 'age'`.
+    /// `finish_plain_graph_cutover` is the only copy off those tables, and it
+    /// uses its own SQL. `EDGEQUAKE_GRAPH_READ` does not reopen AGE.
     pub(in crate::adapters::postgres::graph) async fn plain_reads_ready(&self) -> Result<bool> {
         let pool = self.pool.get().await?;
-        reads_ready(&pool).await
+        // One catalog probe + one status read. Same shape as `reads_ready`.
+        if !tables_present(&pool).await? {
+            // No plain store yet: the pre-170 fallback remains so an unmigrated
+            // database still opens. Migrate creates the tables and this stops.
+            return Ok(false);
+        }
+        if ledger_is_ready(&pool).await? {
+            return Ok(true);
+        }
+        Err(StorageError::Database(
+            "Apache AGE is not used. eq_graph_cutover.status is not ready; finish edgequake migrate before serving the graph.".into(),
+        ))
     }
 
-    /// Writes follow the store reads use.
+    /// Writes follow the store reads use once the ledger is `ready`.
     ///
     /// Ledger `ready` → plain tables, even if Apache AGE is still installed.
     /// Dual-writing those edges into AGE drops them when the existing endpoint
     /// lives only in the plain tables (fresh v0.35.0, GitHub #477).
-    /// Ledger `age` → AGE plus the plain mirror, which requires the probe in #477.
+    /// Ledger `age` → the pre-cutover writer (AGE plus the plain mirror).
+    /// Request reads do not follow that branch; they fail closed.
     pub(in crate::adapters::postgres::graph) async fn plain_writes(&self) -> Result<bool> {
-        if self.plain_reads_ready().await? {
+        let pool = self.pool.get().await?;
+        if reads_ready(&pool).await? {
             return Ok(true);
         }
         Ok(!self.pool.graph_extension_available())
@@ -47,12 +64,17 @@ pub(in crate::adapters::postgres::graph) async fn tables_present(pool: &PgPool) 
 /// True only when the ledger row is `ready`.
 ///
 /// A finished cutover ignores `EDGEQUAKE_GRAPH_READ`. Before the ledger is
-/// `ready`, this stays false, so the in-progress upgrade path is unchanged.
+/// `ready`, this stays false. `plain_reads_ready` turns that into an error
+/// once the plain tables exist, so request reads do not query Apache AGE.
 /// No flag selects plain reads while the status is still `age` or `backfilling`.
 pub(in crate::adapters::postgres::graph) async fn reads_ready(pool: &PgPool) -> Result<bool> {
     if !tables_present(pool).await? {
         return Ok(false);
     }
+    ledger_is_ready(pool).await
+}
+
+async fn ledger_is_ready(pool: &PgPool) -> Result<bool> {
     let status: Option<String> =
         sqlx::query_scalar("SELECT status FROM public.eq_graph_cutover WHERE id = 1")
             .fetch_optional(pool)

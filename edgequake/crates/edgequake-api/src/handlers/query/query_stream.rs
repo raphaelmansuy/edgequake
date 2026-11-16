@@ -217,6 +217,7 @@ pub async fn stream_query(
             )
         },
         normal_plan: crate::services::query_image::normal_plan(
+            state.optional_pg_pool(),
             workspace.as_ref(),
             &request.query,
             request.document_filter.as_ref(),

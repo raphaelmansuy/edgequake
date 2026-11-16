@@ -201,6 +201,7 @@ async fn anthropic_saved_connection_uses_x_api_key_path() {
         model: "fake-chat".into(),
         embedding_model: None,
         embedding_dimension: None,
+        google_project: None,
     })
     .expect("build anthropic");
     let chat = LLMProvider::complete(provider.as_ref(), "anth-ping")

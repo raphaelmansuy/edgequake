@@ -3,18 +3,16 @@
 use crate::error::{Result, StorageError};
 
 use super::super::PostgresAGEGraphStorage;
-use super::graph_query_statement_timeout_ms;
 
 impl PostgresAGEGraphStorage {
-    /// QW1 (F2): build the AGE per-connection session-setup statements as a
-    /// single simple-query batch (`LOAD 'age'; SET search_path; SET timeout`).
+    /// Legacy Cypher batch prefix.
+    ///
+    /// No `statement_timeout`. A plain `SET` survives COMMIT and the next
+    /// checkout until `after_release` runs `RESET ALL` (the Hatchet pool
+    /// leak). Request reads never call this: they use `eq_graph_*` under
+    /// `SET LOCAL` inside `LocalTimeoutTx`.
     pub(in crate::adapters::postgres::graph) fn age_session_setup_sql() -> String {
-        let timeout_ms = graph_query_statement_timeout_ms();
-        format!(
-            "LOAD 'age'; SET search_path = ag_catalog, \"$user\", public; \
-             SET statement_timeout = '{}ms';",
-            timeout_ms
-        )
+        "LOAD 'age'; SET search_path = ag_catalog, \"$user\", public;".to_string()
     }
 
     /// F8: choose a dollar-quote tag guaranteed not to occur in `body`.
@@ -45,13 +43,9 @@ impl PostgresAGEGraphStorage {
             .execute(&mut *conn)
             .await
             .map_err(|e| StorageError::Database(format!("Failed to set AGE search path: {}", e)))?;
-        let timeout_ms = graph_query_statement_timeout_ms();
-        sqlx::query(&format!("SET statement_timeout = '{timeout_ms}ms'"))
-            .execute(&mut *conn)
-            .await
-            .map_err(|e| {
-                StorageError::Database(format!("Failed to set statement timeout: {}", e))
-            })?;
+        // Timeout is intentionally absent. A session GUC would outlive this
+        // checkout. Callers that still reach Cypher inherit the role timeout;
+        // pooled return runs RESET ALL.
         Ok(())
     }
 

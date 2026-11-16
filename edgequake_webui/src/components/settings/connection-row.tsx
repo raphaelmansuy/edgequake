@@ -22,6 +22,7 @@ export interface ConnectionRowData {
   secret_backend?: string | null;
   auth_scheme?: string | null;
   last_test_ok?: boolean | null;
+  google_project?: string | null;
 }
 
 const BUILT_IN_ID = "00000000-0000-0000-0000-000000000000";
@@ -97,6 +98,11 @@ export function ConnectionRow({
         {stored ? (
           <p className="text-xs text-muted-foreground" data-testid="connection-stored-in">
             {stored}
+          </p>
+        ) : null}
+        {row.google_project ? (
+          <p className="text-xs text-muted-foreground" data-testid={`connection-project-${row.slug}`}>
+            Project {row.google_project}
           </p>
         ) : null}
       </div>

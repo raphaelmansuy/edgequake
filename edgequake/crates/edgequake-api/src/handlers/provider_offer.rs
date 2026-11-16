@@ -31,9 +31,11 @@ struct FleetConnectionRow {
     slug: String,
     display_name: String,
     api_shape: String,
+    base_url: String,
     last_test_ok: Option<bool>,
     last_test_error: Option<String>,
     key_configured: bool,
+    google_project: Option<String>,
 }
 
 #[cfg(feature = "postgres")]
@@ -63,6 +65,8 @@ pub struct DeploymentProviderDto {
     pub display_name: String,
     pub origin: String,
     pub api_shape: String,
+    /// Where this provider is called. The edit form starts from this value.
+    pub base_url: String,
     /// SPEC-184 — the human name for `api_shape` ("OpenAI-compatible", "Vertex AI").
     ///
     /// The card printed the raw slug (`openai_chat`, `azure`, `vertexai`) next to the provider
@@ -84,7 +88,7 @@ pub struct DeploymentProviderDto {
     pub auth: String,
     /// Whether a stored key is meaningful here. `false` means "identity, not a secret".
     pub accepts_saved_key: bool,
-    /// Fleet connection this card can test. Absent for environment providers.
+    /// Saved connection this card can edit. An environment provider gains one after it is updated.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<Uuid>,
     /// Why the last probe failed. Absent until a test has failed.
@@ -93,6 +97,9 @@ pub struct DeploymentProviderDto {
     /// Last per-provider refresh (SPEC-179). Absent until the first refresh.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refresh: Option<ProviderRefreshState>,
+    /// Saved Google Cloud project for a Vertex connection. Not a secret.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub google_project: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -149,7 +156,8 @@ fn key_configured_for(state: &AppState, slug: &str) -> bool {
         let found: Option<(bool,)> = tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
                 sqlx::query_as(
-                    "SELECT (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL) \
+                    "SELECT (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL \
+                            OR NULLIF(btrim(google_project), '') IS NOT NULL) \
                      FROM provider_connections WHERE slug = $1 AND tenant_id IS NULL LIMIT 1",
                 )
                 .bind(slug)
@@ -271,6 +279,7 @@ pub async fn get_deployment_providers(
             origin: "env".into(),
             api_shape_label: label,
             api_shape: row.api_shape,
+            base_url: row.base_url,
             offered: offered.contains(&row.slug) || offered.iter().any(|s| s == &row.slug),
             withdrawn,
             probe: "ok".into(),
@@ -280,6 +289,7 @@ pub async fn get_deployment_providers(
             connection_id: None,
             probe_error: None,
             refresh: None,
+            google_project: None,
         });
     }
     // The offered flag above used the slug before move. Recompute from the set.
@@ -290,8 +300,9 @@ pub async fn get_deployment_providers(
     #[cfg(feature = "postgres")]
     if let Some(pool) = state.optional_pg_pool() {
         let rows: Vec<FleetConnectionRow> = sqlx::query_as(
-            "SELECT id, slug, display_name, api_shape, last_test_ok, last_test_error, \
-                    (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL) AS key_configured \
+            "SELECT id, slug, display_name, api_shape, base_url, last_test_ok, last_test_error, \
+                    (api_key_ciphertext IS NOT NULL OR secret_ref IS NOT NULL) AS key_configured, \
+                    google_project \
              FROM provider_connections WHERE tenant_id IS NULL ORDER BY slug",
         )
         .fetch_all(pool)
@@ -308,6 +319,29 @@ pub async fn get_deployment_providers(
             let Some(slug) = parse_slug(&row.slug) else {
                 continue;
             };
+            if let Some(existing) = providers.iter_mut().find(|provider| provider.slug == slug) {
+                // An environment provider and a saved connection can share a slug. The card
+                // stays the environment one (that is where the key comes from) and gains the
+                // saved id so Edit can update that row.
+                existing.connection_id = Some(row.id);
+                if !row.display_name.is_empty() {
+                    existing.display_name = row.display_name.clone();
+                }
+                if !row.base_url.is_empty() {
+                    existing.base_url = row.base_url.clone();
+                }
+                if let Some(project) = row
+                    .google_project
+                    .clone()
+                    .filter(|project| !project.is_empty())
+                {
+                    existing.google_project = Some(project);
+                }
+                if row.key_configured {
+                    existing.key_configured = true;
+                }
+                continue;
+            }
             if !seen.insert(slug.clone()) {
                 continue;
             }
@@ -327,6 +361,7 @@ pub async fn get_deployment_providers(
                 origin: "fleet".into(),
                 api_shape_label,
                 api_shape: row.api_shape,
+                base_url: row.base_url,
                 probe: probe.into(),
                 key_configured: row.key_configured,
                 auth,
@@ -334,6 +369,7 @@ pub async fn get_deployment_providers(
                 connection_id: Some(row.id),
                 probe_error: row.last_test_error.filter(|message| !message.is_empty()),
                 refresh: None,
+                google_project: row.google_project.filter(|project| !project.is_empty()),
             });
         }
     }

@@ -47,13 +47,30 @@ pub fn api_error(error: &EmbedError) -> crate::error::ApiError {
 
 type ClientKey = (String, usize, String, String);
 
+fn embedder_cache() -> &'static Mutex<HashMap<ClientKey, Arc<VertexGeminiEmbedder>>> {
+    static CLIENTS: OnceLock<Mutex<HashMap<ClientKey, Arc<VertexGeminiEmbedder>>>> =
+        OnceLock::new();
+    CLIENTS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Keep one HTTP pool and one token cache per (model, dimension, project, endpoint).
+pub fn share_embedder(client: Arc<VertexGeminiEmbedder>) -> Arc<VertexGeminiEmbedder> {
+    let key = client.shared_key();
+    let mut clients = embedder_cache()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(existing) = clients.get(&key) {
+        return Arc::clone(existing);
+    }
+    clients.insert(key, Arc::clone(&client));
+    client
+}
+
 /// One client per (model, dimension, project, endpoint). It owns the HTTP pool.
 pub fn shared_embedder(
     model: &str,
     dimension: usize,
 ) -> Result<Arc<VertexGeminiEmbedder>, EmbedError> {
-    static CLIENTS: OnceLock<Mutex<HashMap<ClientKey, Arc<VertexGeminiEmbedder>>>> =
-        OnceLock::new();
     let config = VertexGeminiConfig::from_env(model, dimension)?;
     let key = (
         model.to_string(),
@@ -61,8 +78,7 @@ pub fn shared_embedder(
         config.project.clone(),
         config.base_url.clone(),
     );
-    let mut clients = CLIENTS
-        .get_or_init(|| Mutex::new(HashMap::new()))
+    let mut clients = embedder_cache()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     if let Some(client) = clients.get(&key) {
@@ -74,6 +90,44 @@ pub fn shared_embedder(
     )?);
     clients.insert(key, Arc::clone(&client));
     Ok(client)
+}
+
+/// The multimodal client for a workspace.
+///
+/// A project saved on the Vertex connection is used first. `GOOGLE_CLOUD_PROJECT`
+/// is read only when that connection has no project and no service account.
+pub async fn multimodal_embedder_for_workspace(
+    pool: crate::services::OptionalPgPool<'_>,
+    workspace: &edgequake_core::Workspace,
+) -> Option<Result<Arc<dyn MultimodalEmbedder>, EmbedError>> {
+    let provider = workspace.embedding_provider.as_str();
+    let model = workspace.embedding_model.as_str();
+    let dimension = workspace.embedding_dimension;
+    if !is_vertex_multimodal(provider, model) {
+        return None;
+    }
+    #[cfg(feature = "postgres")]
+    if let Some(pool) = pool {
+        match crate::providers::connection_store::vertex_embedder_for_workspace(
+            pool, workspace, model, dimension,
+        )
+        .await
+        {
+            Ok(Some(embedder)) => {
+                return Some(Ok(share_embedder(embedder) as Arc<dyn MultimodalEmbedder>));
+            }
+            Ok(None) => {}
+            Err(message) => {
+                return Some(Err(EmbedError::new(
+                    edgequake_core::multimodal_embed::embed_codes::AUTH,
+                    message,
+                )));
+            }
+        }
+    }
+    #[cfg(not(feature = "postgres"))]
+    let _ = pool;
+    Some(shared_embedder(model, dimension).map(|client| client as Arc<dyn MultimodalEmbedder>))
 }
 
 /// The multimodal client of a pair, or `None` when the pair is not the Vertex model.
@@ -109,5 +163,29 @@ mod tests {
         assert!(is_vertex_multimodal("Vertex", "Gemini-Embedding-2"));
         assert!(!is_vertex_multimodal("vertexai", "gemini-embedding-001"));
         assert!(!is_vertex_multimodal("openai", "gemini-embedding-2"));
+    }
+
+    #[test]
+    fn a_saved_project_client_is_reused() {
+        let first = share_embedder(Arc::new(
+            VertexGeminiEmbedder::from_service_account(
+                "saved-project",
+                r#"{"type":"service_account","project_id":"saved-project"}"#,
+                "gemini-embedding-2",
+                1536,
+            )
+            .expect("service account"),
+        ));
+        let second = share_embedder(Arc::new(
+            VertexGeminiEmbedder::from_service_account(
+                "saved-project",
+                r#"{"type":"service_account","project_id":"saved-project"}"#,
+                "gemini-embedding-2",
+                1536,
+            )
+            .expect("service account"),
+        ));
+        assert!(Arc::ptr_eq(&first, &second));
+        assert_eq!(first.project(), "saved-project");
     }
 }

@@ -3,6 +3,7 @@
 //! Request reads and writes use these queries when `eq_graph_cutover.status`
 //! is `ready`. `EDGEQUAKE_GRAPH_READ` does not move a ready ledger off these
 //! tables. A flag cannot select these tables while the ledger status is `age`.
+//! Serve reads do not fall back to Apache AGE once `eq_graph_*` exists.
 
 pub(in crate::adapters::postgres::graph) mod counts;
 pub(in crate::adapters::postgres::graph) mod cutover;
