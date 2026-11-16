@@ -19,12 +19,27 @@ fn contract_cascade_and_deletion_avoid_schema_ddl() {
 #[test]
 fn contract_discovery_gin_join_still_required() {
     let scan = include_str!("../src/adapters/postgres/graph/scan_ops.rs");
+    // Issue #478 / migration 207: discovery moved off inline `@> to_jsonb(...)`
+    // probes (which the tenant role cannot plan against the GIN index, because
+    // the AGE guard calls non-leakproof agtype_to_json) into a SECURITY DEFINER
+    // lookup that applies the session tenant inside the indexed plan.
     assert!(
-        scan.contains("to_jsonb(pr.probe_id)") || scan.contains("@> to_jsonb"),
-        "discovery must use GIN @> probes"
+        scan.contains("eq_age_lineage_discover_nodes"),
+        "discovery must use the migration-207 owner lookup for the indexed plan"
+    );
+    // The GIN-eligible probe shape lives in the owner-side SQL: `?|` against
+    // the jsonb source-id arrays, driven by an unnest+generate_series probe CTE.
+    let discover = include_str!("../../../migrations/207_age_lineage_discovery_rls.sql");
+    assert!(
+        discover.contains("?|"),
+        "the owner-side discovery SQL must use a GIN-eligible array-contains probe"
     );
     assert!(
-        scan.contains("generate_series") && scan.contains("unnest"),
-        "discovery must use unnest + generate_series JOIN shape"
+        discover.contains("generate_series") && discover.contains("unnest"),
+        "discovery must build its probes with unnest + generate_series"
+    );
+    assert!(
+        scan.contains("source_prefix_legacy_enabled"),
+        "the inline probe shape must survive behind the legacy escape hatch"
     );
 }

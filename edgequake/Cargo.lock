@@ -1882,7 +1882,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake"
-version = "0.40.7"
+version = "0.40.13"
 dependencies = [
  "anyhow",
  "axum",
@@ -1913,7 +1913,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-api"
-version = "0.40.7"
+version = "0.40.13"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -1974,7 +1974,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-audit"
-version = "0.40.7"
+version = "0.40.13"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1990,7 +1990,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-auth"
-version = "0.40.7"
+version = "0.40.13"
 dependencies = [
  "argon2",
  "async-trait",
@@ -2008,7 +2008,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-core"
-version = "0.40.7"
+version = "0.40.13"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2035,7 +2035,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-fake-llm"
-version = "0.40.7"
+version = "0.40.13"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -2088,7 +2088,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-migrate-manifest"
-version = "0.40.7"
+version = "0.40.13"
 dependencies = [
  "serde",
  "sha2 0.10.9",
@@ -2098,7 +2098,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-observability"
-version = "0.40.7"
+version = "0.40.13"
 dependencies = [
  "futures",
  "http 1.4.2",
@@ -2119,7 +2119,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-pdf"
-version = "0.40.7"
+version = "0.40.13"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -2167,7 +2167,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-pipeline"
-version = "0.40.7"
+version = "0.40.13"
 dependencies = [
  "async-trait",
  "axum",
@@ -2198,7 +2198,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-query"
-version = "0.40.7"
+version = "0.40.13"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2224,7 +2224,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-rate-limiter"
-version = "0.40.7"
+version = "0.40.13"
 dependencies = [
  "anyhow",
  "axum",
@@ -2244,7 +2244,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-secrets"
-version = "0.40.7"
+version = "0.40.13"
 dependencies = [
  "aes-gcm",
  "async-trait",
@@ -2261,7 +2261,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-storage"
-version = "0.40.7"
+version = "0.40.13"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -2293,7 +2293,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-storage-contracts"
-version = "0.40.7"
+version = "0.40.13"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2306,7 +2306,7 @@ dependencies = [
 
 [[package]]
 name = "edgequake-tasks"
-version = "0.40.7"
+version = "0.40.13"
 dependencies = [
  "anyhow",
  "async-trait",

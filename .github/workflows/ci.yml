@@ -46,10 +46,18 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Tags are required: the gate compares HEAD's schema against every
+          # published release, and a shallow tag-less clone cannot.
+          fetch-depth: 0
       - name: Block fat bench artifacts / oversized tip blobs
         run: |
           chmod +x tools/git-hygiene/check_no_fat_artifacts.sh
           ./tools/git-hygiene/check_no_fat_artifacts.sh
+      - name: Schema must not regress below a published release
+        run: |
+          chmod +x scripts/check_schema_no_regression.sh
+          ./scripts/check_schema_no_regression.sh
 
   check:
     name: Check (fmt + clippy)

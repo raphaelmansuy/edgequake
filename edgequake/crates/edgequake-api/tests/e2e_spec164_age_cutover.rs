@@ -232,19 +232,15 @@ async fn age_cutover_proves_mirror_shadow_ledger_flip_and_confirm_drop() {
         .execute(&pool)
         .await
         .expect("flip ledger to age");
-    let mut age_ms = serde_json::Map::new();
-    measure_queries(&storage, &mut age_ms, &tid, &wid).await;
-    assert_eq!(
-        description(&storage, "ALICE").await.as_deref(),
-        Some("AGE_MARKER"),
-        "status=age must read Apache AGE, not the plain copy"
-    );
-    let neighbors = storage
-        .get_neighbors("ALICE", 2, Some(&tid), Some(&wid))
+    let refused = storage
+        .get_node("ALICE")
         .await
-        .expect("age neighbors");
-    let ids: Vec<_> = neighbors.iter().map(|n| n.id.as_str()).collect();
-    assert!(ids.contains(&"BOB") && ids.contains(&"CAROL"), "{ids:?}");
+        .expect_err("status=age must not read Apache AGE label tables");
+    let refused = refused.to_string();
+    assert!(
+        refused.contains("Apache AGE is not used"),
+        "red ledger must fail closed onto the plain store, not AGE: {refused}"
+    );
 
     sqlx::query("UPDATE public.eq_graph_cutover SET status = 'ready' WHERE id = 1")
         .execute(&pool)
@@ -302,7 +298,7 @@ async fn age_cutover_proves_mirror_shadow_ledger_flip_and_confirm_drop() {
 
     let body = serde_json::json!({
         "plain_ready_ms": plain_ms,
-        "age_ledger_ms": age_ms,
+        "age_ledger": "refused",
     });
     std::fs::write(
         "/tmp/spec164-age-measurements.json",

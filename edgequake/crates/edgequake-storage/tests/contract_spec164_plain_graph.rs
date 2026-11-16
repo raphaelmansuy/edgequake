@@ -49,6 +49,10 @@ fn ready_ledger_ignores_graph_read_age() {
         ledger.contains("ignores `EDGEQUAKE_GRAPH_READ`"),
         "a finished cutover ignores the age pin"
     );
+    assert!(
+        ledger.contains("Apache AGE is not used"),
+        "once eq_graph_* exists, a ledger that is not ready must not query AGE"
+    );
     let conn = include_str!("../src/adapters/postgres/connection.rs");
     assert!(
         !conn.contains("graph_read_pinned_age"),

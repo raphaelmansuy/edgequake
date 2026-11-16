@@ -4,6 +4,123 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.13] — 2026-11-16
+
+Release-integrity cut. Schema **231**, unchanged from v0.40.12. `edgequake migrate` is a no-op on
+a database already at 231. Roll the images.
+
+### Why this release exists
+
+v0.40.8 through v0.40.12 were tagged from `cursor/vector-query-statement-timeout-195f` and never
+merged back. `edgequake-main` stayed at schema **227** while the published product served **231**,
+so a release cut from the mainline would have shipped migrations 228–231 as absent — declaring
+`compat_serve_max = 227` against databases already at 231. v0.40.13 merges that line home and is the
+first mainline release since v0.40.7 that can serve 231.
+
+### Fixed
+
+- **Inline HTML markup was quadratic in unclosed tags.** `mergeInlineHtmlTokens()` scanned forward
+  from every opening tag to its closing partner; an unclosed tag — normal for a truncated stream or
+  a literal `<` in prose — walked to the end of the token list and the next tag rescanned. 32 000
+  unclosed tags cost 5.5 s per render in the chat pane. Now linear: 0.40 ms for the same input,
+  byte-identical output. ([#556](https://github.com/raphaelmansuy/edgequake/issues/556), #557)
+- **The document viewer re-scanned the whole document per visible row.** `localHighlightForSlice`
+  ran inside the virtualizer's row map and resolved two offsets that are identical for every row.
+  On a 2 MB document that was 11.7 ms per frame; it is 1.5 ms now.
+- **Vertex embedding used the file's project instead of the connection's.** A project saved on the
+  connection now wins over `project_id` in the service-account JSON, so the server does not need
+  `GOOGLE_CLOUD_PROJECT` when the credential already carries one.
+
+### Added
+
+- **A schema-regression gate.** `make release-gates` and CI fail when `compat_serve_max` is below
+  any published `vX.Y.Z` tag (`scripts/check_schema_no_regression.sh`). The existing schema-train
+  check only proved HEAD was internally consistent — it passed happily on schema 227 while 231 was
+  published, which is how this drift shipped.
+- **A WebUI unit-test CI job.** Nothing in the pipeline ran `pnpm test`, so no rendering guard could
+  block a merge. It now runs on every PR.
+
+### Changed
+
+- Carried from the v0.40.8–v0.40.12 line: clearance/RLS InitPlan rewrites (228–230), the saved
+  Vertex project migration (231), model selection by capability, and the hybrid vector statement
+  budget.
+
+**SPEC-001 Acc:** not re-scored. Mix retrieval is unchanged. The latest valid pack remains
+`medical-mid-20261024T031725Z` (`valid: true`): EdgeQuake **0.8084**, LightRAG **0.7681**, delta
+**+0.0403**, 95% CI **[-0.0241, +0.1036]** (n_paired 72). The interval includes 0, so this is a
+statistical tie. EdgeQuake does not claim a win.
+
+## [0.40.12] — 2026-11-09
+
+Patch on v0.40.11. Schema stays **231**. `edgequake migrate` is a no-op when the database is already at 231.
+
+### Fixed
+
+- **Hybrid query died in under 5 seconds with `canceling statement due to statement timeout`.** Typed chunk and fleet search used a 1750ms Postgres statement budget. Keyword extraction and embedding run before that statement, so the HTTP span was still under 5 seconds. The default is now 15 seconds, applied as 14750ms, the same budget graph reads use. Postgres still cancels the statement. Set `EDGEQUAKE_VECTOR_QUERY_TIMEOUT_MS` to keep a shorter budget.
+- **A graph read could still scan Apache AGE after the plain tables existed.** When `eq_graph_cutover` is not `ready`, those reads now fail closed. A ready ledger keeps using `eq_graph_nodes` and `eq_graph_edges`. The one-time migrate copy still reads existing AGE label tables. The Cypher session prefix no longer sets `statement_timeout` on the pooled connection.
+
+## [0.40.11] — 2026-11-07
+
+Patch on v0.40.10. Schema stays **231**. `edgequake migrate` is a no-op when the database is already at 231.
+
+### Fixed
+
+- **A Normal or image query still said `GOOGLE_CLOUD_PROJECT` is not set after the project was saved.** The query built its `gemini-embedding-2` client from the process environment and never opened the Vertex connection. Query, chat, and image ingest now use the project saved on that connection. A stored service account is used when one is saved.
+
+### Changed
+
+- The organization model ceiling and the workspace model list are arranged by job. A model shows only the jobs it can do. An open job can use any registered model that fits it, and the first model you allow closes that job to the ones you allow.
+
+## [0.40.10] — 2026-11-07
+
+Same product as v0.40.9. Schema stays **231**. `edgequake migrate` is a no-op when the database is already at 231.
+
+The v0.40.9 image publish was cancelled: Release — Docker quality-gates hit its 90 minute limit during a cold compile, after the tests had passed and while the WebUI typecheck was still running. The cache was not saved. This cut raises that job limit to 180 minutes so the image can publish. The provider Edit from v0.40.9 is in this image.
+
+## [0.40.9] — 2026-11-07
+
+Patch on v0.40.8. Schema stays **231**. `edgequake migrate` is a no-op when the database is already at 231.
+
+### Fixed
+
+- **A provider on Deployment › Providers could not be edited.** Each card now has Edit. Update saves the name, base URL, API key, and, for Vertex, the Google Cloud project. An environment provider keeps its current key when the key field is left blank.
+
+## [0.40.8] — 2026-11-07
+
+Patch on v0.40.7. Schema moves **227 → 231**. Run `edgequake migrate` before the new API
+replicas. Four expand migrations. A v0.40.7 binary keeps working against the migrated schema.
+
+### Fixed
+
+- **A saved Vertex connection still asked for `GOOGLE_CLOUD_PROJECT`.** Queries built the
+  embedding client from the process environment and ignored the connection. The Connections
+  form now saves the Google Cloud project. Queries, chat, and `gemini-embedding-2` use that
+  project. A service-account file still supplies the project when the field is left blank.
+- **Row-security checks ran once per row.** The clearance policy called a row-independent
+  function on every chunk and document a scan emitted, and six policies added after migration
+  208 still called `current_tenant_id()`, `current_workspace_id()`, and `current_user_id()`
+  bare. Migration 228 plans the row-independent half once (`clearance_bypass()`). Migration
+  230 wraps the six late policies the same way migration 208 wrapped the earlier ones.
+  `clearance_covers()` still means what it meant: 19,440 combinations, 0 mismatches.
+- **Scope indexes did not cover the clearance columns.** Counting chunks or documents under
+  the tenant role read the heap for rank, compartments, and uploader. Migration 229 makes
+  `(tenant_id, workspace_id)` covering on `chunks` and `documents` and drops two indexes that
+  duplicated another index byte for byte.
+
+Measured on PostgreSQL 16.15, 120,000 chunks, steady state, tenant role:
+chunk count **7.3–7.7 ms** (index-only; the per-row clearance branch does not run when the
+bypass is true), document count **0.22–0.30 ms**. The same chunk count as the bypass role is
+**4.1–4.4 ms**. A scoped read sees **36,000** chunks, matching the superuser, and a wrong
+tenant sees **0**. Full-text search on the tenant role still cannot use the GIN index
+(`@@` is not leakproof); a warm scope scan of that plan is about **6–10 ms** after a cold
+**114 ms**. That reader is unchanged on purpose.
+
+**SPEC-001 Acc:** not re-scored. Mix retrieval ranking is unchanged. The latest valid pack
+remains `medical-mid-20261024T031725Z` (`valid: true`): EdgeQuake **0.8084**, LightRAG
+**0.7681**, delta **+0.0403**, 95% CI **[-0.0241, +0.1036]** (n_paired 72). The interval
+includes 0, so this is a statistical tie. EdgeQuake does not claim a win.
+
 ## [0.40.7] — 2026-11-06
 
 Patch on v0.40.6. Schema stays **227**. `edgequake migrate` is a no-op on a database that is

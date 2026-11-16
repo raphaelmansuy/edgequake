@@ -237,6 +237,7 @@ pub async fn execute_query(
         llm_model: request.llm_model.clone(),
         reasoning_effort,
         normal_plan: crate::services::query_image::normal_plan(
+            state.optional_pg_pool(),
             workspace.as_ref(),
             &request.query,
             request.document_filter.as_ref(),

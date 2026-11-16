@@ -179,6 +179,39 @@ fn envelope(kind: &str, region: &str, material: &str) -> SealedSecret {
     }
 }
 
+/// A Google Cloud project id, or a numeric project number. Not a secret.
+pub fn google_project_id(raw: &str) -> Result<String, String> {
+    let project = raw.trim();
+    if project.is_empty() {
+        return Err("Set the Google Cloud project. It is saved on the connection.".into());
+    }
+    let id = (6..=30).contains(&project.len())
+        && project.starts_with(|c: char| c.is_ascii_lowercase())
+        && !project.ends_with('-')
+        && project
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    let number = (6..=20).contains(&project.len()) && project.chars().all(|c| c.is_ascii_digit());
+    if id || number {
+        return Ok(project.to_string());
+    }
+    Err(
+        "A Google Cloud project id is 6–30 characters, starts with a letter, and uses lowercase letters, digits, and hyphens."
+            .into(),
+    )
+}
+
+/// `project_id` inside a service-account or authorized-user file, when it has one.
+pub fn project_id_in_google_json(raw: &str) -> Option<String> {
+    let creds: GoogleCredentials = serde_json::from_str(raw.trim()).ok()?;
+    let project = creds.project_id().unwrap_or("").trim().to_string();
+    if project.is_empty() {
+        None
+    } else {
+        Some(project)
+    }
+}
+
 fn sanitize_region(region: &str) -> Result<String, String> {
     let region = region.trim();
     let ok = !region.is_empty()
@@ -204,6 +237,24 @@ mod tests {
 
     fn service_account() -> String {
         r#"{"type":"service_account","client_email":"vertex-express@mobioos-506015.iam.gserviceaccount.com","private_key":"-----BEGIN PRIVATE KEY-----\nnot-a-real-key\n-----END PRIVATE KEY-----\n","project_id":"mobioos-506015","token_uri":"https://oauth2.googleapis.com/token"}"#.into()
+    }
+
+    #[test]
+    fn a_project_id_is_saved_and_a_sentence_is_not() {
+        assert_eq!(
+            google_project_id("mobioos-506015").unwrap(),
+            "mobioos-506015"
+        );
+        assert_eq!(
+            google_project_id("  123456789012 ").unwrap(),
+            "123456789012"
+        );
+        assert!(google_project_id("").is_err());
+        assert!(google_project_id("Not A Project").is_err());
+        assert_eq!(
+            project_id_in_google_json(&service_account()).as_deref(),
+            Some("mobioos-506015")
+        );
     }
 
     #[test]

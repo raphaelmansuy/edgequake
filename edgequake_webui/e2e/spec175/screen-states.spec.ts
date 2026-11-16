@@ -74,6 +74,7 @@ test.describe("SPEC-175 screen states @spec175", () => {
     // WHY exact labels for four and a regex for the fifth: connections-card.tsx
     // renders "API key (optional)" when the selected shape does not require a
     // key, so `exact: true` on "API key" cannot match the real label.
+    // OpenAI does not set requires_key, so the field reads "API key (optional)".
     for (const label of ["Name", "API shape", "Base URL"]) {
       await expect(page.getByLabel(label, { exact: true })).toBeVisible();
     }

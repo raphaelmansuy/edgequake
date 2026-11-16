@@ -845,10 +845,39 @@ impl WorkspaceProviderResolver {
         {
             return Ok(Some(ResolvedEmbeddingProvider {
                 provider,
-                provider_name: choice.provider,
-                model_name: choice.model,
+                provider_name: choice.provider.clone(),
+                model_name: choice.model.clone(),
                 dimension: choice.dimension,
             }));
+        }
+
+        #[cfg(feature = "postgres")]
+        if let Some(pool) = self.pg_pool.as_ref() {
+            match crate::providers::connection_store::fleet_embedding(
+                pool,
+                &choice.provider,
+                &choice.model,
+                choice.dimension,
+            )
+            .await
+            {
+                Ok(Some(provider)) => {
+                    return Ok(Some(ResolvedEmbeddingProvider {
+                        provider,
+                        provider_name: choice.provider,
+                        model_name: choice.model,
+                        dimension: choice.dimension,
+                    }));
+                }
+                Ok(None) => {}
+                Err(message) => {
+                    return Err(ProviderResolutionError::from_creation_error(
+                        &choice.provider,
+                        &choice.model,
+                        &message,
+                    ));
+                }
+            }
         }
 
         debug!(

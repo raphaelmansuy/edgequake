@@ -53,6 +53,7 @@ fn ollama(slug: &str) -> UpsertConnection {
         auth_scheme: None,
         api_key: None,
         credential_region: None,
+        google_project: None,
         timeout_secs: None,
         allow_private_network: Some(true),
     }
@@ -289,6 +290,7 @@ async fn deployment_scope_writes_a_fleet_row_and_seals_the_secret() {
         auth_scheme: None,
         api_key: Some(service_account()),
         credential_region: Some("us-central1".into()),
+        google_project: None,
         timeout_secs: None,
         allow_private_network: Some(false),
     };
@@ -306,6 +308,7 @@ async fn deployment_scope_writes_a_fleet_row_and_seals_the_secret() {
     assert!(saved.key_configured);
     assert_eq!(saved.secret_backend.as_deref(), Some("database"));
     assert_eq!(saved.auth_scheme, "google_service_account");
+    assert_eq!(saved.google_project.as_deref(), Some("mobioos-506015"));
     let echoed = serde_json::to_string(&saved).expect("view");
     assert!(!echoed.contains("api_key"));
     assert!(!echoed.contains("BEGIN PRIVATE KEY"));
@@ -346,4 +349,106 @@ async fn deployment_scope_writes_a_fleet_row_and_seals_the_secret() {
         Path(saved.id),
     )
     .await;
+}
+
+#[cfg(feature = "postgres")]
+#[tokio::test]
+async fn a_saved_project_embeds_without_google_cloud_project() {
+    let Some(pool) =
+        postgres_access_pool::test_pool_with_acquire_timeout(std::time::Duration::from_secs(15))
+            .await
+    else {
+        return;
+    };
+    install_key();
+    let state = AppState::test_state_with_pg_pool(pool.clone());
+    let slug = short_slug("spec231");
+    let previous = std::env::var("GOOGLE_CLOUD_PROJECT").ok();
+    std::env::remove_var("GOOGLE_CLOUD_PROJECT");
+
+    let created = create_connection(
+        State(state.clone()),
+        principal(Role::Admin),
+        tenant(),
+        scope(Some("deployment")),
+        Json(UpsertConnection {
+            slug: slug.clone(),
+            display_name: "Vertex project".into(),
+            api_shape: "vertexai".into(),
+            base_url: "https://aiplatform.googleapis.com".into(),
+            locality: Some("cloud".into()),
+            auth_scheme: None,
+            api_key: None,
+            credential_region: None,
+            google_project: Some("mobioos-506015".into()),
+            timeout_secs: None,
+            allow_private_network: Some(false),
+        }),
+    )
+    .await
+    .expect("save project");
+    let (_, Json(saved)) = created;
+    assert_eq!(saved.google_project.as_deref(), Some("mobioos-506015"));
+    assert!(!saved.key_configured);
+
+    let mut spec = edgequake_api::providers::connection_store::load_connection_spec(
+        &pool,
+        saved.id,
+        "gemini-embedding-2",
+    )
+    .await
+    .expect("load");
+    spec.embedding_model = Some("gemini-embedding-2".into());
+    spec.embedding_dimension = Some(1536);
+    edgequake_api::providers::connection_factory::embedding_from_stored(&spec)
+        .await
+        .expect("embedder uses the saved project");
+
+    let mut workspace = edgequake_core::Workspace::new(uuid::Uuid::new_v4(), "image2", "image2");
+    workspace.embedding_provider = "vertexai".into();
+    workspace.embedding_model = "gemini-embedding-2".into();
+    workspace.embedding_dimension = 1536;
+    let client =
+        edgequake_api::embeddings::multimodal_embedder_for_workspace(Some(&pool), &workspace)
+            .await
+            .expect("vertex pair")
+            .expect("query embedder uses the saved project");
+    let _ = client;
+
+    let fleet = edgequake_api::providers::connection_store::fleet_vertex_embedder(
+        &pool,
+        "gemini-embedding-2",
+        1536,
+    )
+    .await
+    .expect("fleet lookup")
+    .expect("saved project");
+    assert_eq!(fleet.project(), "mobioos-506015");
+
+    let visible: bool = sqlx::query_scalar(
+        "SELECT EXISTS( \
+            SELECT 1 FROM provider_connections \
+            WHERE id = $1 AND NULLIF(btrim(google_project), '') IS NOT NULL \
+         )",
+    )
+    .bind(saved.id)
+    .fetch_one(&pool)
+    .await
+    .expect("project column");
+    assert!(visible);
+
+    let _ = delete_connection(
+        State(state),
+        principal(Role::Admin),
+        TenantContext::default(),
+        Query(DeleteConfirm {
+            confirm: true,
+            scope: Some("deployment".into()),
+        }),
+        Path(saved.id),
+    )
+    .await;
+    if let Some(project) = previous {
+        std::env::set_var("GOOGLE_CLOUD_PROJECT", project);
+    }
 }

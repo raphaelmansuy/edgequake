@@ -169,8 +169,9 @@ pub use serving_fence_writer::{
 pub use statement_timeout::{
     apply_ingest_write_guards, ingest_lock_statement_pair, ingest_lock_timeout_secs,
     log_activity_snapshot, redact_activity_text, resolve_timeout_literal, snapshot_is_best_effort,
-    sqlstate_hint, transaction_timeout_literal, LocalTimeoutTx, TimeoutLiteralPolicy,
-    ACTIVITY_SNAPSHOT_SQL, WORKSPACE_MERGE_LOCK_SQL,
+    sqlstate_hint, transaction_timeout_literal, vector_query_statement_timeout_ms, LocalTimeoutTx,
+    TimeoutLiteralPolicy, ACTIVITY_SNAPSHOT_SQL, VECTOR_QUERY_TIMEOUT_MS_DEFAULT,
+    WORKSPACE_MERGE_LOCK_SQL,
 };
 
 // SPEC-046 OPS-P2.16: `RlsContext` is no longer re-exported from `postgres::`.

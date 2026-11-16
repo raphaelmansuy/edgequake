@@ -195,6 +195,8 @@ async fn database_round_trip_legacy_fallback_and_isolated_infisical_failure() {
         .bind(database_tenant)
         .bind(true)
         .bind(serde_json::to_value(&stored).unwrap())
+        .bind(None::<String>)
+        .bind(false)
         .execute(&pool)
         .await
         .expect("update sql");

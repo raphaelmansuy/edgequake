@@ -159,7 +159,11 @@ test.describe("SPEC-177 provider cascade @spec177", () => {
     // inputs under a separate `fleet-models-stale` card. fleet-models.tsx now
     // shows one `test-first-{slug}` hint until the connection test passes, so
     // the old id never existed in the DOM and this assertion could not pass.
-    await expect(page.getByTestId("test-first-stale")).toBeVisible();
+    const testFirst = page.getByTestId("test-first-stale");
+    await expect(testFirst).toBeVisible();
+    await expect(testFirst).toContainText(
+      "Models can be registered once the connection test passes",
+    );
     await page.getByTestId("withdraw-openai").click();
     await expect(page.getByTestId("deployment-provider-openai")).toContainText("Hidden from organizations");
     await shot(page, "deployment-providers");

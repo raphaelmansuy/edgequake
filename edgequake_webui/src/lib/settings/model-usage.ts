@@ -102,6 +102,8 @@ export interface PickerOption {
   value: string;
   provider: string;
   model: string;
+  /** Provider name as a person reads it. Falls back to the slug. */
+  providerLabel?: string;
   label: string;
   supportsVision: boolean;
 }
@@ -124,6 +126,7 @@ export function pickerGroups(models: readonly EligibleModel[]): PickerGroup[] {
       value: pairKey(m.provider, m.model),
       provider: m.provider,
       model: m.model,
+      providerLabel: m.provider_display_name || m.provider,
       label: m.display_name || m.model,
       supportsVision: m.supports_vision,
     });
@@ -187,10 +190,13 @@ export function togglePair(selection: PairSelection, usage: UsageKey, key: strin
   return { ...selection, [usage]: sortPairs(next) };
 }
 
-/** One ceiling grid row. A saved pair that is no longer registered is kept so a save never drops it. */
+/** One ceiling row. A saved pair that is no longer registered is kept so a save never drops it. */
 export interface CeilingDisplayRow {
   key: string;
+  /** `${provider} · ${model}`, the name checkboxes announce. */
   label: string;
+  providerLabel: string;
+  modelLabel: string;
   health: CatalogEntry["health"] | null;
   /** Usages the row can be ticked for: a registered model's usages, or the saved ones for an orphan. */
   usages: readonly UsageKey[];
@@ -205,6 +211,8 @@ export function ceilingDisplayRows(entries: readonly CatalogEntry[], selection: 
     return {
       key,
       label: `${e.provider_display_name} · ${e.display_name}`,
+      providerLabel: e.provider_display_name,
+      modelLabel: e.display_name,
       health: e.health,
       usages: e.usages,
       registered: true,
@@ -219,6 +227,8 @@ export function ceilingDisplayRows(entries: readonly CatalogEntry[], selection: 
     rows.push({
       key,
       label: `${provider} · ${model}`,
+      providerLabel: provider,
+      modelLabel: model,
       health: null,
       usages: USAGE_KEYS.filter((u) => selection[u]?.includes(key)),
       registered: false,
@@ -252,6 +262,7 @@ export function narrowingRowsFromDisabled(disabled: DisabledSelection): PolicyRo
 export interface NarrowingRow {
   value: string;
   provider: string;
+  providerLabel: string;
   model: string;
   label: string;
   presentIn: Set<UsageKey>;
@@ -269,6 +280,7 @@ export function narrowingMatrix(
       const row = rows.get(option.value) ?? {
         value: option.value,
         provider: option.provider,
+        providerLabel: option.providerLabel || option.provider,
         model: option.model,
         label: option.label,
         presentIn: new Set<UsageKey>(),
@@ -297,7 +309,14 @@ export function narrowingOptions(
   for (const m of eligible) {
     const value = pairKey(m.provider, m.model);
     seen.add(value);
-    options.push({ value, provider: m.provider, model: m.model, label: m.display_name || m.model, supportsVision: m.supports_vision });
+    options.push({
+      value,
+      provider: m.provider,
+      providerLabel: m.provider_display_name || m.provider,
+      model: m.model,
+      label: m.display_name || m.model,
+      supportsVision: m.supports_vision,
+    });
   }
   for (const key of disabledKeys) {
     if (seen.has(key)) continue;

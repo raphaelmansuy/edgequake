@@ -142,6 +142,10 @@ describe("tenant ceiling", () => {
     ]);
     expect(rows[2].usages).toEqual(["query"]);
     expect(rows[0].usages).toEqual(["query", "extract"]);
+    expect(rows[0].providerLabel).toBe("OpenAI");
+    expect(rows[0].modelLabel).toBe("GPT-5 nano");
+    expect(rows[2].providerLabel).toBe("retired");
+    expect(rows[2].modelLabel).toBe("old-model");
   });
 });
 

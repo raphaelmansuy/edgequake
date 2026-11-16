@@ -56,6 +56,7 @@ pub fn release_for_schema(max_version: i64) -> &'static str {
         219..=224 => "v0.38.0",
         225 => "v0.39.0",
         226..=227 => "v0.40.0",
+        228..=231 => "v0.40.8",
         _ => "newer-than-matrix",
     }
 }
@@ -313,6 +314,10 @@ mod tests {
         assert_eq!(release_for_schema(223), "v0.38.0");
         assert_eq!(release_for_schema(224), "v0.38.0");
         assert_eq!(release_for_schema(225), "v0.39.0");
+        assert_eq!(release_for_schema(227), "v0.40.0");
+        assert_eq!(release_for_schema(228), "v0.40.8");
+        assert_eq!(release_for_schema(230), "v0.40.8");
+        assert_eq!(release_for_schema(231), "v0.40.8");
         assert_eq!(release_for_schema(0), "empty");
     }
 }

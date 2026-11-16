@@ -2,7 +2,8 @@
 //!
 //! One place turns a request into a [`NormalQueryPlan`] for query, context, chat and MCP:
 //! kind filters, the query-side text vector for a multimodal workspace (the query prefix,
-//! never the document prefix) and the image vector. The image is embedded for the search
+//! never the document prefix) and the image vector. The client uses the Google Cloud
+//! project saved on the Vertex connection. The image is embedded for the search
 //! only. It is not stored as a document.
 
 use edgequake_core::multimodal_embed::{query_prefix, EmbedInput, MultimodalEmbedder};
@@ -34,15 +35,13 @@ impl QueryImage {
     }
 }
 
-fn multimodal_client(
+async fn multimodal_client(
+    pool: crate::services::OptionalPgPool<'_>,
     workspace: &Workspace,
 ) -> Option<ApiResult<std::sync::Arc<dyn MultimodalEmbedder>>> {
-    crate::embeddings::multimodal_embedder_for(
-        &workspace.embedding_provider,
-        &workspace.embedding_model,
-        workspace.embedding_dimension,
-    )
-    .map(|client| client.map_err(|e| crate::embeddings::api_error(&e)))
+    crate::embeddings::multimodal_embedder_for_workspace(pool, workspace)
+        .await
+        .map(|client| client.map_err(|e| crate::embeddings::api_error(&e)))
 }
 
 async fn embed_one(client: &dyn MultimodalEmbedder, input: EmbedInput) -> ApiResult<Vec<f32>> {
@@ -55,9 +54,13 @@ async fn embed_one(client: &dyn MultimodalEmbedder, input: EmbedInput) -> ApiRes
         .ok_or_else(|| ApiError::Internal("the embedder returned no vector".into()))
 }
 
-async fn image_vector(workspace: &Workspace, image: &QueryImage) -> ApiResult<Vec<f32>> {
+async fn image_vector(
+    pool: crate::services::OptionalPgPool<'_>,
+    workspace: &Workspace,
+    image: &QueryImage,
+) -> ApiResult<Vec<f32>> {
     workspace.capabilities().check_image_query()?;
-    let client = multimodal_client(workspace).ok_or_else(|| {
+    let client = multimodal_client(pool, workspace).await.ok_or_else(|| {
         ProfileError::new(
             codes::IMAGE_QUERY_NOT_SUPPORTED,
             "this workspace's embedding model cannot embed images",
@@ -76,11 +79,15 @@ async fn image_vector(workspace: &Workspace, image: &QueryImage) -> ApiResult<Ve
 }
 
 /// The text query vector of a multimodal workspace: the question under the query prefix.
-async fn text_vector(workspace: &Workspace, query: &str) -> ApiResult<Option<Vec<f32>>> {
+async fn text_vector(
+    pool: crate::services::OptionalPgPool<'_>,
+    workspace: &Workspace,
+    query: &str,
+) -> ApiResult<Option<Vec<f32>>> {
     if query.trim().is_empty() {
         return Ok(None);
     }
-    let Some(client) = multimodal_client(workspace) else {
+    let Some(client) = multimodal_client(pool, workspace).await else {
         return Ok(None);
     };
     let vector = embed_one(client?.as_ref(), EmbedInput::text(query_prefix(query))).await?;
@@ -90,6 +97,7 @@ async fn text_vector(workspace: &Workspace, query: &str) -> ApiResult<Option<Vec
 /// The plan for one request, `None` when the engine needs none (graph workspace without
 /// kind filters or an image).
 pub async fn normal_plan(
+    pool: crate::services::OptionalPgPool<'_>,
     workspace: Option<&Workspace>,
     query: &str,
     filter: Option<&DocumentFilter>,
@@ -108,9 +116,9 @@ pub async fn normal_plan(
     }
     let mut plan = kinds_plan.unwrap_or_else(NormalQueryPlan::text);
     if let Some(image) = image {
-        plan = plan.with_image_vector(image_vector(workspace, image).await?);
+        plan = plan.with_image_vector(image_vector(pool, workspace, image).await?);
     }
-    if let Some(vector) = text_vector(workspace, query).await? {
+    if let Some(vector) = text_vector(pool, workspace, query).await? {
         plan = plan.with_text_vector(vector);
     }
     Ok(Some(plan))
@@ -139,6 +147,11 @@ mod tests {
 
     #[tokio::test]
     async fn no_workspace_and_no_filter_means_no_plan() {
-        assert!(normal_plan(None, "q", None, None).await.unwrap().is_none());
+        assert!(
+            normal_plan(crate::services::no_pg_pool(), None, "q", None, None)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 }

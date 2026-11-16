@@ -226,4 +226,11 @@ echo "== Schema train parity (docs ↔ highest migration) =="
 chmod +x "$ROOT/scripts/check_schema_train_docs.sh"
 "$ROOT/scripts/check_schema_train_docs.sh"
 
+# WHY after the parity check: that one proves HEAD is internally consistent, this
+# one proves HEAD is not behind a schema that already shipped. Both are needed —
+# v0.40.7→v0.40.12 drifted through the first while failing the second.
+echo "== Schema regression (HEAD vs published tags) =="
+chmod +x "$ROOT/scripts/check_schema_no_regression.sh"
+"$ROOT/scripts/check_schema_no_regression.sh"
+
 echo "✓ release gates passed"
