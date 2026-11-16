@@ -229,10 +229,16 @@ pub fn llm_from_connection(spec: &ConnectionSpec) -> Result<Arc<dyn LLMProvider>
     let key = spec.api_key.clone().unwrap_or_default();
     let inner: Arc<dyn LLMProvider> = match shape.as_str() {
         /*
-         * Vertex without an async token exchange. A saved Vertex secret is one of three things:
-         * nothing (the server identity), an API key (Express or service-account-bound), or a
-         * service-account JSON that must be traded for an access token over the network.
-         * `llm_from_stored` handles the last case; this sync path can only build the key one.
+         * Vertex without an async token exchange.
+         *
+         * WHY `GeminiProvider::new` (AI Studio) is correct *here* but wrong for embeddings:
+         * Vertex's endpoint rejects API keys outright (verified: 401 "API keys are not supported
+         * by this API"), while AI Studio accepts them and serves chat. So an API key can chat but
+         * cannot use Vertex's multimodal embedding. The embedding builder therefore refuses this
+         * shape instead of detouring, since AI Studio has no image embedder.
+         *
+         * `llm_from_stored` handles the JSON and server-identity cases, which need an async token.
+         * This sync arm only ever builds the key form, and that form really does mean AI Studio.
          */
         "vertexai" | "vertex" => match credential_material::open_secret(&key) {
             OpenedSecret::GoogleApiKey(material) | OpenedSecret::ApiKey(material) => {
@@ -302,17 +308,26 @@ pub fn embedding_from_connection(
         .clone()
         .unwrap_or_else(|| spec.model.clone());
     let inner: Arc<dyn EmbeddingProvider> = match shape.as_str() {
-        "vertexai" | "vertex" => match credential_material::open_secret(&key) {
-            OpenedSecret::GoogleApiKey(material) | OpenedSecret::ApiKey(material) => {
-                Arc::new(GeminiProvider::new(material).with_embedding_model(&model))
-            }
-            OpenedSecret::GoogleCredential { .. } => {
-                return Err(ApiError::BadRequest(
-                    "A Vertex service-account file needs an async token exchange. Use the stored-connection path, which mints a token before it builds the client."
-                        .into(),
-                ));
-            }
-        },
+        /*
+         * WHY this is an error and not `GeminiProvider::new(key)`:
+         * `GeminiProvider::new` builds a **Google AI Studio** endpoint
+         * (`generativelanguage.googleapis.com`), not Vertex. A `vertexai` shape reaching this
+         * sync builder would silently embed through a different API than the one the operator
+         * configured — different model names, different quota, different billing. That is the
+         * same wrong-endpoint class of bug that made API keys look broken on Vertex.
+         *
+         * `embedding_from_stored` handles every real `vertexai` connection and never reaches
+         * here; this arm exists so a future caller gets a clear error instead of a silent
+         * detour through AI Studio.
+         */
+        "vertexai" | "vertex" => {
+            return Err(ApiError::BadRequest(
+                "Vertex embeddings need the stored-connection path, which selects the right \
+                 Google identity (service-account JSON, ADC, or the active gcloud account). \
+                 The synchronous builder would target AI Studio instead of Vertex."
+                    .into(),
+            ));
+        }
         "ollama" => {
             let mut adjusted = spec.clone();
             adjusted.embedding_model = Some(model.clone());
@@ -562,6 +577,30 @@ mod tests {
             }
             Ok(_) => panic!("a service-account file must not build synchronously"),
         }
+    }
+
+    /// The synchronous embedding builder must refuse Vertex rather than detour to AI Studio.
+    ///
+    /// WHY: `GeminiProvider::new(key)` builds a `generativelanguage` client. A `vertexai` shape
+    /// reaching that path would embed through a different API than the operator configured —
+    /// different models, quota, and billing — and look like success. The stored-connection path
+    /// handles every real Vertex workspace, so this arm should only ever produce an error.
+    #[test]
+    fn sync_embedding_builder_refuses_vertex_instead_of_targeting_ai_studio() {
+        let spec = vertex_spec(Some("AIzaSyExampleKey"));
+        let result = embedding_from_connection(&spec);
+
+        let msg = match result {
+            Err(err) => err.to_string(),
+            Ok(_) => panic!(
+                "a vertexai shape must not build through the sync path; \
+                 that would silently target AI Studio"
+            ),
+        };
+        assert!(
+            msg.contains("stored-connection") || msg.contains("AI Studio"),
+            "the error must say what to do instead: {msg}"
+        );
     }
 
     // ── Multimodal embedding must accept all three Vertex credential kinds ───

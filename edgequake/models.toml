@@ -2242,8 +2242,12 @@ description = "Azure-hosted OpenAI models - Enterprise-grade with SLAs and compl
 name = "gpt-4o"
 display_name = "GPT-4o (Azure)"
 model_type = "llm"
-description = "Azure-hosted GPT-4o deployment"
-deprecated = false
+# WHY deprecated=true: OpenAI lists GPT-4o as Deprecated, shutdown 2027-01-14,
+# recommended replacement gpt-6-luna (platform.openai.com/docs/deprecations,
+# checked 2026-11-16). The OpenAI-provider entry already carried this flag; the
+# Azure copy did not, so the picker presented a retiring model as current.
+description = "Azure-hosted GPT-4o deployment (retiring 2027-01-14; prefer a gpt-6 deployment)"
+deprecated = true
 tags = ["enterprise", "compliant"]
 
 [providers.models.capabilities]
@@ -2545,8 +2549,8 @@ embedding_per_1k = 0.0
 image_per_unit = 0.0
 
 [[providers.models]]
-name = "anthropic/claude-sonnet-4-5-20250929"
-display_name = "Claude Sonnet 4.5 (via OpenRouter)"
+name = "anthropic/claude-sonnet-5.5"
+display_name = "Claude Sonnet 5.5 (via OpenRouter)"
 model_type = "llm"
 description = "Anthropic Claude Sonnet 4.5 via OpenRouter"
 deprecated = false
@@ -2569,8 +2573,8 @@ embedding_per_1k = 0.0
 image_per_unit = 0.0
 
 [[providers.models]]
-name = "meta-llama/llama-3.1-405b-instruct"
-display_name = "Llama 3.1 405B (via OpenRouter)"
+name = "meta-llama/llama-3.3-70b-instruct"
+display_name = "Llama 3.3 70B (via OpenRouter)"
 model_type = "llm"
 description = "Meta's largest open Llama model via OpenRouter"
 deprecated = false
@@ -3094,10 +3098,16 @@ priority = 25
 description = "NVIDIA NIM — cloud and free-tier inference models"
 
 [[providers.models]]
-name = "meta/llama-3.1-8b-instruct"
-display_name = "Llama 3.1 8B Instruct"
+name = "nvidia/nemotron-3.5-lightning-30b-a3b"
+display_name = "Nemotron 3.5 Lightning 30B"
 model_type = "llm"
-description = "Meta Llama 3.1 8B on NVIDIA NIM"
+# WHY this replaced meta/llama-3.1-8b-instruct: NVIDIA retired that model on
+# 2026-08-26 (HTTP 410 on chat/completions), and it no longer appears in
+# /v1/models. Shipping a dead id made the model picker offer something every call
+# rejected.
+# Verified live: /v1/models lists this id, and chat/completions answers 403
+# "Authorization failed" (i.e. the model exists; only the probe key is invalid).
+description = "NVIDIA Nemotron 3.5 Lightning 30B on NIM"
 deprecated = false
 tags = ["recommended", "fast"]
 
