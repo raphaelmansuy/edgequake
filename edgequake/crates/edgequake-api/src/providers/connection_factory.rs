@@ -129,12 +129,19 @@ pub fn vertex_multimodal_embedder(
                  * is used — both of those are OAuth2 and both work.
                  */
                 let _ = key;
-                tracing::warn!(
-                    model = %model,
-                    "Vertex API key cannot embed images (Vertex accepts OAuth2 only); \
-                     image search is unavailable for this workspace. Save a service-account \
-                     JSON or leave the secret blank to use the server identity."
-                );
+                // WHY once: this runs on every embedding batch, and a workspace ingesting a
+                // large corpus would otherwise write the same line thousands of times. The
+                // condition is structural (a key cannot ever work), not transient, so one line
+                // per process is enough to explain the missing capability.
+                static WARNED: std::sync::Once = std::sync::Once::new();
+                WARNED.call_once(|| {
+                    tracing::warn!(
+                        model = %model,
+                        "Vertex API key cannot embed images (Vertex accepts OAuth2 only); \
+                         image search is unavailable for this workspace. Save a service-account \
+                         JSON or leave the secret blank to use the server identity."
+                    );
+                });
                 Ok(None)
             }
         };
