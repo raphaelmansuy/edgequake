@@ -3557,8 +3557,33 @@ test-e2e-full: dev-bg test-e2e-lint ## Run full E2E suite (requires make dev-bg 
 		SPEC013_BACKEND_URL="$(BACKEND_URL)" E2E_LIVE_STACK=1 PLAYWRIGHT_BASE_URL="$(FRONTEND_URL)" \
 		pnpm exec playwright test --project=chromium --reporter=line
 
-# SPEC-180: Normal RAG (retrieval profile, chunks-only UI, image search) — hermetic UI suite.
-# Added because nothing ran these specs: when SPEC-181 replaced the create wizard, three
+# GH-556: inline HTML token merge must stay linear. Unit tests carry the complexity
+# guard (they fail on the old O(N²) scan); the Playwright spec proves it in Chromium
+# against the production merge plus the rendered <sup>/<sub> contract. Hermetic.
+.PHONY: issue556-proof
+issue556-proof:
+	@echo "$(BLUE)GH-556 → inline HTML merge complexity + render contract$(RESET)"
+	@cd $(FRONTEND_DIR) && pnpm exec vitest run \
+		src/components/query/markdown/__tests__/inline-html-merge.test.ts \
+		src/components/query/markdown/__tests__/inline-html-render.test.tsx
+	@cd $(FRONTEND_DIR) && PLAYWRIGHT_SKIP_STACK_CHECK=1 pnpm exec playwright test \
+		e2e/issue556-inline-html-merge.spec.ts --project=chromium --reporter=line
+	@echo "$(GREEN)✓ GH-556 proof passed$(RESET)"
+
+# GH-556 follow-up: virtualized highlight mapping must not re-scan the document per
+# visible row. The wiring test is load-bearing — the browser spec alone stays green
+# when the component is reverted to the per-row scan.
+.PHONY: issue556v-proof
+issue556v-proof:
+	@echo "$(BLUE)GH-556 follow-up → virtualized highlight mapping$(RESET)"
+	@cd $(FRONTEND_DIR) && pnpm exec vitest run \
+		src/lib/utils/__tests__/virtualized-highlight.test.ts \
+		src/lib/utils/__tests__/virtualized-highlight-wiring.test.ts
+	@cd $(FRONTEND_DIR) && PLAYWRIGHT_SKIP_STACK_CHECK=1 pnpm exec playwright test \
+		e2e/issue556-virtualized-highlight.spec.ts --project=chromium --reporter=line
+	@echo "$(GREEN)✓ GH-556 follow-up proof passed$(RESET)"
+
+# SPEC-180: Normal RAG (retrieval profile, chunks-only UI, image search) — hermetic UI suite.# Added because nothing ran these specs: when SPEC-181 replaced the create wizard, three
 # wizard specs timed out instead of failing, and no gate noticed.
 .PHONY: test-e2e-spec180
 test-e2e-spec180:

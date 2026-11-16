@@ -85,8 +85,86 @@ export function resolveMarkdownHighlightRange({
 }
 
 /**
+ * Document-absolute character offsets of a highlight range.
+ *
+ * WHY this type exists: mapping a highlight onto virtualized slices needs the
+ * range's start and end offsets on *every* visible row, but those two numbers
+ * depend only on the full document and the range — not on the row. Resolving
+ * them once per render and passing them down turns an O(rows × document) render
+ * into O(document + rows × slice) (GH-556 follow-up).
+ */
+export type GlobalLineOffsets = {
+  /** Offset of the first character of `range.startLine`. */
+  start: number;
+  /** Offset just past the last character of `range.endLine`. */
+  endExclusive: number;
+};
+
+/**
+ * Resolve a highlight range to document offsets in ONE pass.
+ *
+ * Both offsets are collected in the same scan: two separate `offsetOfLine` calls
+ * walked the whole document twice for numbers that sit a few lines apart.
+ * Missing lines clamp to `content.length`, matching `offsetOfLine`.
+ */
+export function resolveGlobalOffsets(
+  fullContent: string,
+  range: HighlightLineRange,
+): GlobalLineOffsets {
+  const startTarget = range.startLine;
+  const endTarget = range.endLine + 1;
+
+  // Lines <= 1 begin at offset 0, so those sides need no scan.
+  let start = startTarget <= 1 ? 0 : -1;
+  let endExclusive = endTarget <= 1 ? 0 : -1;
+  if (start >= 0 && endExclusive >= 0) return { start, endExclusive };
+
+  let seen = 1;
+  for (let i = 0; i < fullContent.length; i += 1) {
+    if (fullContent[i] !== "\n") continue;
+    seen += 1;
+    if (start < 0 && seen === startTarget) start = i + 1;
+    if (endExclusive < 0 && seen === endTarget) endExclusive = i + 1;
+    if (start >= 0 && endExclusive >= 0) break;
+  }
+
+  return {
+    start: start < 0 ? fullContent.length : start,
+    endExclusive: endExclusive < 0 ? fullContent.length : endExclusive,
+  };
+}
+
+/**
+ * Map a highlight onto one slice using pre-resolved document offsets.
+ *
+ * This is the hot-path form used inside the virtualizer's row map: it never
+ * touches `fullContent`, so its cost depends on the slice, not the document.
+ */
+export function localHighlightForSliceAt(
+  slice: string,
+  sliceStart: number,
+  offsets: GlobalLineOffsets,
+): HighlightLineRange | undefined {
+  if (!slice) return undefined;
+
+  const sliceEnd = sliceStart + slice.length;
+  const overlapStart = Math.max(offsets.start, sliceStart);
+  const overlapEnd = Math.min(offsets.endExclusive, sliceEnd);
+  if (overlapStart >= overlapEnd) return undefined;
+
+  const localStart = lineAtOffset(slice, overlapStart - sliceStart);
+  const localEnd = lineAtOffset(slice, Math.max(overlapStart, overlapEnd - 1) - sliceStart);
+  return { startLine: localStart, endLine: Math.max(localStart, localEnd) };
+}
+
+/**
  * Map a document-absolute line range onto one virtualized markdown slice.
  * Returns chunk-local 1-based lines, or undefined when the slice does not overlap.
+ *
+ * Convenience form for one-off callers (tests, citation deeplinks). Callers that
+ * map many slices of the same document must resolve once with
+ * `resolveGlobalOffsets` and then call `localHighlightForSliceAt`, so the
+ * document is not re-scanned per slice.
  */
 export function localHighlightForSlice(
   slice: string,
@@ -95,16 +173,11 @@ export function localHighlightForSlice(
   range: HighlightLineRange,
 ): HighlightLineRange | undefined {
   if (!slice) return undefined;
-  const globalStart = offsetOfLine(fullContent, range.startLine);
-  const globalEndExclusive = offsetOfLine(fullContent, range.endLine + 1);
-  const sliceEnd = sliceStart + slice.length;
-  const overlapStart = Math.max(globalStart, sliceStart);
-  const overlapEnd = Math.min(globalEndExclusive, sliceEnd);
-  if (overlapStart >= overlapEnd) return undefined;
-
-  const localStart = lineAtOffset(slice, overlapStart - sliceStart);
-  const localEnd = lineAtOffset(slice, Math.max(overlapStart, overlapEnd - 1) - sliceStart);
-  return { startLine: localStart, endLine: Math.max(localStart, localEnd) };
+  return localHighlightForSliceAt(
+    slice,
+    sliceStart,
+    resolveGlobalOffsets(fullContent, range),
+  );
 }
 
 export function findChunkIndexForRange(
