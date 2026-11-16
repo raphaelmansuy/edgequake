@@ -59,6 +59,23 @@ jobs:
           chmod +x scripts/check_schema_no_regression.sh
           ./scripts/check_schema_no_regression.sh
 
+  # WHY a separate job: this is pure bash over deploy/gcp/scripts, needs no Rust
+  # cache, and finishes in seconds. It runs `age_drop_policy_test.sh`, which
+  # asserts the consent policy AND that the schema `migrate` deploy.sh runs
+  # afterwards carries no `--drop-age`. Neither that test nor its e2e sibling was
+  # in any workflow, so GH-537 could come back and every gate would stay green:
+  # the policy unit test passed while the CLI underneath dropped AGE anyway.
+  deploy-age-consent:
+    name: Deploy AGE consent (GH-537)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: AGE consent policy + deploy wiring
+        run: |
+          chmod +x deploy/gcp/tests/age_drop_policy_test.sh
+          ./deploy/gcp/tests/age_drop_policy_test.sh
+
   check:
     name: Check (fmt + clippy)
     runs-on: ubuntu-latest
