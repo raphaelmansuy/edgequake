@@ -141,8 +141,10 @@ async fn gcloud_token() -> Option<String> {
 /// Can this token call the configured model? Free: `:countTokens` returns a token count, and is
 /// authorised by the same permission as generation.
 ///
-/// Returns `Ok(())` on 200 and `Err(status)` otherwise, so the caller can report *why* without
-/// parsing a provider-specific error body.
+/// Returns the HTTP status on failure rather than a bool, because the caller must not report
+/// "permission denied" for a model that does not exist: a 404 means the name or the region is
+/// wrong, and telling an operator to grant a role on a model that is not there wastes the one
+/// signal the probe can give.
 async fn can_call_model(project: &str, region: &str, model: &str, token: &str) -> Result<(), u16> {
     let url = format!(
         "{VERTEX_BASE}/projects/{project}/locations/{region}/publishers/google/models/{model}:countTokens"
@@ -162,6 +164,16 @@ async fn can_call_model(project: &str, region: &str, model: &str, token: &str) -
         Ok(r) => Err(r.status().as_u16()),
         Err(_) => Err(0),
     }
+}
+
+/// Status codes that mean "this publisher model is not served here", not "you lack permission".
+///
+/// Verified against the live API: `countTokens` on a model that exists in no region answers 404
+/// NOT_FOUND ("was not found or your project does not have access to it"). A model that exists but
+/// is not enabled for the project answers 403. Reporting the 404 case as a permission problem sent
+/// an operator to audit IAM for a model name that was simply wrong.
+fn status_means_model_absent(status: u16) -> bool {
+    matches!(status, 404)
 }
 
 /// Resolve the identity that may call `model` in `project`, verifying it once and caching the
@@ -185,6 +197,9 @@ pub async fn select_identity(project: &str, model: &str) -> Result<VertexAccess,
     }
 
     let mut rejected: Vec<String> = Vec::new();
+    // Statuses seen by the probe, so the message can distinguish "this model does not exist"
+    // (404) from "this identity lacks the role" (403). A missing token records 0.
+    let mut statuses: Vec<u16> = Vec::new();
 
     if let Some(token) = adc_token().await {
         match can_call_model(project, &region, model, &token).await {
@@ -197,6 +212,7 @@ pub async fn select_identity(project: &str, model: &str) -> Result<VertexAccess,
                 return Ok(access);
             }
             Err(status) => {
+                statuses.push(status);
                 rejected.push(format!("{} (HTTP {status})", VertexIdentity::Adc.as_str()))
             }
         }
@@ -214,27 +230,44 @@ pub async fn select_identity(project: &str, model: &str) -> Result<VertexAccess,
                 remember(&scope, &access).await;
                 return Ok(access);
             }
-            Err(status) => rejected.push(format!(
-                "{} (HTTP {status})",
-                VertexIdentity::Gcloud.as_str()
-            )),
+            Err(status) => {
+                statuses.push(status);
+                rejected.push(format!(
+                    "{} (HTTP {status})",
+                    VertexIdentity::Gcloud.as_str()
+                ))
+            }
         }
     } else {
         rejected.push(format!("{} (no token)", VertexIdentity::Gcloud.as_str()));
     }
 
-    Err(identity_error(project, model, &rejected))
+    Err(identity_error(project, model, &rejected, &statuses))
 }
 
 /// Operator-facing sentence: what was tried, and the exact fix for the common cause.
-fn identity_error(project: &str, model: &str, rejected: &[String]) -> String {
+///
+/// WHY the status matters: the probe answers 404 when the model name or region is wrong, and 403
+/// when the identity lacks the role. Collapsing both into "check the identity is granted
+/// aiplatform.endpoints.predict" sent an operator to audit IAM for `gemini-embedding-2`, a model
+/// that exists in no location at all. The message must name the class of failure it actually saw.
+fn identity_error(project: &str, model: &str, rejected: &[String], statuses: &[u16]) -> String {
+    let tried = rejected.join(", ");
+    if statuses.iter().copied().any(status_means_model_absent) {
+        return format!(
+            "Vertex does not serve model {model} in this project or region (404 NOT_FOUND). \
+             Tried: {tried}. This is not a permission problem: the model name or the region is \
+             wrong. Use a model this project can serve (for embeddings, gemini-embedding-001 \
+             works in us-central1 and europe-west4), or set GOOGLE_CLOUD_REGION to a region that \
+             serves {model}."
+        );
+    }
     format!(
-        "No Google identity may call {model} in project {project}. Tried: {}. \
+        "No Google identity may call {model} in project {project}. Tried: {tried}. \
          Chat and image embedding can authenticate as different identities, so check that the one \
          named here is granted aiplatform.endpoints.predict on {project}: run \
          `gcloud auth application-default login` for the project's own account, or set \
-         GOOGLE_ACCESS_TOKEN. Then set GOOGLE_CLOUD_PROJECT to the project that identity belongs to.",
-        rejected.join(", ")
+         GOOGLE_ACCESS_TOKEN. Then set GOOGLE_CLOUD_PROJECT to the project that identity belongs to."
     )
 }
 
@@ -288,6 +321,7 @@ mod tests {
                 "application default credentials (HTTP 403)".to_string(),
                 "gcloud active account (no token)".to_string(),
             ],
+            &[403],
         );
         assert!(msg.contains("proj-x"), "{msg}");
         assert!(msg.contains("gemini-9"), "{msg}");
@@ -295,6 +329,29 @@ mod tests {
         // The fix must be in the message: this error is what an operator sees.
         assert!(msg.contains("aiplatform.endpoints.predict"), "{msg}");
         assert!(msg.contains("GOOGLE_CLOUD_PROJECT"), "{msg}");
+    }
+
+    /// GH-537 follow-up: a model that exists in no region answers 404, and telling the operator to
+    /// audit IAM for it sends them to the wrong subsystem. Verified against the live API:
+    /// `gemini-embedding-2:countTokens` returns 404 NOT_FOUND in global, us-central1 and
+    /// europe-west4, while `gemini-embedding-001` returns 200 in the latter two.
+    #[test]
+    fn a_404_says_the_model_is_not_served_not_that_iam_is_wrong() {
+        let msg = identity_error(
+            "proj-x",
+            "gemini-embedding-2",
+            &["gcloud active account (HTTP 404)".to_string()],
+            &[404],
+        );
+        assert!(msg.contains("404"), "{msg}");
+        assert!(msg.contains("not a permission problem"), "{msg}");
+        // The misleading advice must be gone for this class of failure.
+        assert!(
+            !msg.contains("aiplatform.endpoints.predict"),
+            "a missing model must not be reported as a missing role: {msg}"
+        );
+        // And it must name a model that actually works, so the operator has a next step.
+        assert!(msg.contains("gemini-embedding-001"), "{msg}");
     }
 
     #[test]
