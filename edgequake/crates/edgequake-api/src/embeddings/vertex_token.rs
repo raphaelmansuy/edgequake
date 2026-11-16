@@ -66,9 +66,23 @@ impl TokenSource for EnvOrGcloudSource {
             .await
             .map_err(|e| auth_error(format!("cannot run gcloud: {e}")))?;
         if !output.status.success() {
-            return Err(auth_error(
-                "gcloud has no active account; set GOOGLE_ACCESS_TOKEN or run gcloud auth login",
-            ));
+            /*
+             * WHY include stderr: `gcloud` distinguishes "no account at all" from "the account's
+             * refresh token expired" and "the key file was revoked". Collapsing all of those into
+             * one sentence sent operators looking for a missing account when the real answer was
+             * `Reauthentication failed`, i.e. run `gcloud auth login`. stderr carries that line;
+             * stdout on failure carries nothing useful.
+             */
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let reason = stderr
+                .lines()
+                .map(str::trim)
+                .find(|line| !line.is_empty() && !line.starts_with("Please run"))
+                .unwrap_or("no detail was reported");
+            return Err(auth_error(format!(
+                "gcloud could not mint a Vertex token: {reason}. \
+                 Run `gcloud auth login` (or set GOOGLE_ACCESS_TOKEN), then retry."
+            )));
         }
         let token = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if token.is_empty() {
@@ -82,9 +96,11 @@ fn auth_error(message: impl Into<String>) -> EmbedError {
     EmbedError::new(embed_codes::AUTH, message)
 }
 
-/// Mints a Google access token from a stored service-account JSON.
+/// Mints a Google access token from a stored credential file.
 ///
-/// The JSON stays in memory. It is parsed on each refresh and never logged.
+/// Accepts both shapes `google_auth` understands: a `service_account` key (signed JWT) and an
+/// `authorized_user` file (refresh token). Both POST to Google's token endpoint, so one source
+/// covers them. The material stays in memory, is parsed per refresh, and is never logged.
 pub struct StoredServiceAccount {
     material: String,
 }
@@ -184,5 +200,31 @@ mod tests {
         assert_eq!(provider.token().await.unwrap(), "token-0");
         assert_eq!(provider.refresh().await.unwrap(), "token-1");
         assert_eq!(provider.token().await.unwrap(), "token-1");
+    }
+
+    /// A gcloud failure must name the real cause, not guess at "no account".
+    ///
+    /// WHY this is a unit test on a pure function: the original bug was the *message*, and a
+    /// message that discards stderr is what sent an operator looking for a key that was never
+    /// required.
+    #[test]
+    fn a_gcloud_failure_surfaces_its_own_reason() {
+        let stderr = "ERROR: (gcloud.auth.print-access-token) There was a problem refreshing \
+                      your current auth tokens: Reauthentication failed.\nPlease run:\n\n  \
+                      $ gcloud auth login\n";
+        let reason = stderr
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty() && !line.starts_with("Please run"))
+            .unwrap_or("no detail was reported");
+
+        assert!(
+            reason.contains("Reauthentication failed"),
+            "the real cause must survive: {reason}"
+        );
+        assert!(
+            !reason.contains("no active account"),
+            "the message must not claim a missing account: {reason}"
+        );
     }
 }
