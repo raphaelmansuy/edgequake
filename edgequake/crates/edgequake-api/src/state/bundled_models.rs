@@ -76,6 +76,57 @@ mod tests {
         assert!(rapid.api_key_env.as_deref().unwrap_or("").is_empty());
     }
 
+    /// Models that a vendor has retired must not reappear in the catalog.
+    ///
+    /// WHY a denylist rather than a live API check: CI has no vendor keys, so it cannot ask
+    /// "is this model still served?". This pins the specific ids that were verified dead, so a
+    /// revert or a bad merge cannot quietly put a model the vendor rejects back in the picker.
+    /// Each entry was confirmed against the vendor's own model list or HTTP response.
+    #[test]
+    fn retired_models_are_not_shipped_in_the_catalog() {
+        let config = embedded_models_catalog();
+        let shipped: Vec<(&str, &str)> = config
+            .providers
+            .iter()
+            .flat_map(|p| {
+                p.models
+                    .iter()
+                    .map(move |m| (p.name.as_str(), m.name.as_str()))
+            })
+            .collect();
+
+        // (provider, model, why it is dead)
+        let retired = [
+            (
+                "nvidia",
+                "meta/llama-3.1-8b-instruct",
+                "NVIDIA retired it 2026-08-26 (HTTP 410) and dropped it from /v1/models",
+            ),
+            (
+                "nvidia",
+                "cohere/command-r-plus-08-2024",
+                "absent from NVIDIA /v1/models",
+            ),
+            (
+                "openrouter",
+                "anthropic/claude-sonnet-4-5-20250929",
+                "absent from OpenRouter /api/v1/models",
+            ),
+            (
+                "openrouter",
+                "meta-llama/llama-3.1-405b-instruct",
+                "absent from OpenRouter /api/v1/models",
+            ),
+        ];
+
+        for (provider, model, why) in retired {
+            assert!(
+                !shipped.contains(&(provider, model)),
+                "{provider} still ships {model}: {why}"
+            );
+        }
+    }
+
     #[test]
     fn load_models_catalog_falls_back_when_no_runtime_config() {
         let dir = tempfile::tempdir().expect("tempdir");

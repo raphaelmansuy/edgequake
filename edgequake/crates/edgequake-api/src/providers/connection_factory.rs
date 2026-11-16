@@ -67,7 +67,14 @@ async fn vertex_embed(spec: &ConnectionSpec) -> Result<Arc<dyn EmbeddingProvider
     Ok(Arc::new(provider.with_embedding_model(&model)))
 }
 
-/// `gemini-embedding-2` over `:embedContent`, using the project id inside a stored service account.
+/// `gemini-embedding-2` over `:embedContent`, for any of the three Vertex credential kinds.
+///
+/// WHY three branches: Vertex accepts a service-account/authorized-user JSON, an API key
+/// (Express or service-account-bound), and the server's own Google identity (ADC / metadata /
+/// an active `gcloud` account). Before this, only the JSON branch existed, so a workspace
+/// configured with an API key or with ADC silently lost image embedding — the multi-modal
+/// embedder returned `None` and the caller fell back to text-only, which made image search
+/// degrade without saying why.
 pub fn vertex_multimodal_embedder(
     spec: &ConnectionSpec,
 ) -> Result<Option<Arc<crate::embeddings::vertex_gemini::VertexGeminiEmbedder>>, ApiError> {
@@ -75,32 +82,108 @@ pub fn vertex_multimodal_embedder(
         .embedding_model
         .clone()
         .unwrap_or_else(|| spec.model.clone());
-    let Some(raw) = spec
+    let dimension = spec.embedding_dimension.unwrap_or(1536);
+
+    // An explicit connection secret wins: JSON → project from the file; API key → project from env.
+    if let Some(raw) = spec
         .api_key
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty())
-    else {
-        return Ok(None);
-    };
-    let OpenedSecret::GoogleCredential { material, .. } = credential_material::open_secret(raw)
-    else {
-        return Ok(None);
-    };
-    let creds: GoogleCredentials = serde_json::from_str(&material).map_err(|_| {
-        ApiError::BadRequest(
-            "The stored Google credential is not a service-account or authorized-user file.".into(),
-        )
-    })?;
-    let project = creds.project_id().unwrap_or("").trim().to_string();
-    if project.is_empty() {
-        return Err(ApiError::BadRequest(
-            "The stored Google credential has no project_id.".into(),
-        ));
+    {
+        return match credential_material::open_secret(raw) {
+            OpenedSecret::GoogleCredential { material, .. } => {
+                let creds: GoogleCredentials = serde_json::from_str(&material).map_err(|_| {
+                    ApiError::BadRequest(
+                        "The stored Google credential is not a service-account or authorized-user file."
+                            .into(),
+                    )
+                })?;
+                let project = creds.project_id().unwrap_or("").trim().to_string();
+                if project.is_empty() {
+                    return Err(ApiError::BadRequest(
+                        "The stored Google credential has no project_id.".into(),
+                    ));
+                }
+                build_multimodal_json(&project, &material, &model, dimension)
+            }
+            OpenedSecret::GoogleApiKey(key) | OpenedSecret::ApiKey(key) => {
+                /*
+                 * A Vertex **API key** cannot do image embedding, and no header spelling fixes it.
+                 *
+                 * Verified against the live API:
+                 *   - `x-goog-api-key` on aiplatform           → 401 "API keys are not supported
+                 *                                                 by this API. Expected OAuth2 …"
+                 *   - `?key=` on aiplatform (Express mode)     → 401, same body
+                 *   - `x-goog-api-key` on generativelanguage   → 400 API_KEY_INVALID
+                 *                                                 (i.e. the key *is* understood,
+                 *                                                  just not by Vertex)
+                 *
+                 * So an API key authenticates AI Studio, not Vertex. AI Studio's embedder is
+                 * text-only, so returning `None` here is the honest answer: the workspace keeps
+                 * text search and loses picture search. Pretending otherwise would surface as a
+                 * 401 mid-query that reads like a bad key.
+                 *
+                 * To get picture embedding, save the service-account JSON, or leave the secret
+                 * blank so the server's Google identity (ADC / metadata / active gcloud account)
+                 * is used — both of those are OAuth2 and both work.
+                 */
+                let _ = key;
+                // WHY once: this runs on every embedding batch, and a workspace ingesting a
+                // large corpus would otherwise write the same line thousands of times. The
+                // condition is structural (a key cannot ever work), not transient, so one line
+                // per process is enough to explain the missing capability.
+                static WARNED: std::sync::Once = std::sync::Once::new();
+                WARNED.call_once(|| {
+                    tracing::warn!(
+                        model = %model,
+                        "Vertex API key cannot embed images (Vertex accepts OAuth2 only); \
+                         image search is unavailable for this workspace. Save a service-account \
+                         JSON or leave the secret blank to use the server identity."
+                    );
+                });
+                Ok(None)
+            }
+        };
     }
-    let dimension = spec.embedding_dimension.unwrap_or(1536);
+
+    // No saved secret: the server's own identity (ADC / metadata / gcloud active account).
+    let project = require_vertex_project()?;
+    let embedder =
+        crate::embeddings::vertex_gemini::VertexGeminiEmbedder::from_env(&model, dimension)
+            .map_err(|error| crate::embeddings::api_error(&error))?;
+    tracing::debug!(
+        project = %project,
+        model = %model,
+        "Vertex multimodal embedder uses the server Google identity"
+    );
+    Ok(Some(Arc::new(embedder)))
+}
+
+/// `GOOGLE_CLOUD_PROJECT`, or the error that tells an operator what to set.
+fn require_vertex_project() -> Result<String, ApiError> {
+    std::env::var("GOOGLE_CLOUD_PROJECT")
+        .ok()
+        .map(|p| p.trim().to_string())
+        .filter(|p| !p.is_empty())
+        .ok_or_else(|| {
+            ApiError::BadRequest(
+                "Vertex AI needs GOOGLE_CLOUD_PROJECT when the connection stores an API key or \
+                 relies on the server's Google identity. Set it, or save a service-account JSON \
+                 file, which carries its own project_id."
+                    .into(),
+            )
+        })
+}
+
+fn build_multimodal_json(
+    project: &str,
+    material: &str,
+    model: &str,
+    dimension: usize,
+) -> Result<Option<Arc<crate::embeddings::vertex_gemini::VertexGeminiEmbedder>>, ApiError> {
     let embedder = crate::embeddings::vertex_gemini::VertexGeminiEmbedder::from_service_account(
-        &project, &material, &model, dimension,
+        project, material, model, dimension,
     )
     .map_err(|error| crate::embeddings::api_error(&error))?;
     Ok(Some(Arc::new(embedder)))
@@ -153,10 +236,16 @@ pub fn llm_from_connection(spec: &ConnectionSpec) -> Result<Arc<dyn LLMProvider>
     let key = spec.api_key.clone().unwrap_or_default();
     let inner: Arc<dyn LLMProvider> = match shape.as_str() {
         /*
-         * Vertex without an async token exchange. A saved Vertex secret is one of three things:
-         * nothing (the server identity), an API key (Express or service-account-bound), or a
-         * service-account JSON that must be traded for an access token over the network.
-         * `llm_from_stored` handles the last case; this sync path can only build the key one.
+         * Vertex without an async token exchange.
+         *
+         * WHY `GeminiProvider::new` (AI Studio) is correct *here* but wrong for embeddings:
+         * Vertex's endpoint rejects API keys outright (verified: 401 "API keys are not supported
+         * by this API"), while AI Studio accepts them and serves chat. So an API key can chat but
+         * cannot use Vertex's multimodal embedding. The embedding builder therefore refuses this
+         * shape instead of detouring, since AI Studio has no image embedder.
+         *
+         * `llm_from_stored` handles the JSON and server-identity cases, which need an async token.
+         * This sync arm only ever builds the key form, and that form really does mean AI Studio.
          */
         "vertexai" | "vertex" => match credential_material::open_secret(&key) {
             OpenedSecret::GoogleApiKey(material) | OpenedSecret::ApiKey(material) => {
@@ -226,17 +315,26 @@ pub fn embedding_from_connection(
         .clone()
         .unwrap_or_else(|| spec.model.clone());
     let inner: Arc<dyn EmbeddingProvider> = match shape.as_str() {
-        "vertexai" | "vertex" => match credential_material::open_secret(&key) {
-            OpenedSecret::GoogleApiKey(material) | OpenedSecret::ApiKey(material) => {
-                Arc::new(GeminiProvider::new(material).with_embedding_model(&model))
-            }
-            OpenedSecret::GoogleCredential { .. } => {
-                return Err(ApiError::BadRequest(
-                    "A Vertex service-account file needs an async token exchange. Use the stored-connection path, which mints a token before it builds the client."
-                        .into(),
-                ));
-            }
-        },
+        /*
+         * WHY this is an error and not `GeminiProvider::new(key)`:
+         * `GeminiProvider::new` builds a **Google AI Studio** endpoint
+         * (`generativelanguage.googleapis.com`), not Vertex. A `vertexai` shape reaching this
+         * sync builder would silently embed through a different API than the one the operator
+         * configured — different model names, different quota, different billing. That is the
+         * same wrong-endpoint class of bug that made API keys look broken on Vertex.
+         *
+         * `embedding_from_stored` handles every real `vertexai` connection and never reaches
+         * here; this arm exists so a future caller gets a clear error instead of a silent
+         * detour through AI Studio.
+         */
+        "vertexai" | "vertex" => {
+            return Err(ApiError::BadRequest(
+                "Vertex embeddings need the stored-connection path, which selects the right \
+                 Google identity (service-account JSON, ADC, or the active gcloud account). \
+                 The synchronous builder would target AI Studio instead of Vertex."
+                    .into(),
+            ));
+        }
         "ollama" => {
             let mut adjusted = spec.clone();
             adjusted.embedding_model = Some(model.clone());
@@ -485,6 +583,127 @@ mod tests {
                 );
             }
             Ok(_) => panic!("a service-account file must not build synchronously"),
+        }
+    }
+
+    /// The synchronous embedding builder must refuse Vertex rather than detour to AI Studio.
+    ///
+    /// WHY: `GeminiProvider::new(key)` builds a `generativelanguage` client. A `vertexai` shape
+    /// reaching that path would embed through a different API than the operator configured —
+    /// different models, quota, and billing — and look like success. The stored-connection path
+    /// handles every real Vertex workspace, so this arm should only ever produce an error.
+    #[test]
+    fn sync_embedding_builder_refuses_vertex_instead_of_targeting_ai_studio() {
+        let spec = vertex_spec(Some("AIzaSyExampleKey"));
+        let result = embedding_from_connection(&spec);
+
+        let msg = match result {
+            Err(err) => err.to_string(),
+            Ok(_) => panic!(
+                "a vertexai shape must not build through the sync path; \
+                 that would silently target AI Studio"
+            ),
+        };
+        assert!(
+            msg.contains("stored-connection") || msg.contains("AI Studio"),
+            "the error must say what to do instead: {msg}"
+        );
+    }
+
+    // ── Multimodal embedding must accept all three Vertex credential kinds ───
+    //
+    // WHY these matter: this function used to return `None` for an API key or for the server
+    // identity, so an image workspace configured that way silently fell back to text-only
+    // embedding. Nothing errored; image search just quietly stopped working.
+
+    fn vertex_spec(api_key: Option<&str>) -> ConnectionSpec {
+        ConnectionSpec {
+            shape: "vertexai".into(),
+            base_url: "https://aiplatform.googleapis.com".into(),
+            api_key: api_key.map(str::to_string),
+            model: "gemini-3-8-flash".into(),
+            embedding_model: Some("gemini-embedding-2".into()),
+            embedding_dimension: Some(1536),
+        }
+    }
+
+    fn with_project<T>(value: &str, body: impl FnOnce() -> T) -> T {
+        let previous = std::env::var("GOOGLE_CLOUD_PROJECT").ok();
+        std::env::set_var("GOOGLE_CLOUD_PROJECT", value);
+        let out = body();
+        match previous {
+            Some(v) => std::env::set_var("GOOGLE_CLOUD_PROJECT", v),
+            None => std::env::remove_var("GOOGLE_CLOUD_PROJECT"),
+        }
+        out
+    }
+
+    #[test]
+    fn multimodal_embedder_accepts_a_service_account_json() {
+        // Project comes from the file, so GOOGLE_CLOUD_PROJECT is deliberately absent.
+        let json = r#"{"type":"service_account","client_email":"a@b.iam.gserviceaccount.com","private_key":"-----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY-----","project_id":"file-project"}"#;
+        let spec = vertex_spec(Some(json));
+        let embedder = vertex_multimodal_embedder(&spec).expect("a JSON credential builds");
+        assert!(
+            embedder.is_some(),
+            "a service-account file must yield a multimodal embedder"
+        );
+    }
+
+    /// A Vertex API key cannot embed images: Vertex accepts OAuth2 only.
+    ///
+    /// WHY assert `None` rather than an error: image search is one capability among several. The
+    /// workspace keeps text search; losing pictures is a degradation, not a failed request. The
+    /// returned `None` is what makes the caller fall back to text-only.
+    #[test]
+    #[serial_test::serial]
+    fn multimodal_embedder_reports_no_image_support_for_an_api_key() {
+        with_project("env-project", || {
+            let spec = vertex_spec(Some("AIzaSyExampleKey"));
+            let embedder = vertex_multimodal_embedder(&spec)
+                .expect("an API key is not an error, just limited");
+            assert!(
+                embedder.is_none(),
+                "Vertex rejects API keys, so no multimodal embedder can be built from one"
+            );
+        });
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn multimodal_embedder_accepts_the_server_identity_when_no_secret_is_saved() {
+        with_project("env-project", || {
+            let spec = vertex_spec(None);
+            let embedder = vertex_multimodal_embedder(&spec).expect("ADC builds");
+            assert!(
+                embedder.is_some(),
+                "no saved secret must mean the server identity, not no embedder"
+            );
+        });
+    }
+
+    /// The server identity needs a project; the message must name the variable to set.
+    ///
+    /// `#[serial]` because it mutates `GOOGLE_CLOUD_PROJECT`, which the other Vertex tests in this
+    /// module also read; cargo runs tests on threads, so without it this test would clear the
+    /// project out from under them.
+    #[test]
+    #[serial_test::serial]
+    fn the_server_identity_without_a_project_says_which_variable_to_set() {
+        let previous = std::env::var("GOOGLE_CLOUD_PROJECT").ok();
+        std::env::remove_var("GOOGLE_CLOUD_PROJECT");
+
+        let result = vertex_multimodal_embedder(&vertex_spec(None));
+        let msg = match result {
+            Err(err) => err.to_string(),
+            // An embedder could only be built if a project were somehow present.
+            Ok(Some(_)) => panic!("a server-identity embedder needs a project"),
+            Ok(None) => panic!("the server identity must not silently report no image support"),
+        };
+        assert!(msg.contains("GOOGLE_CLOUD_PROJECT"), "{msg}");
+
+        if let Some(v) = previous {
+            std::env::set_var("GOOGLE_CLOUD_PROJECT", v);
         }
     }
 }

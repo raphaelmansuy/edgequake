@@ -133,7 +133,7 @@ pub const CONNECTION_SHAPES: &[ConnectionShape] = &[
         id: "vertexai",
         label: "Vertex AI",
         default_base_url: "https://aiplatform.googleapis.com",
-        hint: "Service-account JSON (the key behind gcloud auth activate-service-account), a Vertex Express or service-account-bound API key, or this server's Google Cloud identity. A saved secret is encrypted and never shown again.",
+        hint: "Vertex accepts OAuth2 identity, not API keys. (1) Paste a service-account JSON or authorized-user file: its project_id is used, and chat plus image embedding both work. (2) Leave the secret blank: the server's own Google identity is used (ADC file, GCE metadata, or the active gcloud account), and image embedding works too. An API key only authenticates AI Studio, so chat works but picture search does not. A saved secret is encrypted and never shown again.",
         auth: AuthRequirement::ServerGoogleIdentity,
     },
     ConnectionShape {

@@ -125,7 +125,7 @@ impl VertexGeminiEmbedder {
         })
     }
 
-    /// A client whose token is minted from a stored service-account JSON.
+    /// A client whose token is minted from a stored service-account or authorized-user JSON.
     ///
     /// The project comes from that file, so the process does not need
     /// `GOOGLE_CLOUD_PROJECT`.
