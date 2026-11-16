@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.40.13] — 2026-11-16
+
+Release-integrity cut. Schema **231**, unchanged from v0.40.12. `edgequake migrate` is a no-op on
+a database already at 231. Roll the images.
+
+### Why this release exists
+
+v0.40.8 through v0.40.12 were tagged from `cursor/vector-query-statement-timeout-195f` and never
+merged back. `edgequake-main` stayed at schema **227** while the published product served **231**,
+so a release cut from the mainline would have shipped migrations 228–231 as absent — declaring
+`compat_serve_max = 227` against databases already at 231. v0.40.13 merges that line home and is the
+first mainline release since v0.40.7 that can serve 231.
+
+### Fixed
+
+- **Inline HTML markup was quadratic in unclosed tags.** `mergeInlineHtmlTokens()` scanned forward
+  from every opening tag to its closing partner; an unclosed tag — normal for a truncated stream or
+  a literal `<` in prose — walked to the end of the token list and the next tag rescanned. 32 000
+  unclosed tags cost 5.5 s per render in the chat pane. Now linear: 0.40 ms for the same input,
+  byte-identical output. ([#556](https://github.com/raphaelmansuy/edgequake/issues/556), #557)
+- **The document viewer re-scanned the whole document per visible row.** `localHighlightForSlice`
+  ran inside the virtualizer's row map and resolved two offsets that are identical for every row.
+  On a 2 MB document that was 11.7 ms per frame; it is 1.5 ms now.
+- **Vertex embedding used the file's project instead of the connection's.** A project saved on the
+  connection now wins over `project_id` in the service-account JSON, so the server does not need
+  `GOOGLE_CLOUD_PROJECT` when the credential already carries one.
+
+### Added
+
+- **A schema-regression gate.** `make release-gates` and CI fail when `compat_serve_max` is below
+  any published `vX.Y.Z` tag (`scripts/check_schema_no_regression.sh`). The existing schema-train
+  check only proved HEAD was internally consistent — it passed happily on schema 227 while 231 was
+  published, which is how this drift shipped.
+- **A WebUI unit-test CI job.** Nothing in the pipeline ran `pnpm test`, so no rendering guard could
+  block a merge. It now runs on every PR.
+
+### Changed
+
+- Carried from the v0.40.8–v0.40.12 line: clearance/RLS InitPlan rewrites (228–230), the saved
+  Vertex project migration (231), model selection by capability, and the hybrid vector statement
+  budget.
+
+**SPEC-001 Acc:** not re-scored. Mix retrieval is unchanged. The latest valid pack remains
+`medical-mid-20261024T031725Z` (`valid: true`): EdgeQuake **0.8084**, LightRAG **0.7681**, delta
+**+0.0403**, 95% CI **[-0.0241, +0.1036]** (n_paired 72). The interval includes 0, so this is a
+statistical tie. EdgeQuake does not claim a win.
+
 ## [0.40.12] — 2026-11-09
 
 Patch on v0.40.11. Schema stays **231**. `edgequake migrate` is a no-op when the database is already at 231.

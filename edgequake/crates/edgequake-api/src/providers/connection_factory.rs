@@ -671,6 +671,7 @@ mod tests {
             model: "gemini-3-8-flash".into(),
             embedding_model: Some("gemini-embedding-2".into()),
             embedding_dimension: Some(1536),
+            google_project: None,
         }
     }
 
