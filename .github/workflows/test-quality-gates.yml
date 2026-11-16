@@ -88,6 +88,39 @@ jobs:
       - name: Validate chromium gate anti-patterns
         run: make test-e2e-lint
 
+  webui-unit:
+    name: WebUI Unit (vitest)
+    # WHY this job exists: nothing in CI ran the WebUI unit suite. Every complexity
+    # and parity guard for rendering code lived only in `pnpm test`, so a regression
+    # there could merge green — GH-556's quadratic merge guard is exactly that shape.
+    # It is cheap (~11s locally) and now runs on every PR.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      # WebUI `engines.node` is `^22.13.0 || >=24.0.0`: jsdom needs to require an
+      # ESM-only dependency, which Node 20 cannot do. On a lower Node the
+      # `require-test-node.mjs` preflight fails the run (correctly) rather than
+      # letting every .dom.test.ts(x) file silently vanish.
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.13.1
+
+      - name: Install frontend dependencies
+        working-directory: edgequake_webui
+        run: pnpm install --frozen-lockfile
+
+      - name: Run WebUI unit suite
+        working-directory: edgequake_webui
+        run: pnpm test
+
   e2e-ui:
     name: E2E UI Gate (chromium, no backend)
     # Playwright 1.58.2 has no Chromium build for ubuntu26.04-x64, and
@@ -126,7 +159,7 @@ jobs:
 
   quality-summary:
     name: Quality Gate Summary
-    needs: [invariant-tests, test-count-gate, e2e-flake-lint, e2e-ui]
+    needs: [invariant-tests, test-count-gate, e2e-flake-lint, webui-unit, e2e-ui]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -139,6 +172,7 @@ jobs:
           echo "| Invariant Tests | ${{ needs.invariant-tests.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Test Count (>=870) | ${{ needs.test-count-gate.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| E2E Flake Lint | ${{ needs.e2e-flake-lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| WebUI Unit (vitest) | ${{ needs.webui-unit.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| E2E UI Gate | ${{ needs.e2e-ui.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Workspace lib suite lives in **CI → Test** (not duplicated here)." >> $GITHUB_STEP_SUMMARY
@@ -155,6 +189,10 @@ jobs:
             echo "::error::E2E flake lint failed — fix anti-patterns in chromium gate specs"
             exit 1
           fi
+          if [ "${{ needs.webui-unit.result }}" == "failure" ]; then
+            echo "::error::WebUI unit suite failed — run (cd edgequake_webui && pnpm test)"
+            exit 1
+          fi
           # Timeout / concurrency cancel must fail the summary (else a cancelled
           # 45–60m e2e-ui greenwashes Quality Gate Summary while Release is blocked).
           if [ "${{ needs.e2e-ui.result }}" == "failure" ] || [ "${{ needs.e2e-ui.result }}" == "cancelled" ]; then
@@ -163,7 +201,8 @@ jobs:
           fi
           if [ "${{ needs.invariant-tests.result }}" == "cancelled" ] || \
              [ "${{ needs.test-count-gate.result }}" == "cancelled" ] || \
-             [ "${{ needs.e2e-flake-lint.result }}" == "cancelled" ]; then
+             [ "${{ needs.e2e-flake-lint.result }}" == "cancelled" ] || \
+             [ "${{ needs.webui-unit.result }}" == "cancelled" ]; then
             echo "::error::A required quality gate was cancelled"
             exit 1
           fi

@@ -32,7 +32,8 @@
 import { cn } from '@/lib/utils';
 import {
   findChunkIndexForRange,
-  localHighlightForSlice,
+  localHighlightForSliceAt,
+  resolveGlobalOffsets,
   type HighlightLineRange,
 } from '@/lib/utils/markdown-highlight';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -305,6 +306,18 @@ export const VirtualizedMarkdownContent = memo(function VirtualizedMarkdownConte
     [chunks],
   );
 
+  // GH-556 follow-up: resolve the highlight range to document offsets ONCE per
+  // render. Before this, `localHighlightForSlice` ran inside the row map below and
+  // each call re-scanned the whole document, so scrolling a multi-megabyte
+  // document cost O(rows × document) per frame (~24 ms at 2 MB).
+  const globalHighlightOffsets = useMemo(
+    () =>
+      highlightLineRange
+        ? resolveGlobalOffsets(content, highlightLineRange)
+        : undefined,
+    [content, highlightLineRange],
+  );
+
   // Stable estimateSize callback for the virtualizer.
   const estimateSize = useCallback(
     (index: number) => estimatedHeights[index] ?? 400,
@@ -415,12 +428,11 @@ export const VirtualizedMarkdownContent = memo(function VirtualizedMarkdownConte
               <VirtualizedChunk chunk={chunks[virtualRow.index]}>
                 {(chunkContent) => {
                   const sliceStart = sliceStarts[virtualRow.index] ?? 0;
-                  const localRange = highlightLineRange
-                    ? localHighlightForSlice(
+                  const localRange = globalHighlightOffsets
+                    ? localHighlightForSliceAt(
                         chunkContent,
                         sliceStart,
-                        content,
-                        highlightLineRange,
+                        globalHighlightOffsets,
                       )
                     : undefined;
                   return children(chunkContent, {
