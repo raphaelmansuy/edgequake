@@ -150,10 +150,23 @@ pub struct ProjectionWorkerCounterSnapshot {
     pub quarantine_calls: u64,
 }
 
+/// Operator override for [`ProjectionWorkerConfig::max_attempts`].
+pub const PROJECTION_MAX_ATTEMPTS_ENV: &str = "EDGEQUAKE_PROJECTION_MAX_ATTEMPTS";
+
+/// Product default: a delivery that fails this many claimed attempts is quarantined.
+pub const DEFAULT_PROJECTION_MAX_ATTEMPTS: u32 = 10;
+
 #[derive(Debug, Clone, Copy)]
 pub struct ProjectionWorkerConfig {
     pub batch_size: u32,
     pub lease_duration_ms: u64,
+    /// Maximum number of claimed apply attempts before a delivery is quarantined.
+    ///
+    /// The counter comes from the ledger (`projection_deliveries.attempts`, one
+    /// per claim) and survives process restarts, so this also bounds a delivery
+    /// that keeps dying mid-apply (OOM, crash loop). Zero preserves unbounded
+    /// retries.
+    pub max_attempts: u32,
 }
 
 impl Default for ProjectionWorkerConfig {
@@ -161,8 +174,33 @@ impl Default for ProjectionWorkerConfig {
         Self {
             batch_size: 64,
             lease_duration_ms: 30_000,
+            max_attempts: DEFAULT_PROJECTION_MAX_ATTEMPTS,
         }
     }
+}
+
+impl ProjectionWorkerConfig {
+    /// Config with [`PROJECTION_MAX_ATTEMPTS_ENV`] applied when it parses.
+    ///
+    /// Unset or unparsable values keep the product default instead of failing
+    /// boot, matching the other storage tunables.
+    pub fn from_env() -> Self {
+        let mut config = Self::default();
+        if let Some(parsed) =
+            parse_max_attempts(&std::env::var(PROJECTION_MAX_ATTEMPTS_ENV).unwrap_or_default())
+        {
+            config.max_attempts = parsed;
+        }
+        config
+    }
+}
+
+/// Pure parser for [`PROJECTION_MAX_ATTEMPTS_ENV`].
+///
+/// `0` is meaningful (unbounded retries), so it is accepted; anything that is
+/// not an unsigned integer is ignored by the caller.
+pub fn parse_max_attempts(raw: &str) -> Option<u32> {
+    raw.trim().parse::<u32>().ok()
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -225,7 +263,8 @@ impl ProjectionWorker {
     /// provider call below runs while a queue row lock is held.
     ///
     /// Apply counters and `apply_batch` run once per role present in the claim
-    /// (budget `c*q + c0` with `c = 1`, `c0 = 0`).
+    /// (budget `c*q + c0` with `c = 1`, `c0 = 0`), plus bounded single-item
+    /// isolation for deliveries that reach the retry ceiling in a failed batch.
     pub async fn run_once(&self) -> AccessResult<ProjectionRunReport> {
         self.counters.claim_calls.fetch_add(1, Ordering::Relaxed);
         let items = self
@@ -313,6 +352,15 @@ impl ProjectionWorker {
                 self.quarantine(&item, error.to_string(), report).await?;
                 continue;
             }
+            if self.attempts_over_budget(&item) {
+                self.quarantine_exhausted(
+                    &item,
+                    "no provider call left under the retry limit",
+                    report,
+                )
+                .await?;
+                continue;
+            }
             candidates.push(item);
         }
         if candidates.is_empty() {
@@ -352,19 +400,7 @@ impl ProjectionWorker {
             return Ok(());
         }
 
-        match target {
-            ProjectionTarget::Graph => {
-                self.counters
-                    .graph_apply_calls
-                    .fetch_add(1, Ordering::Relaxed);
-            }
-            ProjectionTarget::Vector => {
-                self.counters
-                    .vector_apply_calls
-                    .fetch_add(1, Ordering::Relaxed);
-            }
-        }
-
+        self.count_apply_call(target);
         let pairs: Vec<(&ProjectionEvent, &DataBindingDescriptor)> = ready
             .iter()
             .map(|item| (&item.event, &item.binding))
@@ -373,9 +409,20 @@ impl ProjectionWorker {
             ProjectionTarget::Graph => self.graph.apply_batch(&pairs).await,
             ProjectionTarget::Vector => self.vector.apply_batch(&pairs).await,
         };
+        drop(pairs);
 
-        let receipts = match result {
-            Ok(receipts) => receipts,
+        let (ready, receipts) = match result {
+            // A receipt list of a different length is a provider contract
+            // violation, not a transient failure: fail the iteration loudly
+            // instead of acking a mismatched pair.
+            Ok(batch_receipts) if batch_receipts.len() != ready.len() => {
+                return Err(AccessError::CorruptData(format!(
+                    "apply_batch returned {} receipts for {} items",
+                    batch_receipts.len(),
+                    ready.len()
+                )));
+            }
+            Ok(batch_receipts) => (ready, batch_receipts),
             Err(error) if is_poison(&error) => {
                 let reason = format!("poison projection payload: {error}");
                 for item in ready {
@@ -384,49 +431,13 @@ impl ProjectionWorker {
                 return Ok(());
             }
             Err(error) => {
-                report.transient_failures += ready.len() as u64;
-                for item in &ready {
-                    let backoff_ms = self
-                        .config
-                        .lease_duration_ms
-                        .saturating_mul(item.delivery.attempt.max(1) as u64)
-                        .min(60_000);
-                    if let Err(release_error) = self
-                        .ledger
-                        .release_for_retry(
-                            &RenewDelivery {
-                                event_id: item.event.event_id,
-                                binding_id: item.binding_id(),
-                                owner_token: self.owner_token,
-                                epoch: item.delivery.epoch,
-                                lease_duration_ms: self.config.lease_duration_ms,
-                            },
-                            backoff_ms,
-                        )
-                        .await
-                    {
-                        tracing::warn!(
-                            event_id = %item.event.event_id,
-                            error = %release_error,
-                            "projection retry release failed"
-                        );
-                    }
-                }
-                tracing::warn!(
-                    error = %error,
-                    count = ready.len(),
-                    "projection apply_batch failed; deliveries returned to retry"
-                );
-                return Ok(());
+                self.retry_failed_batch(ready, target, &error, report)
+                    .await?
             }
         };
 
-        if receipts.len() != ready.len() {
-            return Err(AccessError::CorruptData(format!(
-                "apply_batch returned {} receipts for {} items",
-                receipts.len(),
-                ready.len()
-            )));
+        if ready.is_empty() {
+            return Ok(());
         }
 
         // PROVIDER-ACCESS-E2E04 B3: pause after successful apply, before ack.
@@ -471,21 +482,17 @@ impl ProjectionWorker {
                 // WHY: Ack/visibility failures must not leave deliveries leased
                 // until expiry (seen as projecting stalls with climbing attempts).
                 report.transient_failures += ack_requests.len() as u64;
+                let backoff_ms = self.config.lease_duration_ms.min(60_000);
                 for request in &ack_requests {
-                    let backoff_ms = self.config.lease_duration_ms.min(60_000);
-                    if let Err(release_error) = self
-                        .ledger
-                        .release_for_retry(
-                            &RenewDelivery {
-                                event_id: request.event_id,
-                                binding_id: request.binding_id,
-                                owner_token: self.owner_token,
-                                epoch: request.epoch,
-                                lease_duration_ms: self.config.lease_duration_ms,
-                            },
-                            backoff_ms,
-                        )
-                        .await
+                    let renew = RenewDelivery {
+                        event_id: request.event_id,
+                        binding_id: request.binding_id,
+                        owner_token: self.owner_token,
+                        epoch: request.epoch,
+                        lease_duration_ms: self.config.lease_duration_ms,
+                    };
+                    if let Err(release_error) =
+                        self.ledger.release_for_retry(&renew, backoff_ms).await
                     {
                         tracing::warn!(
                             event_id = %request.event_id,
@@ -534,6 +541,188 @@ impl ProjectionWorker {
             }
         }
         Ok(())
+    }
+
+    /// Whether this claim already exceeded the configured attempt budget.
+    ///
+    /// The claim counted this attempt, so `attempt > max` means the budget is
+    /// spent and no provider call may run. `0` disables the ceiling.
+    fn attempts_over_budget(&self, item: &ProjectionWorkItem) -> bool {
+        self.config.max_attempts > 0 && item.delivery.attempt > self.config.max_attempts
+    }
+
+    /// Whether this claim used the last attempt the ceiling allows.
+    ///
+    /// A failure on this claim cannot be retried, so it must quarantine. The
+    /// asymmetry with [`Self::attempts_over_budget`] is deliberate: attempt
+    /// `max_attempts` is still a real attempt and must be given its provider
+    /// call before the delivery is retired.
+    fn attempts_exhausted(&self, item: &ProjectionWorkItem) -> bool {
+        self.config.max_attempts > 0 && item.delivery.attempt >= self.config.max_attempts
+    }
+
+    fn backoff_ms(&self, item: &ProjectionWorkItem) -> u64 {
+        self.config
+            .lease_duration_ms
+            .saturating_mul(item.delivery.attempt.max(1) as u64)
+            .min(60_000)
+    }
+
+    fn renew_for(&self, item: &ProjectionWorkItem) -> RenewDelivery {
+        RenewDelivery {
+            event_id: item.event.event_id,
+            binding_id: item.binding_id(),
+            owner_token: self.owner_token,
+            epoch: item.delivery.epoch,
+            lease_duration_ms: self.config.lease_duration_ms,
+        }
+    }
+
+    fn count_apply_call(&self, target: ProjectionTarget) {
+        match target {
+            ProjectionTarget::Graph => {
+                self.counters
+                    .graph_apply_calls
+                    .fetch_add(1, Ordering::Relaxed);
+            }
+            ProjectionTarget::Vector => {
+                self.counters
+                    .vector_apply_calls
+                    .fetch_add(1, Ordering::Relaxed);
+            }
+        }
+    }
+
+    async fn apply_one(
+        &self,
+        target: ProjectionTarget,
+        item: &ProjectionWorkItem,
+    ) -> AccessResult<Vec<ProjectionApplyReceipt>> {
+        self.count_apply_call(target);
+        let single = [(&item.event, &item.binding)];
+        match target {
+            ProjectionTarget::Graph => self.graph.apply_batch(&single).await,
+            ProjectionTarget::Vector => self.vector.apply_batch(&single).await,
+        }
+    }
+
+    /// Return one delivery to the retry queue.
+    async fn release_retry(
+        &self,
+        item: &ProjectionWorkItem,
+        backoff_ms: u64,
+        stage: &str,
+    ) -> AccessResult<()> {
+        if let Err(error) = self
+            .ledger
+            .release_for_retry(&self.renew_for(item), backoff_ms)
+            .await
+        {
+            tracing::warn!(
+                event_id = %item.event.event_id,
+                error = %error,
+                stage,
+                "projection retry release failed"
+            );
+        }
+        Ok(())
+    }
+
+    /// Quarantine a delivery that has used every attempt the ceiling allows.
+    async fn quarantine_exhausted(
+        &self,
+        item: &ProjectionWorkItem,
+        detail: &str,
+        report: &mut ProjectionRunReport,
+    ) -> AccessResult<()> {
+        let reason = format!(
+            "projection retry limit {} reached after {} claimed attempts: {detail}",
+            self.config.max_attempts, item.delivery.attempt
+        );
+        self.quarantine(item, reason, report).await
+    }
+
+    /// Settle a batch whose provider apply failed.
+    ///
+    /// Healthy members go back to the retry queue. A member that reached the
+    /// ceiling is re-applied on its own, so one deterministic failure cannot
+    /// quarantine the rest of the batch; only the culprit is quarantined.
+    /// Returns the deliveries that the isolated retry applied, with receipts.
+    async fn retry_failed_batch(
+        &self,
+        items: Vec<ProjectionWorkItem>,
+        target: ProjectionTarget,
+        error: &AccessError,
+        report: &mut ProjectionRunReport,
+    ) -> AccessResult<(Vec<ProjectionWorkItem>, Vec<ProjectionApplyReceipt>)> {
+        let count = items.len();
+        report.transient_failures += count as u64;
+        let mut applied = Vec::new();
+        let mut receipts = Vec::new();
+        for item in items {
+            if !self.attempts_exhausted(&item) {
+                let backoff_ms = self.backoff_ms(&item);
+                self.release_retry(&item, backoff_ms, "apply").await?;
+                continue;
+            }
+            // Isolation only distinguishes a culprit from healthy siblings. In a
+            // one-delivery batch the failed call already was that delivery's
+            // only call, so re-applying it would pay the same failing provider
+            // call twice (the expensive timeout/OOM path) and learn nothing.
+            if count == 1 {
+                let detail = format!("single-delivery batch apply failed ({error})");
+                self.quarantine_exhausted(&item, &detail, report).await?;
+                continue;
+            }
+            if let Some(receipt) = self.isolate_exhausted(&item, target, error, report).await? {
+                applied.push(item);
+                receipts.push(receipt);
+            }
+        }
+        tracing::warn!(
+            error = %error,
+            count,
+            "projection apply_batch failed; deliveries returned to retry"
+        );
+        Ok((applied, receipts))
+    }
+
+    /// Re-apply one exhausted delivery alone and classify the outcome.
+    ///
+    /// Returns the receipt when the isolated retry succeeded. Every other
+    /// outcome quarantines the delivery with the reason that explains it.
+    async fn isolate_exhausted(
+        &self,
+        item: &ProjectionWorkItem,
+        target: ProjectionTarget,
+        batch_error: &AccessError,
+        report: &mut ProjectionRunReport,
+    ) -> AccessResult<Option<ProjectionApplyReceipt>> {
+        let outcome = match self.apply_one(target, item).await {
+            Ok(mut receipts) if receipts.len() == 1 => Ok(receipts.remove(0)),
+            Ok(receipts) => Err(AccessError::CorruptData(format!(
+                "single-item apply returned {} receipts",
+                receipts.len()
+            ))),
+            Err(error) => Err(error),
+        };
+        match outcome {
+            Ok(receipt) => Ok(Some(receipt)),
+            Err(error) if is_poison(&error) => {
+                let detail = format!("poison projection payload: {error}");
+                self.quarantine_exhausted(item, &detail, report)
+                    .await
+                    .map(|()| None)
+            }
+            Err(error) => {
+                let detail = format!(
+                    "batch apply failed ({batch_error}); single-item apply failed ({error})"
+                );
+                self.quarantine_exhausted(item, &detail, report)
+                    .await
+                    .map(|()| None)
+            }
+        }
     }
 
     async fn quarantine(
@@ -710,6 +899,294 @@ mod tests {
             Arc::new(NoopVectorProjectionApplier),
             ProjectionWorkerConfig::default(),
         )
+    }
+
+    /// Graph applier whose behaviour depends on how many items it receives.
+    ///
+    /// `fail_batches` models a failure caused by one member of a multi-item
+    /// batch: a single-item call succeeds, so the culprit is the batch itself.
+    struct SelectiveGraphApplier {
+        calls: AtomicU64,
+        fail_batches: bool,
+        fail_everything: bool,
+    }
+
+    impl SelectiveGraphApplier {
+        fn failing_batches() -> Self {
+            Self {
+                calls: AtomicU64::new(0),
+                fail_batches: true,
+                fail_everything: false,
+            }
+        }
+
+        fn failing_everything() -> Self {
+            Self {
+                calls: AtomicU64::new(0),
+                fail_batches: false,
+                fail_everything: true,
+            }
+        }
+    }
+
+    #[async_trait]
+    impl GraphProjectionApplier for SelectiveGraphApplier {
+        async fn apply_batch(
+            &self,
+            items: &[(&ProjectionEvent, &DataBindingDescriptor)],
+        ) -> AccessResult<Vec<ProjectionApplyReceipt>> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            if self.fail_everything {
+                return Err(AccessError::Unavailable("projection apply failed".into()));
+            }
+            if self.fail_batches && items.len() > 1 {
+                return Err(AccessError::Unavailable(
+                    "one member poisoned the batch".into(),
+                ));
+            }
+            Ok(items
+                .iter()
+                .map(|(event, binding)| noop_receipt("graph", event, binding.binding_id))
+                .collect())
+        }
+    }
+
+    /// Ledger that records which deliveries the worker released or quarantined.
+    #[derive(Default)]
+    struct RecordingLedger {
+        items: Mutex<Vec<ProjectionWorkItem>>,
+        released: Mutex<Vec<Uuid>>,
+        quarantined: Mutex<Vec<Uuid>>,
+    }
+
+    impl RecordingLedger {
+        fn with_items(items: Vec<ProjectionWorkItem>) -> Self {
+            Self {
+                items: Mutex::new(items),
+                ..Self::default()
+            }
+        }
+
+        fn released(&self) -> Vec<Uuid> {
+            self.released.lock().unwrap().clone()
+        }
+
+        fn quarantined(&self) -> Vec<Uuid> {
+            self.quarantined.lock().unwrap().clone()
+        }
+    }
+
+    #[async_trait]
+    impl ProjectionWorkLedger for RecordingLedger {
+        async fn claim_work(
+            &self,
+            _request: &ClaimDeliveries,
+        ) -> AccessResult<Vec<ProjectionWorkItem>> {
+            Ok(std::mem::take(&mut *self.items.lock().unwrap()))
+        }
+
+        async fn renew_work(&self, _request: &RenewDelivery) -> AccessResult<()> {
+            Ok(())
+        }
+
+        async fn renew_work_batch(
+            &self,
+            requests: &[RenewDelivery],
+        ) -> AccessResult<Vec<(Uuid, Uuid)>> {
+            Ok(requests
+                .iter()
+                .map(|r| (r.event_id, r.binding_id))
+                .collect())
+        }
+
+        async fn acknowledge(&self, request: &AckDelivery) -> AccessResult<ProjectionDelivery> {
+            Ok(self.acked(request))
+        }
+
+        async fn acknowledge_batch(
+            &self,
+            requests: &[AckDelivery],
+        ) -> AccessResult<Vec<(Uuid, Uuid)>> {
+            Ok(requests
+                .iter()
+                .map(|r| (r.event_id, r.binding_id))
+                .collect())
+        }
+
+        async fn quarantine_work(
+            &self,
+            request: &QuarantineDelivery,
+        ) -> AccessResult<ProjectionDelivery> {
+            self.quarantined.lock().unwrap().push(request.event_id);
+            Ok(delivery(1))
+        }
+
+        async fn release_for_retry(
+            &self,
+            request: &RenewDelivery,
+            _backoff_ms: u64,
+        ) -> AccessResult<()> {
+            self.released.lock().unwrap().push(request.event_id);
+            Ok(())
+        }
+    }
+
+    impl RecordingLedger {
+        fn acked(&self, request: &AckDelivery) -> ProjectionDelivery {
+            let mut acked = delivery(request.epoch);
+            acked.event_id = request.event_id;
+            acked.binding_id = request.binding_id;
+            acked
+        }
+    }
+
+    fn item_for(event_id: u128, attempt: u32) -> ProjectionWorkItem {
+        let mut item = work(PROJECTION_SCHEMA_V1);
+        item.event.event_id = Uuid::from_u128(event_id);
+        item.delivery.event_id = Uuid::from_u128(event_id);
+        item.delivery.attempt = attempt;
+        item
+    }
+
+    fn worker_with(
+        ledger: Arc<RecordingLedger>,
+        graph: Arc<dyn GraphProjectionApplier>,
+        max_attempts: u32,
+    ) -> ProjectionWorker {
+        ProjectionWorker::new(
+            Uuid::from_u128(3),
+            ledger,
+            graph,
+            Arc::new(NoopVectorProjectionApplier),
+            ProjectionWorkerConfig {
+                max_attempts,
+                ..ProjectionWorkerConfig::default()
+            },
+        )
+    }
+
+    #[tokio::test]
+    async fn exhausted_single_delivery_is_quarantined_instead_of_retried() {
+        let max_attempts = 3;
+        let ledger = Arc::new(RecordingLedger::with_items(vec![item_for(1, max_attempts)]));
+        let graph = Arc::new(SelectiveGraphApplier::failing_everything());
+        let worker = worker_with(ledger.clone(), graph.clone(), max_attempts);
+
+        let report = worker.run_once().await.unwrap();
+
+        assert_eq!(report.quarantined, 1);
+        assert_eq!(ledger.quarantined(), vec![Uuid::from_u128(1)]);
+        assert!(ledger.released().is_empty());
+        // The batch call was this delivery's only call, so no redundant
+        // single-item re-apply.
+        assert_eq!(graph.calls.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test]
+    async fn delivery_already_over_the_ceiling_is_quarantined_before_any_provider_call() {
+        let max_attempts = 2;
+        // A crash after the claim consumes an attempt without a provider call.
+        // Once the budget is spent there is nothing left to apply, so the
+        // delivery must be retired without another paid call.
+        let ledger = Arc::new(RecordingLedger::with_items(vec![item_for(
+            1,
+            max_attempts + 1,
+        )]));
+        let graph = Arc::new(SelectiveGraphApplier::failing_everything());
+        let worker = worker_with(ledger.clone(), graph.clone(), max_attempts);
+
+        let report = worker.run_once().await.unwrap();
+
+        assert_eq!(report.quarantined, 1);
+        assert_eq!(ledger.quarantined(), vec![Uuid::from_u128(1)]);
+        assert_eq!(graph.calls.load(Ordering::Relaxed), 0);
+        assert_eq!(worker.counters().snapshot().graph_apply_calls, 0);
+    }
+
+    #[tokio::test]
+    async fn last_allowed_attempt_still_gets_its_provider_call() {
+        let max_attempts = 2;
+        let ledger = Arc::new(RecordingLedger::with_items(vec![item_for(1, max_attempts)]));
+        let graph = Arc::new(SelectiveGraphApplier::failing_everything());
+        let worker = worker_with(ledger.clone(), graph.clone(), max_attempts);
+
+        let report = worker.run_once().await.unwrap();
+
+        // The delivery can fail on its last allowed attempt, so the call runs and
+        // the delivery is then retired without a redundant second call.
+        assert_eq!(graph.calls.load(Ordering::Relaxed), 1);
+        assert_eq!(report.quarantined, 1);
+    }
+
+    #[tokio::test]
+    async fn healthy_batch_member_is_not_quarantined_with_the_exhausted_one() {
+        let max_attempts = 3;
+        let ledger = Arc::new(RecordingLedger::with_items(vec![
+            item_for(1, max_attempts),
+            item_for(2, 1),
+        ]));
+        let graph = Arc::new(SelectiveGraphApplier::failing_batches());
+        let worker = worker_with(ledger.clone(), graph.clone(), max_attempts);
+
+        let report = worker.run_once().await.unwrap();
+
+        // The exhausted delivery is re-applied alone and goes through, so the
+        // healthy delivery is only returned to the queue for a later attempt.
+        assert_eq!(report.quarantined, 0);
+        assert!(ledger.quarantined().is_empty());
+        assert_eq!(ledger.released(), vec![Uuid::from_u128(2)]);
+        assert_eq!(report.applied, 1);
+        assert_eq!(report.transient_failures, 2);
+        assert_eq!(graph.calls.load(Ordering::Relaxed), 2);
+    }
+
+    #[tokio::test]
+    async fn exhausted_culprit_is_quarantined_and_its_sibling_still_retries() {
+        let max_attempts = 2;
+        let ledger = Arc::new(RecordingLedger::with_items(vec![
+            item_for(1, max_attempts),
+            item_for(2, 1),
+        ]));
+        let graph = Arc::new(SelectiveGraphApplier::failing_everything());
+        let worker = worker_with(ledger.clone(), graph.clone(), max_attempts);
+
+        let report = worker.run_once().await.unwrap();
+
+        assert_eq!(report.quarantined, 1);
+        assert_eq!(ledger.quarantined(), vec![Uuid::from_u128(1)]);
+        assert_eq!(ledger.released(), vec![Uuid::from_u128(2)]);
+        assert_eq!(report.applied, 0);
+    }
+
+    #[tokio::test]
+    async fn zero_max_attempts_keeps_retrying_forever() {
+        let ledger = Arc::new(RecordingLedger::with_items(vec![item_for(1, 500)]));
+        let graph = Arc::new(SelectiveGraphApplier::failing_everything());
+        let worker = worker_with(ledger.clone(), graph.clone(), 0);
+
+        let report = worker.run_once().await.unwrap();
+
+        assert_eq!(report.quarantined, 0);
+        assert!(ledger.quarantined().is_empty());
+        assert_eq!(ledger.released(), vec![Uuid::from_u128(1)]);
+        // No isolation pass when the ceiling is disabled.
+        assert_eq!(graph.calls.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn max_attempts_env_parses_zero_and_rejects_noise() {
+        assert_eq!(parse_max_attempts("0"), Some(0));
+        assert_eq!(parse_max_attempts(" 12 "), Some(12));
+        assert_eq!(parse_max_attempts(""), None);
+        assert_eq!(parse_max_attempts("ten"), None);
+        assert_eq!(parse_max_attempts("-1"), None);
+    }
+
+    #[test]
+    fn config_defaults_to_a_bounded_retry_budget() {
+        let config = ProjectionWorkerConfig::default();
+        assert_eq!(config.max_attempts, DEFAULT_PROJECTION_MAX_ATTEMPTS);
+        assert!(config.max_attempts > 0, "default must bound retries");
     }
 
     struct AlternateGraphApplier;

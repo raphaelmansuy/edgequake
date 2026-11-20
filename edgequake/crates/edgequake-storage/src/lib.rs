@@ -250,10 +250,11 @@ pub use pdf_storage::{
 };
 #[cfg(feature = "postgres")]
 pub use projection::{
-    scoped_graph_node_id, AgeGraphProjectionApplier, GraphProjectionApplier, PgProjectionLedger,
-    PgvectorProjectionApplier, ProjectionLedger, ProjectionRunReport, ProjectionTarget,
-    ProjectionWorkLedger, ProjectionWorker, ProjectionWorkerConfig, ProjectionWorkerCounters,
-    ProjectionWorkerRuntime, ServingFenceOpener, VectorProjectionApplier,
+    parse_max_attempts, scoped_graph_node_id, AgeGraphProjectionApplier, GraphProjectionApplier,
+    PgProjectionLedger, PgvectorProjectionApplier, ProjectionLedger, ProjectionRunReport,
+    ProjectionTarget, ProjectionWorkLedger, ProjectionWorker, ProjectionWorkerConfig,
+    ProjectionWorkerCounters, ProjectionWorkerRuntime, ServingFenceOpener, VectorProjectionApplier,
+    DEFAULT_PROJECTION_MAX_ATTEMPTS, PROJECTION_MAX_ATTEMPTS_ENV,
 };
 pub use projection_manifest::canonical_graph_node_id;
 

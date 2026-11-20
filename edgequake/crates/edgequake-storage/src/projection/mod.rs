@@ -19,8 +19,9 @@ pub use payload::{
 pub use runtime::ProjectionWorkerRuntime;
 pub use serving_fence_port::ServingFenceOpener;
 pub use worker::{
-    GraphProjectionApplier, ProjectionRunReport, ProjectionWorker, ProjectionWorkerConfig,
-    ProjectionWorkerCounterSnapshot, ProjectionWorkerCounters, VectorProjectionApplier,
+    parse_max_attempts, GraphProjectionApplier, ProjectionRunReport, ProjectionWorker,
+    ProjectionWorkerConfig, ProjectionWorkerCounterSnapshot, ProjectionWorkerCounters,
+    VectorProjectionApplier, DEFAULT_PROJECTION_MAX_ATTEMPTS, PROJECTION_MAX_ATTEMPTS_ENV,
 };
 
 #[cfg(test)]
