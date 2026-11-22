@@ -37,7 +37,7 @@ opentelemetry = { version = "0.32", optional = true }
 opentelemetry_sdk = { version = "0.32", features = ["rt-tokio", "testing"], optional = true }
 # SPEC-124: grpc-tonic (Jaeger) + http-proto (Langfuse OTLP/HTTP; gRPC unsupported by Langfuse).
 # reqwest-rustls: HTTPS to cloud.langfuse.com / us.cloud… (reqwest 0.13 blocking has no TLS by default).
-opentelemetry-otlp = { version = "0.32", features = ["grpc-tonic", "http-proto", "reqwest-blocking-client", "reqwest-rustls", "trace"], optional = true }
+opentelemetry-otlp = { version = "0.33", features = ["grpc-tonic", "http-proto", "reqwest-blocking-client", "reqwest-rustls", "trace"], optional = true }
 tracing-opentelemetry = { version = "0.33", optional = true }
 # Native Langfuse ingestion (pre-3.22 self-hosted) needs JSON POST.
 # Direct pin is workspace reqwest 0.12 (async Client in the exporter; `blocking`
