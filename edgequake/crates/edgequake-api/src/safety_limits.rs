@@ -1325,7 +1325,7 @@ pub fn is_model_provider_mismatch(provider_name: &str, model: &str) -> bool {
 pub fn default_model_for_provider(provider_name: &str) -> &'static str {
     match provider_name.to_lowercase().as_str() {
         "openai" => "gpt-5.6-luna",
-        "anthropic" => "claude-sonnet-4-5-20250929",
+        "anthropic" => "claude-sonnet-4-6",
         "gemini" => "gemini-2.5-flash",
         "xai" => "grok-4-1-fast",
         "openrouter" => "openai/gpt-4o-mini",
@@ -1350,6 +1350,15 @@ mod default_model_tests {
         assert_eq!(
             default_model_for_provider("unknown-provider"),
             "gpt-5.6-luna"
+        );
+    }
+
+    #[test]
+    fn anthropic_default_matches_the_workspace_default() {
+        // claude-sonnet-4-5-20250929 retires on the Anthropic API on 2026-11-30.
+        assert_eq!(
+            default_model_for_provider("anthropic"),
+            edgequake_core::Workspace::default_model_for_provider("anthropic")
         );
     }
 

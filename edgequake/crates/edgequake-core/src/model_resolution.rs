@@ -182,7 +182,7 @@ pub fn env_vision_model() -> Option<String> {
 pub fn compiled_vision_model_for(provider: &str) -> String {
     match provider {
         "openai" => "gpt-5.6-luna".to_string(),
-        "anthropic" => "claude-sonnet-4-20250514".to_string(),
+        "anthropic" => "claude-sonnet-4-6".to_string(),
         "mistral" => "mistral-small-latest".to_string(),
         _ => "gemma4:latest".to_string(),
     }
@@ -713,5 +713,11 @@ mod tests {
     fn compiled_openai_vision_default_is_not_a_retired_model() {
         // gpt-4.1-nano is shut down on the OpenAI API on 2026-10-23.
         assert_eq!(compiled_vision_model_for("openai"), "gpt-5.6-luna");
+    }
+
+    #[test]
+    fn compiled_anthropic_vision_default_is_not_a_retired_model() {
+        // claude-sonnet-4-20250514 was retired on the Anthropic API on 2026-06-15.
+        assert_eq!(compiled_vision_model_for("anthropic"), "claude-sonnet-4-6");
     }
 }
